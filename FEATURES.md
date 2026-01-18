@@ -130,6 +130,32 @@ This document tracks all completed features with links to their documentation.
 
 ---
 
+## Phase 6: AI Coach Integration
+- **Status**: Complete
+- **Date**: 2026-01-18
+- **Documentation**: docs/features/ai-coach.md
+- **Handover**: docs/handover/phase6-ai-coach-handover.md
+- **Key Files**:
+  - Backend: `backend/src/services/ai.service.ts`, `backend/src/routes/ai.routes.ts`
+  - Flutter Models: `app/lib/features/ai_coach/models/*.dart`
+  - Flutter Providers: `app/lib/features/ai_coach/providers/*.dart`
+  - Flutter Screens: `app/lib/features/ai_coach/screens/*.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- AI service with Groq Llama 3.1 70B integration
+- Chat endpoint with system prompt engineering
+- Quick prompt responses for common questions
+- Form cues endpoint for exercises
+- Contextual suggestions based on workout state
+- Freezed models for chat messages and responses
+- Full chat UI with message bubbles and typing indicator
+- Quick prompt chips for easy access
+- AI status indicator in app bar
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -140,15 +166,15 @@ This document tracks all completed features with links to their documentation.
 
 Based on the development plan, the next features to implement are:
 
-1. **Phase 6: AI Coach Integration**
-   - Groq API integration
-   - Chat interface
-   - Contextual suggestions
-
-2. **Phase 7: Social Features**
+1. **Phase 7: Social Features**
    - Activity feed
    - Follow system
    - Challenges
+
+2. **Phase 8: Notifications & Settings**
+   - Push notifications
+   - User settings screen
+   - GDPR data export
 
 ---
 
