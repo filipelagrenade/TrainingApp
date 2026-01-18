@@ -169,6 +169,109 @@ final contextualSuggestionProvider = FutureProvider.autoDispose
 AIResponse _getMockResponse(String userMessage) {
   final lowerMessage = userMessage.toLowerCase();
 
+  // Check for alternatives/substitutes FIRST before checking specific exercises
+  if (lowerMessage.contains('alternative') ||
+      lowerMessage.contains('substitute') ||
+      lowerMessage.contains('instead of') ||
+      lowerMessage.contains('replace') ||
+      lowerMessage.contains('swap')) {
+    // Determine which exercise they're asking about
+    if (lowerMessage.contains('bench') ||
+        lowerMessage.contains('dumbbell press') ||
+        lowerMessage.contains('chest press')) {
+      return const AIResponse(
+        message:
+            "Here are some great alternatives to dumbbell bench press:\n\n"
+            "**Push-up Variations:**\n"
+            "• Standard push-ups - bodyweight classic\n"
+            "• Incline push-ups - easier, great for beginners\n"
+            "• Decline push-ups - more chest emphasis\n\n"
+            "**Other Pressing Movements:**\n"
+            "• Barbell bench press - heavier loading\n"
+            "• Machine chest press - stable, good for isolation\n"
+            "• Cable flyes - constant tension\n"
+            "• Floor press - limits range, easier on shoulders\n\n"
+            "**Dumbbell Variations:**\n"
+            "• Incline dumbbell press - upper chest focus\n"
+            "• Dumbbell flyes - stretch emphasis\n"
+            "• Single-arm dumbbell press - core challenge",
+        suggestions: [
+          'Try push-ups for a bodyweight option',
+          'Use cables for constant tension',
+          'Incline pressing for upper chest',
+        ],
+      );
+    }
+
+    if (lowerMessage.contains('squat')) {
+      return const AIResponse(
+        message:
+            "Here are excellent squat alternatives:\n\n"
+            "**Barbell Variations:**\n"
+            "• Front squat - more quad dominant\n"
+            "• Goblet squat - great for learning\n"
+            "• Bulgarian split squat - unilateral strength\n\n"
+            "**Machine Options:**\n"
+            "• Leg press - heavy loading, less spinal stress\n"
+            "• Hack squat - guided movement pattern\n"
+            "• Smith machine squat - added stability\n\n"
+            "**Bodyweight:**\n"
+            "• Pistol squats - advanced single-leg\n"
+            "• Step-ups - functional movement\n"
+            "• Lunges - walking or stationary",
+        suggestions: [
+          'Leg press for heavy quad work',
+          'Bulgarian splits for unilateral training',
+          'Goblet squats to improve form',
+        ],
+      );
+    }
+
+    if (lowerMessage.contains('deadlift')) {
+      return const AIResponse(
+        message:
+            "Here are great deadlift alternatives:\n\n"
+            "**Barbell Variations:**\n"
+            "• Romanian deadlift (RDL) - hamstring focus\n"
+            "• Sumo deadlift - different hip angle\n"
+            "• Trap bar deadlift - easier on lower back\n\n"
+            "**Other Hip Hinges:**\n"
+            "• Kettlebell swings - explosive power\n"
+            "• Good mornings - posterior chain\n"
+            "• Hip thrusts - glute emphasis\n"
+            "• Cable pull-throughs - constant tension\n\n"
+            "**Machine Options:**\n"
+            "• Lying leg curl - hamstring isolation\n"
+            "• Back extension - lower back strength",
+        suggestions: [
+          'RDLs for hamstring focus',
+          'Trap bar for easier setup',
+          'Hip thrusts for glute strength',
+        ],
+      );
+    }
+
+    // Generic alternatives response
+    return const AIResponse(
+      message:
+          "When looking for exercise alternatives, consider:\n\n"
+          "**Same Movement Pattern:**\n"
+          "• Push → other pushing exercises\n"
+          "• Pull → other pulling exercises\n"
+          "• Hinge → other hip hinge movements\n"
+          "• Squat → other knee-dominant exercises\n\n"
+          "**Equipment Swaps:**\n"
+          "• Barbell ↔ Dumbbells ↔ Cables ↔ Machines\n"
+          "• Free weights ↔ Bodyweight\n\n"
+          "Tell me which specific exercise you want to replace and I'll give you targeted alternatives!",
+      suggestions: [
+        'Ask about a specific exercise',
+        'Consider your equipment available',
+        'Match the muscle groups',
+      ],
+    );
+  }
+
   if (lowerMessage.contains('bench') || lowerMessage.contains('press')) {
     return const AIResponse(
       message:
