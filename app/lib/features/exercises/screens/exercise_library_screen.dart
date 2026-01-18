@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liftiq/shared/widgets/loading_shimmer.dart';
 import '../models/exercise.dart';
 import '../providers/exercise_provider.dart';
 
@@ -113,7 +114,7 @@ class ExerciseLibraryScreen extends ConsumerWidget {
                         return _ExerciseCard(exercise: exercises[index]);
                       },
                     ),
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const ShimmerLoadingList(),
               error: (error, stack) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
