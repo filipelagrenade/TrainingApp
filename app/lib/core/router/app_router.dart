@@ -17,11 +17,19 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/workouts/screens/active_workout_screen.dart';
 import '../../features/workouts/screens/workout_history_screen.dart';
+import '../../features/workouts/screens/workout_detail_screen.dart';
+import '../../features/workouts/screens/workout_exercise_screen.dart';
+import '../../features/exercises/screens/exercise_library_screen.dart';
+import '../../features/exercises/screens/exercise_detail_screen.dart';
 import '../../features/templates/screens/templates_screen.dart';
+import '../../features/templates/screens/template_detail_screen.dart';
+import '../../features/templates/screens/create_template_screen.dart';
 import '../../features/ai_coach/screens/chat_screen.dart';
 import '../../features/social/screens/activity_feed_screen.dart';
 import '../../features/social/screens/challenges_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
+import '../../features/settings/screens/profile_edit_screen.dart';
+import '../../features/analytics/screens/progress_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -93,7 +101,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'workoutExercise',
             builder: (context, state) {
               final exerciseId = state.pathParameters['exerciseId']!;
-              return Placeholder(); // TODO: WorkoutExerciseScreen
+              return WorkoutExerciseScreen(exerciseId: exerciseId);
             },
           ),
         ],
@@ -112,7 +120,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'workoutDetail',
             builder: (context, state) {
               final workoutId = state.pathParameters['workoutId']!;
-              return Placeholder(); // TODO: WorkoutDetailScreen
+              return WorkoutDetailScreen(workoutId: workoutId);
             },
           ),
         ],
@@ -124,14 +132,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/exercises',
         name: 'exercises',
-        builder: (context, state) => const Placeholder(), // TODO: ExerciseLibraryScreen
+        builder: (context, state) => const ExerciseLibraryScreen(),
         routes: [
           GoRoute(
             path: ':exerciseId',
             name: 'exerciseDetail',
             builder: (context, state) {
               final exerciseId = state.pathParameters['exerciseId']!;
-              return Placeholder(); // TODO: ExerciseDetailScreen
+              return ExerciseDetailScreen(exerciseId: exerciseId);
             },
           ),
         ],
@@ -148,14 +156,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'create',
             name: 'createTemplate',
-            builder: (context, state) => const Placeholder(), // TODO: CreateTemplateScreen
+            builder: (context, state) => const CreateTemplateScreen(),
           ),
           GoRoute(
             path: ':templateId',
             name: 'templateDetail',
             builder: (context, state) {
               final templateId = state.pathParameters['templateId']!;
-              return Placeholder(); // TODO: TemplateDetailScreen
+              return TemplateDetailScreen(templateId: templateId);
             },
           ),
         ],
@@ -167,7 +175,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/progress',
         name: 'progress',
-        builder: (context, state) => const Placeholder(), // TODO: ProgressScreen
+        builder: (context, state) => const ProgressScreen(),
       ),
 
       // ========================================
@@ -204,7 +212,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'profile',
             name: 'profile',
-            builder: (context, state) => const Placeholder(), // TODO: ProfileEditScreen
+            builder: (context, state) => const ProfileEditScreen(),
           ),
         ],
       ),
