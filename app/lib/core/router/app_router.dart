@@ -17,6 +17,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/workouts/screens/active_workout_screen.dart';
 import '../../features/workouts/screens/workout_history_screen.dart';
+import '../../features/templates/screens/templates_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -138,7 +139,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/templates',
         name: 'templates',
-        builder: (context, state) => const Placeholder(), // TODO: TemplatesScreen
+        builder: (context, state) => const TemplatesScreen(),
         routes: [
           GoRoute(
             path: 'create',

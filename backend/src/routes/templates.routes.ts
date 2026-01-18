@@ -317,6 +317,78 @@ templateRoutes.put(
 );
 
 /**
+ * POST /templates/:id/duplicate
+ *
+ * Duplicates a template for the current user.
+ */
+templateRoutes.post(
+  '/:id/duplicate',
+  validateParams(TemplateIdSchema),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      // Get the source template
+      const source = await prisma.workoutTemplate.findUnique({
+        where: { id },
+        include: {
+          exercises: {
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      });
+
+      if (!source) {
+        throw new NotFoundError('Template');
+      }
+
+      // Allow duplicating own templates or built-in templates
+      if (source.userId !== null && source.userId !== userId) {
+        throw new ForbiddenError('You can only duplicate your own or built-in templates');
+      }
+
+      // Create new template
+      const newTemplate = await prisma.workoutTemplate.create({
+        data: {
+          userId,
+          name: `${source.name} (Copy)`,
+          description: source.description,
+          estimatedDuration: source.estimatedDuration,
+          exercises: {
+            create: source.exercises.map((e) => ({
+              exerciseId: e.exerciseId,
+              orderIndex: e.orderIndex,
+              defaultSets: e.defaultSets,
+              defaultReps: e.defaultReps,
+              defaultRestSeconds: e.defaultRestSeconds,
+              notes: e.notes,
+            })),
+          },
+        },
+        include: {
+          exercises: {
+            orderBy: { orderIndex: 'asc' },
+            include: {
+              exercise: true,
+            },
+          },
+        },
+      });
+
+      logger.info(
+        { sourceTemplateId: id, newTemplateId: newTemplate.id, userId },
+        'Template duplicated'
+      );
+
+      res.status(201).json(successResponse(newTemplate));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * DELETE /templates/:id
  *
  * Deletes a template.
