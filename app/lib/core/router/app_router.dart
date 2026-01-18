@@ -18,6 +18,7 @@ import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/workouts/screens/active_workout_screen.dart';
 import '../../features/workouts/screens/workout_history_screen.dart';
 import '../../features/templates/screens/templates_screen.dart';
+import '../../features/ai_coach/screens/chat_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -164,6 +165,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/progress',
         name: 'progress',
         builder: (context, state) => const Placeholder(), // TODO: ProgressScreen
+      ),
+
+      // ========================================
+      // AI Coach Routes
+      // ========================================
+      GoRoute(
+        path: '/ai-coach',
+        name: 'aiCoach',
+        builder: (context, state) => const ChatScreen(),
       ),
 
       // ========================================

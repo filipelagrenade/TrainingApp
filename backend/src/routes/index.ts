@@ -33,6 +33,7 @@ import { templateRoutes } from './templates.routes';
 import { programRoutes } from './programs.routes';
 import progressionRoutes from './progression.routes';
 import analyticsRoutes from './analytics.routes';
+import aiRoutes from './ai.routes';
 
 /**
  * Main router that aggregates all API routes.
@@ -71,6 +72,8 @@ routes.use('/progression', progressionRoutes);
 // Analytics - workout history, charts, summaries
 routes.use('/analytics', analyticsRoutes);
 
+// AI Coach - chat, quick prompts, form cues
+routes.use('/ai', aiRoutes);
+
 // Future routes (placeholders)
-// routes.use('/ai', aiRoutes);
 // routes.use('/social', socialRoutes);
