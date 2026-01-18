@@ -182,6 +182,31 @@ This document tracks all completed features with links to their documentation.
 
 ---
 
+## Phase 8: Settings & GDPR Compliance
+- **Status**: Complete
+- **Date**: 2026-01-18
+- **Documentation**: docs/features/settings-gdpr.md
+- **Handover**: docs/handover/phase8-settings-gdpr-handover.md
+- **Key Files**:
+  - Backend: `backend/src/routes/settings.routes.ts`
+  - Flutter Models: `app/lib/features/settings/models/*.dart`
+  - Flutter Providers: `app/lib/features/settings/providers/*.dart`
+  - Flutter Screens: `app/lib/features/settings/screens/*.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- Settings routes with GET/PUT for user preferences
+- GDPR endpoints for data export and account deletion
+- UserSettings model with nested settings (RestTimer, Notifications, Privacy)
+- UserSettingsNotifier for state management
+- GdprNotifier for data export/deletion actions
+- Full settings screen with all preference categories
+- Bottom sheets for detailed settings editing
+- Theme, units, workout, notification, and privacy settings
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -192,15 +217,15 @@ This document tracks all completed features with links to their documentation.
 
 Based on the development plan, the next features to implement are:
 
-1. **Phase 8: Notifications & Settings**
-   - Push notifications
-   - User settings screen
-   - GDPR data export
-
-2. **Phase 9: Polish & Testing**
+1. **Phase 9: Polish & Testing**
    - Unit and integration tests
    - Performance optimization
    - Bug fixes
+
+2. **Phase 10: Production Readiness**
+   - Real API integration
+   - Local storage persistence
+   - Error handling improvements
 
 ---
 
