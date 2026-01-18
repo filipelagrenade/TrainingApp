@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 const Color _seedColor = Color(0xFF6366F1);
 
 /// Secondary accent color for highlights.
+// ignore: unused_element
 const Color _accentColor = Color(0xFF10B981);
 
 /// App theme configuration.
