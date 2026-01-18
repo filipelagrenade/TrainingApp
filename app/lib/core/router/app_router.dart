@@ -19,6 +19,8 @@ import '../../features/workouts/screens/active_workout_screen.dart';
 import '../../features/workouts/screens/workout_history_screen.dart';
 import '../../features/templates/screens/templates_screen.dart';
 import '../../features/ai_coach/screens/chat_screen.dart';
+import '../../features/social/screens/activity_feed_screen.dart';
+import '../../features/social/screens/challenges_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -174,6 +176,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ai-coach',
         name: 'aiCoach',
         builder: (context, state) => const ChatScreen(),
+      ),
+
+      // ========================================
+      // Social Routes
+      // ========================================
+      GoRoute(
+        path: '/social',
+        name: 'socialFeed',
+        builder: (context, state) => const ActivityFeedScreen(),
+      ),
+      GoRoute(
+        path: '/challenges',
+        name: 'challenges',
+        builder: (context, state) => const ChallengesScreen(),
       ),
 
       // ========================================

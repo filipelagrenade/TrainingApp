@@ -34,6 +34,7 @@ import { programRoutes } from './programs.routes';
 import progressionRoutes from './progression.routes';
 import analyticsRoutes from './analytics.routes';
 import aiRoutes from './ai.routes';
+import socialRoutes from './social.routes';
 
 /**
  * Main router that aggregates all API routes.
@@ -75,5 +76,5 @@ routes.use('/analytics', analyticsRoutes);
 // AI Coach - chat, quick prompts, form cues
 routes.use('/ai', aiRoutes);
 
-// Future routes (placeholders)
-// routes.use('/social', socialRoutes);
+// Social features - feed, follow, challenges
+routes.use('/social', socialRoutes);
