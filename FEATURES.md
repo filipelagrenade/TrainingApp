@@ -156,6 +156,32 @@ This document tracks all completed features with links to their documentation.
 
 ---
 
+## Phase 7: Social Features
+- **Status**: Complete
+- **Date**: 2026-01-18
+- **Documentation**: docs/features/social-features.md
+- **Handover**: docs/handover/phase7-social-features-handover.md
+- **Key Files**:
+  - Backend: `backend/src/services/social.service.ts`, `backend/src/routes/social.routes.ts`
+  - Flutter Models: `app/lib/features/social/models/*.dart`
+  - Flutter Providers: `app/lib/features/social/providers/*.dart`
+  - Flutter Screens: `app/lib/features/social/screens/*.dart`
+  - Flutter Widgets: `app/lib/features/social/widgets/*.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- Social service with activity feed, follows, challenges
+- Activity feed showing workout completions, PRs, streaks
+- Follow/unfollow system with profile stats
+- Challenges with progress tracking and leaderboards
+- Activity cards with like/comment interactions
+- Challenge cards with join/leave functionality
+- Profile cards and tiles for user lists
+- User search functionality
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -166,15 +192,15 @@ This document tracks all completed features with links to their documentation.
 
 Based on the development plan, the next features to implement are:
 
-1. **Phase 7: Social Features**
-   - Activity feed
-   - Follow system
-   - Challenges
-
-2. **Phase 8: Notifications & Settings**
+1. **Phase 8: Notifications & Settings**
    - Push notifications
    - User settings screen
    - GDPR data export
+
+2. **Phase 9: Polish & Testing**
+   - Unit and integration tests
+   - Performance optimization
+   - Bug fixes
 
 ---
 
