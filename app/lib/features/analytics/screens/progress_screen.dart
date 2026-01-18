@@ -446,7 +446,7 @@ extension TimePeriodDisplay on TimePeriod {
         return '30 Days';
       case TimePeriod.ninetyDays:
         return '90 Days';
-      case TimePeriod.year:
+      case TimePeriod.oneYear:
         return '1 Year';
       case TimePeriod.allTime:
         return 'All Time';
