@@ -20,6 +20,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
+import 'features/settings/providers/settings_provider.dart';
+import 'features/settings/models/user_settings.dart' show AppTheme as AppThemePreference;
 
 /// Main entry point for the application.
 ///
@@ -73,6 +75,16 @@ class LiftIQApp extends ConsumerWidget {
     // Get the router configuration
     final router = ref.watch(appRouterProvider);
 
+    // Watch the user's theme preference
+    final appThemePref = ref.watch(themeModeProvider);
+
+    // Convert AppTheme preference to ThemeMode
+    final themeMode = switch (appThemePref) {
+      AppThemePreference.system => ThemeMode.system,
+      AppThemePreference.light => ThemeMode.light,
+      AppThemePreference.dark => ThemeMode.dark,
+    };
+
     return MaterialApp.router(
       // App identity
       title: 'LiftIQ',
@@ -82,7 +94,7 @@ class LiftIQApp extends ConsumerWidget {
       // Dark mode is default for gym use (easier on eyes, saves battery)
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
 
       // Router configuration
       routerConfig: router,

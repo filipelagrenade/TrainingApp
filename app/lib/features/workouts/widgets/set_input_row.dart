@@ -175,7 +175,7 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
   /// Builds the input row for sets not yet completed.
   Widget _buildInputRow(ThemeData theme, ColorScheme colors) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       decoration: BoxDecoration(
         color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
@@ -188,21 +188,21 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
             children: [
               // Set number badge
               _buildSetNumberBadge(theme, colors),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
 
               // Weight input with +/- buttons
               Expanded(
-                flex: 3,
+                flex: 5,
                 child: _buildWeightInput(theme, colors),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
 
               // Reps input with +/- buttons
               Expanded(
-                flex: 2,
+                flex: 3,
                 child: _buildRepsInput(theme, colors),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
 
               // Complete button
               _buildCompleteButton(theme, colors),
@@ -312,12 +312,14 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
   /// Weight input with increment/decrement buttons.
   Widget _buildWeightInput(ThemeData theme, ColorScheme colors) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Decrement button
         _buildIncrementButton(
           icon: Icons.remove,
           onTap: () => _adjustWeight(-widget.weightIncrement),
           colors: colors,
+          size: 20,
         ),
 
         // Weight text field
@@ -326,16 +328,16 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
             controller: _weightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
+            style: theme.textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.bold,
             ),
             decoration: InputDecoration(
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
               border: InputBorder.none,
               hintText: '0',
               suffixText: widget.unit,
-              suffixStyle: theme.textTheme.bodySmall?.copyWith(
+              suffixStyle: theme.textTheme.labelSmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
             ),
@@ -350,6 +352,7 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
           icon: Icons.add,
           onTap: () => _adjustWeight(widget.weightIncrement),
           colors: colors,
+          size: 20,
         ),
       ],
     );
@@ -358,13 +361,14 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
   /// Reps input with increment/decrement buttons.
   Widget _buildRepsInput(ThemeData theme, ColorScheme colors) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Decrement button
         _buildIncrementButton(
           icon: Icons.remove,
           onTap: () => _adjustReps(-1),
           colors: colors,
-          size: 24,
+          size: 18,
         ),
 
         // Reps text field
@@ -373,14 +377,15 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
             controller: _repsController,
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
+            style: theme.textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.bold,
             ),
             decoration: const InputDecoration(
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 8),
+              contentPadding: EdgeInsets.symmetric(vertical: 6, horizontal: 2),
               border: InputBorder.none,
               hintText: '0',
+              suffixText: 'reps',
             ),
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
@@ -393,7 +398,7 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
           icon: Icons.add,
           onTap: () => _adjustReps(1),
           colors: colors,
-          size: 24,
+          size: 18,
         ),
       ],
     );
@@ -404,22 +409,22 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
     required IconData icon,
     required VoidCallback onTap,
     required ColorScheme colors,
-    double size = 28,
+    double size = 20,
   }) {
     return InkWell(
       onTap: () {
         HapticFeedback.lightImpact();
         onTap();
       },
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(6),
       child: Container(
-        width: size + 12,
-        height: size + 12,
+        width: size + 8,
+        height: size + 8,
         decoration: BoxDecoration(
           color: colors.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
         ),
-        child: Icon(icon, size: size * 0.6),
+        child: Icon(icon, size: size * 0.7),
       ),
     );
   }
@@ -427,8 +432,8 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
   /// Complete set button - the main action.
   Widget _buildCompleteButton(ThemeData theme, ColorScheme colors) {
     return SizedBox(
-      width: 56,
-      height: 48,
+      width: 48,
+      height: 44,
       child: ElevatedButton(
         onPressed: _canComplete ? _completeSet : null,
         style: ElevatedButton.styleFrom(
@@ -436,10 +441,10 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
           foregroundColor: colors.onPrimary,
           padding: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
-        child: const Icon(Icons.check, size: 28),
+        child: const Icon(Icons.check, size: 24),
       ),
     );
   }
