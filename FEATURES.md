@@ -79,6 +79,31 @@ This document tracks all completed features with links to their documentation.
 
 ---
 
+## Phase 4: Progressive Overload Engine
+- **Status**: Complete
+- **Date**: 2026-01-18
+- **Documentation**: docs/features/phase4-progressive-overload.md
+- **Handover**: docs/handover/phase4-progressive-overload-handover.md
+- **Key Files**:
+  - Backend: `backend/src/services/progression.service.ts`, `backend/src/routes/progression.routes.ts`
+  - Flutter Models: `app/lib/features/progression/models/*.dart`
+  - Flutter Providers: `app/lib/features/progression/providers/*.dart`
+  - Flutter Widgets: `app/lib/features/progression/widgets/*.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- Progression service with double progression algorithm
+- 1RM estimation using Epley formula
+- Plateau detection after 3+ sessions without progress
+- Exercise-specific progression rules
+- Freezed models for suggestions, plateaus, and PRs
+- Weight suggestion widgets (chip and card)
+- 1RM calculator state management
+- Suggestion acceptance tracking
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -89,12 +114,7 @@ This document tracks all completed features with links to their documentation.
 
 Based on the development plan, the next features to implement are:
 
-1. **Phase 4: Progressive Overload Engine**
-   - Progression algorithm
-   - Weight suggestion pre-fill
-   - Plateau detection
-
-2. **Phase 5: Progress Tracking & Analytics**
+1. **Phase 5: Progress Tracking & Analytics**
    - Workout history API
    - PR detection and celebration
    - 1RM trend charts
