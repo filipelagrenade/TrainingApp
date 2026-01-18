@@ -14,6 +14,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../exercises/screens/exercise_library_screen.dart';
+import '../../workouts/screens/workout_history_screen.dart';
+import '../../analytics/screens/progress_screen.dart';
+import '../../settings/screens/settings_screen.dart';
 
 /// Home screen with bottom navigation.
 ///
@@ -36,10 +40,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         index: _currentIndex,
         children: const [
           _DashboardTab(),
-          _HistoryTab(),
-          _ExercisesTab(),
-          _ProgressTab(),
-          _SettingsTab(),
+          WorkoutHistoryScreen(),
+          ExerciseLibraryScreen(),
+          ProgressScreen(),
+          SettingsScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -108,7 +112,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               subtitle: const Text('Start empty and add exercises'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Navigate to active workout
+                context.go('/workout');
               },
             ),
             ListTile(
@@ -117,7 +121,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               subtitle: const Text('Use a saved workout template'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Show template picker
+                context.go('/templates');
               },
             ),
             ListTile(
@@ -126,7 +130,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               subtitle: const Text('Repeat your most recent workout'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Start with last workout
+                context.go('/workout');
               },
             ),
             const SizedBox(height: 16),
@@ -149,9 +153,17 @@ class _DashboardTab extends StatelessWidget {
           title: const Text('LiftIQ'),
           actions: [
             IconButton(
-              icon: const Icon(Icons.notifications_outlined),
+              icon: const Icon(Icons.smart_toy_outlined),
+              tooltip: 'AI Coach',
               onPressed: () {
-                // TODO: Notifications
+                context.go('/ai-coach');
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.people_outline),
+              tooltip: 'Social',
+              onPressed: () {
+                context.go('/social');
               },
             ),
           ],
@@ -207,7 +219,7 @@ class _DashboardTab extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      // TODO: Navigate to history
+                      context.go('/history');
                     },
                     child: const Text('See All'),
                   ),
@@ -224,7 +236,7 @@ class _DashboardTab extends StatelessWidget {
                   subtitle: const Text('Yesterday - 45 min'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    // TODO: Navigate to workout detail
+                    context.go('/history/session-1');
                   },
                 ),
               ),
@@ -237,7 +249,7 @@ class _DashboardTab extends StatelessWidget {
                   subtitle: const Text('2 days ago - 52 min'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    // TODO: Navigate to workout detail
+                    context.go('/history/session-2');
                   },
                 ),
               ),
@@ -252,7 +264,7 @@ class _DashboardTab extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      // TODO: Navigate to templates
+                      context.go('/templates');
                     },
                     child: const Text('See All'),
                   ),
@@ -268,19 +280,19 @@ class _DashboardTab extends StatelessWidget {
                     _TemplateCard(
                       name: 'Push Day',
                       exercises: 6,
-                      onTap: () {},
+                      onTap: () => context.go('/templates/push-day'),
                     ),
                     _TemplateCard(
                       name: 'Pull Day',
                       exercises: 5,
-                      onTap: () {},
+                      onTap: () => context.go('/templates/pull-day'),
                     ),
                     _TemplateCard(
                       name: 'Leg Day',
                       exercises: 5,
-                      onTap: () {},
+                      onTap: () => context.go('/templates/leg-day'),
                     ),
-                    _AddTemplateCard(onTap: () {}),
+                    _AddTemplateCard(onTap: () => context.go('/templates/create')),
                   ],
                 ),
               ),
@@ -410,62 +422,5 @@ class _AddTemplateCard extends StatelessWidget {
   }
 }
 
-/// History tab placeholder.
-class _HistoryTab extends StatelessWidget {
-  const _HistoryTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('History')),
-      body: const Center(
-        child: Text('Workout history will appear here'),
-      ),
-    );
-  }
-}
-
-/// Exercises tab placeholder.
-class _ExercisesTab extends StatelessWidget {
-  const _ExercisesTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Exercises')),
-      body: const Center(
-        child: Text('Exercise library will appear here'),
-      ),
-    );
-  }
-}
-
-/// Progress tab placeholder.
-class _ProgressTab extends StatelessWidget {
-  const _ProgressTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Progress')),
-      body: const Center(
-        child: Text('Progress charts will appear here'),
-      ),
-    );
-  }
-}
-
-/// Settings tab placeholder.
-class _SettingsTab extends StatelessWidget {
-  const _SettingsTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: const Center(
-        child: Text('Settings will appear here'),
-      ),
-    );
-  }
-}
+// Note: History, Exercises, Progress, and Settings tabs use the real screens
+// from their respective feature modules (imported at the top of this file).
