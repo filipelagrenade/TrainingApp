@@ -31,6 +31,7 @@ import { exerciseRoutes } from './exercises.routes';
 import { workoutRoutes } from './workouts.routes';
 import { templateRoutes } from './templates.routes';
 import { programRoutes } from './programs.routes';
+import progressionRoutes from './progression.routes';
 
 /**
  * Main router that aggregates all API routes.
@@ -63,7 +64,9 @@ routes.use('/templates', templateRoutes);
 // Training programs - browse, follow programs
 routes.use('/programs', programRoutes);
 
+// Progression engine - weight suggestions, PR tracking, plateau detection
+routes.use('/progression', progressionRoutes);
+
 // Future routes (placeholders)
-// routes.use('/progress', progressRoutes);
 // routes.use('/ai', aiRoutes);
 // routes.use('/social', socialRoutes);
