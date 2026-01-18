@@ -1,0 +1,15 @@
+/**
+ * Theme Provider Component
+ *
+ * Wraps the application with next-themes for dark/light mode support.
+ */
+
+'use client';
+
+import * as React from 'react';
+import { ThemeProvider as NextThemesProvider } from 'next-themes';
+import { type ThemeProviderProps } from 'next-themes/dist/types';
+
+export const ThemeProvider = ({ children, ...props }: ThemeProviderProps): JSX.Element => {
+  return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
+};

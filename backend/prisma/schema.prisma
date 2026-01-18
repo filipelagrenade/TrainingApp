@@ -1,0 +1,414 @@
+// LiftIQ Database Schema
+// This is the Prisma schema file for the workout tracking application.
+// It defines all data models, relationships, and enums for the system.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Unit preference for weight measurements
+enum UnitType {
+  KG
+  LBS
+}
+
+/// Type of set performed in a workout
+enum SetType {
+  WARMUP    // Lighter sets to prepare for working sets
+  WORKING   // Main working sets at target weight
+  DROPSET   // Reduced weight continuation sets
+  FAILURE   // Sets taken to muscular failure
+}
+
+/// Difficulty level for programs
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+/// Training goal type for programs
+enum GoalType {
+  STRENGTH        // Focus on maximal strength (1-5 reps)
+  HYPERTROPHY     // Focus on muscle growth (6-12 reps)
+  GENERAL_FITNESS // General conditioning and health
+  POWERLIFTING    // Competition-focused powerlifting
+}
+
+/// Type of social challenge
+enum ChallengeType {
+  TOTAL_VOLUME  // Total weight lifted in challenge period
+  WORKOUT_COUNT // Number of workouts completed
+  SPECIFIC_LIFT // Progress on a specific exercise
+}
+
+/// Action types for audit logging
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  DATA_EXPORT
+  DELETION_REQUEST
+}
+
+// ============================================================================
+// USER & AUTH MODELS
+// ============================================================================
+
+/// User represents a registered user of the LiftIQ application.
+/// Contains authentication info, preferences, and relationships to all user data.
+model User {
+  id                  String    @id @default(uuid())
+  firebaseUid         String    @unique
+  email               String    @unique
+  displayName         String?
+  avatarUrl           String?
+  unitPreference      UnitType  @default(KG)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  lastLoginAt         DateTime?
+
+  // GDPR Compliance fields
+  privacyPolicyAcceptedAt DateTime?
+  dataExportRequested     DateTime?
+  deletionRequested       DateTime?
+  consentVersion          String?   @default("1.0")
+
+  // Onboarding
+  onboardingCompleted Boolean @default(false)
+  experienceLevel     Difficulty?
+  primaryGoal         GoalType?
+
+  // Relations
+  workoutSessions   WorkoutSession[]
+  workoutTemplates  WorkoutTemplate[]
+  customExercises   Exercise[]
+  progressionRules  ProgressionRule[]
+  socialProfile     SocialProfile?
+  auditLogs         AuditLog[]
+
+  @@index([firebaseUid])
+  @@index([email])
+}
+
+/// Audit log for tracking all user data access and modifications.
+/// Required for GDPR compliance and security monitoring.
+model AuditLog {
+  id          String      @id @default(uuid())
+  userId      String
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime    @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([action])
+}
+
+// ============================================================================
+// EXERCISE MODELS
+// ============================================================================
+
+/// Exercise represents a single exercise that can be performed in workouts.
+/// Includes both built-in exercises and user-created custom exercises.
+model Exercise {
+  id               String   @id @default(uuid())
+  name             String
+  description      String?
+  instructions     String?  // Step-by-step instructions
+  primaryMuscles   String[] // Array of primary muscle group names
+  secondaryMuscles String[] // Array of secondary muscle groups
+  equipment        String[] // Required equipment (barbell, dumbbell, etc.)
+  formCues         String[] // Key form reminders
+  commonMistakes   String[] // Common mistakes to avoid
+  category         String?  // Push, Pull, Legs, Core, etc.
+  isCompound       Boolean  @default(false) // Multi-joint movement
+  isCustom         Boolean  @default(false)
+  createdBy        String?  // User ID if custom exercise
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  creator           User?              @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  exerciseLogs      ExerciseLog[]
+  templateExercises TemplateExercise[]
+  progressionRules  ProgressionRule[]
+
+  @@index([name])
+  @@index([isCustom])
+  @@index([createdBy])
+}
+
+// ============================================================================
+// WORKOUT MODELS
+// ============================================================================
+
+/// WorkoutTemplate represents a reusable workout structure.
+/// Templates define which exercises to perform with default sets/reps.
+model WorkoutTemplate {
+  id          String   @id @default(uuid())
+  userId      String?  // Null for built-in templates
+  name        String
+  description String?
+  programId   String?
+  estimatedDuration Int?     // Estimated duration in minutes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program   Program?           @relation(fields: [programId], references: [id], onDelete: SetNull)
+  exercises TemplateExercise[]
+  sessions  WorkoutSession[]
+
+  @@index([userId])
+  @@index([programId])
+}
+
+/// TemplateExercise represents an exercise within a workout template.
+/// Defines the default sets, reps, and rest time for the exercise.
+model TemplateExercise {
+  id            String  @id @default(uuid())
+  templateId    String
+  exerciseId    String
+  orderIndex    Int     // Order in the workout
+  defaultSets   Int     @default(3)
+  defaultReps   Int     @default(10)
+  defaultRestSeconds Int @default(90)
+  notes         String?
+
+  // Relations
+  template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, orderIndex])
+  @@index([templateId])
+  @@index([exerciseId])
+}
+
+/// WorkoutSession represents a single workout performed by a user.
+/// Contains all exercise logs and sets for the session.
+model WorkoutSession {
+  id              String    @id @default(uuid())
+  userId          String
+  templateId      String?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  durationSeconds Int?      // Calculated from start to completion
+  notes           String?
+  rating          Int?      // User rating 1-5
+
+  // Relations
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  exerciseLogs ExerciseLog[]
+
+  @@index([userId])
+  @@index([templateId])
+  @@index([startedAt])
+  @@index([completedAt])
+}
+
+/// ExerciseLog represents a single exercise performed within a workout session.
+/// Groups all sets for that exercise together.
+model ExerciseLog {
+  id          String  @id @default(uuid())
+  sessionId   String
+  exerciseId  String
+  orderIndex  Int     // Order in the workout
+  notes       String?
+  isPR        Boolean @default(false) // Personal record achieved
+
+  // Relations
+  session  WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sets     Set[]
+
+  @@unique([sessionId, orderIndex])
+  @@index([sessionId])
+  @@index([exerciseId])
+}
+
+/// Set represents a single set performed for an exercise.
+/// The core unit of workout data, containing weight, reps, and RPE.
+model Set {
+  id            String   @id @default(uuid())
+  exerciseLogId String
+  setNumber     Int      // 1-indexed set number
+  weight        Float    // Weight in user's preferred units
+  reps          Int
+  rpe           Float?   // Rate of Perceived Exertion (1-10)
+  setType       SetType  @default(WORKING)
+  completedAt   DateTime @default(now())
+  isPersonalRecord Boolean @default(false)
+
+  // Relations
+  exerciseLog ExerciseLog @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
+
+  @@index([exerciseLogId])
+  @@index([completedAt])
+}
+
+// ============================================================================
+// PROGRAM MODELS
+// ============================================================================
+
+/// Program represents a multi-week training program.
+/// Contains multiple workout templates organized by week and day.
+model Program {
+  id            String     @id @default(uuid())
+  name          String
+  description   String
+  durationWeeks Int
+  daysPerWeek   Int
+  difficulty    Difficulty
+  goalType      GoalType
+  isBuiltIn     Boolean    @default(false) // System-provided program
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  templates        WorkoutTemplate[]
+  progressionRules ProgressionRule[]
+
+  @@index([isBuiltIn])
+  @@index([difficulty])
+  @@index([goalType])
+}
+
+/// ProgressionRule defines how to progress weight for an exercise.
+/// Can be program-specific or user-customized per exercise.
+model ProgressionRule {
+  id                    String  @id @default(uuid())
+  userId                String?
+  exerciseId            String?
+  programId             String?
+
+  // Progression parameters
+  incrementKg           Float   @default(2.5)  // Weight increase in KG
+  incrementLbs          Float   @default(5.0)  // Weight increase in LBS
+  targetRepsMin         Int     @default(8)    // Minimum reps to progress
+  targetRepsMax         Int     @default(12)   // Maximum reps before forced progression
+  consecutiveSessionsRequired Int @default(2) // Sessions meeting target before progression
+  deloadPercentage      Float   @default(0.9)  // Weight reduction on deload (90%)
+
+  // Relations
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  program  Program?  @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([exerciseId])
+  @@index([programId])
+}
+
+// ============================================================================
+// SOCIAL MODELS
+// ============================================================================
+
+/// SocialProfile extends User with social features.
+/// Separate model to allow users to opt-in to social features.
+model SocialProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  isPublic  Boolean  @default(false)
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  followers               Follow[]                @relation("Following")
+  following               Follow[]                @relation("Followers")
+  activityPosts           ActivityPost[]
+  challengeParticipations ChallengeParticipant[]
+
+  @@index([userId])
+  @@index([isPublic])
+}
+
+/// Follow represents a follower/following relationship between users.
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   // The user doing the following
+  followingId String   // The user being followed
+  createdAt   DateTime @default(now())
+
+  // Relations
+  follower  SocialProfile @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following SocialProfile @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+/// ActivityPost represents a social activity post (workout completion, PR, etc.).
+model ActivityPost {
+  id        String   @id @default(uuid())
+  profileId String
+  sessionId String?  // Optional link to workout session
+  content   String?  // User-written content
+  postType  String   @default("workout") // workout, pr, milestone, etc.
+  createdAt DateTime @default(now())
+
+  // Relations
+  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([createdAt])
+}
+
+/// Challenge represents a social fitness challenge.
+model Challenge {
+  id            String        @id @default(uuid())
+  name          String
+  description   String
+  startDate     DateTime
+  endDate       DateTime
+  challengeType ChallengeType
+  targetValue   Float?        // Target value to achieve
+  exerciseId    String?       // For SPECIFIC_LIFT challenges
+  createdAt     DateTime      @default(now())
+
+  // Relations
+  participants ChallengeParticipant[]
+
+  @@index([startDate])
+  @@index([endDate])
+}
+
+/// ChallengeParticipant represents a user's participation in a challenge.
+model ChallengeParticipant {
+  id           String   @id @default(uuid())
+  challengeId  String
+  profileId    String
+  currentValue Float    @default(0)
+  joinedAt     DateTime @default(now())
+
+  // Relations
+  challenge Challenge     @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  profile   SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, profileId])
+  @@index([challengeId])
+  @@index([profileId])
+}
