@@ -130,3 +130,6 @@ firebase-admin*.json
 # Misc
 *.bak
 *.backup
+
+# Claude temp files
+tmpclaude-*
