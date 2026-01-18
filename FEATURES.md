@@ -54,6 +54,31 @@ This document tracks all completed features with links to their documentation.
 
 ---
 
+## Phase 3: Templates & Programs
+- **Status**: Complete
+- **Date**: 2026-01-18
+- **Documentation**: docs/features/phase3-templates-programs.md
+- **Handover**: docs/handover/phase3-templates-programs-handover.md
+- **Key Files**:
+  - Backend: `backend/src/services/template.service.ts`, `backend/src/services/program.service.ts`
+  - Flutter Models: `app/lib/features/templates/models/*.dart`
+  - Flutter Providers: `app/lib/features/templates/providers/*.dart`
+  - Flutter Screens: `app/lib/features/templates/screens/*.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- Template service with full CRUD operations
+- Program service for built-in programs
+- Four built-in programs (PPL, Full Body, Upper/Lower, Strength)
+- Freezed models for templates and programs
+- Templates screen with tabbed interface
+- Template cards with stats and muscle groups
+- Program cards with color-coded goals
+- Start workout from template functionality
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -64,22 +89,21 @@ This document tracks all completed features with links to their documentation.
 
 Based on the development plan, the next features to implement are:
 
-1. **Phase 3: Templates & Programs**
-   - Workout template CRUD
-   - Template builder UI
-   - Program model with weekly schedule
-   - Built-in programs
-
-2. **Phase 4: Progressive Overload Engine**
+1. **Phase 4: Progressive Overload Engine**
    - Progression algorithm
    - Weight suggestion pre-fill
    - Plateau detection
 
-3. **Phase 5: Progress Tracking & Analytics**
+2. **Phase 5: Progress Tracking & Analytics**
    - Workout history API
    - PR detection and celebration
    - 1RM trend charts
    - Volume per muscle group
+
+3. **Phase 6: AI Coach Integration**
+   - Groq API integration
+   - Chat interface
+   - Contextual suggestions
 
 ---
 
