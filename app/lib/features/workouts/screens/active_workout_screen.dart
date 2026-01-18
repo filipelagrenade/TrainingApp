@@ -65,6 +65,17 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   ) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/');
+            }
+          },
+          tooltip: 'Back',
+        ),
         title: const Text('Workout'),
       ),
       body: Center(
@@ -278,7 +289,20 @@ class ActiveWorkoutScreen extends ConsumerWidget {
     String message,
   ) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Error')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/');
+            }
+          },
+          tooltip: 'Back',
+        ),
+        title: const Text('Error'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
