@@ -35,6 +35,7 @@ import progressionRoutes from './progression.routes';
 import analyticsRoutes from './analytics.routes';
 import aiRoutes from './ai.routes';
 import socialRoutes from './social.routes';
+import settingsRoutes from './settings.routes';
 
 /**
  * Main router that aggregates all API routes.
@@ -78,3 +79,6 @@ routes.use('/ai', aiRoutes);
 
 // Social features - feed, follow, challenges
 routes.use('/social', socialRoutes);
+
+// Settings and GDPR - user preferences, data export, account deletion
+routes.use('/settings', settingsRoutes);

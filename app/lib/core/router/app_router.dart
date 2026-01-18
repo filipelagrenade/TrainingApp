@@ -21,6 +21,7 @@ import '../../features/templates/screens/templates_screen.dart';
 import '../../features/ai_coach/screens/chat_screen.dart';
 import '../../features/social/screens/activity_feed_screen.dart';
 import '../../features/social/screens/challenges_screen.dart';
+import '../../features/settings/screens/settings_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -198,17 +199,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         name: 'settings',
-        builder: (context, state) => const Placeholder(), // TODO: SettingsScreen
+        builder: (context, state) => const SettingsScreen(),
         routes: [
           GoRoute(
             path: 'profile',
             name: 'profile',
-            builder: (context, state) => const Placeholder(), // TODO: ProfileScreen
-          ),
-          GoRoute(
-            path: 'units',
-            name: 'units',
-            builder: (context, state) => const Placeholder(), // TODO: UnitsSettingsScreen
+            builder: (context, state) => const Placeholder(), // TODO: ProfileEditScreen
           ),
         ],
       ),
