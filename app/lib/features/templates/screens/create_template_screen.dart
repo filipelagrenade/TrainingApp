@@ -7,6 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/workout_template.dart';
+import '../providers/templates_provider.dart';
+import '../../workouts/widgets/exercise_picker_modal.dart';
+
 /// Screen for creating a new workout template.
 class CreateTemplateScreen extends ConsumerStatefulWidget {
   const CreateTemplateScreen({super.key});
@@ -123,17 +127,42 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
     return _nameController.text.isNotEmpty && _exercises.isNotEmpty;
   }
 
-  void _saveTemplate() {
-    // TODO: Save template via provider
-    context.pop();
+  Future<void> _saveTemplate() async {
+    // Convert internal exercises to TemplateExercise objects
+    final templateExercises = _exercises.asMap().entries.map((entry) {
+      final index = entry.key;
+      final exercise = entry.value;
+      return TemplateExercise(
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        orderIndex: index,
+        defaultSets: exercise.sets,
+        defaultReps: int.tryParse(exercise.targetReps.split('-').first) ?? 10,
+      );
+    }).toList();
+
+    // Create the template
+    await ref.read(templateActionsProvider.notifier).createTemplate(
+          name: _nameController.text.trim(),
+          exercises: templateExercises,
+        );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Template "${_nameController.text}" created!')),
+      );
+      context.pop();
+    }
   }
 
-  void _showAddExercise() {
-    // TODO: Navigate to exercise picker
+  Future<void> _showAddExercise() async {
+    final exercise = await showExercisePicker(context);
+    if (exercise == null) return;
+
     setState(() {
       _exercises.add(_TemplateExercise(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: 'New Exercise',
+        id: exercise.id,
+        name: exercise.name,
         sets: 3,
         targetReps: '8-12',
       ));
