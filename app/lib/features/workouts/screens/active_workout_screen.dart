@@ -30,6 +30,7 @@ import '../providers/current_workout_provider.dart';
 import '../providers/rest_timer_provider.dart';
 import '../widgets/set_input_row.dart';
 import '../widgets/rest_timer_display.dart';
+import '../widgets/exercise_picker_modal.dart';
 
 /// The main active workout screen.
 ///
@@ -346,23 +347,29 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   }
 
   /// Show dialog to add an exercise.
-  void _addExercise(BuildContext context, WidgetRef ref) {
-    // TODO: Navigate to exercise picker
-    // For now, add a sample exercise
+  Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
+    // Show exercise picker modal
+    final exercise = await showExercisePicker(context);
+
+    if (exercise == null) return; // User cancelled
+
+    // Add the selected exercise to the workout
     ref.read(currentWorkoutProvider.notifier).addExercise(
-          exerciseId: 'bench-press-id',
-          exerciseName: 'Bench Press',
-          primaryMuscles: ['Chest', 'Triceps'],
-          formCues: ['Arch your back', 'Retract shoulder blades'],
+          exerciseId: exercise.id,
+          exerciseName: exercise.name,
+          primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
+          formCues: exercise.instructions?.split('\n') ?? [],
         );
     HapticFeedback.lightImpact();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Exercise added (demo mode)'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${exercise.name} added'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
   }
 
   /// Show dialog to confirm canceling workout.
