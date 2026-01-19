@@ -59,10 +59,7 @@ class TemplatesScreen extends ConsumerWidget {
   }
 
   void _createNewTemplate(BuildContext context, WidgetRef ref) {
-    // TODO: Navigate to template builder
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Template builder coming soon!')),
-    );
+    context.push('/templates/create');
   }
 }
 
@@ -559,9 +556,6 @@ class _ProgramCard extends ConsumerWidget {
   }
 
   void _viewProgram(BuildContext context, WidgetRef ref) {
-    // TODO: Navigate to program detail screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Viewing ${program.name}...')),
-    );
+    context.push('/programs/${program.id}');
   }
 }

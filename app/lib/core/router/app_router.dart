@@ -24,6 +24,7 @@ import '../../features/exercises/screens/exercise_detail_screen.dart';
 import '../../features/templates/screens/templates_screen.dart';
 import '../../features/templates/screens/template_detail_screen.dart';
 import '../../features/templates/screens/create_template_screen.dart';
+import '../../features/templates/screens/program_detail_screen.dart';
 import '../../features/ai_coach/screens/chat_screen.dart';
 import '../../features/social/screens/activity_feed_screen.dart';
 import '../../features/social/screens/challenges_screen.dart';
@@ -167,6 +168,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
         ],
+      ),
+
+      // ========================================
+      // Programs Routes
+      // ========================================
+      GoRoute(
+        path: '/programs/:programId',
+        name: 'programDetail',
+        builder: (context, state) {
+          final programId = state.pathParameters['programId']!;
+          return ProgramDetailScreen(programId: programId);
+        },
       ),
 
       // ========================================
