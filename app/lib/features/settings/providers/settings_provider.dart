@@ -149,6 +149,12 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
+  /// Toggles swipe to complete sets.
+  void setSwipeToComplete(bool value) {
+    state = state.copyWith(swipeToComplete: value);
+    _saveSettings();
+  }
+
   /// Resets all settings to defaults.
   void resetToDefaults() {
     state = const UserSettings();
@@ -329,4 +335,14 @@ final notificationSettingsProvider = Provider<NotificationSettings>((ref) {
 /// Provider for privacy settings.
 final privacySettingsProvider = Provider<PrivacySettings>((ref) {
   return ref.watch(userSettingsProvider).privacy;
+});
+
+/// Provider for swipe to complete sets setting.
+final swipeToCompleteProvider = Provider<bool>((ref) {
+  return ref.watch(userSettingsProvider).swipeToComplete;
+});
+
+/// Provider for haptic feedback setting.
+final hapticFeedbackProvider = Provider<bool>((ref) {
+  return ref.watch(userSettingsProvider).hapticFeedback;
 });

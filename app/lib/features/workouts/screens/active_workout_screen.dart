@@ -29,8 +29,11 @@ import '../models/workout_session.dart';
 import '../providers/current_workout_provider.dart';
 import '../providers/rest_timer_provider.dart';
 import '../widgets/set_input_row.dart';
+import '../widgets/swipeable_set_row.dart';
 import '../widgets/rest_timer_display.dart';
 import '../widgets/exercise_picker_modal.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../settings/models/user_settings.dart';
 
 /// The main active workout screen.
 ///
@@ -465,6 +468,9 @@ class _ExerciseCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final swipeEnabled = ref.watch(swipeToCompleteProvider);
+    final weightUnit = ref.watch(weightUnitProvider);
+    final unitString = weightUnit == WeightUnit.kg ? 'kg' : 'lbs';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -474,14 +480,23 @@ class _ExerciseCard extends ConsumerWidget {
           // Exercise header
           _buildHeader(context, ref, theme, colors),
 
-          // Sets list
+          // Sets list - completed sets can be swiped to delete
           ...exerciseLog.sets.asMap().entries.map((entry) {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: SetInputRow(
+              child: SwipeableSetRow(
                 setNumber: entry.key + 1,
                 isCompleted: true,
                 completedSet: entry.value,
+                unit: unitString,
+                swipeEnabled: swipeEnabled,
+                onSwipeDelete: () {
+                  // Remove the set
+                  ref.read(currentWorkoutProvider.notifier).removeSet(
+                        exerciseIndex: exerciseIndex,
+                        setIndex: entry.key,
+                      );
+                },
                 onComplete: ({
                   required weight,
                   required reps,
@@ -502,20 +517,43 @@ class _ExerciseCard extends ConsumerWidget {
             );
           }),
 
-          // Add set row (input for next set)
+          // Add set row (input for next set) - swipe right to complete
           Padding(
             padding: const EdgeInsets.all(16),
-            child: SetInputRow(
+            child: SwipeableSetRow(
               setNumber: exerciseLog.sets.length + 1,
               previousWeight: exerciseLog.sets.lastOrNull?.weight,
               previousReps: exerciseLog.sets.lastOrNull?.reps,
+              unit: unitString,
+              swipeEnabled: swipeEnabled,
+              onSwipeComplete: () {
+                // Complete the set with previous values (or defaults)
+                final weight = exerciseLog.sets.lastOrNull?.weight ?? 0.0;
+                final reps = exerciseLog.sets.lastOrNull?.reps ?? 0;
+
+                if (weight > 0 && reps > 0) {
+                  ref.read(currentWorkoutProvider.notifier).logSet(
+                        exerciseIndex: exerciseIndex,
+                        weight: weight,
+                        reps: reps,
+                        rpe: null,
+                        setType: SetType.working,
+                      );
+
+                  // Start rest timer if auto-start is enabled
+                  final restTimer = ref.read(restTimerProvider);
+                  if (restTimer.autoStart) {
+                    ref.read(restTimerProvider.notifier).start();
+                  }
+                }
+              },
               onComplete: ({
                 required weight,
                 required reps,
                 rpe,
                 setType = SetType.working,
               }) {
-                // Log new set
+                // Log new set via button
                 ref.read(currentWorkoutProvider.notifier).logSet(
                       exerciseIndex: exerciseIndex,
                       weight: weight,

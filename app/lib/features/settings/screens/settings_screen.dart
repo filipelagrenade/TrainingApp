@@ -138,6 +138,18 @@ class SettingsScreen extends ConsumerWidget {
 
           const Divider(),
 
+          // Workout Section
+          _SectionHeader(title: 'Workout'),
+          SwitchListTile(
+            secondary: const Icon(Icons.swipe),
+            title: const Text('Swipe to Complete Sets'),
+            subtitle: const Text('Swipe right to complete, left to delete'),
+            value: settings.swipeToComplete,
+            onChanged: (value) => ref.read(userSettingsProvider.notifier).setSwipeToComplete(value),
+          ),
+
+          const Divider(),
+
           // General Section
           _SectionHeader(title: 'General'),
           SwitchListTile(

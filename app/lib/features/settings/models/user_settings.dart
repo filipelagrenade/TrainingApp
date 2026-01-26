@@ -150,6 +150,9 @@ class UserSettings with _$UserSettings {
     /// Whether to use haptic feedback
     @Default(true) bool hapticFeedback,
 
+    /// Whether to enable swipe gestures for completing/deleting sets
+    @Default(true) bool swipeToComplete,
+
     /// Date format preference
     @Default('MM/dd/yyyy') String dateFormat,
 
