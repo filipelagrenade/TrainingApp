@@ -31,6 +31,7 @@ import '../../features/social/screens/challenges_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/settings/screens/profile_edit_screen.dart';
 import '../../features/analytics/screens/progress_screen.dart';
+import '../../features/achievements/screens/achievements_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -212,6 +213,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/challenges',
         name: 'challenges',
         builder: (context, state) => const ChallengesScreen(),
+      ),
+
+      // ========================================
+      // Achievements Routes
+      // ========================================
+      GoRoute(
+        path: '/achievements',
+        name: 'achievements',
+        builder: (context, state) => const AchievementsScreen(),
       ),
 
       // ========================================

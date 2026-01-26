@@ -155,6 +155,13 @@ class _DashboardTab extends StatelessWidget {
           title: const Text('LiftIQ'),
           actions: [
             IconButton(
+              icon: const Icon(Icons.emoji_events_outlined),
+              tooltip: 'Achievements',
+              onPressed: () {
+                context.go('/achievements');
+              },
+            ),
+            IconButton(
               icon: const Icon(Icons.smart_toy_outlined),
               tooltip: 'AI Coach',
               onPressed: () {
