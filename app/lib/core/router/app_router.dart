@@ -32,6 +32,7 @@ import '../../features/settings/screens/settings_screen.dart';
 import '../../features/settings/screens/profile_edit_screen.dart';
 import '../../features/analytics/screens/progress_screen.dart';
 import '../../features/analytics/screens/weekly_report_screen.dart';
+import '../../features/analytics/screens/yearly_wrapped_screen.dart';
 import '../../features/achievements/screens/achievements_screen.dart';
 
 /// Provider for the app router.
@@ -196,6 +197,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/weekly-report',
         name: 'weeklyReport',
         builder: (context, state) => const WeeklyReportScreen(),
+      ),
+      GoRoute(
+        path: '/yearly-wrapped',
+        name: 'yearlyWrapped',
+        builder: (context, state) => const YearlyWrappedScreen(),
       ),
 
       // ========================================
