@@ -4,3 +4,4 @@
 library;
 
 export 'weight_suggestion_chip.dart';
+export 'deload_suggestion_card.dart';

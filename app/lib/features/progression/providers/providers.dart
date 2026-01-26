@@ -4,3 +4,4 @@
 library;
 
 export 'progression_provider.dart';
+export 'deload_provider.dart';

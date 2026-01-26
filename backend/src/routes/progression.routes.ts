@@ -9,7 +9,9 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { DeloadType } from '@prisma/client';
 import { progressionService } from '../services/progression.service';
+import * as deloadService from '../services/deload.service';
 import { successResponse } from '../utils/response';
 import { logger } from '../utils/logger';
 
@@ -337,5 +339,247 @@ router.get('/history/:exerciseId', async (req, res, next) => {
 
 // Need prisma import for history endpoint
 import { prisma } from '../utils/prisma';
+
+// ============================================================================
+// DELOAD ROUTES
+// ============================================================================
+
+/**
+ * Schema for scheduling a deload.
+ */
+const ScheduleDeloadSchema = z.object({
+  startDate: z.string().transform((s) => new Date(s)),
+  deloadType: z.nativeEnum(DeloadType).default(DeloadType.VOLUME_REDUCTION),
+  reason: z.string().optional(),
+});
+
+/**
+ * GET /api/v1/progression/deload-check
+ *
+ * Checks if a deload is recommended for the user.
+ * Analyzes training history, RPE trends, and plateau patterns.
+ *
+ * @returns DeloadRecommendation with metrics and reasoning
+ *
+ * @example
+ * GET /api/v1/progression/deload-check
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "needed": true,
+ *     "reason": "You've trained consistently for 6 weeks.",
+ *     "suggestedWeek": "2026-02-03T00:00:00.000Z",
+ *     "deloadType": "VOLUME_REDUCTION",
+ *     "confidence": 75,
+ *     "metrics": {
+ *       "consecutiveWeeks": 6,
+ *       "rpeTrend": 0.3,
+ *       "decliningRepsSessions": 1,
+ *       "daysSinceLastDeload": 45,
+ *       "recentWorkoutCount": 4,
+ *       "plateauExerciseCount": 2
+ *     }
+ *   }
+ * }
+ */
+router.get('/deload-check', async (req, res, next) => {
+  try {
+    const userId = req.user?.id ?? 'temp-user-id';
+
+    const recommendation = await deloadService.checkDeloadNeeded(userId);
+
+    res.json(successResponse(recommendation));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/progression/deloads
+ *
+ * Gets all scheduled deload weeks for the user.
+ *
+ * @returns Array of scheduled deloads
+ *
+ * @example
+ * GET /api/v1/progression/deloads
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": [
+ *     {
+ *       "id": "deload-123",
+ *       "startDate": "2026-02-03",
+ *       "endDate": "2026-02-10",
+ *       "deloadType": "VOLUME_REDUCTION",
+ *       "reason": "Scheduled after 6 weeks of training",
+ *       "completed": false,
+ *       "skipped": false
+ *     }
+ *   ]
+ * }
+ */
+router.get('/deloads', async (req, res, next) => {
+  try {
+    const userId = req.user?.id ?? 'temp-user-id';
+
+    const deloads = await deloadService.getScheduledDeloads(userId);
+
+    res.json(successResponse(deloads));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/progression/deload/current
+ *
+ * Gets the current or upcoming deload week.
+ *
+ * @returns Current deload or null
+ */
+router.get('/deload/current', async (req, res, next) => {
+  try {
+    const userId = req.user?.id ?? 'temp-user-id';
+
+    const currentDeload = await deloadService.getCurrentDeload(userId);
+
+    res.json(successResponse(currentDeload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/progression/deload/adjustments
+ *
+ * Gets weight and volume adjustment factors for deload week.
+ * Returns null if not currently in a deload week.
+ *
+ * @returns Adjustment multipliers or null
+ *
+ * @example
+ * GET /api/v1/progression/deload/adjustments
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "weightMultiplier": 0.8,
+ *     "volumeMultiplier": 1.0
+ *   }
+ * }
+ */
+router.get('/deload/adjustments', async (req, res, next) => {
+  try {
+    const userId = req.user?.id ?? 'temp-user-id';
+
+    const adjustments = await deloadService.getDeloadAdjustments(userId);
+
+    res.json(successResponse(adjustments));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/progression/schedule-deload
+ *
+ * Schedules a deload week for the user.
+ *
+ * @body startDate - Start date of the deload (ISO string)
+ * @body deloadType - Type of deload (optional, default: VOLUME_REDUCTION)
+ * @body reason - Reason for the deload (optional)
+ * @returns Created deload week
+ *
+ * @example
+ * POST /api/v1/progression/schedule-deload
+ * {
+ *   "startDate": "2026-02-03",
+ *   "deloadType": "VOLUME_REDUCTION",
+ *   "reason": "User-scheduled deload"
+ * }
+ */
+router.post('/schedule-deload', async (req, res, next) => {
+  try {
+    const userId = req.user?.id ?? 'temp-user-id';
+    const { startDate, deloadType, reason } = ScheduleDeloadSchema.parse(req.body);
+
+    const deload = await deloadService.scheduleDeload(
+      userId,
+      startDate,
+      deloadType,
+      reason
+    );
+
+    res.status(201).json(successResponse(deload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/progression/deload/:id/complete
+ *
+ * Marks a deload week as completed.
+ *
+ * @param id - Deload week ID
+ * @body notes - Optional completion notes
+ * @returns Updated deload week
+ */
+router.post('/deload/:id/complete', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const notes = req.body.notes as string | undefined;
+
+    const deload = await deloadService.completeDeload(id, notes);
+
+    res.json(successResponse(deload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/progression/deload/:id/skip
+ *
+ * Skips a scheduled deload week.
+ *
+ * @param id - Deload week ID
+ * @returns Updated deload week
+ */
+router.post('/deload/:id/skip', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const deload = await deloadService.skipDeload(id);
+
+    res.json(successResponse(deload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/v1/progression/deload/:id
+ *
+ * Deletes a scheduled deload week.
+ *
+ * @param id - Deload week ID
+ */
+router.delete('/deload/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    await deloadService.deleteDeload(id);
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

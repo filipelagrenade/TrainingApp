@@ -97,6 +97,7 @@ model User {
   progressionRules  ProgressionRule[]
   socialProfile     SocialProfile?
   auditLogs         AuditLog[]
+  deloadWeeks       DeloadWeek[]
 
   @@index([firebaseUid])
   @@index([email])
@@ -318,6 +319,36 @@ model ProgressionRule {
   @@index([userId])
   @@index([exerciseId])
   @@index([programId])
+}
+
+/// Type of deload week
+enum DeloadType {
+  VOLUME_REDUCTION    // Same weight, 50% fewer sets
+  INTENSITY_REDUCTION // 80% weight, same sets/reps
+  ACTIVE_RECOVERY     // Light cardio and mobility focus
+}
+
+/// DeloadWeek tracks scheduled and completed deload weeks for a user.
+/// Deloads are essential for recovery and long-term progress.
+model DeloadWeek {
+  id          String     @id @default(uuid())
+  userId      String
+  startDate   DateTime
+  endDate     DateTime
+  deloadType  DeloadType @default(VOLUME_REDUCTION)
+  reason      String?    // Why deload was recommended
+  completed   Boolean    @default(false)
+  skipped     Boolean    @default(false)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 // ============================================================================
