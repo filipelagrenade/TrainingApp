@@ -17,6 +17,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../exercises/screens/exercise_library_screen.dart';
 import '../../workouts/screens/workout_history_screen.dart';
 import '../../analytics/screens/progress_screen.dart';
+import '../../analytics/widgets/streak_calendar.dart';
 import '../../settings/screens/settings_screen.dart';
 
 /// Home screen with bottom navigation.
@@ -208,6 +209,9 @@ class _DashboardTab extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              // Streak card
+              const StreakCard(),
               const SizedBox(height: 16),
               // Recent workouts section
               Row(
