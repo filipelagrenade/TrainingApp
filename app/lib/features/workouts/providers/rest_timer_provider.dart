@@ -295,6 +295,32 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
     state = state.copyWith(useSmartRest: enabled);
   }
 
+  /// Starts a superset rest timer with appropriate messaging.
+  ///
+  /// @param durationSeconds Duration of the rest period
+  /// @param isAfterRound True if this is rest after completing a round
+  void startSupersetRest({
+    required int durationSeconds,
+    required bool isAfterRound,
+  }) {
+    _timer?.cancel();
+
+    final reason = isAfterRound
+        ? 'Rest before next round'
+        : 'Next exercise in superset';
+
+    state = state.copyWith(
+      status: RestTimerStatus.running,
+      totalSeconds: durationSeconds,
+      remainingSeconds: durationSeconds,
+      durationReason: reason,
+      exerciseId: null,
+      exerciseName: null,
+    );
+
+    _startTimer();
+  }
+
   // ==========================================================================
   // PRIVATE METHODS
   // ==========================================================================

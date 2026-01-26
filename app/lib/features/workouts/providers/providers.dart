@@ -10,3 +10,4 @@ library;
 
 export 'current_workout_provider.dart';
 export 'rest_timer_provider.dart';
+export 'superset_provider.dart';

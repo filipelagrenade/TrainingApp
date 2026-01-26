@@ -11,3 +11,4 @@ library;
 export 'exercise_set.dart';
 export 'exercise_log.dart';
 export 'workout_session.dart';
+export 'superset.dart';

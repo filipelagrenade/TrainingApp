@@ -10,3 +10,5 @@ library;
 
 export 'set_input_row.dart';
 export 'rest_timer_display.dart';
+export 'superset_indicator.dart';
+export 'superset_creator_sheet.dart';

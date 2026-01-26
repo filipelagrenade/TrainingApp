@@ -33,6 +33,10 @@ import '../widgets/swipeable_set_row.dart';
 import '../widgets/rest_timer_display.dart';
 import '../widgets/exercise_picker_modal.dart';
 import '../widgets/pr_celebration.dart';
+import '../widgets/superset_indicator.dart';
+import '../widgets/superset_creator_sheet.dart';
+import '../providers/superset_provider.dart';
+import '../models/superset.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/models/user_settings.dart';
 
@@ -162,10 +166,19 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     WorkoutSession workout,
     ActiveWorkout state,
   ) {
+    final isInSupersetMode = ref.watch(isInSupersetModeProvider);
+
     return Scaffold(
       appBar: _buildAppBar(context, theme, colors, workout),
       body: Column(
         children: [
+          // Superset indicator (shown when in superset mode)
+          if (isInSupersetMode)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: SupersetIndicator(),
+            ),
+
           // Rest timer bar (shown when timer is running)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -182,11 +195,25 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: _buildFloatingActionButton(context, workout),
+    );
+  }
+
+  /// Build the floating action button (shows menu when workout has exercises).
+  Widget _buildFloatingActionButton(BuildContext context, WorkoutSession workout) {
+    // If no exercises, just show add exercise button
+    if (workout.exerciseLogs.length < 2) {
+      return FloatingActionButton.extended(
         onPressed: () => _addExercise(context),
         icon: const Icon(Icons.add),
         label: const Text('Add Exercise'),
-      ),
+      );
+    }
+
+    // Show expandable FAB with options
+    return _WorkoutFAB(
+      onAddExercise: () => _addExercise(context),
+      onCreateSuperset: () => _createSuperset(context, workout),
     );
   }
 
@@ -436,6 +463,150 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
       builder: (context) => _FinishWorkoutDialog(),
     );
   }
+
+  /// Show superset creator sheet.
+  Future<void> _createSuperset(BuildContext context, WorkoutSession workout) async {
+    final config = await showSupersetCreatorSheet(
+      context,
+      availableExercises: workout.exerciseLogs,
+    );
+
+    if (config == null) return; // User cancelled
+
+    // Create the superset
+    final supersetId = ref.read(supersetProvider.notifier).createSuperset(
+      exerciseIds: config.exerciseIds,
+      type: config.type,
+      restBetweenExercisesSeconds: config.restBetweenExercisesSeconds,
+      restAfterRoundSeconds: config.restAfterRoundSeconds,
+      totalRounds: config.totalRounds,
+    );
+
+    // Start the superset
+    ref.read(supersetProvider.notifier).startSuperset(supersetId);
+
+    if (context.mounted) {
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${config.type.name.toUpperCase()} created!'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+}
+
+/// Expandable FAB for workout actions.
+class _WorkoutFAB extends StatefulWidget {
+  final VoidCallback onAddExercise;
+  final VoidCallback onCreateSuperset;
+
+  const _WorkoutFAB({
+    required this.onAddExercise,
+    required this.onCreateSuperset,
+  });
+
+  @override
+  State<_WorkoutFAB> createState() => _WorkoutFABState();
+}
+
+class _WorkoutFABState extends State<_WorkoutFAB>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+
+  void _toggle() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+    });
+    HapticFeedback.lightImpact();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Mini FABs (shown when expanded)
+        if (_isExpanded) ...[
+          // Create superset
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Superset',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FloatingActionButton.small(
+                heroTag: 'superset_fab',
+                onPressed: () {
+                  _toggle();
+                  widget.onCreateSuperset();
+                },
+                backgroundColor: colors.secondaryContainer,
+                foregroundColor: colors.onSecondaryContainer,
+                child: const Icon(Icons.swap_vert),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Add exercise
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Add Exercise',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FloatingActionButton.small(
+                heroTag: 'add_exercise_fab',
+                onPressed: () {
+                  _toggle();
+                  widget.onAddExercise();
+                },
+                backgroundColor: colors.tertiaryContainer,
+                foregroundColor: colors.onTertiaryContainer,
+                child: const Icon(Icons.fitness_center),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Main FAB
+        FloatingActionButton.extended(
+          heroTag: 'main_fab',
+          onPressed: _toggle,
+          icon: AnimatedRotation(
+            turns: _isExpanded ? 0.125 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(Icons.add),
+          ),
+          label: Text(_isExpanded ? 'Close' : 'Actions'),
+        ),
+      ],
+    );
+  }
 }
 
 /// Widget displaying workout duration.
@@ -496,11 +667,34 @@ class _ExerciseCard extends ConsumerWidget {
     final weightUnit = ref.watch(weightUnitProvider);
     final unitString = weightUnit == WeightUnit.kg ? 'kg' : 'lbs';
 
+    // Check if this exercise is part of a superset
+    final superset = ref.watch(supersetForExerciseProvider(exerciseLog.exerciseId));
+    final isInSuperset = superset != null;
+    final isCurrentSupersetExercise = superset != null &&
+        superset.currentExerciseId == exerciseLog.exerciseId &&
+        superset.status == SupersetStatus.active;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: isCurrentSupersetExercise ? 4 : 1,
+      color: isCurrentSupersetExercise
+          ? colors.primaryContainer.withOpacity(0.3)
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Superset badge (if applicable)
+          if (isInSuperset)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: SupersetExerciseBanner(
+                position: superset.exerciseIds.indexOf(exerciseLog.exerciseId) + 1,
+                total: superset.exerciseIds.length,
+                type: superset.type,
+                isCurrent: isCurrentSupersetExercise,
+              ),
+            ),
+
           // Exercise header
           _buildHeader(context, ref, theme, colors),
 
@@ -551,28 +745,7 @@ class _ExerciseCard extends ConsumerWidget {
               unit: unitString,
               swipeEnabled: swipeEnabled,
               onSwipeComplete: () {
-                // Complete the set with previous values (or defaults)
-                final weight = exerciseLog.sets.lastOrNull?.weight ?? 0.0;
-                final reps = exerciseLog.sets.lastOrNull?.reps ?? 0;
-
-                if (weight > 0 && reps > 0) {
-                  ref.read(currentWorkoutProvider.notifier).logSet(
-                        exerciseIndex: exerciseIndex,
-                        weight: weight,
-                        reps: reps,
-                        rpe: null,
-                        setType: SetType.working,
-                      );
-
-                  // Start rest timer if auto-start is enabled
-                  final restTimer = ref.read(restTimerProvider);
-                  if (restTimer.autoStart) {
-                    ref.read(restTimerProvider.notifier).start(
-                      exerciseName: exerciseLog.exerciseName,
-                      setType: SetType.working,
-                    );
-                  }
-                }
+                _logSetAndHandleSuperset(ref, null, null);
               },
               onComplete: ({
                 required weight,
@@ -580,30 +753,61 @@ class _ExerciseCard extends ConsumerWidget {
                 rpe,
                 setType = SetType.working,
               }) {
-                // Log new set via button
-                ref.read(currentWorkoutProvider.notifier).logSet(
-                      exerciseIndex: exerciseIndex,
-                      weight: weight,
-                      reps: reps,
-                      rpe: rpe,
-                      setType: setType,
-                    );
-
-                // Start rest timer with smart calculation
-                final restTimer = ref.read(restTimerProvider);
-                if (restTimer.autoStart) {
-                  ref.read(restTimerProvider.notifier).start(
-                    exerciseName: exerciseLog.exerciseName,
-                    setType: setType,
-                    rpe: rpe,
-                  );
-                }
+                _logSetAndHandleSuperset(ref, weight, reps, rpe: rpe, setType: setType);
               },
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Log a set and handle superset transitions if applicable.
+  void _logSetAndHandleSuperset(
+    WidgetRef ref,
+    double? weight,
+    int? reps, {
+    double? rpe,
+    SetType setType = SetType.working,
+  }) {
+    // Determine weight and reps (use previous or provided)
+    final actualWeight = weight ?? exerciseLog.sets.lastOrNull?.weight ?? 0.0;
+    final actualReps = reps ?? exerciseLog.sets.lastOrNull?.reps ?? 0;
+
+    if (actualWeight <= 0 || actualReps <= 0) return;
+
+    // Log the set
+    ref.read(currentWorkoutProvider.notifier).logSet(
+          exerciseIndex: exerciseIndex,
+          weight: actualWeight,
+          reps: actualReps,
+          rpe: rpe,
+          setType: setType,
+        );
+
+    // Check if this exercise is part of an active superset
+    final supersetState = ref.read(supersetProvider);
+    final superset = supersetState.getSupersetForExercise(exerciseLog.exerciseId);
+
+    if (superset != null &&
+        superset.status == SupersetStatus.active &&
+        superset.currentExerciseId == exerciseLog.exerciseId) {
+      // Record the completed set in the superset
+      ref.read(supersetProvider.notifier).recordCompletedSet(exerciseLog.exerciseId);
+
+      // Advance to next exercise in superset (this will also handle rest timer)
+      ref.read(supersetProvider.notifier).advanceToNextExercise();
+    } else {
+      // Normal rest timer behavior (not in superset)
+      final restTimer = ref.read(restTimerProvider);
+      if (restTimer.autoStart) {
+        ref.read(restTimerProvider.notifier).start(
+          exerciseName: exerciseLog.exerciseName,
+          setType: setType,
+          rpe: rpe,
+        );
+      }
+    }
   }
 
   Widget _buildHeader(
