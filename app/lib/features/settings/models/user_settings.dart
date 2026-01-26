@@ -156,6 +156,9 @@ class UserSettings with _$UserSettings {
     /// Whether to enable swipe gestures for completing/deleting sets
     @Default(true) bool swipeToComplete,
 
+    /// Whether to show PR celebration animation
+    @Default(true) bool showPRCelebration,
+
     /// Date format preference
     @Default('MM/dd/yyyy') String dateFormat,
 

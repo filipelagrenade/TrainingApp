@@ -15,12 +15,14 @@
 /// - Supports workout recovery on app restart
 library;
 
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/workout_session.dart';
 import '../models/exercise_log.dart';
 import '../models/exercise_set.dart';
+import '../widgets/pr_celebration.dart';
 
 // ============================================================================
 // STATE
@@ -107,6 +109,14 @@ final currentWorkoutProvider =
   CurrentWorkoutNotifier.new,
 );
 
+// Stream controller for PR events
+final _prEventController = StreamController<PRData>.broadcast();
+
+/// Stream provider for PR events (for celebration display).
+final prEventProvider = StreamProvider<PRData>((ref) {
+  return _prEventController.stream;
+});
+
 /// Notifier that manages the current workout state.
 ///
 /// All mutations go through this notifier, which ensures:
@@ -115,6 +125,10 @@ final currentWorkoutProvider =
 /// - Background server sync
 class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   static const _uuid = Uuid();
+
+  // Stores PRs for each exercise during this workout session
+  // Key: exerciseId, Value: max weight at reps
+  final Map<String, double> _sessionMaxWeights = {};
 
   @override
   CurrentWorkoutState build() {
@@ -345,6 +359,15 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     final now = DateTime.now();
     final exercise = currentState.workout.exerciseLogs[exerciseIndex];
 
+    // Check for PR (only for working sets)
+    bool isPR = false;
+    double? previousMax;
+    if (setType == SetType.working && weight > 0 && reps > 0) {
+      final prResult = _checkForPR(exercise.exerciseId, weight, reps);
+      isPR = prResult.isPR;
+      previousMax = prResult.previousMax;
+    }
+
     // Create the new set
     final newSet = ExerciseSet(
       id: _uuid.v4(),
@@ -355,6 +378,7 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       rpe: rpe,
       setType: setType,
       completedAt: now,
+      isPersonalRecord: isPR,
     );
 
     // Update the workout with the new set
@@ -366,8 +390,39 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     // Update state immediately (optimistic update)
     state = currentState.copyWith(workout: updatedWorkout);
 
+    // Emit PR event if this is a new PR
+    if (isPR) {
+      _prEventController.add(PRData(
+        exerciseName: exercise.exerciseName,
+        newWeight: weight,
+        previousWeight: previousMax ?? 0,
+        reps: reps,
+        unit: 'lbs', // TODO: get from settings
+      ));
+    }
+
     // Persist in background
     _persistWorkout(updatedWorkout);
+  }
+
+  /// Checks if the current set is a personal record.
+  /// Returns (isPR, previousMax)
+  ({bool isPR, double? previousMax}) _checkForPR(
+    String exerciseId,
+    double weight,
+    int reps,
+  ) {
+    // Get previous max from session
+    final previousMax = _sessionMaxWeights[exerciseId];
+
+    // If no previous max or this is heavier, it's a PR
+    if (previousMax == null || weight > previousMax) {
+      _sessionMaxWeights[exerciseId] = weight;
+      // Only count as PR if there was a previous max (otherwise it's first set)
+      return (isPR: previousMax != null, previousMax: previousMax);
+    }
+
+    return (isPR: false, previousMax: previousMax);
   }
 
   /// Updates an existing set.

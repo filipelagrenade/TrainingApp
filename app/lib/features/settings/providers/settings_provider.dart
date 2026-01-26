@@ -163,6 +163,12 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
+  /// Toggles PR celebration animation.
+  void setShowPRCelebration(bool value) {
+    state = state.copyWith(showPRCelebration: value);
+    _saveSettings();
+  }
+
   /// Resets all settings to defaults.
   void resetToDefaults() {
     state = const UserSettings();

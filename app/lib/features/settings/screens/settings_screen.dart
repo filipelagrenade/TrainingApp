@@ -154,6 +154,13 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.restTimer.useSmartRest,
             onChanged: (value) => ref.read(userSettingsProvider.notifier).setSmartRestTimer(value),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.emoji_events),
+            title: const Text('PR Celebration'),
+            subtitle: const Text('Show celebration animation on new personal records'),
+            value: settings.showPRCelebration,
+            onChanged: (value) => ref.read(userSettingsProvider.notifier).setShowPRCelebration(value),
+          ),
 
           const Divider(),
 

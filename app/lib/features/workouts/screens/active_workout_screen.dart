@@ -32,6 +32,7 @@ import '../widgets/set_input_row.dart';
 import '../widgets/swipeable_set_row.dart';
 import '../widgets/rest_timer_display.dart';
 import '../widgets/exercise_picker_modal.dart';
+import '../widgets/pr_celebration.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/models/user_settings.dart';
 
@@ -40,30 +41,58 @@ import '../../settings/models/user_settings.dart';
 /// Displays the current workout with all exercises and sets.
 /// Provides controls for adding exercises, logging sets, and completing
 /// the workout.
-class ActiveWorkoutScreen extends ConsumerWidget {
+class ActiveWorkoutScreen extends ConsumerStatefulWidget {
   const ActiveWorkoutScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActiveWorkoutScreen> createState() => _ActiveWorkoutScreenState();
+}
+
+class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
+  @override
+  void initState() {
+    super.initState();
+
+    // Listen for PR events and show celebration
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupPRListener();
+    });
+  }
+
+  void _setupPRListener() {
+    ref.listenManual(
+      prEventProvider,
+      (previous, next) {
+        next.whenData((prData) {
+          final showCelebration = ref.read(userSettingsProvider).showPRCelebration;
+          if (showCelebration && mounted) {
+            showPRCelebration(context, prData);
+          }
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final workoutState = ref.watch(currentWorkoutProvider);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
     // Handle different workout states
     return switch (workoutState) {
-      NoWorkout() => _buildNoWorkout(context, ref, theme, colors),
+      NoWorkout() => _buildNoWorkout(context, theme, colors),
       ActiveWorkout(:final workout) =>
-        _buildActiveWorkout(context, ref, theme, colors, workout, workoutState),
+        _buildActiveWorkout(context, theme, colors, workout, workoutState),
       CompletingWorkout() => _buildCompletingWorkout(theme, colors),
       WorkoutError(:final message) =>
-        _buildError(context, ref, theme, colors, message),
+        _buildError(context, theme, colors, message),
     };
   }
 
   /// Build UI when no workout is active.
   Widget _buildNoWorkout(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     ColorScheme colors,
   ) {
@@ -108,7 +137,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 32),
               FilledButton.icon(
-                onPressed: () => _startEmptyWorkout(context, ref),
+                onPressed: () => _startEmptyWorkout(context),
                 icon: const Icon(Icons.add),
                 label: const Text('Start Empty Workout'),
               ),
@@ -128,14 +157,13 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   /// Build UI for active workout.
   Widget _buildActiveWorkout(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     ColorScheme colors,
     WorkoutSession workout,
     ActiveWorkout state,
   ) {
     return Scaffold(
-      appBar: _buildAppBar(context, ref, theme, colors, workout),
+      appBar: _buildAppBar(context, theme, colors, workout),
       body: Column(
         children: [
           // Rest timer bar (shown when timer is running)
@@ -149,13 +177,13 @@ class ActiveWorkoutScreen extends ConsumerWidget {
           // Exercise list
           Expanded(
             child: workout.exerciseLogs.isEmpty
-                ? _buildEmptyExercises(context, ref, theme, colors)
-                : _buildExerciseList(context, ref, theme, colors, workout),
+                ? _buildEmptyExercises(context, theme, colors)
+                : _buildExerciseList(context, theme, colors, workout),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addExercise(context, ref),
+        onPressed: () => _addExercise(context),
         icon: const Icon(Icons.add),
         label: const Text('Add Exercise'),
       ),
@@ -165,7 +193,6 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   /// Build the app bar with workout info and controls.
   PreferredSizeWidget _buildAppBar(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     ColorScheme colors,
     WorkoutSession workout,
@@ -173,7 +200,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
     return AppBar(
       leading: IconButton(
         icon: const Icon(Icons.close),
-        onPressed: () => _showCancelDialog(context, ref),
+        onPressed: () => _showCancelDialog(context),
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,7 +217,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
         TextButton.icon(
           onPressed: workout.exerciseLogs.isEmpty
               ? null
-              : () => _finishWorkout(context, ref),
+              : () => _finishWorkout(context),
           icon: const Icon(Icons.check),
           label: const Text('Finish'),
         ),
@@ -201,7 +228,6 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   /// Build empty state when no exercises added yet.
   Widget _buildEmptyExercises(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     ColorScheme colors,
   ) {
@@ -238,7 +264,6 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   /// Build the list of exercises with their sets.
   Widget _buildExerciseList(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     ColorScheme colors,
     WorkoutSession workout,
@@ -287,7 +312,6 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   /// Build error state.
   Widget _buildError(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     ColorScheme colors,
     String message,
@@ -341,7 +365,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   // ===========================================================================
 
   /// Start an empty workout (no template).
-  void _startEmptyWorkout(BuildContext context, WidgetRef ref) {
+  void _startEmptyWorkout(BuildContext context) {
     // TODO: Get actual user ID from auth
     ref.read(currentWorkoutProvider.notifier).startWorkout(
           userId: 'temp-user-id',
@@ -350,7 +374,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   }
 
   /// Show dialog to add an exercise.
-  Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
+  Future<void> _addExercise(BuildContext context) async {
     // Show exercise picker modal
     final exercise = await showExercisePicker(context);
 
@@ -376,23 +400,23 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   }
 
   /// Show dialog to confirm canceling workout.
-  void _showCancelDialog(BuildContext context, WidgetRef ref) {
+  void _showCancelDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Discard Workout?'),
         content: const Text(
           'Are you sure you want to discard this workout? All progress will be lost.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Keep Working'),
           ),
           TextButton(
             onPressed: () {
               ref.read(currentWorkoutProvider.notifier).discardWorkout();
-              Navigator.of(context).pop();
+              Navigator.of(dialogContext).pop();
               context.go('/');
             },
             style: TextButton.styleFrom(
@@ -406,7 +430,7 @@ class ActiveWorkoutScreen extends ConsumerWidget {
   }
 
   /// Show dialog to finish/complete workout.
-  void _finishWorkout(BuildContext context, WidgetRef ref) {
+  void _finishWorkout(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => _FinishWorkoutDialog(),
