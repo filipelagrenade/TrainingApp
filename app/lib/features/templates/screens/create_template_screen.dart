@@ -171,9 +171,10 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
 
   void _reorderExercises(int oldIndex, int newIndex) {
     setState(() {
-      if (newIndex > oldIndex) newIndex--;
+      var adjustedIndex = newIndex;
+      if (newIndex > oldIndex) adjustedIndex--;
       final exercise = _exercises.removeAt(oldIndex);
-      _exercises.insert(newIndex, exercise);
+      _exercises.insert(adjustedIndex, exercise);
     });
   }
 

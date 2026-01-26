@@ -63,7 +63,7 @@ const UpdateSettingsSchema = z.object({
  */
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
 
     logger.info({ userId }, 'GET /settings');
 
@@ -107,7 +107,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
  */
 router.put('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
     const updates = UpdateSettingsSchema.parse(req.body);
 
     logger.info({ userId, updates: Object.keys(updates) }, 'PUT /settings');
@@ -135,7 +135,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
  */
 router.post('/gdpr/export', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
 
     logger.info({ userId }, 'POST /gdpr/export - Requesting data export');
 
@@ -163,7 +163,7 @@ router.post('/gdpr/export', async (req: Request, res: Response, next: NextFuncti
  */
 router.get('/gdpr/export', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
 
     logger.info({ userId }, 'GET /gdpr/export - Checking export status');
 
@@ -184,7 +184,7 @@ router.get('/gdpr/export', async (req: Request, res: Response, next: NextFunctio
  */
 router.post('/gdpr/delete', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
 
     logger.info({ userId }, 'POST /gdpr/delete - Requesting account deletion');
 
@@ -212,7 +212,7 @@ router.post('/gdpr/delete', async (req: Request, res: Response, next: NextFuncti
  */
 router.get('/gdpr/delete', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
 
     logger.info({ userId }, 'GET /gdpr/delete - Checking deletion status');
 
@@ -232,7 +232,7 @@ router.get('/gdpr/delete', async (req: Request, res: Response, next: NextFunctio
  */
 router.delete('/gdpr/delete', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
 
     logger.info({ userId }, 'DELETE /gdpr/delete - Cancelling deletion request');
 

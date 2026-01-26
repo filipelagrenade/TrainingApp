@@ -21,7 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'features/settings/providers/settings_provider.dart';
-import 'features/settings/models/user_settings.dart' show AppTheme as AppThemePreference;
+import 'features/settings/models/user_settings.dart' as settings show AppTheme;
 
 /// Main entry point for the application.
 ///
@@ -80,9 +80,9 @@ class LiftIQApp extends ConsumerWidget {
 
     // Convert AppTheme preference to ThemeMode
     final themeMode = switch (appThemePref) {
-      AppThemePreference.system => ThemeMode.system,
-      AppThemePreference.light => ThemeMode.light,
-      AppThemePreference.dark => ThemeMode.dark,
+      settings.AppTheme.system => ThemeMode.system,
+      settings.AppTheme.light => ThemeMode.light,
+      settings.AppTheme.dark => ThemeMode.dark,
     };
 
     return MaterialApp.router(

@@ -73,7 +73,7 @@ const SearchSchema = z.object({
  */
 router.get('/feed', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
     const { cursor, limit } = PaginationSchema.parse(req.query);
 
     logger.info({ userId, cursor, limit }, 'GET /feed');
@@ -113,7 +113,7 @@ router.get('/activities/:userId', async (req: Request, res: Response, next: Next
  */
 router.post('/activities/:id/like', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
     const { id: activityId } = req.params;
 
     logger.info({ userId, activityId }, 'POST /activities/:id/like');
@@ -133,7 +133,7 @@ router.post('/activities/:id/like', async (req: Request, res: Response, next: Ne
  */
 router.post('/activities/:id/comment', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
     const { id: activityId } = req.params;
     const { content } = CommentSchema.parse(req.body);
 
@@ -158,7 +158,7 @@ router.post('/activities/:id/comment', async (req: Request, res: Response, next:
  */
 router.get('/profile/:userId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const viewerId = req.user?.uid;
+    const viewerId = req.user?.id;
     const { userId } = req.params;
 
     logger.info({ viewerId, userId }, 'GET /profile/:userId');
@@ -178,7 +178,7 @@ router.get('/profile/:userId', async (req: Request, res: Response, next: NextFun
  */
 router.put('/profile', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
     const updates = UpdateProfileSchema.parse(req.body);
 
     logger.info({ userId, updates: Object.keys(updates) }, 'PUT /profile');
@@ -221,7 +221,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
  */
 router.post('/follow/:userId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const followerId = req.user?.uid || 'demo-user';
+    const followerId = req.user?.id || 'demo-user';
     const { userId: followingId } = req.params;
 
     logger.info({ followerId, followingId }, 'POST /follow/:userId');
@@ -241,7 +241,7 @@ router.post('/follow/:userId', async (req: Request, res: Response, next: NextFun
  */
 router.delete('/follow/:userId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const followerId = req.user?.uid || 'demo-user';
+    const followerId = req.user?.id || 'demo-user';
     const { userId: followingId } = req.params;
 
     logger.info({ followerId, followingId }, 'DELETE /follow/:userId');
@@ -305,7 +305,7 @@ router.get('/following/:userId', async (req: Request, res: Response, next: NextF
  */
 router.get('/challenges', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
 
     logger.info({ userId }, 'GET /challenges');
 
@@ -324,7 +324,7 @@ router.get('/challenges', async (req: Request, res: Response, next: NextFunction
  */
 router.post('/challenges/:id/join', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
     const { id: challengeId } = req.params;
 
     logger.info({ userId, challengeId }, 'POST /challenges/:id/join');
@@ -344,7 +344,7 @@ router.post('/challenges/:id/join', async (req: Request, res: Response, next: Ne
  */
 router.delete('/challenges/:id/leave', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.uid || 'demo-user';
+    const userId = req.user?.id || 'demo-user';
     const { id: challengeId } = req.params;
 
     logger.info({ userId, challengeId }, 'DELETE /challenges/:id/leave');

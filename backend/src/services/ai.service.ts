@@ -462,7 +462,7 @@ export class AIService {
       throw new Error(`Groq API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { choices: Array<{ message?: { content?: string } }> };
     return data.choices[0]?.message?.content || 'I apologize, but I could not generate a response.';
   }
 

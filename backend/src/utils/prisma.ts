@@ -62,8 +62,7 @@ const createPrismaClient = (): PrismaClient => {
 
   // Log queries in development (useful for debugging)
   if (process.env.NODE_ENV === 'development') {
-    // @ts-expect-error - Prisma event types are complex
-    client.$on('query', (event: { query: string; duration: number }) => {
+    client.$on('query' as never, (event: { query: string; duration: number }) => {
       logger.debug({
         query: event.query,
         duration: `${event.duration}ms`,
@@ -72,8 +71,7 @@ const createPrismaClient = (): PrismaClient => {
   }
 
   // Always log errors
-  // @ts-expect-error - Prisma event types are complex
-  client.$on('error', (event: { message: string }) => {
+  client.$on('error' as never, (event: { message: string }) => {
     logger.error({ message: event.message }, 'Prisma Error');
   });
 
