@@ -31,6 +31,7 @@ import '../../features/social/screens/challenges_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/settings/screens/profile_edit_screen.dart';
 import '../../features/analytics/screens/progress_screen.dart';
+import '../../features/analytics/screens/weekly_report_screen.dart';
 import '../../features/achievements/screens/achievements_screen.dart';
 
 /// Provider for the app router.
@@ -190,6 +191,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/progress',
         name: 'progress',
         builder: (context, state) => const ProgressScreen(),
+      ),
+      GoRoute(
+        path: '/weekly-report',
+        name: 'weeklyReport',
+        builder: (context, state) => const WeeklyReportScreen(),
       ),
 
       // ========================================

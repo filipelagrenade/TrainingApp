@@ -5,3 +5,4 @@ library;
 
 export 'workout_summary.dart';
 export 'analytics_data.dart';
+export 'weekly_report.dart';

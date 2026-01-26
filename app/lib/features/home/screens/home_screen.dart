@@ -18,6 +18,7 @@ import '../../exercises/screens/exercise_library_screen.dart';
 import '../../workouts/screens/workout_history_screen.dart';
 import '../../analytics/screens/progress_screen.dart';
 import '../../analytics/widgets/streak_calendar.dart';
+import '../../analytics/widgets/weekly_report_card.dart';
 import '../../progression/widgets/deload_suggestion_card.dart';
 import '../../settings/screens/settings_screen.dart';
 
@@ -217,6 +218,9 @@ class _DashboardTab extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              // Weekly report card
+              const WeeklyReportCard(),
               const SizedBox(height: 16),
               // Deload suggestion card (shown when deload is recommended)
               const DeloadSuggestionCard(),
