@@ -98,6 +98,9 @@ model User {
   socialProfile     SocialProfile?
   auditLogs         AuditLog[]
   deloadWeeks       DeloadWeek[]
+  bodyMeasurements  BodyMeasurement[]
+  progressPhotos    ProgressPhoto[]
+  mesocycles        Mesocycle[]
 
   @@index([firebaseUid])
   @@index([email])
@@ -442,4 +445,173 @@ model ChallengeParticipant {
   @@unique([challengeId, profileId])
   @@index([challengeId])
   @@index([profileId])
+}
+
+// ============================================================================
+// BODY MEASUREMENT MODELS
+// ============================================================================
+
+/// Unit type for length measurements
+enum LengthUnit {
+  INCHES
+  CM
+}
+
+/// Type of progress photo angle
+enum PhotoType {
+  FRONT
+  SIDE_LEFT
+  SIDE_RIGHT
+  BACK
+}
+
+/// BodyMeasurement tracks physical measurements over time.
+/// Helps users track body composition changes alongside strength progress.
+model BodyMeasurement {
+  id           String     @id @default(uuid())
+  userId       String
+  measuredAt   DateTime   @default(now())
+
+  // Weight (stored in kg, converted for display)
+  weight       Float?
+  bodyFat      Float?     // Percentage, e.g., 15.5
+
+  // Upper body measurements (stored in cm)
+  neck         Float?
+  shoulders    Float?
+  chest        Float?
+
+  // Arm measurements (stored in cm)
+  leftBicep    Float?
+  rightBicep   Float?
+  leftForearm  Float?
+  rightForearm Float?
+
+  // Core measurements (stored in cm)
+  waist        Float?
+  hips         Float?
+
+  // Leg measurements (stored in cm)
+  leftThigh    Float?
+  rightThigh   Float?
+  leftCalf     Float?
+  rightCalf    Float?
+
+  // Metadata
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photos ProgressPhoto[]
+
+  @@index([userId])
+  @@index([measuredAt])
+}
+
+/// ProgressPhoto stores progress photos linked to measurements.
+/// Photos help visualize body composition changes over time.
+model ProgressPhoto {
+  id            String     @id @default(uuid())
+  userId        String
+  measurementId String?    // Optional link to a measurement
+  takenAt       DateTime   @default(now())
+  photoUrl      String     // Cloud storage URL
+  photoType     PhotoType
+  notes         String?
+  createdAt     DateTime   @default(now())
+
+  // Relations
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  measurement BodyMeasurement? @relation(fields: [measurementId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([measurementId])
+  @@index([takenAt])
+}
+
+// ============================================================================
+// PERIODIZATION MODELS
+// ============================================================================
+
+/// Type of periodization used in a mesocycle.
+enum PeriodizationType {
+  LINEAR           // Gradual increase in intensity week over week
+  UNDULATING       // Varies intensity daily or weekly
+  BLOCK            // Distinct phases (accumulation, intensification, peak)
+}
+
+/// Type of training week within a mesocycle.
+enum WeekType {
+  ACCUMULATION     // High volume, moderate intensity
+  INTENSIFICATION  // Moderate volume, high intensity
+  DELOAD           // Low volume and intensity for recovery
+  PEAK             // Low volume, maximal intensity
+  TRANSITION       // Active recovery between mesocycles
+}
+
+/// Training goal for a mesocycle.
+enum MesocycleGoal {
+  STRENGTH         // Focus on maximal strength (1-5 reps)
+  HYPERTROPHY      // Focus on muscle growth (6-12 reps)
+  POWER            // Focus on explosive strength
+  PEAKING          // Preparing for competition/testing
+  GENERAL_FITNESS  // General conditioning
+}
+
+/// Status of a mesocycle.
+enum MesocycleStatus {
+  PLANNED          // Scheduled for the future
+  ACTIVE           // Currently being executed
+  COMPLETED        // Successfully finished
+  ABANDONED        // Stopped before completion
+}
+
+/// Mesocycle represents a multi-week training block.
+/// The building block of periodized training programs.
+model Mesocycle {
+  id                String            @id @default(uuid())
+  userId            String
+  name              String
+  description       String?
+  startDate         DateTime
+  endDate           DateTime
+  totalWeeks        Int
+  currentWeek       Int               @default(1)
+  periodizationType PeriodizationType @default(LINEAR)
+  goal              MesocycleGoal     @default(HYPERTROPHY)
+  status            MesocycleStatus   @default(PLANNED)
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeks MesocycleWeek[]
+
+  @@index([userId])
+  @@index([startDate])
+  @@index([status])
+}
+
+/// MesocycleWeek represents a single week within a mesocycle.
+/// Defines the training parameters for that week.
+model MesocycleWeek {
+  id                  String   @id @default(uuid())
+  mesocycleId         String
+  weekNumber          Int
+  weekType            WeekType @default(ACCUMULATION)
+  volumeMultiplier    Float    @default(1.0)  // Multiplier for set count
+  intensityMultiplier Float    @default(1.0)  // Multiplier for weight
+  rirTarget           Int?     // Reps in Reserve target for the week
+  notes               String?
+  isCompleted         Boolean  @default(false)
+  completedAt         DateTime?
+
+  // Relations
+  mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
+
+  @@unique([mesocycleId, weekNumber])
+  @@index([mesocycleId])
 }

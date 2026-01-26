@@ -36,6 +36,7 @@ import analyticsRoutes from './analytics.routes';
 import aiRoutes from './ai.routes';
 import socialRoutes from './social.routes';
 import settingsRoutes from './settings.routes';
+import measurementsRoutes from './measurements.routes';
 
 /**
  * Main router that aggregates all API routes.
@@ -82,3 +83,6 @@ routes.use('/social', socialRoutes);
 
 // Settings and GDPR - user preferences, data export, account deletion
 routes.use('/settings', settingsRoutes);
+
+// Body measurements and progress photos
+routes.use('/measurements', measurementsRoutes);

@@ -34,6 +34,7 @@ import '../../features/analytics/screens/progress_screen.dart';
 import '../../features/analytics/screens/weekly_report_screen.dart';
 import '../../features/analytics/screens/yearly_wrapped_screen.dart';
 import '../../features/achievements/screens/achievements_screen.dart';
+import '../../features/measurements/screens/measurements_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -234,6 +235,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/achievements',
         name: 'achievements',
         builder: (context, state) => const AchievementsScreen(),
+      ),
+
+      // ========================================
+      // Measurements Routes
+      // ========================================
+      GoRoute(
+        path: '/measurements',
+        name: 'measurements',
+        builder: (context, state) => const MeasurementsScreen(),
       ),
 
       // ========================================
