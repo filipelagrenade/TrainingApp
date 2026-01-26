@@ -61,6 +61,14 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
+  /// Toggles smart rest timer.
+  void setSmartRestTimer(bool value) {
+    state = state.copyWith(
+      restTimer: state.restTimer.copyWith(useSmartRest: value),
+    );
+    _saveSettings();
+  }
+
   /// Updates notification settings.
   void setNotificationSettings(NotificationSettings settings) {
     state = state.copyWith(notifications: settings);

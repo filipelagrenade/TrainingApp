@@ -48,6 +48,9 @@ class RestTimerSettings with _$RestTimerSettings {
     /// Whether to auto-start timer after logging set
     @Default(true) bool autoStart,
 
+    /// Whether to use smart rest timer (adjusts based on exercise and RPE)
+    @Default(true) bool useSmartRest,
+
     /// Whether to vibrate when timer completes
     @Default(true) bool vibrateOnComplete,
 

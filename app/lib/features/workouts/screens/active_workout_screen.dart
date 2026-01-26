@@ -543,7 +543,10 @@ class _ExerciseCard extends ConsumerWidget {
                   // Start rest timer if auto-start is enabled
                   final restTimer = ref.read(restTimerProvider);
                   if (restTimer.autoStart) {
-                    ref.read(restTimerProvider.notifier).start();
+                    ref.read(restTimerProvider.notifier).start(
+                      exerciseName: exerciseLog.exerciseName,
+                      setType: SetType.working,
+                    );
                   }
                 }
               },
@@ -562,10 +565,14 @@ class _ExerciseCard extends ConsumerWidget {
                       setType: setType,
                     );
 
-                // Start rest timer if auto-start is enabled
+                // Start rest timer with smart calculation
                 final restTimer = ref.read(restTimerProvider);
                 if (restTimer.autoStart) {
-                  ref.read(restTimerProvider.notifier).start();
+                  ref.read(restTimerProvider.notifier).start(
+                    exerciseName: exerciseLog.exerciseName,
+                    setType: setType,
+                    rpe: rpe,
+                  );
                 }
               },
             ),

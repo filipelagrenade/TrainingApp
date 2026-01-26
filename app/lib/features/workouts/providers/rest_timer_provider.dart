@@ -13,6 +13,9 @@ library;
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/exercise_set.dart';
+import '../services/rest_calculator.dart';
+
 // ============================================================================
 // STATE
 // ============================================================================
@@ -43,15 +46,27 @@ class RestTimerState {
   /// Whether auto-start is enabled
   final bool autoStart;
 
+  /// Whether smart rest timer is enabled
+  final bool useSmartRest;
+
   /// The exercise ID this timer is for (for smart defaults)
   final String? exerciseId;
+
+  /// The exercise name for display and calculation
+  final String? exerciseName;
+
+  /// Reason for the calculated duration (for display)
+  final String? durationReason;
 
   const RestTimerState({
     this.status = RestTimerStatus.idle,
     this.totalSeconds = 90,
     this.remainingSeconds = 90,
     this.autoStart = true,
+    this.useSmartRest = true,
     this.exerciseId,
+    this.exerciseName,
+    this.durationReason,
   });
 
   /// Creates a copy with updated values.
@@ -60,14 +75,20 @@ class RestTimerState {
     int? totalSeconds,
     int? remainingSeconds,
     bool? autoStart,
+    bool? useSmartRest,
     String? exerciseId,
+    String? exerciseName,
+    String? durationReason,
   }) {
     return RestTimerState(
       status: status ?? this.status,
       totalSeconds: totalSeconds ?? this.totalSeconds,
       remainingSeconds: remainingSeconds ?? this.remainingSeconds,
       autoStart: autoStart ?? this.autoStart,
+      useSmartRest: useSmartRest ?? this.useSmartRest,
       exerciseId: exerciseId ?? this.exerciseId,
+      exerciseName: exerciseName ?? this.exerciseName,
+      durationReason: durationReason ?? this.durationReason,
     );
   }
 
@@ -150,18 +171,44 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
 
   /// Starts the rest timer.
   ///
-  /// @param duration Duration in seconds (uses default if not specified)
-  /// @param exerciseId Optional exercise ID for smart defaults
-  void start({int? duration, String? exerciseId}) {
+  /// @param duration Duration in seconds (uses smart calculation if not specified)
+  /// @param exerciseId Optional exercise ID
+  /// @param exerciseName Optional exercise name for smart calculation
+  /// @param setType Optional set type for smart calculation
+  /// @param rpe Optional RPE for smart calculation
+  void start({
+    int? duration,
+    String? exerciseId,
+    String? exerciseName,
+    SetType? setType,
+    double? rpe,
+  }) {
     _timer?.cancel();
 
-    final totalSeconds = duration ?? _getDefaultDuration(exerciseId);
+    int totalSeconds;
+    String? reason;
+
+    // Use smart rest calculation if enabled and we have exercise info
+    if (state.useSmartRest && exerciseName != null && duration == null) {
+      final result = RestCalculator.calculateFromExercise(
+        exerciseName: exerciseName,
+        setType: setType ?? SetType.working,
+        rpe: rpe,
+      );
+      totalSeconds = result.durationSeconds;
+      reason = result.reason;
+    } else {
+      totalSeconds = duration ?? _getDefaultDuration(exerciseId);
+      reason = null;
+    }
 
     state = state.copyWith(
       status: RestTimerStatus.running,
       totalSeconds: totalSeconds,
       remainingSeconds: totalSeconds,
       exerciseId: exerciseId,
+      exerciseName: exerciseName,
+      durationReason: reason,
     );
 
     _startTimer();
@@ -236,6 +283,16 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
   /// Sets auto-start on/off.
   void setAutoStart(bool enabled) {
     state = state.copyWith(autoStart: enabled);
+  }
+
+  /// Toggles smart rest on/off.
+  void toggleSmartRest() {
+    state = state.copyWith(useSmartRest: !state.useSmartRest);
+  }
+
+  /// Sets smart rest on/off.
+  void setSmartRest(bool enabled) {
+    state = state.copyWith(useSmartRest: enabled);
   }
 
   // ==========================================================================

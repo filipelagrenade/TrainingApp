@@ -147,6 +147,13 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.swipeToComplete,
             onChanged: (value) => ref.read(userSettingsProvider.notifier).setSwipeToComplete(value),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.auto_awesome),
+            title: const Text('Smart Rest Timer'),
+            subtitle: const Text('Adjusts duration based on exercise type and effort'),
+            value: settings.restTimer.useSmartRest,
+            onChanged: (value) => ref.read(userSettingsProvider.notifier).setSmartRestTimer(value),
+          ),
 
           const Divider(),
 

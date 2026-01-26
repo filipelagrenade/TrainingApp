@@ -65,14 +65,27 @@ class RestTimerBar extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
 
-            // Time display
-            Text(
-              timer.formattedTime,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: timerColor,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+            // Time display with optional reason
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  timer.formattedTime,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: timerColor,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                if (timer.durationReason != null && timer.progress < 0.2)
+                  Text(
+                    timer.durationReason!,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: timerColor.withValues(alpha: 0.7),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 8),
 
