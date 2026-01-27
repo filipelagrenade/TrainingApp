@@ -1,15 +1,237 @@
 /// LiftIQ - Templates Provider
 ///
 /// Manages the state of workout templates and programs.
-/// Fetches data from the backend API instead of mock data.
+/// Supports both user-created templates and built-in program templates.
+/// User templates are persisted to SharedPreferences with user-specific keys.
 library;
 
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/api_client.dart';
+import '../../../core/services/user_storage_keys.dart';
 import '../models/workout_template.dart';
 import '../models/training_program.dart';
+import '../../programs/providers/user_programs_provider.dart';
+
+// ============================================================================
+// TEMPLATES PERSISTENCE
+// ============================================================================
+
+/// Notifier for managing user templates with persistence.
+///
+/// User-created templates are stored in SharedPreferences as JSON with
+/// user-specific keys for data isolation between users.
+/// Built-in templates (part of programs) are managed separately.
+class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
+  /// The user ID this notifier is scoped to.
+  final String _userId;
+
+  /// Gets the storage key for this user's templates.
+  String get _storageKey => UserStorageKeys.customTemplates(_userId);
+
+  UserTemplatesNotifier(this._userId) : super([]) {
+    _loadTemplates();
+  }
+
+  /// Loads user templates from SharedPreferences.
+  Future<void> _loadTemplates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_storageKey);
+
+      if (jsonString != null) {
+        final decoded = jsonDecode(jsonString) as List<dynamic>;
+        final templates = decoded
+            .map((t) => WorkoutTemplate.fromJson(t as Map<String, dynamic>))
+            .toList();
+        state = templates;
+        debugPrint('UserTemplatesNotifier: Loaded ${templates.length} templates for user $_userId');
+      }
+    } on Exception catch (e) {
+      debugPrint('UserTemplatesNotifier: Error loading templates: $e');
+    }
+  }
+
+  /// Saves user templates to SharedPreferences.
+  Future<void> _saveTemplates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = jsonEncode(state.map((t) => t.toJson()).toList());
+      await prefs.setString(_storageKey, jsonString);
+      debugPrint('UserTemplatesNotifier: Saved ${state.length} templates for user $_userId');
+    } on Exception catch (e) {
+      debugPrint('UserTemplatesNotifier: Error saving templates: $e');
+    }
+  }
+
+  /// Adds a new user template.
+  Future<WorkoutTemplate> addTemplate(WorkoutTemplate template) async {
+    final newTemplate = template.copyWith(
+      id: template.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      userId: _userId,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    state = [...state, newTemplate];
+    await _saveTemplates();
+    return newTemplate;
+  }
+
+  /// Updates an existing user template.
+  Future<void> updateTemplate(WorkoutTemplate template) async {
+    final updated = template.copyWith(updatedAt: DateTime.now());
+    state = state.map((t) => t.id == template.id ? updated : t).toList();
+    await _saveTemplates();
+  }
+
+  /// Deletes a user template by ID.
+  Future<void> deleteTemplate(String templateId) async {
+    state = state.where((t) => t.id != templateId).toList();
+    await _saveTemplates();
+  }
+
+  /// Gets a user template by ID.
+  WorkoutTemplate? getTemplateById(String id) {
+    final matches = state.where((t) => t.id == id);
+    return matches.isNotEmpty ? matches.first : null;
+  }
+
+  /// Increments the times used counter for a template.
+  Future<void> incrementTimesUsed(String templateId) async {
+    state = state.map((t) {
+      if (t.id == templateId) {
+        return t.copyWith(
+          timesUsed: t.timesUsed + 1,
+          updatedAt: DateTime.now(),
+        );
+      }
+      return t;
+    }).toList();
+    await _saveTemplates();
+  }
+}
+
+/// Provider for user templates notifier.
+///
+/// Creates a user-specific notifier that isolates templates per user.
+final userTemplatesProvider =
+    StateNotifierProvider<UserTemplatesNotifier, List<WorkoutTemplate>>(
+  (ref) {
+    final userId = ref.watch(currentUserStorageIdProvider);
+    return UserTemplatesNotifier(userId);
+  },
+);
+
+// ============================================================================
+// SAMPLE TEMPLATES (for first-time users)
+// ============================================================================
+
+/// Returns sample templates for new users who have no saved templates.
+List<WorkoutTemplate> _getSampleTemplates() {
+  return [
+    WorkoutTemplate(
+      id: 'tmpl-1',
+      userId: 'user-1',
+      name: 'Push Day',
+      description: 'Chest, shoulders, and triceps',
+      estimatedDuration: 60,
+      timesUsed: 12,
+      exercises: [
+        TemplateExercise(
+          id: 'te-1',
+          exerciseId: 'bench-press',
+          exerciseName: 'Bench Press',
+          primaryMuscles: ['Chest'],
+          orderIndex: 0,
+          defaultSets: 4,
+          defaultReps: 8,
+          defaultRestSeconds: 120,
+        ),
+        TemplateExercise(
+          id: 'te-2',
+          exerciseId: 'ohp',
+          exerciseName: 'Overhead Press',
+          primaryMuscles: ['Shoulders'],
+          orderIndex: 1,
+          defaultSets: 3,
+          defaultReps: 10,
+          defaultRestSeconds: 90,
+        ),
+        TemplateExercise(
+          id: 'te-3',
+          exerciseId: 'tricep-pushdown',
+          exerciseName: 'Tricep Pushdown',
+          primaryMuscles: ['Triceps'],
+          orderIndex: 2,
+          defaultSets: 3,
+          defaultReps: 12,
+          defaultRestSeconds: 60,
+        ),
+      ],
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 2)),
+    ),
+    WorkoutTemplate(
+      id: 'tmpl-2',
+      userId: 'user-1',
+      name: 'Pull Day',
+      description: 'Back and biceps',
+      estimatedDuration: 55,
+      timesUsed: 10,
+      exercises: [
+        TemplateExercise(
+          id: 'te-4',
+          exerciseId: 'deadlift',
+          exerciseName: 'Deadlift',
+          primaryMuscles: ['Back', 'Hamstrings'],
+          orderIndex: 0,
+          defaultSets: 4,
+          defaultReps: 5,
+          defaultRestSeconds: 180,
+        ),
+        TemplateExercise(
+          id: 'te-5',
+          exerciseId: 'pull-ups',
+          exerciseName: 'Pull-Ups',
+          primaryMuscles: ['Back', 'Biceps'],
+          orderIndex: 1,
+          defaultSets: 3,
+          defaultReps: 8,
+          defaultRestSeconds: 120,
+        ),
+      ],
+      createdAt: DateTime.now().subtract(const Duration(days: 28)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+    WorkoutTemplate(
+      id: 'tmpl-3',
+      userId: 'user-1',
+      name: 'Leg Day',
+      description: 'Quads, hamstrings, and calves',
+      estimatedDuration: 65,
+      timesUsed: 8,
+      exercises: [
+        TemplateExercise(
+          id: 'te-6',
+          exerciseId: 'squat',
+          exerciseName: 'Barbell Squat',
+          primaryMuscles: ['Quads', 'Glutes'],
+          orderIndex: 0,
+          defaultSets: 4,
+          defaultReps: 6,
+          defaultRestSeconds: 180,
+        ),
+      ],
+      createdAt: DateTime.now().subtract(const Duration(days: 25)),
+      updatedAt: DateTime.now().subtract(const Duration(days: 5)),
+    ),
+  ];
+}
 
 // ============================================================================
 // TEMPLATES PROVIDER
@@ -17,7 +239,8 @@ import '../models/training_program.dart';
 
 /// Provider for the list of user's workout templates.
 ///
-/// Fetches from GET /templates API endpoint.
+/// Returns templates from SharedPreferences storage.
+/// If no templates exist, returns sample templates for new users.
 ///
 /// Usage:
 /// ```dart
@@ -31,52 +254,92 @@ import '../models/training_program.dart';
 /// ```
 final templatesProvider =
     FutureProvider.autoDispose<List<WorkoutTemplate>>((ref) async {
-  final api = ref.read(apiClientProvider);
+  // Get user templates from storage
+  final userTemplates = ref.watch(userTemplatesProvider);
 
-  try {
-    final response = await api.get('/templates', queryParameters: {
-      'limit': 100,
-    });
-
-    final data = response.data as Map<String, dynamic>;
-    final templatesList = data['data'] as List<dynamic>;
-
-    return templatesList
-        .map((json) => _parseTemplate(json as Map<String, dynamic>))
-        .toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
+  // If user has templates, return them
+  if (userTemplates.isNotEmpty) {
+    return userTemplates;
   }
+
+  // Otherwise, return sample templates for demo
+  return _getSampleTemplates();
 });
 
 // ============================================================================
 // PROGRAMS PROVIDER
 // ============================================================================
 
+/// Returns the list of built-in training programs.
+///
+/// These are pre-defined programs that come with the app.
+List<TrainingProgram> _getBuiltInPrograms() {
+  return [
+    TrainingProgram(
+      id: 'prog-ppl',
+      name: 'Push Pull Legs',
+      description:
+          'A 6-day split focusing on pushing, pulling, and leg movements. Great for intermediate lifters.',
+      durationWeeks: 12,
+      daysPerWeek: 6,
+      difficulty: ProgramDifficulty.intermediate,
+      goalType: ProgramGoalType.hypertrophy,
+      isBuiltIn: true,
+      templates: [], // Templates would be loaded when viewing program details
+    ),
+    TrainingProgram(
+      id: 'prog-fullbody',
+      name: 'Beginner Full Body',
+      description:
+          'A simple 3-day program covering all major muscle groups. Perfect for beginners.',
+      durationWeeks: 8,
+      daysPerWeek: 3,
+      difficulty: ProgramDifficulty.beginner,
+      goalType: ProgramGoalType.generalFitness,
+      isBuiltIn: true,
+      templates: [],
+    ),
+    TrainingProgram(
+      id: 'prog-upperlower',
+      name: 'Upper/Lower Split',
+      description:
+          'A balanced 4-day split alternating upper and lower body. Good for intermediates.',
+      durationWeeks: 10,
+      daysPerWeek: 4,
+      difficulty: ProgramDifficulty.intermediate,
+      goalType: ProgramGoalType.strength,
+      isBuiltIn: true,
+      templates: [],
+    ),
+    TrainingProgram(
+      id: 'prog-strength',
+      name: 'Strength Foundation',
+      description:
+          'Linear progression focused on the big 3 lifts. Build a strength base.',
+      durationWeeks: 12,
+      daysPerWeek: 3,
+      difficulty: ProgramDifficulty.beginner,
+      goalType: ProgramGoalType.strength,
+      isBuiltIn: true,
+      templates: [],
+    ),
+  ];
+}
+
 /// Provider for the list of available training programs.
 ///
-/// Fetches from GET /programs API endpoint.
-/// Includes both built-in programs and any user-created programs.
+/// Includes both built-in programs and user-created programs.
+/// User programs appear first in the list, followed by built-in programs.
 final programsProvider =
     FutureProvider.autoDispose<List<TrainingProgram>>((ref) async {
-  final api = ref.read(apiClientProvider);
+  // Get user-created programs
+  final userPrograms = ref.watch(userProgramsProvider);
 
-  try {
-    final response = await api.get('/programs', queryParameters: {
-      'limit': 100,
-    });
+  // Get built-in programs
+  final builtInPrograms = _getBuiltInPrograms();
 
-    final data = response.data as Map<String, dynamic>;
-    final programsList = data['data'] as List<dynamic>;
-
-    return programsList
-        .map((json) => _parseProgram(json as Map<String, dynamic>))
-        .toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  // Combine: user programs first, then built-in
+  return [...userPrograms, ...builtInPrograms];
 });
 
 // ============================================================================
@@ -148,117 +411,79 @@ final programByIdProvider =
 // ============================================================================
 
 /// Actions for managing templates.
+///
+/// Provides CRUD operations for workout templates with automatic
+/// persistence to SharedPreferences.
 class TemplateActionsNotifier extends Notifier<void> {
   @override
   void build() {}
 
   /// Creates a new template.
+  ///
+  /// The template is saved to SharedPreferences and the templates list
+  /// is automatically refreshed.
   Future<WorkoutTemplate> createTemplate({
     required String name,
     String? description,
     int? estimatedDuration,
     List<TemplateExercise> exercises = const [],
   }) async {
-    final api = ref.read(apiClientProvider);
+    final userId = ref.read(currentUserStorageIdProvider);
+    final template = WorkoutTemplate(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      userId: userId,
+      name: name,
+      description: description,
+      estimatedDuration: estimatedDuration,
+      exercises: exercises,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
 
-    try {
-      final response = await api.post('/templates', data: {
-        'name': name,
-        if (description != null) 'description': description,
-        if (estimatedDuration != null) 'estimatedDuration': estimatedDuration,
-        'exercises': exercises
-            .map((e) => {
-                  'exerciseId': e.exerciseId,
-                  'orderIndex': e.orderIndex,
-                  'defaultSets': e.defaultSets,
-                  'defaultReps': e.defaultReps,
-                  'defaultRestSeconds': e.defaultRestSeconds,
-                })
-            .toList(),
-      });
+    // Save to persistent storage
+    final savedTemplate = await ref.read(userTemplatesProvider.notifier).addTemplate(template);
 
-      final data = response.data as Map<String, dynamic>;
-      final templateJson = data['data'] as Map<String, dynamic>;
+    // Invalidate templates provider to refresh list
+    ref.invalidate(templatesProvider);
 
-      // Invalidate templates provider to refresh list
-      ref.invalidate(templatesProvider);
-
-      return _parseTemplateDetail(templateJson);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+    return savedTemplate;
   }
 
   /// Updates an existing template.
-  Future<WorkoutTemplate> updateTemplate({
-    required String templateId,
-    String? name,
-    String? description,
-    int? estimatedDuration,
-    List<TemplateExercise>? exercises,
-  }) async {
-    final api = ref.read(apiClientProvider);
-
-    try {
-      final response = await api.put('/templates/$templateId', data: {
-        if (name != null) 'name': name,
-        if (description != null) 'description': description,
-        if (estimatedDuration != null) 'estimatedDuration': estimatedDuration,
-        if (exercises != null)
-          'exercises': exercises
-              .map((e) => {
-                    'exerciseId': e.exerciseId,
-                    'orderIndex': e.orderIndex,
-                    'defaultSets': e.defaultSets,
-                    'defaultReps': e.defaultReps,
-                    'defaultRestSeconds': e.defaultRestSeconds,
-                  })
-              .toList(),
-      });
-
-      final data = response.data as Map<String, dynamic>;
-      final templateJson = data['data'] as Map<String, dynamic>;
-
-      ref.invalidate(templatesProvider);
-
-      return _parseTemplateDetail(templateJson);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+  Future<void> updateTemplate(WorkoutTemplate template) async {
+    await ref.read(userTemplatesProvider.notifier).updateTemplate(template);
+    ref.invalidate(templatesProvider);
   }
 
   /// Duplicates an existing template.
   Future<WorkoutTemplate> duplicateTemplate(WorkoutTemplate source) async {
-    final api = ref.read(apiClientProvider);
+    final userId = ref.read(currentUserStorageIdProvider);
+    final newTemplate = source.copyWith(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      userId: userId,
+      name: '${source.name} (Copy)',
+      timesUsed: 0,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
 
-    try {
-      final response = await api.post('/templates/${source.id}/duplicate');
+    // Save to persistent storage
+    final savedTemplate = await ref.read(userTemplatesProvider.notifier).addTemplate(newTemplate);
 
-      final data = response.data as Map<String, dynamic>;
-      final templateJson = data['data'] as Map<String, dynamic>;
+    ref.invalidate(templatesProvider);
 
-      ref.invalidate(templatesProvider);
-
-      return _parseTemplateDetail(templateJson);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+    return savedTemplate;
   }
 
   /// Deletes a template.
   Future<void> deleteTemplate(String templateId) async {
-    final api = ref.read(apiClientProvider);
+    await ref.read(userTemplatesProvider.notifier).deleteTemplate(templateId);
+    ref.invalidate(templatesProvider);
+  }
 
-    try {
-      await api.delete('/templates/$templateId');
-      ref.invalidate(templatesProvider);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+  /// Increments the times used counter for a template.
+  Future<void> incrementTimesUsed(String templateId) async {
+    await ref.read(userTemplatesProvider.notifier).incrementTimesUsed(templateId);
   }
 }
 

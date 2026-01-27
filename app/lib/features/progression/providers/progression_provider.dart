@@ -11,6 +11,7 @@ import '../../../core/services/api_client.dart';
 import '../models/progression_suggestion.dart';
 import '../models/plateau_info.dart';
 import '../models/pr_info.dart';
+import '../models/deload.dart';
 
 // ============================================================================
 // SUGGESTION PROVIDERS
@@ -403,13 +404,35 @@ PerformanceHistoryEntry _parsePerformanceHistoryEntry(Map<String, dynamic> json)
 
 /// Parses DeloadRecommendation from API response.
 DeloadRecommendation _parseDeloadRecommendation(Map<String, dynamic> json) {
+  final deloadTypeStr = json['deloadType'] as String? ?? 'VOLUME_REDUCTION';
+  DeloadType deloadType;
+  switch (deloadTypeStr.toUpperCase()) {
+    case 'INTENSITY_REDUCTION':
+      deloadType = DeloadType.intensityReduction;
+    case 'ACTIVE_RECOVERY':
+      deloadType = DeloadType.activeRecovery;
+    default:
+      deloadType = DeloadType.volumeReduction;
+  }
+
+  final metricsJson = json['metrics'] as Map<String, dynamic>? ?? {};
+
   return DeloadRecommendation(
     needed: json['needed'] as bool? ?? false,
     reason: json['reason'] as String? ?? '',
     suggestedWeek: json['suggestedWeek'] != null
         ? DateTime.parse(json['suggestedWeek'] as String)
-        : null,
+        : DateTime.now(),
+    deloadType: deloadType,
     confidence: json['confidence'] as int? ?? 0,
+    metrics: DeloadMetrics(
+      consecutiveWeeks: metricsJson['consecutiveWeeks'] as int? ?? 0,
+      rpeTrend: (metricsJson['rpeTrend'] as num?)?.toDouble() ?? 0,
+      decliningRepsSessions: metricsJson['decliningRepsSessions'] as int? ?? 0,
+      daysSinceLastDeload: metricsJson['daysSinceLastDeload'] as int?,
+      recentWorkoutCount: metricsJson['recentWorkoutCount'] as int? ?? 0,
+      plateauExerciseCount: metricsJson['plateauExerciseCount'] as int? ?? 0,
+    ),
   );
 }
 

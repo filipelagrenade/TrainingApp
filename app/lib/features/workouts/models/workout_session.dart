@@ -97,6 +97,19 @@ class WorkoutSession with _$WorkoutSession {
 
     /// Local-only: timestamp of last modification (for sync)
     DateTime? lastModifiedAt,
+
+    // =========================================================================
+    // PROGRAM CONTEXT - for tracking progress through training programs
+    // =========================================================================
+
+    /// ID of the program this workout is part of (null if not from a program)
+    String? programId,
+
+    /// Week number within the program (1-indexed)
+    int? programWeek,
+
+    /// Day number within the week (1-indexed)
+    int? programDay,
   }) = _WorkoutSession;
 
   /// Creates a workout session from JSON.
@@ -111,6 +124,10 @@ extension WorkoutSessionExtensions on WorkoutSession {
 
   /// Returns true if the workout is completed.
   bool get isCompleted => status == WorkoutStatus.completed;
+
+  /// Returns true if this workout is part of a training program.
+  bool get isPartOfProgram =>
+      programId != null && programWeek != null && programDay != null;
 
   /// Returns the elapsed duration since the workout started.
   Duration get elapsedDuration {

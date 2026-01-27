@@ -26,6 +26,40 @@ enum SetType {
   dropset,
   /// Sets taken to muscular failure
   failure,
+  /// As Many Reps As Possible - user enters actual reps after completion
+  amrap,
+  /// Cluster sets with intra-set rest periods
+  cluster,
+  /// Part of a superset - paired with another exercise
+  superset,
+}
+
+/// Extension methods for SetType.
+extension SetTypeExtensions on SetType {
+  /// Returns a human-readable label for the set type.
+  String get label => switch (this) {
+        SetType.warmup => 'Warmup',
+        SetType.working => 'Working',
+        SetType.dropset => 'Drop Set',
+        SetType.failure => 'Failure',
+        SetType.amrap => 'AMRAP',
+        SetType.cluster => 'Cluster',
+        SetType.superset => 'Superset',
+      };
+
+  /// Returns a short abbreviation for the set type.
+  String get abbreviation => switch (this) {
+        SetType.warmup => 'W',
+        SetType.working => '',
+        SetType.dropset => 'D',
+        SetType.failure => 'F',
+        SetType.amrap => 'MAX',
+        SetType.cluster => 'C',
+        SetType.superset => 'SS',
+      };
+
+  /// Whether this set type uses a special input mode.
+  bool get isSpecialType => this != SetType.working;
 }
 
 /// Represents a single set performed for an exercise.
@@ -124,11 +158,16 @@ extension ExerciseSetExtensions on ExerciseSet {
 
   /// Returns a formatted string for display.
   ///
-  /// Example: "100 kg x 8 @ RPE 8"
+  /// Example: "100 kg x 8 @ RPE 8" or "100 kg x 8 @ RPE 7.5"
+  /// RPE now displays with half-step precision (Issue #11)
   String toDisplayString({bool showRpe = true, String unit = 'kg'}) {
     final base = '${weight.toStringAsFixed(weight % 1 == 0 ? 0 : 1)} $unit × $reps';
     if (showRpe && rpe != null) {
-      return '$base @ RPE ${rpe!.toStringAsFixed(0)}';
+      // Format RPE: show decimal only if it's a half step (e.g., 7.5)
+      final rpeStr = rpe! % 1 == 0
+          ? rpe!.toStringAsFixed(0)
+          : rpe!.toStringAsFixed(1);
+      return '$base @ RPE $rpeStr';
     }
     return base;
   }

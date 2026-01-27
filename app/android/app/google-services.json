@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1056359094939",
+    "project_id": "liftiq-app-2ea11",
+    "storage_bucket": "liftiq-app-2ea11.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1056359094939:android:d4c95bcf71d626dc3ac43e",
+        "android_client_info": {
+          "package_name": "com.example.liftiq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLj1SeSfkWog7cgiyzUGtHgKPS36lzGhs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -44,11 +44,11 @@ class MusicMiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final showControls = ref.watch(showMusicControlsProvider);
+    final settings = ref.watch(userSettingsProvider);
     final musicStateAsync = ref.watch(musicStateProvider);
 
     // Don't show if disabled in settings
-    if (!showControls) return const SizedBox.shrink();
+    if (!settings.showMusicControls) return const SizedBox.shrink();
 
     return musicStateAsync.when(
       data: (state) {

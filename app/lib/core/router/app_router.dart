@@ -6,15 +6,19 @@
 /// - Authentication guards
 /// - Deep linking support
 /// - Nested navigation for tabs
+/// - Offline mode support (bypasses auth when Firebase not configured)
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../main.dart' show firebaseInitialized;
 import '../../features/home/screens/home_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/onboarding_screen.dart';
+import '../../features/auth/providers/auth_provider.dart';
+import '../../features/settings/providers/settings_provider.dart';
 import '../../features/workouts/screens/active_workout_screen.dart';
 import '../../features/workouts/screens/workout_history_screen.dart';
 import '../../features/workouts/screens/workout_detail_screen.dart';
@@ -25,6 +29,8 @@ import '../../features/templates/screens/templates_screen.dart';
 import '../../features/templates/screens/template_detail_screen.dart';
 import '../../features/templates/screens/create_template_screen.dart';
 import '../../features/templates/screens/program_detail_screen.dart';
+import '../../features/templates/models/workout_template.dart';
+import '../../features/programs/screens/create_program_screen.dart';
 import '../../features/ai_coach/screens/chat_screen.dart';
 import '../../features/social/screens/activity_feed_screen.dart';
 import '../../features/social/screens/challenges_screen.dart';
@@ -46,8 +52,13 @@ import '../../features/calendar/screens/workout_calendar_screen.dart';
 /// - Hot-reload router configuration
 /// - Test routes easily
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // TODO: Watch auth state for route guards
-  // final authState = ref.watch(authStateProvider);
+  // Watch auth state for route guards
+  final authState = ref.watch(authStateProvider);
+
+  // Only watch the specific setting we need for routing decisions.
+  // This prevents the router from rebuilding when unrelated settings change
+  // (like advanced progression settings), which was causing pushed pages to pop.
+  final hasCompletedOnboarding = ref.watch(hasCompletedOnboardingProvider);
 
   return GoRouter(
     initialLocation: '/',
@@ -55,18 +66,60 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
     // Global redirect for authentication
     redirect: (context, state) {
-      // TODO: Implement auth redirect logic
-      // final isLoggedIn = authState.isLoggedIn;
-      // final isOnLoginPage = state.matchedLocation == '/login';
-      // final isOnOnboarding = state.matchedLocation == '/onboarding';
-      //
-      // if (!isLoggedIn && !isOnLoginPage && !isOnOnboarding) {
-      //   return '/login';
-      // }
-      //
-      // if (isLoggedIn && isOnLoginPage) {
-      //   return '/';
-      // }
+      // If Firebase is not configured, skip auth entirely (development mode)
+      // This allows the app to run without Firebase for testing other features
+      if (!firebaseInitialized) {
+        final isOnLoginPage = state.matchedLocation == '/login';
+        final isOnOnboarding = state.matchedLocation == '/onboarding';
+
+        // In offline mode, redirect login to home (no auth needed)
+        if (isOnLoginPage) {
+          // Check if user has completed onboarding
+          if (!hasCompletedOnboarding) {
+            return '/onboarding';
+          }
+          return '/';
+        }
+
+        // If on onboarding but already completed, go home
+        if (isOnOnboarding && hasCompletedOnboarding) {
+          return '/';
+        }
+
+        // Otherwise allow navigation (no auth required in offline mode)
+        return null;
+      }
+
+      // Firebase is configured - use normal auth flow
+      final isLoggedIn = authState.maybeWhen(
+        data: (user) => user != null,
+        orElse: () => false,
+      );
+      final isLoading = authState.isLoading;
+      final isOnLoginPage = state.matchedLocation == '/login';
+      final isOnOnboarding = state.matchedLocation == '/onboarding';
+
+      // Don't redirect while loading auth state
+      if (isLoading) return null;
+
+      // If not logged in and not on login/onboarding, redirect to login
+      if (!isLoggedIn && !isOnLoginPage && !isOnOnboarding) {
+        return '/login';
+      }
+
+      // If logged in and on login page, redirect to home or onboarding
+      if (isLoggedIn && isOnLoginPage) {
+        // Check if user has completed onboarding
+        if (!hasCompletedOnboarding) {
+          return '/onboarding';
+        }
+        return '/';
+      }
+
+      // If logged in, completed onboarding, but still on onboarding page, go home
+      if (isLoggedIn && isOnOnboarding && hasCompletedOnboarding) {
+        return '/';
+      }
 
       return null;
     },
@@ -165,6 +218,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'createTemplate',
             builder: (context, state) => const CreateTemplateScreen(),
           ),
+          // Route for editing a template from program view (with template data in extra)
+          GoRoute(
+            path: 'edit',
+            name: 'editProgramWorkout',
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              final template = extra?['template'] as WorkoutTemplate?;
+              final programId = extra?['programId'] as String?;
+              final dayNumber = extra?['dayNumber'] as int?;
+              return CreateTemplateScreen(
+                initialTemplate: template,
+                programId: programId,
+                programDayNumber: dayNumber,
+              );
+            },
+          ),
           GoRoute(
             path: ':templateId',
             name: 'templateDetail',
@@ -172,6 +241,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final templateId = state.pathParameters['templateId']!;
               return TemplateDetailScreen(templateId: templateId);
             },
+            routes: [
+              GoRoute(
+                path: 'edit',
+                name: 'editTemplate',
+                builder: (context, state) {
+                  final templateId = state.pathParameters['templateId']!;
+                  return CreateTemplateScreen(templateId: templateId);
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -180,12 +259,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Programs Routes
       // ========================================
       GoRoute(
+        path: '/programs/create',
+        name: 'createProgram',
+        builder: (context, state) => const CreateProgramScreen(),
+      ),
+      GoRoute(
         path: '/programs/:programId',
         name: 'programDetail',
         builder: (context, state) {
           final programId = state.pathParameters['programId']!;
           return ProgramDetailScreen(programId: programId);
         },
+        routes: [
+          GoRoute(
+            path: 'edit',
+            name: 'editProgram',
+            builder: (context, state) {
+              final programId = state.pathParameters['programId']!;
+              return CreateProgramScreen(programId: programId);
+            },
+          ),
+        ],
       ),
 
       // ========================================

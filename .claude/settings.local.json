@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter test)",
+      "Bash(git stash:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: Railway deployment and Firebase initialization\n\n- Update api_config to point to production Railway URL\n- Add prisma generate to build script\n- Add prisma migrate deploy to start script\n- Initialize Firebase in main.dart\n- Fix nullable id in current_workout_provider\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(powershell -Command \"\n$files = git diff --name-only --diff-filter=U\nforeach \\($file in $files\\) {\n    if \\([string]::IsNullOrWhiteSpace\\($file\\)\\) { continue }\n    $content = Get-Content $file -Raw -Encoding UTF8\n    # Replace conflict blocks: keep stashed \\(after =======\\), remove upstream \\(before =======\\)\n    # Pattern: <<<<<<< Updated upstream ... ======= ... >>>>>>> Stashed changes\n    while \\($content -match ''\\(?s\\)<<<<<<< Updated upstream\\\\r?\\\\n\\(.*?\\)\\\\r?\\\\n=======\\\\r?\\\\n\\(.*?\\)\\\\r?\\\\n>>>>>>> Stashed changes''\\) {\n        $content = $content -replace ''\\(?s\\)<<<<<<< Updated upstream\\\\r?\\\\n.*?\\\\r?\\\\n=======\\\\r?\\\\n\\(.*?\\)\\\\r?\\\\n>>>>>>> Stashed changes'', ''$1''\n    }\n    [System.IO.File]::WriteAllText\\($file, $content, [System.Text.UTF8Encoding]::new\\($false\\)\\)\n    Write-Host \"\"Resolved: $file\"\"\n}\n\")",
+      "Bash(powershell:*)",
+      "Bash(del resolve_conflicts.ps1 resolve_conflicts2.py)",
+      "Bash(dart run build_runner build:*)",
+      "Bash(flutter analyze:*)"
+    ]
+  }
+}

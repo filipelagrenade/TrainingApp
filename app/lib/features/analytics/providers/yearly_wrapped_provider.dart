@@ -12,6 +12,7 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/services/workout_history_service.dart';
 import '../models/yearly_wrapped.dart';
 
 // ============================================================================
@@ -238,31 +239,151 @@ class YearlyWrappedNotifier extends Notifier<YearlyWrappedState> {
   // PRIVATE HELPERS
   // ==========================================================================
 
-  /// Generates a yearly wrapped (mock implementation).
+  /// Generates a yearly wrapped from real workout history data.
   Future<YearlyWrapped> _generateWrapped(int year) async {
-    // Simulate API call
-    await Future.delayed(const Duration(milliseconds: 800));
+    final historyService = ref.read(workoutHistoryServiceProvider);
+    await historyService.initialize();
 
     final now = DateTime.now();
     final isCurrentYear = year == now.year;
     final isYearComplete = !isCurrentYear || now.month == 12;
 
-    // Mock data
+    // Filter workouts for the requested year
+    final yearStart = DateTime(year);
+    final yearEnd = DateTime(year + 1);
+    final yearWorkouts = historyService.workouts
+        .where((w) =>
+            w.completedAt.isAfter(yearStart) &&
+            w.completedAt.isBefore(yearEnd))
+        .toList()
+      ..sort((a, b) => a.completedAt.compareTo(b.completedAt));
+
+    // Basic aggregates
+    final totalWorkouts = yearWorkouts.length;
+    final totalVolume =
+        yearWorkouts.fold<int>(0, (s, w) => s + w.totalVolume);
+    final totalSets =
+        yearWorkouts.fold<int>(0, (s, w) => s + w.totalSets);
+    final totalMinutes =
+        yearWorkouts.fold<int>(0, (s, w) => s + w.durationMinutes);
+    final totalPRs =
+        yearWorkouts.fold<int>(0, (s, w) => s + w.prsAchieved);
+
+    // Total reps from exercise sets
+    final totalReps = yearWorkouts.fold<int>(0, (sum, w) {
+      return sum +
+          w.exercises.fold<int>(
+              0, (s, e) => s + e.sets.fold<int>(0, (r, set) => r + set.reps));
+    });
+
+    // Unique exercises
+    final uniqueExerciseIds = <String>{};
+    for (final w in yearWorkouts) {
+      for (final e in w.exercises) {
+        uniqueExerciseIds.add(e.exerciseId);
+      }
+    }
+
+    // Workouts per month
+    final monthCounts = <int, int>{};
+    for (final w in yearWorkouts) {
+      monthCounts[w.completedAt.month] =
+          (monthCounts[w.completedAt.month] ?? 0) + 1;
+    }
+
+    // Most active month
+    String mostActiveMonth = 'January';
+    if (monthCounts.isNotEmpty) {
+      final bestMonth =
+          monthCounts.entries.reduce((a, b) => a.value > b.value ? a : b);
+      const monthNames = [
+        '', 'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December',
+      ];
+      mostActiveMonth = monthNames[bestMonth.key];
+    }
+
+    // Favorite day of week
+    final dayCounts = <int, int>{};
+    for (final w in yearWorkouts) {
+      final dow = w.completedAt.weekday % 7; // 0=Sun
+      dayCounts[dow] = (dayCounts[dow] ?? 0) + 1;
+    }
+    final favoriteDayOfWeek = dayCounts.isEmpty
+        ? 1
+        : dayCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+
+    // Avg workouts per week
+    final weeksInYear = isCurrentYear
+        ? (now.difference(yearStart).inDays / 7).clamp(1, 52)
+        : 52;
+    final avgWorkoutsPerWeek =
+        totalWorkouts > 0 ? totalWorkouts / weeksInYear : 0.0;
+
+    // Avg workout duration
+    final avgWorkoutDuration =
+        totalWorkouts > 0 ? totalMinutes ~/ totalWorkouts : 0;
+
+    // Streak calculation
+    final workoutDays = yearWorkouts
+        .map((w) => DateTime(
+            w.completedAt.year, w.completedAt.month, w.completedAt.day))
+        .toSet()
+        .toList()
+      ..sort();
+
+    int longestStreak = 0;
+    int currentStreak = 0;
+    if (workoutDays.isNotEmpty) {
+      int tempStreak = 1;
+      longestStreak = 1;
+      for (var i = 1; i < workoutDays.length; i++) {
+        if (workoutDays[i].difference(workoutDays[i - 1]).inDays == 1) {
+          tempStreak++;
+          if (tempStreak > longestStreak) longestStreak = tempStreak;
+        } else {
+          tempStreak = 1;
+        }
+      }
+      // End-of-year streak (or current streak if current year)
+      final refDate = isCurrentYear
+          ? DateTime(now.year, now.month, now.day)
+          : DateTime(year, 12, 31);
+      tempStreak = 0;
+      for (var i = workoutDays.length - 1; i >= 0; i--) {
+        final expected =
+            refDate.subtract(Duration(days: workoutDays.length - 1 - i));
+        // Simpler: walk back from last day
+        if (i == workoutDays.length - 1) {
+          final diff = refDate.difference(workoutDays[i]).inDays;
+          if (diff > 1) break;
+          tempStreak = 1;
+        } else {
+          if (workoutDays[i + 1].difference(workoutDays[i]).inDays == 1) {
+            tempStreak++;
+          } else {
+            break;
+          }
+        }
+      }
+      currentStreak = tempStreak;
+    }
+
     final summary = WrappedSummary(
-      totalWorkouts: 156,
-      totalMinutes: 9360, // 156 hours
-      totalVolume: 1250000, // 1.25M kg
-      totalSets: 4680,
-      totalReps: 46800,
-      totalPRs: 24,
-      longestStreak: 21,
-      endOfYearStreak: 8,
-      mostActiveMonth: 'September',
-      avgWorkoutsPerWeek: 3.0,
-      avgWorkoutDuration: 60,
-      favoriteDayOfWeek: 1, // Monday
-      uniqueExercises: 45,
-      achievementsUnlocked: 12,
+      totalWorkouts: totalWorkouts,
+      totalMinutes: totalMinutes,
+      totalVolume: totalVolume,
+      totalSets: totalSets,
+      totalReps: totalReps,
+      totalPRs: totalPRs,
+      longestStreak: longestStreak,
+      endOfYearStreak: currentStreak,
+      mostActiveMonth: mostActiveMonth,
+      avgWorkoutsPerWeek: avgWorkoutsPerWeek,
+      avgWorkoutDuration: avgWorkoutDuration,
+      favoriteDayOfWeek: favoriteDayOfWeek,
+      uniqueExercises: uniqueExerciseIds.length,
+      achievementsUnlocked: 0,
     );
 
     final personality = TrainingPersonalities.fromStats(
@@ -274,6 +395,169 @@ class YearlyWrappedNotifier extends Notifier<YearlyWrappedState> {
       uniqueExercises: summary.uniqueExercises,
     );
 
+    // Top exercises by volume
+    final exerciseAgg = <String, _ExerciseAgg>{};
+    for (final w in yearWorkouts) {
+      for (final e in w.exercises) {
+        final agg = exerciseAgg.putIfAbsent(
+            e.exerciseId, () => _ExerciseAgg(e.exerciseName));
+        agg.totalSets += e.completedSets;
+        agg.totalVolume += e.volume;
+        agg.sessionCount++;
+        for (final s in e.sets) {
+          agg.totalReps += s.reps;
+          final est1RM = s.weight * (1 + s.reps / 30);
+          if (est1RM > agg.best1RM) agg.best1RM = est1RM;
+        }
+      }
+    }
+    final sortedExercises = exerciseAgg.entries.toList()
+      ..sort((a, b) => b.value.totalVolume.compareTo(a.value.totalVolume));
+    final topExercises = sortedExercises.take(3).toList().asMap().entries.map(
+      (entry) {
+        final e = entry.value;
+        return TopExercise(
+          exerciseId: e.key,
+          exerciseName: e.value.name,
+          totalSets: e.value.totalSets,
+          totalReps: e.value.totalReps,
+          totalVolume: e.value.totalVolume,
+          sessionCount: e.value.sessionCount,
+          best1RM: e.value.best1RM,
+          rank: entry.key + 1,
+        );
+      },
+    ).toList();
+
+    // Top PRs from personal records achieved this year
+    final prs = historyService.personalRecords
+        .where((pr) =>
+            pr.achievedAt.isAfter(yearStart) &&
+            pr.achievedAt.isBefore(yearEnd))
+        .toList()
+      ..sort((a, b) => b.estimated1RM.compareTo(a.estimated1RM));
+    final topPRs = prs.take(3).map((pr) {
+      return YearlyPR(
+        exerciseId: pr.exerciseId,
+        exerciseName: pr.exerciseName,
+        weight: pr.weight,
+        reps: pr.reps,
+        estimated1RM: pr.estimated1RM,
+        achievedAt: pr.achievedAt,
+        isAllTimePR: pr.isAllTime,
+      );
+    }).toList();
+
+    // Monthly breakdown
+    final monthlyBreakdown = List.generate(12, (index) {
+      final month = index + 1;
+      final monthWorkouts =
+          yearWorkouts.where((w) => w.completedAt.month == month).toList();
+      return MonthlyStats(
+        month: month,
+        workoutCount: monthWorkouts.length,
+        totalVolume:
+            monthWorkouts.fold<int>(0, (s, w) => s + w.totalVolume),
+        totalMinutes:
+            monthWorkouts.fold<int>(0, (s, w) => s + w.durationMinutes),
+        prsAchieved:
+            monthWorkouts.fold<int>(0, (s, w) => s + w.prsAchieved),
+      );
+    });
+
+    // Milestones
+    final milestones = <YearlyMilestone>[];
+    // Workout count milestones
+    int runningCount = 0;
+    for (final threshold in [10, 50, 100, 200, 500]) {
+      for (final w in yearWorkouts) {
+        runningCount++;
+        if (runningCount == threshold) {
+          milestones.add(YearlyMilestone(
+            type: MilestoneType.workoutCount,
+            title: '$threshold Workouts',
+            description: 'Completed $threshold workouts this year!',
+            achievedAt: w.completedAt,
+            value: threshold.toDouble(),
+            unit: 'workouts',
+            emoji: threshold >= 100 ? '💯' : '💪',
+          ));
+          break;
+        }
+      }
+      if (runningCount < threshold) break;
+      runningCount = 0;
+      // Re-count from start for next threshold
+      for (final w in yearWorkouts) {
+        runningCount++;
+        if (runningCount > threshold) break;
+      }
+    }
+
+    // Volume milestones
+    int runningVolume = 0;
+    for (final w in yearWorkouts) {
+      runningVolume += w.totalVolume;
+      if (runningVolume >= 1000000) {
+        milestones.add(YearlyMilestone(
+          type: MilestoneType.volumeTotal,
+          title: 'Million Kilo Club',
+          description: 'Lifted over 1,000,000 kg total volume!',
+          achievedAt: w.completedAt,
+          value: 1000000,
+          unit: 'kg',
+          emoji: '🏋️',
+        ));
+        break;
+      }
+    }
+
+    if (longestStreak >= 7) {
+      milestones.add(YearlyMilestone(
+        type: MilestoneType.streakLength,
+        title: '$longestStreak Day Streak',
+        description: 'Maintained a $longestStreak-day training streak!',
+        achievedAt: now, // Approximate
+        value: longestStreak.toDouble(),
+        unit: 'days',
+        emoji: '🔥',
+      ));
+    }
+
+    // Year-over-year comparison
+    final prevYearStart = DateTime(year - 1);
+    final prevYearWorkouts = historyService.workouts
+        .where((w) =>
+            w.completedAt.isAfter(prevYearStart) &&
+            w.completedAt.isBefore(yearStart))
+        .toList();
+
+    YearOverYearComparison? yearOverYear;
+    if (prevYearWorkouts.isNotEmpty) {
+      final prevVolume =
+          prevYearWorkouts.fold<int>(0, (s, w) => s + w.totalVolume);
+      final prevCount = prevYearWorkouts.length;
+
+      final wChange = prevCount > 0
+          ? ((totalWorkouts - prevCount) / prevCount * 100)
+          : 0.0;
+      final vChange = prevVolume > 0
+          ? ((totalVolume - prevVolume) / prevVolume * 100)
+          : 0.0;
+
+      yearOverYear = YearOverYearComparison(
+        workoutCountChange: wChange,
+        volumeChange: vChange,
+        strengthChange: 0, // Would need per-exercise comparison
+        consistencyChange: 0,
+        summaryText: wChange > 0
+            ? 'Workouts up ${wChange.toStringAsFixed(0)}%, '
+                'volume ${vChange > 0 ? "up" : "down"} '
+                '${vChange.abs().toStringAsFixed(0)}%.'
+            : 'Keep pushing — every rep counts!',
+      );
+    }
+
     return YearlyWrapped(
       year: year,
       userId: 'current-user',
@@ -281,144 +565,25 @@ class YearlyWrappedNotifier extends Notifier<YearlyWrappedState> {
       isYearComplete: isYearComplete,
       summary: summary,
       personality: personality,
-      topExercises: [
-        const TopExercise(
-          exerciseId: 'bench-press',
-          exerciseName: 'Bench Press',
-          totalSets: 624,
-          totalReps: 4992,
-          totalVolume: 380000,
-          sessionCount: 104,
-          best1RM: 126.7,
-          rank: 1,
-        ),
-        const TopExercise(
-          exerciseId: 'squat',
-          exerciseName: 'Barbell Squat',
-          totalSets: 520,
-          totalReps: 3640,
-          totalVolume: 520000,
-          sessionCount: 104,
-          best1RM: 163.3,
-          rank: 2,
-        ),
-        const TopExercise(
-          exerciseId: 'deadlift',
-          exerciseName: 'Deadlift',
-          totalSets: 364,
-          totalReps: 1820,
-          totalVolume: 350000,
-          sessionCount: 52,
-          best1RM: 186.7,
-          rank: 3,
-        ),
-      ],
-      topPRs: [
-        YearlyPR(
-          exerciseId: 'deadlift',
-          exerciseName: 'Deadlift',
-          weight: 160,
-          reps: 5,
-          estimated1RM: 186.7,
-          achievedAt: DateTime(year, 9, 15),
-          improvementFromYearStart: 20,
-          isAllTimePR: true,
-        ),
-        YearlyPR(
-          exerciseId: 'squat',
-          exerciseName: 'Barbell Squat',
-          weight: 140,
-          reps: 5,
-          estimated1RM: 163.3,
-          achievedAt: DateTime(year, 10, 8),
-          improvementFromYearStart: 15,
-          isAllTimePR: true,
-        ),
-        YearlyPR(
-          exerciseId: 'bench-press',
-          exerciseName: 'Bench Press',
-          weight: 100,
-          reps: 8,
-          estimated1RM: 126.7,
-          achievedAt: DateTime(year, 11, 20),
-          improvementFromYearStart: 10,
-          isAllTimePR: true,
-        ),
-      ],
-      monthlyBreakdown: List.generate(12, (index) {
-        final month = index + 1;
-        final workouts = 10 + (index % 5) + (month == 9 ? 5 : 0);
-        return MonthlyStats(
-          month: month,
-          workoutCount: workouts,
-          totalVolume: workouts * 8000,
-          totalMinutes: workouts * 60,
-          prsAchieved: month % 4 == 0 ? 3 : (month % 2 == 0 ? 2 : 1),
-        );
-      }),
-      milestones: [
-        YearlyMilestone(
-          type: MilestoneType.workoutCount,
-          title: '100 Workouts',
-          description: 'Completed 100 workouts this year!',
-          achievedAt: DateTime(year, 7, 15),
-          value: 100,
-          unit: 'workouts',
-          emoji: '💯',
-        ),
-        YearlyMilestone(
-          type: MilestoneType.volumeTotal,
-          title: 'Million Kilo Club',
-          description: 'Lifted over 1,000,000 kg total volume!',
-          achievedAt: DateTime(year, 9, 1),
-          value: 1000000,
-          unit: 'kg',
-          emoji: '🏋️',
-        ),
-        YearlyMilestone(
-          type: MilestoneType.streakLength,
-          title: '3 Week Warrior',
-          description: 'Maintained a 21-day training streak!',
-          achievedAt: DateTime(year, 5, 21),
-          value: 21,
-          unit: 'days',
-          emoji: '🔥',
-        ),
-        YearlyMilestone(
-          type: MilestoneType.plateClub,
-          title: 'Century Club',
-          description: 'Benched 100kg for reps!',
-          achievedAt: DateTime(year, 11, 20),
-          value: 100,
-          unit: 'kg',
-          emoji: '🎯',
-        ),
-      ],
+      topExercises: topExercises,
+      topPRs: topPRs,
+      monthlyBreakdown: monthlyBreakdown,
+      milestones: milestones,
       funFacts: FunFactGenerators.generate(summary),
-      achievementsUnlocked: [
-        'Century Club',
-        'Iron Warrior',
-        'Volume King',
-        'PR Hunter',
-        'Streak Master',
-        'Dedicated',
-        'Consistent',
-        'Strong',
-        'Balanced',
-        'Month Master',
-        'Season Slayer',
-        'Year Conqueror',
-      ],
-      yearOverYear: const YearOverYearComparison(
-        workoutCountChange: 15,
-        volumeChange: 22,
-        strengthChange: 8,
-        consistencyChange: 10,
-        summaryText: 'You had an incredible year! Workouts up 15%, '
-            'volume up 22%, and strength up 8%.',
-      ),
+      yearOverYear: yearOverYear,
     );
   }
+}
+
+/// Helper for aggregating exercise data across workouts.
+class _ExerciseAgg {
+  final String name;
+  int totalSets = 0;
+  int totalReps = 0;
+  int totalVolume = 0;
+  int sessionCount = 0;
+  double best1RM = 0;
+  _ExerciseAgg(this.name);
 }
 
 // ============================================================================

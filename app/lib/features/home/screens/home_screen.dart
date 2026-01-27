@@ -9,6 +9,7 @@
 /// Uses bottom navigation for primary features.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,30 +18,32 @@ import '../../../core/theme/app_theme.dart';
 import '../../exercises/screens/exercise_library_screen.dart';
 import '../../workouts/screens/workout_history_screen.dart';
 import '../../analytics/screens/progress_screen.dart';
-import '../../analytics/widgets/streak_calendar.dart';
-import '../../analytics/widgets/weekly_report_card.dart';
-import '../../progression/widgets/deload_suggestion_card.dart';
+import '../../analytics/providers/analytics_provider.dart';
+import '../../analytics/models/workout_summary.dart';
+import '../../programs/providers/active_program_provider.dart';
+import '../../programs/models/active_program.dart';
 import '../../settings/screens/settings_screen.dart';
+import '../../workouts/providers/current_workout_provider.dart';
+import '../../workouts/models/workout_session.dart';
+
+/// Provider for the current bottom navigation tab index.
+/// This allows child widgets to switch tabs programmatically.
+final homeTabIndexProvider = StateProvider<int>((ref) => 0);
 
 /// Home screen with bottom navigation.
 ///
 /// This is the main hub of the app after login.
-class HomeScreen extends ConsumerStatefulWidget {
+class HomeScreen extends ConsumerWidget {
   /// Creates the home screen.
   const HomeScreen({super.key});
 
   @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = ref.watch(homeTabIndexProvider);
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _currentIndex = 0;
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex,
         children: const [
           _DashboardTab(),
           WorkoutHistoryScreen(),
@@ -50,9 +53,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
+        selectedIndex: currentIndex,
         onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
+          ref.read(homeTabIndexProvider.notifier).state = index;
         },
         destinations: const [
           NavigationDestination(
@@ -82,20 +85,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                // TODO: Start workout flow
-                _showStartWorkoutSheet(context);
-              },
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Start Workout'),
-            )
+      floatingActionButton: currentIndex == 0
+          ? _buildWorkoutFab(context, ref)
           : null,
     );
   }
 
-  void _showStartWorkoutSheet(BuildContext context) {
+  Widget _buildWorkoutFab(BuildContext context, WidgetRef ref) {
+    final workoutState = ref.watch(currentWorkoutProvider);
+    final hasActiveWorkout = workoutState is ActiveWorkout;
+
+    if (hasActiveWorkout) {
+      // Show Resume FAB if there's an active workout
+      return FloatingActionButton.extended(
+        onPressed: () => context.go('/workout'),
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('Resume Workout'),
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
+        foregroundColor: Theme.of(context).colorScheme.onTertiary,
+      );
+    }
+
+    // Show Start FAB if no active workout
+    return FloatingActionButton.extended(
+      onPressed: () => _showStartWorkoutSheet(context),
+      icon: const Icon(Icons.play_arrow),
+      label: const Text('Start Workout'),
+    );
+  }
+
+  static void _showStartWorkoutSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -124,7 +143,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               subtitle: const Text('Use a saved workout template'),
               onTap: () {
                 Navigator.pop(context);
-                context.go('/templates');
+                context.push('/templates');
               },
             ),
             ListTile(
@@ -145,11 +164,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 /// Dashboard tab showing overview and quick actions.
-class _DashboardTab extends StatelessWidget {
+class _DashboardTab extends ConsumerWidget {
   const _DashboardTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(
@@ -182,50 +201,17 @@ class _DashboardTab extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Weekly summary card
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'This Week',
-                        style: context.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _StatItem(
-                            label: 'Workouts',
-                            value: '3',
-                            icon: Icons.fitness_center,
-                          ),
-                          _StatItem(
-                            label: 'Volume',
-                            value: '12.5k',
-                            icon: Icons.scale,
-                          ),
-                          _StatItem(
-                            label: 'PRs',
-                            value: '2',
-                            icon: Icons.emoji_events,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // Resume Workout card (shows when there's an active workout)
+              const _ResumeWorkoutCard(),
+              // Current Program card (only shows when enrolled)
+              // Or "Browse Programs" prompt when not enrolled
+              const _CurrentProgramCard(),
+              const _BrowseProgramsPrompt(),
+              // Weekly summary card with real data
+              const _WeeklySummaryCard(),
               const SizedBox(height: 16),
-              // Weekly report card
-              const WeeklyReportCard(),
-              const SizedBox(height: 16),
-              // Deload suggestion card (shown when deload is recommended)
-              const DeloadSuggestionCard(),
-              // Streak card
-              const StreakCard(),
+              // TODO: Weekly report, deload suggestion, and streak cards
+              // These widgets are planned for a future iteration.
               const SizedBox(height: 16),
               // Recent workouts section
               Row(
@@ -237,40 +223,16 @@ class _DashboardTab extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      context.go('/history');
+                      // Switch to History tab (index 1)
+                      ref.read(homeTabIndexProvider.notifier).state = 1;
                     },
                     child: const Text('See All'),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              // Placeholder for recent workouts
-              Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.fitness_center),
-                  ),
-                  title: const Text('Push Day'),
-                  subtitle: const Text('Yesterday - 45 min'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    context.go('/history/session-1');
-                  },
-                ),
-              ),
-              Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.fitness_center),
-                  ),
-                  title: const Text('Pull Day'),
-                  subtitle: const Text('2 days ago - 52 min'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    context.go('/history/session-2');
-                  },
-                ),
-              ),
+              // Recent workouts from workout history
+              _RecentWorkoutsList(),
               const SizedBox(height: 16),
               // Templates section
               Row(
@@ -282,7 +244,7 @@ class _DashboardTab extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      context.go('/templates');
+                      context.push('/templates');
                     },
                     child: const Text('See All'),
                   ),
@@ -319,6 +281,70 @@ class _DashboardTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Weekly summary card that displays real workout stats from the past 7 days.
+class _WeeklySummaryCard extends ConsumerWidget {
+  const _WeeklySummaryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(weeklyStatsProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This Week',
+              style: context.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            statsAsync.when(
+              data: (stats) => Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatItem(
+                    label: 'Workouts',
+                    value: '${stats.workoutCount}',
+                    icon: Icons.fitness_center,
+                  ),
+                  _StatItem(
+                    label: 'Volume',  // "kg" now included in stats.formattedVolume (Issue #7)
+                    value: stats.formattedVolume,
+                    icon: Icons.scale,
+                  ),
+                  _StatItem(
+                    label: 'PRs',
+                    value: '${stats.prsAchieved}',
+                    icon: Icons.emoji_events,
+                  ),
+                ],
+              ),
+              loading: () => const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatItem(label: 'Workouts', value: '-', icon: Icons.fitness_center),
+                  _StatItem(label: 'Volume', value: '-', icon: Icons.scale),
+                  _StatItem(label: 'PRs', value: '-', icon: Icons.emoji_events),
+                ],
+              ),
+              error: (_, __) => const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatItem(label: 'Workouts', value: '0', icon: Icons.fitness_center),
+                  _StatItem(label: 'Volume', value: '0', icon: Icons.scale),
+                  _StatItem(label: 'PRs', value: '0', icon: Icons.emoji_events),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -436,6 +462,566 @@ class _AddTemplateCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Current Program card showing active program progress.
+///
+/// Displays:
+/// - Program name with progress percentage
+/// - Week X of Y - Day Z
+/// - Progress bar
+/// - "Continue Workout" button for one-tap access
+///
+/// Only visible when user is enrolled in a program.
+class _CurrentProgramCard extends ConsumerWidget {
+  const _CurrentProgramCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final programState = ref.watch(activeProgramProvider);
+
+    // Handle loading state - show a placeholder
+    if (programState is ProgramLoading) {
+      return const SizedBox.shrink(); // Or show a loading shimmer
+    }
+
+    // No active program - hide the card
+    if (programState is NoActiveProgram) {
+      return const SizedBox.shrink();
+    }
+
+    // Error state - hide the card (could show error instead)
+    if (programState is ProgramError) {
+      debugPrint('ActiveProgram Error: ${programState.message}');
+      return const SizedBox.shrink();
+    }
+
+    // Must be ProgramActive at this point
+    if (programState is! ProgramActive) {
+      return const SizedBox.shrink();
+    }
+
+    final program = programState.program;
+    final nextSession = program.nextSession;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/programs/${program.programId}'),
+        child: Column(
+          children: [
+            // Header with gradient
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    context.colors.primary,
+                    context.colors.primary.withOpacity(0.7),
+                  ],
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Program icon
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.calendar_month,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Program name and status
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Current Program',
+                          style: context.textTheme.labelSmall?.copyWith(
+                            color: Colors.white.withOpacity(0.8),
+                          ),
+                        ),
+                        Text(
+                          program.programName,
+                          style: context.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Progress percentage badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      program.formattedPercentage,
+                      style: context.textTheme.labelMedium?.copyWith(
+                        color: context.colors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Progress details
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Week/Day info
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.flag_outlined,
+                        size: 18,
+                        color: context.colors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        program.isCompleted
+                            ? 'Program Completed!'
+                            : 'Week ${program.currentWeek} of ${program.totalWeeks} • Day ${program.currentDayInWeek}',
+                        style: context.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${program.completedSessionCount}/${program.totalSessions} sessions',
+                        style: context.textTheme.bodySmall?.copyWith(
+                          color: context.colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Progress bar
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: program.completionPercentage,
+                      minHeight: 8,
+                      backgroundColor: context.colors.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation(context.colors.primary),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Continue button
+                  if (!program.isCompleted && nextSession != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          context.push('/programs/${program.programId}');
+                        },
+                        icon: const Icon(Icons.play_arrow),
+                        label: Text(
+                          'Continue: Day ${nextSession.day} Workout',
+                        ),
+                      ),
+                    ),
+                  if (program.isCompleted)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonalIcon(
+                        onPressed: () {
+                          context.push('/programs/${program.programId}');
+                        },
+                        icon: const Icon(Icons.emoji_events),
+                        label: const Text('View Completed Program'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Prompt to browse programs when no active program.
+///
+/// Shows a compact card encouraging users to start a training program.
+/// Only visible when there's no active program enrolled.
+class _BrowseProgramsPrompt extends ConsumerWidget {
+  const _BrowseProgramsPrompt();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final programState = ref.watch(activeProgramProvider);
+
+    // Only show if there's NO active program
+    if (programState is ProgramActive) {
+      return const SizedBox.shrink();
+    }
+
+    // Don't show during loading
+    if (programState is ProgramLoading) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: InkWell(
+        onTap: () => context.push('/templates'),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: context.colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.calendar_month,
+                  color: context.colors.onPrimaryContainer,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Start a Training Program',
+                      style: context.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Follow a structured plan with progress tracking',
+                      style: context.textTheme.bodySmall?.copyWith(
+                        color: context.colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: context.colors.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Resume Workout card for continuing an active workout.
+///
+/// Shows when there's an active workout in progress.
+/// Displays workout name, duration, and exercise count.
+/// Tapping navigates directly to the active workout screen.
+class _ResumeWorkoutCard extends ConsumerWidget {
+  const _ResumeWorkoutCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workoutState = ref.watch(currentWorkoutProvider);
+
+    // Only show if there's an active workout
+    if (workoutState is! ActiveWorkout) {
+      return const SizedBox.shrink();
+    }
+
+    final workout = workoutState.workout;
+    final duration = workout.elapsedDuration;
+    final durationText = duration.inHours > 0
+        ? '${duration.inHours}h ${duration.inMinutes % 60}m'
+        : '${duration.inMinutes}m';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.go('/workout'),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                context.colors.tertiary,
+                context.colors.tertiary.withOpacity(0.7),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Pulsing workout icon
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.fitness_center,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Workout info - fixed layout (Issue #12)
+                // Use Flexible instead of Expanded for the text column
+                // and add mainAxisSize.min to prevent vertical expansion
+                Flexible(
+                  fit: FlexFit.tight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Workout in Progress',
+                        style: context.textTheme.labelSmall?.copyWith(
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        workout.templateName ?? 'Quick Workout',
+                        style: context.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$durationText • ${workout.exerciseCount} exercises • ${workout.totalSets} sets',
+                        style: context.textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Resume button
+                FilledButton(
+                  onPressed: () => context.go('/workout'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: context.colors.tertiary,
+                  ),
+                  child: const Text('Resume'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Widget displaying recent workouts from workout history.
+///
+/// Shows the last 3 workouts with name, date, and duration.
+/// Navigates to workout detail when tapped.
+/// Shows empty state if no workouts exist.
+class _RecentWorkoutsList extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(workoutHistoryListProvider);
+
+    return historyAsync.when(
+      data: (workouts) => _buildWorkoutCards(context, workouts),
+      loading: () => const _RecentWorkoutsLoading(),
+      error: (error, _) => _buildErrorState(context, error.toString()),
+    );
+  }
+
+  Widget _buildWorkoutCards(BuildContext context, List<WorkoutSummary> workouts) {
+    if (workouts.isEmpty) {
+      return _buildEmptyState(context);
+    }
+
+    // Show up to 3 recent workouts
+    final recentWorkouts = workouts.take(3).toList();
+
+    return Column(
+      children: recentWorkouts.map((workout) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: context.colors.primaryContainer,
+              child: Icon(
+                Icons.fitness_center,
+                color: context.colors.onPrimaryContainer,
+              ),
+            ),
+            title: Text(workout.templateName ?? 'Quick Workout'),
+            subtitle: Text(
+              '${workout.timeAgo} - ${workout.formattedDuration}',
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (workout.prsAchieved > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: context.colors.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.emoji_events,
+                          size: 14,
+                          color: context.colors.onTertiaryContainer,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${workout.prsAchieved}',
+                          style: context.textTheme.labelSmall?.copyWith(
+                            color: context.colors.onTertiaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+            onTap: () {
+              context.push('/history/${workout.id}');
+            },
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(
+              Icons.fitness_center_outlined,
+              size: 48,
+              color: context.colors.onSurfaceVariant.withOpacity(0.5),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No workouts yet',
+              style: context.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Start your first workout to see it here!',
+              style: context.textTheme.bodySmall?.copyWith(
+                color: context.colors.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, String error) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: context.colors.error,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Failed to load workouts',
+                style: context.textTheme.bodyMedium?.copyWith(
+                  color: context.colors.error,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Loading shimmer for recent workouts.
+class _RecentWorkoutsLoading extends StatelessWidget {
+  const _RecentWorkoutsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(2, (index) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: context.colors.surfaceContainerHighest,
+            ),
+            title: Container(
+              height: 16,
+              width: 100,
+              decoration: BoxDecoration(
+                color: context.colors.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            subtitle: Container(
+              height: 12,
+              width: 80,
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: context.colors.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 }

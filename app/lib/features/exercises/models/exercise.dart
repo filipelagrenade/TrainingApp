@@ -8,6 +8,72 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'exercise.freezed.dart';
 part 'exercise.g.dart';
 
+/// Exercise type for categorization (strength vs cardio vs flexibility).
+enum ExerciseType {
+  /// Traditional strength/resistance training
+  @JsonValue('strength')
+  strength,
+  /// Cardiovascular exercises (running, cycling, etc.)
+  @JsonValue('cardio')
+  cardio,
+  /// Flexibility/mobility exercises (stretching, yoga)
+  @JsonValue('flexibility')
+  flexibility,
+}
+
+/// Extension methods for ExerciseType.
+extension ExerciseTypeExtensions on ExerciseType {
+  /// Returns a human-readable label.
+  String get label => switch (this) {
+        ExerciseType.strength => 'Strength',
+        ExerciseType.cardio => 'Cardio',
+        ExerciseType.flexibility => 'Flexibility',
+      };
+
+  /// Returns an icon name for this exercise type.
+  String get iconName => switch (this) {
+        ExerciseType.strength => 'fitness_center',
+        ExerciseType.cardio => 'directions_run',
+        ExerciseType.flexibility => 'self_improvement',
+      };
+}
+
+/// Cardio metric type - determines whether to show incline or resistance input.
+///
+/// Different cardio equipment uses different metrics:
+/// - Treadmills use incline (percentage)
+/// - Exercise bikes use resistance (level 1-20)
+/// - Ellipticals can use either
+/// - Rowing machines use resistance
+enum CardioMetricType {
+  /// Uses incline percentage (treadmills, incline trainers)
+  @JsonValue('incline')
+  incline,
+  /// Uses resistance level (bikes, ellipticals, rowers)
+  @JsonValue('resistance')
+  resistance,
+  /// No additional metric (outdoor running, etc.)
+  @JsonValue('none')
+  none,
+}
+
+/// Extension methods for CardioMetricType.
+extension CardioMetricTypeExtensions on CardioMetricType {
+  /// Returns a human-readable label.
+  String get label => switch (this) {
+        CardioMetricType.incline => 'Incline',
+        CardioMetricType.resistance => 'Resistance',
+        CardioMetricType.none => 'None',
+      };
+
+  /// Returns a description for this metric type.
+  String get description => switch (this) {
+        CardioMetricType.incline => 'For treadmills and incline trainers',
+        CardioMetricType.resistance => 'For bikes, ellipticals, and rowers',
+        CardioMetricType.none => 'For outdoor activities',
+      };
+}
+
 /// Equipment required for an exercise.
 enum Equipment {
   @JsonValue('barbell')
@@ -34,8 +100,19 @@ enum MuscleGroup {
   chest,
   @JsonValue('back')
   back,
+  /// @deprecated Use anteriorDelt, lateralDelt, or posteriorDelt instead.
+  /// Kept for backwards compatibility - maps to anteriorDelt in the UI.
   @JsonValue('shoulders')
   shoulders,
+  /// Front deltoid - targeted by pressing movements (overhead press, front raises).
+  @JsonValue('anteriorDelt')
+  anteriorDelt,
+  /// Side/lateral deltoid - targeted by lateral raises and upright rows.
+  @JsonValue('lateralDelt')
+  lateralDelt,
+  /// Rear deltoid - targeted by face pulls, reverse flyes, and rear delt rows.
+  @JsonValue('posteriorDelt')
+  posteriorDelt,
   @JsonValue('biceps')
   biceps,
   @JsonValue('triceps')
@@ -68,6 +145,11 @@ class Exercise with _$Exercise {
     required List<MuscleGroup> primaryMuscles,
     @Default([]) List<MuscleGroup> secondaryMuscles,
     required Equipment equipment,
+    /// The type of exercise (strength, cardio, or flexibility)
+    @Default(ExerciseType.strength) ExerciseType exerciseType,
+    /// For cardio exercises: whether to show incline or resistance input.
+    /// Only applicable when exerciseType is cardio.
+    @Default(CardioMetricType.none) CardioMetricType cardioMetricType,
     String? instructions,
     String? imageUrl,
     String? videoUrl,
@@ -109,6 +191,23 @@ extension ExerciseExtensions on Exercise {
 
   /// Returns true if this is a compound movement.
   bool get isCompound => primaryMuscles.length > 1 || secondaryMuscles.isNotEmpty;
+
+  /// Returns true if this is a cardio exercise.
+  bool get isCardio => exerciseType == ExerciseType.cardio;
+
+  /// Returns true if this is a flexibility/mobility exercise.
+  bool get isFlexibility => exerciseType == ExerciseType.flexibility;
+
+  /// Returns true if this is a strength/resistance exercise.
+  bool get isStrength => exerciseType == ExerciseType.strength;
+
+  /// Returns true if this cardio exercise uses incline.
+  bool get usesIncline =>
+      isCardio && cardioMetricType == CardioMetricType.incline;
+
+  /// Returns true if this cardio exercise uses resistance.
+  bool get usesResistance =>
+      isCardio && cardioMetricType == CardioMetricType.resistance;
 }
 
 /// Exercise category for filtering.

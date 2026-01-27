@@ -305,7 +305,13 @@ class _MuscleSection extends StatelessWidget {
       case MuscleGroup.back:
         return 'Back';
       case MuscleGroup.shoulders:
-        return 'Shoulders';
+        return 'Shoulders (General)';
+      case MuscleGroup.anteriorDelt:
+        return 'Front Delt';
+      case MuscleGroup.lateralDelt:
+        return 'Side Delt';
+      case MuscleGroup.posteriorDelt:
+        return 'Rear Delt';
       case MuscleGroup.biceps:
         return 'Biceps';
       case MuscleGroup.triceps:

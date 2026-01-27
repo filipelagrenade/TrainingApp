@@ -1,7 +1,8 @@
 /// LiftIQ - Analytics Provider
 ///
 /// Manages the state for analytics and progress tracking.
-/// Fetches data from the backend API instead of mock data.
+/// Provides workout history, charts data, and summaries.
+/// Now connected to real workout history service.
 library;
 
 import 'package:dio/dio.dart';
@@ -10,6 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/api_client.dart';
 import '../models/workout_summary.dart';
 import '../models/analytics_data.dart';
+import '../../../shared/services/workout_history_service.dart'
+    show WorkoutHistoryService, workoutHistoryServiceProvider, CompletedWorkout;
 
 // ============================================================================
 // TIME PERIOD PROVIDER
@@ -41,49 +44,34 @@ String _periodToString(TimePeriod period) {
 // ============================================================================
 
 /// Provider for workout history list.
-final workoutHistoryProvider =
+final workoutHistoryListProvider =
     FutureProvider.autoDispose<List<WorkoutSummary>>((ref) async {
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/history', queryParameters: {
-      'limit': 50,
-      'offset': 0,
-    });
+  // Return actual user data only - no sample data
+  return service.getWorkoutSummaries();
+});
 
-    final data = response.data as Map<String, dynamic>;
-    final historyList = data['data'] as List<dynamic>;
+/// Provider for getting a specific workout by ID.
+///
+/// Returns the full CompletedWorkout with all exercise and set details.
+final workoutDetailProvider = FutureProvider.autoDispose
+    .family<CompletedWorkout?, String>((ref, workoutId) async {
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-    return historyList
-        .map((json) => _parseWorkoutSummary(json as Map<String, dynamic>))
-        .toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  return service.getWorkoutById(workoutId);
 });
 
 /// Provider for paginated workout history.
 final paginatedHistoryProvider = FutureProvider.autoDispose
     .family<List<WorkoutSummary>, ({int limit, int offset})>((ref, params) async {
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/history', queryParameters: {
-      'limit': params.limit,
-      'offset': params.offset,
-    });
-
-    final data = response.data as Map<String, dynamic>;
-    final historyList = data['data'] as List<dynamic>;
-
-    return historyList
-        .map((json) => _parseWorkoutSummary(json as Map<String, dynamic>))
-        .toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  // Return actual user data only
+  return service.getWorkoutSummaries(limit: params.limit, offset: params.offset);
 });
 
 // ============================================================================
@@ -91,70 +79,38 @@ final paginatedHistoryProvider = FutureProvider.autoDispose
 // ============================================================================
 
 /// Provider for 1RM trend data for an exercise.
+///
+/// Calculates estimated 1RM progression from actual workout history.
 final oneRMTrendProvider = FutureProvider.autoDispose
     .family<List<OneRMDataPoint>, String>((ref, exerciseId) async {
   final period = ref.watch(selectedPeriodProvider);
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/1rm/$exerciseId', queryParameters: {
-      'period': _periodToString(period),
-    });
-
-    final data = response.data as Map<String, dynamic>;
-    final trendList = data['data'] as List<dynamic>;
-
-    return trendList
-        .map((json) => _parseOneRMDataPoint(json as Map<String, dynamic>))
-        .toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  return service.get1RMTrend(exerciseId, period);
 });
 
 /// Provider for volume by muscle group.
 final volumeByMuscleProvider =
     FutureProvider.autoDispose<List<MuscleVolumeData>>((ref) async {
   final period = ref.watch(selectedPeriodProvider);
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/volume', queryParameters: {
-      'period': _periodToString(period),
-    });
-
-    final data = response.data as Map<String, dynamic>;
-    final volumeList = data['data'] as List<dynamic>;
-
-    return volumeList
-        .map((json) => _parseMuscleVolumeData(json as Map<String, dynamic>))
-        .toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  return service.getVolumeByMuscle(period);
 });
 
 /// Provider for workout consistency data.
+///
+/// Calculates streaks, workout frequency, and day-of-week distribution
+/// from actual workout history.
 final consistencyProvider =
     FutureProvider.autoDispose<ConsistencyData>((ref) async {
   final period = ref.watch(selectedPeriodProvider);
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/consistency', queryParameters: {
-      'period': _periodToString(period),
-    });
-
-    final data = response.data as Map<String, dynamic>;
-    final consistencyJson = data['data'] as Map<String, dynamic>;
-
-    return _parseConsistencyData(consistencyJson, period);
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  return service.getConsistency(period);
 });
 
 // ============================================================================
@@ -164,23 +120,14 @@ final consistencyProvider =
 /// Provider for all-time personal records.
 final personalRecordsProvider =
     FutureProvider.autoDispose<List<PersonalRecord>>((ref) async {
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/prs', queryParameters: {
-      'limit': 20,
-    });
+  final prs = service.personalRecords.toList();
 
-    final data = response.data as Map<String, dynamic>;
-    final prsList = data['data'] as List<dynamic>;
-
-    return prsList
-        .map((json) => _parsePersonalRecord(json as Map<String, dynamic>))
-        .toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  // Sort by estimated 1RM descending
+  prs.sort((a, b) => b.estimated1RM.compareTo(a.estimated1RM));
+  return prs;
 });
 
 // ============================================================================
@@ -191,21 +138,10 @@ final personalRecordsProvider =
 final progressSummaryProvider =
     FutureProvider.autoDispose<ProgressSummary>((ref) async {
   final period = ref.watch(selectedPeriodProvider);
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/summary', queryParameters: {
-      'period': _periodToString(period),
-    });
-
-    final data = response.data as Map<String, dynamic>;
-    final summaryJson = data['data'] as Map<String, dynamic>;
-
-    return _parseProgressSummary(summaryJson);
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  return service.getSummary(period);
 });
 
 // ============================================================================
@@ -213,63 +149,48 @@ final progressSummaryProvider =
 // ============================================================================
 
 /// Provider for calendar data.
+///
+/// Builds a calendar view from actual workout history showing
+/// which days had workouts.
 final calendarDataProvider = FutureProvider.autoDispose
     .family<CalendarData, ({int year, int month})>((ref, params) async {
-  final api = ref.read(apiClientProvider);
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
 
-  try {
-    final response = await api.get('/analytics/calendar', queryParameters: {
-      'year': params.year,
-      'month': params.month,
-    });
-
-    final data = response.data as Map<String, dynamic>;
-    final calendarJson = data['data'] as Map<String, dynamic>;
-
-    return _parseCalendarData(calendarJson);
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+  return service.getCalendarData(params.year, params.month);
 });
 
 // ============================================================================
-// API RESPONSE PARSING
+// WEEKLY STATS PROVIDER
 // ============================================================================
 
-/// Parses a WorkoutSummary from API response.
-WorkoutSummary _parseWorkoutSummary(Map<String, dynamic> json) {
-  final date = DateTime.parse(json['startedAt'] as String);
-  final completedAt = json['completedAt'] != null
-      ? DateTime.parse(json['completedAt'] as String)
-      : null;
+/// Data for the weekly stats display on the home screen dashboard.
+class WeeklyStats {
+  final int workoutCount;
+  final int totalVolume;
+  final int prsAchieved;
 
-  final muscleGroups = <String>[];
-  final exercises = json['exercises'] as List<dynamic>? ?? [];
-  for (final ex in exercises) {
-    final muscles = (ex as Map<String, dynamic>)['muscles'] as List<dynamic>? ?? [];
-    for (final m in muscles) {
-      final muscle = m as String;
-      if (!muscleGroups.contains(muscle)) {
-        muscleGroups.add(muscle);
-      }
+  const WeeklyStats({
+    required this.workoutCount,
+    required this.totalVolume,
+    required this.prsAchieved,
+  });
+
+  /// Formats the volume for display with units (e.g., "12.5k kg").
+  /// Issue #7: Now includes "kg" unit for clarity
+  String get formattedVolume {
+    if (totalVolume >= 1000) {
+      // Show as "12.5k kg" for values >= 1000
+      final kValue = (totalVolume / 1000).toStringAsFixed(1);
+      // Remove trailing .0 for cleaner display
+      final cleanValue = kValue.endsWith('.0')
+          ? kValue.substring(0, kValue.length - 2)
+          : kValue;
+      return '${cleanValue}k kg';
     }
+    // Show as "900 kg" for values under 1000
+    return '$totalVolume kg';
   }
-
-  return WorkoutSummary(
-    id: json['id'] as String,
-    date: date,
-    completedAt: completedAt,
-    durationMinutes: json['durationSeconds'] != null
-        ? (json['durationSeconds'] as int) ~/ 60
-        : 0,
-    templateName: json['templateName'] as String?,
-    exerciseCount: json['exerciseCount'] as int? ?? 0,
-    totalSets: json['setCount'] as int? ?? 0,
-    totalVolume: json['totalVolume'] as int? ?? 0,
-    muscleGroups: muscleGroups,
-    prsAchieved: json['prCount'] as int? ?? 0,
-  );
 }
 
 /// Parses a OneRMDataPoint from API response.
@@ -395,3 +316,39 @@ CalendarData _parseCalendarData(Map<String, dynamic> json) {
     workoutsByDate: workoutsByDate,
   );
 }
+
+/// Provider for weekly stats displayed on the dashboard.
+///
+/// Returns the workout count, total volume, and PRs achieved this week.
+final weeklyStatsProvider = FutureProvider.autoDispose<WeeklyStats>((ref) async {
+  final service = ref.watch(workoutHistoryServiceProvider);
+  await service.initialize();
+
+  // Get workouts from the past 7 days
+  final now = DateTime.now();
+  final weekAgo = now.subtract(const Duration(days: 7));
+
+  final weeklyWorkouts = service.workouts.where((w) {
+    return w.completedAt.isAfter(weekAgo);
+  }).toList();
+
+  // Calculate totals
+  final workoutCount = weeklyWorkouts.length;
+  final totalVolume = weeklyWorkouts.fold<int>(
+    0,
+    (sum, w) => sum + w.totalVolume,
+  );
+  final prsAchieved = weeklyWorkouts.fold<int>(
+    0,
+    (sum, w) => sum + w.prsAchieved,
+  );
+
+  return WeeklyStats(
+    workoutCount: workoutCount,
+    totalVolume: totalVolume,
+    prsAchieved: prsAchieved,
+  );
+});
+
+// Note: All analytics data is calculated from actual user workout history.
+// No sample data is generated - users start with a fresh account.

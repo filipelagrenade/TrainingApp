@@ -4,7 +4,11 @@
 /// - Unit preference (kg/lbs)
 /// - Experience level
 /// - Training goals
+/// - Training frequency
+/// - Rep range preference
 /// - Privacy policy acceptance
+///
+/// These settings enable smart defaults for the progressive overload system.
 library;
 
 import 'package:flutter/material.dart';
@@ -12,6 +16,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../settings/models/user_settings.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// Onboarding screen for new users.
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -30,7 +36,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   String? _unitPreference;
   String? _experienceLevel;
   String? _primaryGoal;
+  int _trainingFrequency = 4; // Default 4 days/week
+  String? _repRangePreference;
   bool _acceptedPrivacy = false;
+
+  // Total number of pages
+  static const _totalPages = 6;
 
   @override
   void dispose() {
@@ -48,7 +59,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
-                children: List.generate(4, (index) {
+                children: List.generate(_totalPages, (index) {
                   return Expanded(
                     child: Container(
                       height: 4,
@@ -92,6 +103,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       setState(() => _primaryGoal = value);
                     },
                   ),
+                  _TrainingFrequencyPage(
+                    selected: _trainingFrequency,
+                    onSelected: (value) {
+                      setState(() => _trainingFrequency = value);
+                    },
+                  ),
+                  _RepRangePreferencePage(
+                    selected: _repRangePreference,
+                    onSelected: (value) {
+                      setState(() => _repRangePreference = value);
+                    },
+                  ),
                   _PrivacyPage(
                     accepted: _acceptedPrivacy,
                     onAccepted: (value) {
@@ -115,7 +138,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   const Spacer(),
                   FilledButton(
                     onPressed: _canProceed ? _proceed : null,
-                    child: Text(_currentPage == 3 ? 'Get Started' : 'Continue'),
+                    child: Text(_currentPage == _totalPages - 1 ? 'Get Started' : 'Continue'),
                   ),
                 ],
               ),
@@ -135,6 +158,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       case 2:
         return _primaryGoal != null;
       case 3:
+        return true; // Training frequency always has a default
+      case 4:
+        return _repRangePreference != null;
+      case 5:
         return _acceptedPrivacy;
       default:
         return false;
@@ -149,7 +176,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _proceed() {
-    if (_currentPage < 3) {
+    if (_currentPage < _totalPages - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -160,12 +187,39 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _completeOnboarding() async {
-    // TODO: Save preferences to backend
-    // await ref.read(authProvider.notifier).completeOnboarding(
-    //   unitPreference: _unitPreference!,
-    //   experienceLevel: _experienceLevel!,
-    //   primaryGoal: _primaryGoal!,
-    // );
+    // Convert string selections to enum values
+    final weightUnit = _unitPreference == 'KG' ? WeightUnit.kg : WeightUnit.lbs;
+
+    final experienceLevel = switch (_experienceLevel) {
+      'BEGINNER' => ExperienceLevel.beginner,
+      'INTERMEDIATE' => ExperienceLevel.intermediate,
+      'ADVANCED' => ExperienceLevel.advanced,
+      _ => ExperienceLevel.beginner,
+    };
+
+    final trainingGoal = switch (_primaryGoal) {
+      'STRENGTH' => TrainingGoal.strength,
+      'HYPERTROPHY' => TrainingGoal.hypertrophy,
+      'GENERAL_FITNESS' => TrainingGoal.generalFitness,
+      'ENDURANCE' => TrainingGoal.endurance,
+      _ => TrainingGoal.generalFitness,
+    };
+
+    final repRangePreference = switch (_repRangePreference) {
+      'CONSERVATIVE' => RepRangePreference.conservative,
+      'STANDARD' => RepRangePreference.standard,
+      'AGGRESSIVE' => RepRangePreference.aggressive,
+      _ => RepRangePreference.standard,
+    };
+
+    // Save preferences to settings
+    ref.read(userSettingsProvider.notifier).completeOnboardingWithProfile(
+      weightUnit: weightUnit,
+      experienceLevel: experienceLevel,
+      trainingGoal: trainingGoal,
+      trainingFrequency: _trainingFrequency,
+      repRangePreference: repRangePreference,
+    );
 
     if (mounted) {
       context.go('/');
@@ -312,7 +366,7 @@ class _GoalPage extends StatelessWidget {
           const SizedBox(height: 32),
           _SelectionCard(
             title: 'Build Strength',
-            subtitle: 'Get stronger on main lifts',
+            subtitle: 'Get stronger on main lifts (3-5 reps)',
             icon: Icons.fitness_center,
             isSelected: selected == 'STRENGTH',
             onTap: () => onSelected('STRENGTH'),
@@ -320,10 +374,11 @@ class _GoalPage extends StatelessWidget {
           const SizedBox(height: 16),
           _SelectionCard(
             title: 'Build Muscle',
-            subtitle: 'Gain muscle mass',
+            subtitle: 'Gain muscle mass (8-12 reps)',
             icon: Icons.accessibility_new,
             isSelected: selected == 'HYPERTROPHY',
             onTap: () => onSelected('HYPERTROPHY'),
+            recommended: true,
           ),
           const SizedBox(height: 16),
           _SelectionCard(
@@ -332,6 +387,219 @@ class _GoalPage extends StatelessWidget {
             icon: Icons.favorite,
             isSelected: selected == 'GENERAL_FITNESS',
             onTap: () => onSelected('GENERAL_FITNESS'),
+          ),
+          const SizedBox(height: 16),
+          _SelectionCard(
+            title: 'Endurance',
+            subtitle: 'Muscular endurance (15-20 reps)',
+            icon: Icons.timer,
+            isSelected: selected == 'ENDURANCE',
+            onTap: () => onSelected('ENDURANCE'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Training frequency selection page.
+class _TrainingFrequencyPage extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  const _TrainingFrequencyPage({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Training Frequency',
+            style: context.textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'How many days per week do you typically train?',
+            style: context.textTheme.bodyLarge?.copyWith(
+              color: context.colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'This helps us calibrate recovery expectations',
+            style: context.textTheme.bodyMedium?.copyWith(
+              color: context.colors.onSurfaceVariant.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Day selector chips
+          Center(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
+              children: [2, 3, 4, 5, 6, 7].map((days) {
+                final isSelected = selected == days;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onSelected(days),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? context.colors.primaryContainer
+                            : context.colors.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? context.colors.primary
+                              : context.colors.outlineVariant,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$days',
+                            style: context.textTheme.headlineMedium?.copyWith(
+                              color: isSelected
+                                  ? context.colors.onPrimaryContainer
+                                  : context.colors.onSurface,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'days',
+                            style: context.textTheme.labelSmall?.copyWith(
+                              color: isSelected
+                                  ? context.colors.onPrimaryContainer
+                                  : context.colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Description based on selection
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: context.colors.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _getFrequencyDescription(selected),
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getFrequencyDescription(int days) {
+    switch (days) {
+      case 2:
+        return 'Great for beginners or those with limited time. Focus on full-body workouts.';
+      case 3:
+        return 'Popular split: Push/Pull/Legs or Full Body 3x. Good balance of training and recovery.';
+      case 4:
+        return 'Common split: Upper/Lower 2x or Push/Pull/Legs/Upper. Great for intermediate lifters.';
+      case 5:
+        return 'Higher frequency training. Good for advanced lifters with good recovery.';
+      case 6:
+        return 'High volume training. Make sure you\'re eating and sleeping enough!';
+      case 7:
+        return 'Daily training requires careful programming. Consider active recovery days.';
+      default:
+        return '';
+    }
+  }
+}
+
+/// Rep range preference selection page.
+class _RepRangePreferencePage extends StatelessWidget {
+  final String? selected;
+  final ValueChanged<String> onSelected;
+
+  const _RepRangePreferencePage({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Training Style',
+            style: context.textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'How do you prefer to train?',
+            style: context.textTheme.bodyLarge?.copyWith(
+              color: context.colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 32),
+          _SelectionCard(
+            title: 'Strength Focus',
+            subtitle: 'Heavy weights, lower reps (3-6 range)',
+            icon: Icons.fitness_center,
+            isSelected: selected == 'CONSERVATIVE',
+            onTap: () => onSelected('CONSERVATIVE'),
+            description: 'Prioritizes building maximal strength with heavier loads',
+          ),
+          const SizedBox(height: 16),
+          _SelectionCard(
+            title: 'Balanced / Hypertrophy',
+            subtitle: 'Moderate weights, medium reps (6-12 range)',
+            icon: Icons.balance,
+            isSelected: selected == 'STANDARD',
+            onTap: () => onSelected('STANDARD'),
+            recommended: true,
+            description: 'Best all-around approach for muscle and strength',
+          ),
+          const SizedBox(height: 16),
+          _SelectionCard(
+            title: 'Volume Focus',
+            subtitle: 'More sets and reps (10-15 range)',
+            icon: Icons.show_chart,
+            isSelected: selected == 'AGGRESSIVE',
+            onTap: () => onSelected('AGGRESSIVE'),
+            description: 'Higher volume for maximum muscle stimulation',
           ),
         ],
       ),
@@ -420,6 +688,8 @@ class _SelectionCard extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool recommended;
+  final String? description;
 
   const _SelectionCard({
     required this.title,
@@ -427,6 +697,8 @@ class _SelectionCard extends StatelessWidget {
     required this.icon,
     required this.isSelected,
     required this.onTap,
+    this.recommended = false,
+    this.description,
   });
 
   @override
@@ -446,46 +718,91 @@ class _SelectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? context.colors.primaryContainer
-                      : context.colors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: isSelected
-                      ? context.colors.onPrimaryContainer
-                      : context.colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: context.textTheme.titleMedium,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? context.colors.primaryContainer
+                          : context.colors.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    Text(
-                      subtitle,
-                      style: context.textTheme.bodyMedium?.copyWith(
-                        color: context.colors.onSurfaceVariant,
-                      ),
+                    child: Icon(
+                      icon,
+                      color: isSelected
+                          ? context.colors.onPrimaryContainer
+                          : context.colors.onSurfaceVariant,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              title,
+                              style: context.textTheme.titleMedium,
+                            ),
+                            if (recommended) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: context.colors.primaryContainer,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Recommended',
+                                  style: context.textTheme.labelSmall?.copyWith(
+                                    color: context.colors.onPrimaryContainer,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          subtitle,
+                          style: context.textTheme.bodyMedium?.copyWith(
+                            color: context.colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isSelected)
+                    Icon(
+                      Icons.check_circle,
+                      color: context.colors.primary,
+                    ),
+                ],
               ),
-              if (isSelected)
-                Icon(
-                  Icons.check_circle,
-                  color: context.colors.primary,
+              if (description != null && isSelected) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: context.colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    description!,
+                    style: context.textTheme.bodySmall?.copyWith(
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
                 ),
+              ],
             ],
           ),
         ),

@@ -6,6 +6,7 @@ allprojects {
 }
 
 // Fix for plugins that don't have namespace set (required for AGP 8+)
+// Also forces compileSdk 34 for all subprojects (fixes isar_flutter_libs lStar issue)
 subprojects {
     afterEvaluate {
         if (project.hasProperty("android")) {
@@ -15,6 +16,8 @@ subprojects {
                 if (androidExtension.namespace == null) {
                     androidExtension.namespace = project.group.toString()
                 }
+                // Force compileSdk 34 for all subprojects
+                androidExtension.compileSdkVersion(34)
             }
         }
     }

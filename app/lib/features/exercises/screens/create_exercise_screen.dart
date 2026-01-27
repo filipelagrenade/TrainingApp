@@ -5,7 +5,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../models/exercise.dart';
 import '../providers/exercise_provider.dart';
@@ -24,6 +23,8 @@ class _CreateExerciseScreenState extends ConsumerState<CreateExerciseScreen> {
   final _descriptionController = TextEditingController();
   final _instructionsController = TextEditingController();
 
+  ExerciseType _selectedExerciseType = ExerciseType.strength;
+  CardioMetricType _selectedCardioMetric = CardioMetricType.none;
   Equipment _selectedEquipment = Equipment.dumbbell;
   final Set<MuscleGroup> _primaryMuscles = {};
   final Set<MuscleGroup> _secondaryMuscles = {};
@@ -95,6 +96,91 @@ class _CreateExerciseScreenState extends ConsumerState<CreateExerciseScreen> {
               maxLines: 2,
             ),
             const SizedBox(height: 24),
+
+            // Exercise type selector
+            Text(
+              'Exercise Type',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<ExerciseType>(
+              segments: ExerciseType.values.map((type) {
+                return ButtonSegment(
+                  value: type,
+                  label: Text(type.label),
+                  icon: Icon(_getExerciseTypeIcon(type)),
+                );
+              }).toList(),
+              selected: {_selectedExerciseType},
+              onSelectionChanged: (selection) {
+                setState(() {
+                  _selectedExerciseType = selection.first;
+                  // Reset cardio metric when switching away from cardio
+                  if (_selectedExerciseType != ExerciseType.cardio) {
+                    _selectedCardioMetric = CardioMetricType.none;
+                  }
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Cardio metric selector (only shown for cardio exercises)
+            if (_selectedExerciseType == ExerciseType.cardio) ...[
+              Text(
+                'Cardio Metric',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Select what metric to track for this exercise',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: CardioMetricType.values.map((metric) {
+                  return ChoiceChip(
+                    label: Text(metric.label),
+                    selected: _selectedCardioMetric == metric,
+                    onSelected: (_) {
+                      setState(() => _selectedCardioMetric = metric);
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+              // Hint text based on selection
+              if (_selectedCardioMetric != CardioMetricType.none)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _selectedCardioMetric.description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
 
             // Equipment selector
             Text(
@@ -214,10 +300,23 @@ class _CreateExerciseScreenState extends ConsumerState<CreateExerciseScreen> {
     );
   }
 
-  bool get _canSave =>
-      _nameController.text.trim().isNotEmpty &&
-      _primaryMuscles.isNotEmpty &&
-      !_isSaving;
+  bool get _canSave {
+    if (_isSaving) return false;
+    if (_nameController.text.trim().isEmpty) return false;
+    // For cardio/flexibility exercises, muscles are optional
+    if (_selectedExerciseType == ExerciseType.strength && _primaryMuscles.isEmpty) {
+      return false;
+    }
+    return true;
+  }
+
+  IconData _getExerciseTypeIcon(ExerciseType type) {
+    return switch (type) {
+      ExerciseType.strength => Icons.fitness_center,
+      ExerciseType.cardio => Icons.directions_run,
+      ExerciseType.flexibility => Icons.self_improvement,
+    };
+  }
 
   String _getEquipmentName(Equipment equipment) {
     switch (equipment) {
@@ -247,7 +346,13 @@ class _CreateExerciseScreenState extends ConsumerState<CreateExerciseScreen> {
       case MuscleGroup.back:
         return 'Back';
       case MuscleGroup.shoulders:
-        return 'Shoulders';
+        return 'Shoulders (General)';
+      case MuscleGroup.anteriorDelt:
+        return 'Front Delt';
+      case MuscleGroup.lateralDelt:
+        return 'Side Delt';
+      case MuscleGroup.posteriorDelt:
+        return 'Rear Delt';
       case MuscleGroup.biceps:
         return 'Biceps';
       case MuscleGroup.triceps:
@@ -287,15 +392,20 @@ class _CreateExerciseScreenState extends ConsumerState<CreateExerciseScreen> {
         primaryMuscles: _primaryMuscles.toList(),
         secondaryMuscles: _secondaryMuscles.toList(),
         equipment: _selectedEquipment,
+        exerciseType: _selectedExerciseType,
+        cardioMetricType: _selectedCardioMetric,
         instructions: _instructionsController.text.trim().isEmpty
             ? null
             : _instructionsController.text.trim(),
         isCustom: true,
-        userId: 'temp-user-id', // TODO: Get from auth
+        userId: 'current-user', // Will be replaced with real auth
       );
 
-      // TODO: Save to local storage / API
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Save to SharedPreferences via the custom exercises provider
+      await ref.read(customExercisesProvider.notifier).addExercise(exercise);
+
+      // Invalidate the exercise list provider to refresh the UI
+      ref.invalidate(exerciseListProvider);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -303,10 +413,10 @@ class _CreateExerciseScreenState extends ConsumerState<CreateExerciseScreen> {
         );
         Navigator.of(context).pop(exercise);
       }
-    } catch (e) {
+    } on Exception catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to create exercise')),
+          SnackBar(content: Text('Failed to create exercise: $e')),
         );
       }
     } finally {

@@ -663,7 +663,7 @@ class _ExerciseCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final swipeEnabled = ref.watch(swipeToCompleteProvider);
+    final swipeEnabled = ref.watch(userSettingsProvider).swipeToComplete;
     final weightUnit = ref.watch(weightUnitProvider);
     final unitString = weightUnit == WeightUnit.kg ? 'kg' : 'lbs';
 

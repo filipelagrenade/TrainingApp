@@ -12,6 +12,8 @@ import '../models/workout_template.dart';
 import '../models/training_program.dart';
 import '../providers/templates_provider.dart';
 import '../../workouts/providers/current_workout_provider.dart';
+import '../../exercises/providers/exercise_provider.dart';
+import '../../exercises/models/exercise.dart';
 
 /// Main templates screen with tabs for user templates and programs.
 class TemplatesScreen extends ConsumerWidget {
@@ -154,11 +156,23 @@ class _ProgramsTab extends ConsumerWidget {
       data: (programs) {
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: programs.length,
+          // +1 for the Create Program button at the top
+          itemCount: programs.length + 1,
           itemBuilder: (context, index) {
+            // First item is the Create Program button
+            if (index == 0) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _CreateProgramButton(
+                  onPressed: () => context.push('/programs/create'),
+                ),
+              );
+            }
+            // Adjust index for programs list
+            final programIndex = index - 1;
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _ProgramCard(program: programs[index]),
+              child: _ProgramCard(program: programs[programIndex]),
             );
           },
         );
@@ -166,6 +180,73 @@ class _ProgramsTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(
         child: Text('Error loading programs: $error'),
+      ),
+    );
+  }
+}
+
+/// Button to create a new custom program.
+class _CreateProgramButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _CreateProgramButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      color: colors.primaryContainer,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.add,
+                  color: colors.onPrimary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Create Custom Program',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: colors.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Build your own training program with AI assistance',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onPrimaryContainer.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: colors.onPrimaryContainer,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -313,7 +394,7 @@ class _TemplateCard extends ConsumerWidget {
               title: const Text('Edit Template'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Navigate to template editor
+                context.push('/templates/${template.id}/edit');
               },
             ),
             ListTile(
@@ -349,19 +430,42 @@ class _TemplateCard extends ConsumerWidget {
   }
 
   void _startWorkout(BuildContext context, WidgetRef ref) {
-    // Start workout from this template
+    // Build template exercises map for AI recommendations
+    final templateExercises = <String, String>{};
+    for (final exercise in template.exercises) {
+      templateExercises[exercise.exerciseId] = exercise.exerciseName;
+    }
+
+    // Get exercise list to look up equipment/cardio info
+    final exerciseListAsync = ref.read(exerciseListProvider);
+    final exercises = exerciseListAsync.valueOrNull ?? <Exercise>[];
+
+    // Start workout from this template with exercise data for recommendations
     ref.read(currentWorkoutProvider.notifier).startWorkout(
           userId: 'temp-user-id', // TODO: Get from auth
           templateId: template.id,
           templateName: template.name,
+          templateExercises: templateExercises,
         );
 
-    // Pre-populate exercises from template
-    for (final exercise in template.exercises) {
+    // Pre-populate exercises from template with full exercise details
+    for (final templateExercise in template.exercises) {
+      // Look up full exercise details
+      final fullExercise = exercises.where(
+        (e) => e.id == templateExercise.exerciseId,
+      ).firstOrNull;
+
       ref.read(currentWorkoutProvider.notifier).addExercise(
-            exerciseId: exercise.exerciseId,
-            exerciseName: exercise.exerciseName,
-            primaryMuscles: exercise.primaryMuscles,
+            exerciseId: templateExercise.exerciseId,
+            exerciseName: templateExercise.exerciseName,
+            primaryMuscles: templateExercise.primaryMuscles,
+            // Add equipment and cardio info from full exercise lookup
+            equipment: fullExercise != null ? [fullExercise.equipment.name] : [],
+            isCardio: fullExercise?.isCardio ?? false,
+            usesIncline: fullExercise?.usesIncline ?? false,
+            usesResistance: fullExercise?.usesResistance ?? false,
+            fromTemplate: true, // Mark as from template so it's not tracked as modification
+            templateSets: templateExercise.defaultSets, // Pass expected sets count
           );
     }
 

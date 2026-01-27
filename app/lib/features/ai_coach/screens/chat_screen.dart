@@ -2,6 +2,7 @@
 ///
 /// Main chat interface for conversing with the AI coach.
 /// Provides a ChatGPT-like experience for workout advice.
+/// Supports saving AI-generated programs to the user's templates.
 library;
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,9 @@ import 'package:go_router/go_router.dart';
 import '../models/chat_message.dart';
 import '../models/quick_prompt.dart';
 import '../providers/ai_coach_provider.dart';
+import '../utils/program_parser.dart';
+import '../../templates/models/training_program.dart';
+import '../../templates/providers/templates_provider.dart';
 
 /// Main chat screen for AI coach interaction.
 ///
@@ -367,16 +371,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 }
 
 /// A single message bubble in the chat.
-class _MessageBubble extends StatelessWidget {
+class _MessageBubble extends ConsumerWidget {
   final ChatMessage message;
 
   const _MessageBubble({required this.message});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isUser = message.isUser;
+
+    // Check if this AI message contains a program
+    final containsProgram =
+        !isUser && ProgramParser.containsProgram(message.content);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -401,39 +409,64 @@ class _MessageBubble extends StatelessWidget {
 
           // Message content
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isUser ? colors.primary : colors.surfaceContainerHighest,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(isUser ? 20 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 20),
+            child: Column(
+              crossAxisAlignment:
+                  isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color:
+                        isUser ? colors.primary : colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(20),
+                      topRight: const Radius.circular(20),
+                      bottomLeft: Radius.circular(isUser ? 20 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 20),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Message text
+                      Text(
+                        message.content,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isUser ? colors.onPrimary : colors.onSurface,
+                        ),
+                      ),
+                      // Timestamp
+                      const SizedBox(height: 4),
+                      Text(
+                        message.formattedTime,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: isUser
+                              ? colors.onPrimary.withValues(alpha: 0.7)
+                              : colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Message text
-                  Text(
-                    message.content,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: isUser ? colors.onPrimary : colors.onSurface,
+                // Save Program button for AI program responses
+                if (containsProgram)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: FilledButton.tonalIcon(
+                      onPressed: () =>
+                          _showSaveProgramDialog(context, ref, message.content),
+                      icon: const Icon(Icons.save_outlined, size: 18),
+                      label: const Text('Save Program'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                      ),
                     ),
                   ),
-                  // Timestamp
-                  const SizedBox(height: 4),
-                  Text(
-                    message.formattedTime,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: isUser
-                          ? colors.onPrimary.withValues(alpha: 0.7)
-                          : colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
 
@@ -441,6 +474,201 @@ class _MessageBubble extends StatelessWidget {
           if (isUser) const SizedBox(width: 8),
         ],
       ),
+    );
+  }
+
+  /// Shows dialog to save the AI-generated program.
+  Future<void> _showSaveProgramDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String content,
+  ) async {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    // Parse the program
+    final parsed = ProgramParser.parseProgram(content);
+
+    if (!parsed.hasProgram) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            parsed.errors.isNotEmpty
+                ? 'Error: ${parsed.errors.first}'
+                : 'Could not parse program from response',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Show save dialog
+    final nameController = TextEditingController(
+      text: parsed.program?.name ?? 'Custom Program',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Save Program'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Program Name',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Program Details',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDetailRow(
+                      'Workouts',
+                      '${parsed.dayCount} days',
+                      Icons.calendar_today,
+                      colors,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow(
+                      'Duration',
+                      '${parsed.program?.durationWeeks ?? 8} weeks',
+                      Icons.access_time,
+                      colors,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow(
+                      'Difficulty',
+                      parsed.program != null
+                          ? parsed.program!.difficultyLabel
+                          : 'Intermediate',
+                      Icons.fitness_center,
+                      colors,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Workouts:',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              ...parsed.workouts.map(
+                (w) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 16,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${w.name} (${w.exercises.length} exercises)',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        // Save each workout as a template
+        final templateActions = ref.read(templateActionsProvider.notifier);
+
+        for (final workout in parsed.workouts) {
+          await templateActions.createTemplate(
+            name: workout.name,
+            description: workout.description,
+            estimatedDuration: workout.estimatedDuration,
+            exercises: workout.exercises,
+          );
+        }
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Saved ${parsed.dayCount} workout templates!',
+              ),
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: 'View',
+                onPressed: () => context.push('/templates'),
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to save: $e'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    IconData icon,
+    ColorScheme colors,
+  ) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: colors.primary),
+        const SizedBox(width: 8),
+        Text(label),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+            color: colors.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }

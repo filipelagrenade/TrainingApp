@@ -1,13 +1,17 @@
 /// LiftIQ - Settings Provider
 ///
 /// Manages the state for user settings and preferences.
-/// Syncs settings with the backend API.
+/// Settings are persisted to SharedPreferences with user-specific keys
+/// for data isolation between users on the same device.
 library;
 
+import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/api_client.dart';
+import '../../../core/services/user_storage_keys.dart';
 import '../models/user_settings.dart';
 
 // ============================================================================
@@ -15,30 +19,51 @@ import '../models/user_settings.dart';
 // ============================================================================
 
 /// Provider for user settings state.
+///
+/// Settings are scoped to the current user, ensuring data isolation.
+/// When the user changes, settings are automatically reloaded for that user.
 final userSettingsProvider =
     StateNotifierProvider<UserSettingsNotifier, UserSettings>(
-  (ref) => UserSettingsNotifier(ref),
+  (ref) {
+    final userId = ref.watch(currentUserStorageIdProvider);
+    return UserSettingsNotifier(userId);
+  },
 );
 
 /// Notifier for user settings state management.
+///
+/// Handles loading and saving settings to SharedPreferences.
+/// Settings are loaded on initialization and saved whenever they change.
+/// Each user has their own isolated settings storage.
 class UserSettingsNotifier extends StateNotifier<UserSettings> {
-  final Ref _ref;
+  /// The user ID this notifier is scoped to.
+  final String _userId;
 
-  UserSettingsNotifier(this._ref) : super(const UserSettings()) {
+  /// Gets the storage key for this user's settings.
+  String get _settingsKey => UserStorageKeys.userSettings(_userId);
+
+  UserSettingsNotifier(this._userId) : super(const UserSettings()) {
     _loadSettings();
   }
 
-  /// Loads settings from API on startup.
+  /// Loads settings from SharedPreferences.
+  ///
+  /// If no settings are found or loading fails, keeps default values.
   Future<void> _loadSettings() async {
     try {
-      final api = _ref.read(apiClientProvider);
-      final response = await api.get('/settings');
-      final data = response.data as Map<String, dynamic>;
-      final settingsJson = data['data'] as Map<String, dynamic>;
+      final prefs = await SharedPreferences.getInstance();
+      final settingsJson = prefs.getString(_settingsKey);
 
-      state = _parseSettings(settingsJson);
+      if (settingsJson != null) {
+        final decoded = jsonDecode(settingsJson) as Map<String, dynamic>;
+        state = UserSettings.fromJson(decoded);
+        debugPrint('SettingsProvider: Loaded settings for user $_userId');
+      } else {
+        debugPrint('SettingsProvider: No saved settings for user $_userId, using defaults');
+      }
     } catch (e) {
-      // Use default settings on failure
+      debugPrint('SettingsProvider: Error loading settings: $e');
+      // Keep default settings on error
     }
   }
 
@@ -54,9 +79,15 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
-  /// Updates theme preference.
+  /// Updates theme preference (legacy light/dark mode).
   void setTheme(AppTheme theme) {
     state = state.copyWith(theme: theme);
+    _saveSettings();
+  }
+
+  /// Updates selected LiftIQ theme preset.
+  void setSelectedTheme(LiftIQTheme theme) {
+    state = state.copyWith(selectedTheme: theme);
     _saveSettings();
   }
 
@@ -164,12 +195,6 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
-  /// Toggles haptic feedback.
-  void setHapticFeedback(bool value) {
-    state = state.copyWith(hapticFeedback: value);
-    _saveSettings();
-  }
-
   /// Toggles swipe to complete sets.
   void setSwipeToComplete(bool value) {
     state = state.copyWith(swipeToComplete: value);
@@ -188,140 +213,218 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
+  /// Toggles haptic feedback.
+  void setHapticFeedback(bool value) {
+    state = state.copyWith(hapticFeedback: value);
+    _saveSettings();
+  }
+
+  /// Updates training preferences.
+  void setTrainingPreferences(TrainingPreferences preferences) {
+    state = state.copyWith(trainingPreferences: preferences);
+    _saveSettings();
+  }
+
+  /// Updates volume preference.
+  void setVolumePreference(VolumePreference preference) {
+    state = state.copyWith(
+      trainingPreferences: state.trainingPreferences.copyWith(
+        volumePreference: preference,
+      ),
+    );
+    _saveSettings();
+  }
+
+  /// Updates progression preference.
+  void setProgressionPreference(ProgressionPreference preference) {
+    state = state.copyWith(
+      trainingPreferences: state.trainingPreferences.copyWith(
+        progressionPreference: preference,
+      ),
+    );
+    _saveSettings();
+  }
+
+  /// Updates auto-regulation mode.
+  void setAutoRegulationMode(AutoRegulationMode mode) {
+    state = state.copyWith(
+      trainingPreferences: state.trainingPreferences.copyWith(
+        autoRegulationMode: mode,
+      ),
+    );
+    _saveSettings();
+  }
+
+  /// Updates target RPE range.
+  void setTargetRpeRange(double low, double high) {
+    state = state.copyWith(
+      trainingPreferences: state.trainingPreferences.copyWith(
+        targetRpeLow: low,
+        targetRpeHigh: high,
+      ),
+    );
+    _saveSettings();
+  }
+
+  /// Toggles confidence indicator visibility.
+  void setShowConfidenceIndicator(bool value) {
+    state = state.copyWith(
+      trainingPreferences: state.trainingPreferences.copyWith(
+        showConfidenceIndicator: value,
+      ),
+    );
+    _saveSettings();
+  }
+
+  // =========================================================================
+  // ONBOARDING
+  // =========================================================================
+
+  /// Sets the user's display name.
+  void setDisplayName(String name) {
+    state = state.copyWith(displayName: name);
+    _saveSettings();
+  }
+
+  /// Sets the user's experience level.
+  void setExperienceLevel(ExperienceLevel level) {
+    state = state.copyWith(experienceLevel: level);
+    _saveSettings();
+  }
+
+  /// Sets the user's training goal.
+  void setTrainingGoal(TrainingGoal goal) {
+    state = state.copyWith(trainingGoal: goal);
+    _saveSettings();
+  }
+
+  /// Completes onboarding with all preferences.
+  void completeOnboarding({
+    required WeightUnit weightUnit,
+    required ExperienceLevel experienceLevel,
+    required TrainingGoal trainingGoal,
+    String? displayName,
+  }) {
+    state = state.copyWith(
+      weightUnit: weightUnit,
+      experienceLevel: experienceLevel,
+      trainingGoal: trainingGoal,
+      displayName: displayName ?? state.displayName,
+      hasCompletedOnboarding: true,
+    );
+    _saveSettings();
+    debugPrint('SettingsProvider: Onboarding completed');
+  }
+
+  /// Completes onboarding with training profile (new survey flow).
+  ///
+  /// This method captures all the training profile data needed for
+  /// the double progression algorithm to make smart recommendations.
+  void completeOnboardingWithProfile({
+    required WeightUnit weightUnit,
+    required ExperienceLevel experienceLevel,
+    required TrainingGoal trainingGoal,
+    required int trainingFrequency,
+    required RepRangePreference repRangePreference,
+    String? displayName,
+  }) {
+    state = state.copyWith(
+      weightUnit: weightUnit,
+      experienceLevel: experienceLevel,
+      trainingGoal: trainingGoal,
+      trainingFrequency: trainingFrequency,
+      repRangePreference: repRangePreference,
+      displayName: displayName ?? state.displayName,
+      hasCompletedOnboarding: true,
+      // Set smart defaults based on experience level
+      sessionsAtCeilingRequired: experienceLevel == ExperienceLevel.beginner ? 2 : 2,
+      upperBodyWeightIncrement: experienceLevel == ExperienceLevel.beginner ? 2.5 : 2.5,
+      lowerBodyWeightIncrement: experienceLevel == ExperienceLevel.beginner ? 5.0 : 5.0,
+    );
+    _saveSettings();
+    debugPrint(
+      'SettingsProvider: Onboarding completed with profile - '
+      'Goal: ${trainingGoal.name}, Frequency: $trainingFrequency days, '
+      'Rep style: ${repRangePreference.name}',
+    );
+  }
+
+  // =========================================================================
+  // PROGRESSION SETTINGS
+  // =========================================================================
+
+  /// Sets the training frequency (days per week).
+  void setTrainingFrequency(int frequency) {
+    state = state.copyWith(trainingFrequency: frequency.clamp(2, 7));
+    _saveSettings();
+  }
+
+  /// Sets the rep range preference.
+  void setRepRangePreference(RepRangePreference preference) {
+    state = state.copyWith(repRangePreference: preference);
+    _saveSettings();
+  }
+
+  /// Sets sessions at ceiling required before weight increase.
+  void setSessionsAtCeilingRequired(int sessions) {
+    state = state.copyWith(sessionsAtCeilingRequired: sessions.clamp(1, 5));
+    _saveSettings();
+  }
+
+  /// Sets the upper body weight increment.
+  void setUpperBodyWeightIncrement(double increment) {
+    state = state.copyWith(upperBodyWeightIncrement: increment.clamp(1.0, 10.0));
+    _saveSettings();
+  }
+
+  /// Sets the lower body weight increment.
+  void setLowerBodyWeightIncrement(double increment) {
+    state = state.copyWith(lowerBodyWeightIncrement: increment.clamp(2.5, 20.0));
+    _saveSettings();
+  }
+
+  /// Toggles auto-deload feature.
+  void setAutoDeloadEnabled(bool value) {
+    state = state.copyWith(autoDeloadEnabled: value);
+    _saveSettings();
+  }
+
+  /// Sets weeks before auto-deload recommendation.
+  void setWeeksBeforeAutoDeload(int weeks) {
+    state = state.copyWith(weeksBeforeAutoDeload: weeks.clamp(3, 12));
+    _saveSettings();
+  }
+
+  /// Marks onboarding as complete.
+  void markOnboardingComplete() {
+    state = state.copyWith(hasCompletedOnboarding: true);
+    _saveSettings();
+  }
+
   /// Resets all settings to defaults.
   void resetToDefaults() {
     state = const UserSettings();
     _saveSettings();
   }
 
-  /// Saves settings to API.
+  /// Clears all data for a fresh start (including onboarding).
+  Future<void> clearAllData() async {
+    state = const UserSettings();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_settingsKey);
+    debugPrint('SettingsProvider: All data cleared for user $_userId');
+  }
+
+  /// Saves settings to SharedPreferences.
   Future<void> _saveSettings() async {
     try {
-      final api = _ref.read(apiClientProvider);
-      await api.put('/settings', data: _settingsToJson(state));
+      final prefs = await SharedPreferences.getInstance();
+      final settingsJson = jsonEncode(state.toJson());
+      await prefs.setString(_settingsKey, settingsJson);
+      debugPrint('SettingsProvider: Settings saved for user $_userId');
     } catch (e) {
-      // Silently fail - settings are still saved locally
+      debugPrint('SettingsProvider: Error saving settings: $e');
     }
-  }
-
-  /// Parses settings from API response.
-  UserSettings _parseSettings(Map<String, dynamic> json) {
-    final restTimerJson = json['restTimer'] as Map<String, dynamic>?;
-    final notificationsJson = json['notifications'] as Map<String, dynamic>?;
-    final privacyJson = json['privacy'] as Map<String, dynamic>?;
-
-    return UserSettings(
-      weightUnit: _parseWeightUnit(json['weightUnit'] as String?),
-      distanceUnit: _parseDistanceUnit(json['distanceUnit'] as String?),
-      theme: _parseTheme(json['theme'] as String?),
-      restTimer: restTimerJson != null
-          ? RestTimerSettings(
-              defaultRestSeconds: restTimerJson['defaultRestSeconds'] as int? ?? 90,
-              useSmartRest: restTimerJson['useSmartRest'] as bool? ?? true,
-              autoStart: restTimerJson['autoStart'] as bool? ?? true,
-              soundOnComplete: restTimerJson['soundOnComplete'] as bool? ?? restTimerJson['sound'] != null,
-              vibrateOnComplete: restTimerJson['vibrateOnComplete'] as bool? ?? restTimerJson['vibrate'] as bool? ?? true,
-            )
-          : const RestTimerSettings(),
-      notifications: notificationsJson != null
-          ? NotificationSettings(
-              enabled: notificationsJson['enabled'] as bool? ?? true,
-              workoutReminders: notificationsJson['workoutReminders'] as bool? ?? true,
-              prCelebrations: notificationsJson['prCelebrations'] as bool? ?? true,
-              restTimerAlerts: notificationsJson['restTimerAlerts'] as bool? ?? true,
-              socialActivity: notificationsJson['socialActivity'] as bool? ?? true,
-              challengeUpdates: notificationsJson['challengeUpdates'] as bool? ?? true,
-              aiCoachTips: notificationsJson['aiCoachTips'] as bool? ?? true,
-            )
-          : const NotificationSettings(),
-      privacy: privacyJson != null
-          ? PrivacySettings(
-              publicProfile: privacyJson['publicProfile'] as bool? ?? true,
-              showWorkoutHistory: privacyJson['showWorkoutHistory'] as bool? ?? true,
-              showPRs: privacyJson['showPRs'] as bool? ?? true,
-              showStreak: privacyJson['showStreak'] as bool? ?? true,
-              appearInSearch: privacyJson['appearInSearch'] as bool? ?? true,
-            )
-          : const PrivacySettings(),
-      showWeightSuggestions: json['showWeightSuggestions'] as bool? ?? true,
-      showFormCues: json['showFormCues'] as bool? ?? true,
-      defaultSets: json['defaultSets'] as int? ?? 3,
-      hapticFeedback: json['hapticFeedback'] as bool? ?? true,
-      swipeToComplete: json['swipeToComplete'] as bool? ?? false,
-      showPRCelebration: json['showPRCelebration'] as bool? ?? true,
-      showMusicControls: json['showMusicControls'] as bool? ?? false,
-    );
-  }
-
-  WeightUnit _parseWeightUnit(String? unit) {
-    switch (unit?.toLowerCase()) {
-      case 'kg':
-        return WeightUnit.kg;
-      case 'lbs':
-      default:
-        return WeightUnit.lbs;
-    }
-  }
-
-  DistanceUnit _parseDistanceUnit(String? unit) {
-    switch (unit?.toLowerCase()) {
-      case 'km':
-        return DistanceUnit.km;
-      case 'miles':
-      default:
-        return DistanceUnit.miles;
-    }
-  }
-
-  AppTheme _parseTheme(String? theme) {
-    switch (theme?.toLowerCase()) {
-      case 'light':
-        return AppTheme.light;
-      case 'system':
-        return AppTheme.system;
-      case 'dark':
-      default:
-        return AppTheme.dark;
-    }
-  }
-
-  /// Converts settings to JSON for API.
-  Map<String, dynamic> _settingsToJson(UserSettings settings) {
-    return {
-      'weightUnit': settings.weightUnit.name,
-      'distanceUnit': settings.distanceUnit.name,
-      'theme': settings.theme.name,
-      'restTimer': {
-        'defaultRestSeconds': settings.restTimer.defaultRestSeconds,
-        'useSmartRest': settings.restTimer.useSmartRest,
-        'autoStart': settings.restTimer.autoStart,
-        'soundOnComplete': settings.restTimer.soundOnComplete,
-        'vibrateOnComplete': settings.restTimer.vibrateOnComplete,
-      },
-      'notifications': {
-        'enabled': settings.notifications.enabled,
-        'workoutReminders': settings.notifications.workoutReminders,
-        'prCelebrations': settings.notifications.prCelebrations,
-        'restTimerAlerts': settings.notifications.restTimerAlerts,
-        'socialActivity': settings.notifications.socialActivity,
-        'challengeUpdates': settings.notifications.challengeUpdates,
-        'aiCoachTips': settings.notifications.aiCoachTips,
-      },
-      'privacy': {
-        'publicProfile': settings.privacy.publicProfile,
-        'showWorkoutHistory': settings.privacy.showWorkoutHistory,
-        'showPRs': settings.privacy.showPRs,
-        'showStreak': settings.privacy.showStreak,
-        'appearInSearch': settings.privacy.appearInSearch,
-      },
-      'showWeightSuggestions': settings.showWeightSuggestions,
-      'showFormCues': settings.showFormCues,
-      'defaultSets': settings.defaultSets,
-      'hapticFeedback': settings.hapticFeedback,
-      'swipeToComplete': settings.swipeToComplete,
-      'showPRCelebration': settings.showPRCelebration,
-      'showMusicControls': settings.showMusicControls,
-    };
   }
 }
 
@@ -488,9 +591,14 @@ final gdprProvider = StateNotifierProvider<GdprNotifier, GdprState>(
 // HELPER PROVIDERS
 // ============================================================================
 
-/// Provider for current theme mode.
+/// Provider for current theme mode (legacy light/dark toggle).
 final themeModeProvider = Provider<AppTheme>((ref) {
   return ref.watch(userSettingsProvider).theme;
+});
+
+/// Provider for current selected LiftIQ theme preset.
+final selectedThemeProvider = Provider<LiftIQTheme>((ref) {
+  return ref.watch(userSettingsProvider).selectedTheme;
 });
 
 /// Provider for current weight unit.
@@ -513,45 +621,46 @@ final privacySettingsProvider = Provider<PrivacySettings>((ref) {
   return ref.watch(userSettingsProvider).privacy;
 });
 
-/// Provider for swipe to complete sets setting.
-final swipeToCompleteProvider = Provider<bool>((ref) {
-  return ref.watch(userSettingsProvider).swipeToComplete;
+/// Provider for training preferences.
+final trainingPreferencesProvider = Provider<TrainingPreferences>((ref) {
+  return ref.watch(userSettingsProvider).trainingPreferences;
 });
 
-/// Provider for haptic feedback setting.
-final hapticFeedbackProvider = Provider<bool>((ref) {
-  return ref.watch(userSettingsProvider).hapticFeedback;
-});
-
-/// Provider for music controls setting.
-final showMusicControlsProvider = Provider<bool>((ref) {
-  return ref.watch(userSettingsProvider).showMusicControls;
+/// Provider for onboarding completion status.
+///
+/// Use this in the router instead of watching the entire userSettingsProvider
+/// to prevent navigation rebuilds when unrelated settings change.
+final hasCompletedOnboardingProvider = Provider<bool>((ref) {
+  return ref.watch(userSettingsProvider.select((s) => s.hasCompletedOnboarding));
 });
 
 // ============================================================================
-// PARSING HELPERS
+// API RESPONSE PARSING
 // ============================================================================
 
+/// Parses DataExportRequest from API response.
 DataExportRequest _parseDataExportRequest(Map<String, dynamic> json) {
   return DataExportRequest(
-    id: json['id'] as String,
-    status: json['status'] as String,
-    requestedAt: DateTime.parse(json['requestedAt'] as String),
+    id: json['id'] as String? ?? '',
+    status: json['status'] as String? ?? 'pending',
+    requestedAt: json['requestedAt'] != null
+        ? DateTime.parse(json['requestedAt'] as String)
+        : DateTime.now(),
     estimatedReadyAt: json['estimatedReadyAt'] != null
         ? DateTime.parse(json['estimatedReadyAt'] as String)
         : null,
     downloadUrl: json['downloadUrl'] as String?,
-    expiresAt: json['expiresAt'] != null
-        ? DateTime.parse(json['expiresAt'] as String)
-        : null,
   );
 }
 
+/// Parses AccountDeletionRequest from API response.
 AccountDeletionRequest _parseAccountDeletionRequest(Map<String, dynamic> json) {
   return AccountDeletionRequest(
-    id: json['id'] as String,
-    status: json['status'] as String,
-    requestedAt: DateTime.parse(json['requestedAt'] as String),
+    id: json['id'] as String? ?? '',
+    status: json['status'] as String? ?? 'pending',
+    requestedAt: json['requestedAt'] != null
+        ? DateTime.parse(json['requestedAt'] as String)
+        : DateTime.now(),
     scheduledDeletionAt: json['scheduledDeletionAt'] != null
         ? DateTime.parse(json['scheduledDeletionAt'] as String)
         : DateTime.now().add(const Duration(days: 30)),

@@ -31,12 +31,12 @@ void main() {
     });
   });
 
-  group('WorkoutHistoryProvider', () {
+  group('WorkoutHistoryListProvider', () {
     test('returns list of workout summaries', () async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final history = await container.read(workoutHistoryProvider.future);
+      final history = await container.read(workoutHistoryListProvider.future);
 
       expect(history, isNotEmpty);
       expect(history.first, isA<WorkoutSummary>());
@@ -46,7 +46,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final history = await container.read(workoutHistoryProvider.future);
+      final history = await container.read(workoutHistoryListProvider.future);
 
       for (final workout in history) {
         expect(workout.id, isNotEmpty);
@@ -61,7 +61,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final history = await container.read(workoutHistoryProvider.future);
+      final history = await container.read(workoutHistoryListProvider.future);
 
       for (var i = 0; i < history.length - 1; i++) {
         expect(

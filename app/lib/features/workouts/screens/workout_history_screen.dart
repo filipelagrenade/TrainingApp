@@ -15,7 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/current_workout_provider.dart';
+import '../../analytics/models/workout_summary.dart';
+import '../../analytics/providers/analytics_provider.dart';
 
 // ============================================================================
 // SCREEN
@@ -29,10 +30,12 @@ class WorkoutHistoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final historyAsync = ref.watch(workoutHistoryProvider);
+    final historyAsync = ref.watch(workoutHistoryListProvider);
 
     return Scaffold(
       appBar: AppBar(
+        // No back button - this is a main tab in bottom navigation
+        automaticallyImplyLeading: false,
         title: const Text('Workout History'),
         actions: [
           IconButton(
@@ -204,7 +207,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _formatDate(workout.startedAt),
+                          _formatDate(workout.date),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colors.onSurfaceVariant,
                           ),
@@ -221,7 +224,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
                 children: [
                   _buildStat(
                     icon: Icons.timer_outlined,
-                    value: _formatDuration(workout.durationSeconds),
+                    value: '${workout.durationMinutes} min',
                     colors: colors,
                   ),
                   const SizedBox(width: 16),
@@ -233,14 +236,14 @@ class _WorkoutHistoryCard extends StatelessWidget {
                   const SizedBox(width: 16),
                   _buildStat(
                     icon: Icons.format_list_numbered,
-                    value: '${workout.setCount} sets',
+                    value: '${workout.totalSets} sets',
                     colors: colors,
                   ),
                 ],
               ),
 
               // PR badge if any PRs were hit
-              if (workout.prCount > 0) ...[
+              if (workout.prsAchieved > 0) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding:
@@ -259,7 +262,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${workout.prCount} PR${workout.prCount > 1 ? 's' : ''}',
+                        '${workout.prsAchieved} PR${workout.prsAchieved > 1 ? 's' : ''}',
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: colors.onTertiaryContainer,
                           fontWeight: FontWeight.bold,
@@ -269,6 +272,34 @@ class _WorkoutHistoryCard extends StatelessWidget {
                   ),
                 ),
               ],
+
+              // Muscle groups worked
+              if (workout.muscleGroups.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: workout.muscleGroups.take(4).map((muscle) {
+                    return Chip(
+                      label: Text(muscle),
+                      labelStyle: theme.textTheme.labelSmall,
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    );
+                  }).toList(),
+                ),
+              ],
+
+              // Volume
+              const SizedBox(height: 8),
+              Text(
+                'Volume: ${(workout.totalVolume / 1000).toStringAsFixed(1)}k kg',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),

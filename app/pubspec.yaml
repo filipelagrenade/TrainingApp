@@ -50,9 +50,14 @@ dependencies:
   collection: ^1.18.0
   equatable: ^2.0.5
   path_provider: ^2.1.2
+  share_plus: ^7.2.2
+  shared_preferences: ^2.2.2
 
   # Charts
   fl_chart: ^0.67.0
+
+  # Celebrations
+  confetti: ^0.7.0
 
   # Notifications
   flutter_local_notifications: ^17.0.0
@@ -95,6 +100,11 @@ flutter:
   #         weight: 600
   #       - asset: assets/fonts/Inter-Bold.ttf
   #         weight: 700
+
+# Dependency overrides to fix build issues
+dependency_overrides:
+  # sqflite_android 2.4.2+2 uses BAKLAVA (Android 16) which requires SDK 36
+  sqflite_android: 2.4.0
 
 # Isar configuration
 isar:

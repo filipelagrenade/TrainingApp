@@ -11,8 +11,10 @@
 library;
 
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/services/notification_service.dart';
 import '../models/exercise_set.dart';
 import '../services/rest_calculator.dart';
 
@@ -237,12 +239,16 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
       status: RestTimerStatus.idle,
       remainingSeconds: state.totalSeconds,
     );
+    // Cancel any active notification
+    ref.read(notificationServiceProvider).cancelRestTimerNotification();
   }
 
   /// Stops the timer and returns to idle.
   void stop() {
     _timer?.cancel();
     state = const RestTimerState();
+    // Cancel any active notification
+    ref.read(notificationServiceProvider).cancelRestTimerNotification();
   }
 
   /// Adds time to the current timer.
@@ -327,6 +333,9 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
 
   /// Starts the timer countdown.
   void _startTimer() {
+    // Show initial notification with countdown
+    _updateNotificationCountdown();
+
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (state.remainingSeconds <= 1) {
         _onTimerComplete();
@@ -334,8 +343,19 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
         state = state.copyWith(
           remainingSeconds: state.remainingSeconds - 1,
         );
+        // Update notification with countdown every second
+        _updateNotificationCountdown();
       }
     });
+  }
+
+  /// Updates the rest timer notification with current countdown.
+  void _updateNotificationCountdown() {
+    final notificationService = ref.read(notificationServiceProvider);
+    notificationService.showRestTimer(
+      secondsRemaining: state.remainingSeconds,
+      isComplete: false,
+    );
   }
 
   /// Called when the timer reaches zero.
@@ -346,14 +366,19 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
       remainingSeconds: 0,
     );
 
-    // TODO: Play notification sound
-    // TODO: Vibrate
-    // TODO: Show notification if app is backgrounded
+    // Play haptic feedback (vibration)
+    HapticFeedback.heavyImpact();
+
+    // Show completion notification
+    final notificationService = ref.read(notificationServiceProvider);
+    notificationService.showRestTimer(secondsRemaining: 0, isComplete: true);
 
     // Auto-reset after a short delay
     Future.delayed(const Duration(seconds: 3), () {
       if (state.isCompleted) {
         reset();
+        // Cancel the notification when timer resets
+        notificationService.cancelRestTimerNotification();
       }
     });
   }

@@ -181,6 +181,9 @@ class WorkoutDetailScreen extends ConsumerWidget {
       ),
     );
   }
+
+  // TODO: Share workout methods will be implemented when workout detail
+  // fetching from history is connected.
 }
 
 class _StatItem extends StatelessWidget {

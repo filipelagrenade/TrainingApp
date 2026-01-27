@@ -486,6 +486,9 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       SetType.dropset => 'Drop Set',
       SetType.failure => 'To Failure',
       SetType.working => 'Working',
+      SetType.amrap => 'AMRAP',
+      SetType.cluster => 'Cluster',
+      SetType.superset => 'Superset',
     };
 
     return Chip(

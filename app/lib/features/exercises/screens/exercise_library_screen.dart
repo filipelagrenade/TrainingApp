@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liftiq/shared/widgets/loading_shimmer.dart';
 import '../models/exercise.dart';
 import '../providers/exercise_provider.dart';
+import 'create_exercise_screen.dart';
 
 /// Main exercise library screen.
 class ExerciseLibraryScreen extends ConsumerWidget {
@@ -280,20 +281,9 @@ class ExerciseLibraryScreen extends ConsumerWidget {
   }
 
   void _showCreateExerciseDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Custom Exercise'),
-        content: const Text(
-          'Custom exercise creation coming soon!\n\n'
-          'You\'ll be able to add your own exercises with custom muscle groups and equipment.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const CreateExerciseScreen(),
       ),
     );
   }
@@ -305,7 +295,13 @@ class ExerciseLibraryScreen extends ConsumerWidget {
       case MuscleGroup.back:
         return 'Back';
       case MuscleGroup.shoulders:
-        return 'Shoulders';
+        return 'Shoulders (General)';
+      case MuscleGroup.anteriorDelt:
+        return 'Front Delt';
+      case MuscleGroup.lateralDelt:
+        return 'Side Delt';
+      case MuscleGroup.posteriorDelt:
+        return 'Rear Delt';
       case MuscleGroup.biceps:
         return 'Biceps';
       case MuscleGroup.triceps:

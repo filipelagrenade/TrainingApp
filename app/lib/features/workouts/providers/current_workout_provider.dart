@@ -17,7 +17,7 @@ library;
 
 import 'dart:async';
 
-import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -25,6 +25,17 @@ import '../../../core/services/api_client.dart';
 import '../models/workout_session.dart';
 import '../models/exercise_log.dart';
 import '../models/exercise_set.dart';
+import '../models/cardio_set.dart';
+// CableAttachment is exported from exercise_log.dart
+import '../../../shared/services/workout_history_service.dart';
+import '../../../shared/services/workout_persistence_service.dart';
+import '../../../shared/services/notification_service.dart';
+import '../../analytics/providers/analytics_provider.dart';
+import '../../programs/providers/active_program_provider.dart';
+import '../../settings/providers/settings_provider.dart';
+import './weight_recommendation_provider.dart';
+import './rest_timer_provider.dart';
+import './progression_state_provider.dart';
 import '../widgets/pr_celebration.dart';
 
 // ============================================================================
@@ -47,6 +58,56 @@ class NoWorkout extends CurrentWorkoutState {
   const NoWorkout();
 }
 
+/// Tracks modifications made to a template-based workout.
+class WorkoutModifications {
+  /// Exercises added that weren't in the original template.
+  final List<String> addedExercises;
+
+  /// Exercises removed from the original template.
+  final List<String> removedExercises;
+
+  /// Exercises where the number of sets changed.
+  final Map<String, int> setCountChanges;
+
+  const WorkoutModifications({
+    this.addedExercises = const [],
+    this.removedExercises = const [],
+    this.setCountChanges = const {},
+  });
+
+  /// Whether any modifications were made.
+  bool get hasModifications =>
+      addedExercises.isNotEmpty ||
+      removedExercises.isNotEmpty ||
+      setCountChanges.isNotEmpty;
+
+  /// Creates a copy with an added exercise.
+  WorkoutModifications addExercise(String exerciseName) {
+    return WorkoutModifications(
+      addedExercises: [...addedExercises, exerciseName],
+      removedExercises: removedExercises,
+      setCountChanges: setCountChanges,
+    );
+  }
+
+  /// Creates a copy with a removed exercise.
+  WorkoutModifications removeExercise(String exerciseName) {
+    // If it was added during this session, just remove from added list
+    if (addedExercises.contains(exerciseName)) {
+      return WorkoutModifications(
+        addedExercises: addedExercises.where((e) => e != exerciseName).toList(),
+        removedExercises: removedExercises,
+        setCountChanges: setCountChanges,
+      );
+    }
+    return WorkoutModifications(
+      addedExercises: addedExercises,
+      removedExercises: [...removedExercises, exerciseName],
+      setCountChanges: setCountChanges,
+    );
+  }
+}
+
 /// Workout is active and in progress.
 class ActiveWorkout extends CurrentWorkoutState {
   final WorkoutSession workout;
@@ -54,25 +115,25 @@ class ActiveWorkout extends CurrentWorkoutState {
   /// Index of the currently selected exercise (for UI)
   final int currentExerciseIndex;
 
-  /// Server-side workout ID (for API calls)
-  final String? serverWorkoutId;
+  /// Tracks modifications made during this workout (for template updates).
+  final WorkoutModifications modifications;
 
   const ActiveWorkout({
     required this.workout,
     this.currentExerciseIndex = 0,
-    this.serverWorkoutId,
+    this.modifications = const WorkoutModifications(),
   });
 
   /// Creates a copy with updated values.
   ActiveWorkout copyWith({
     WorkoutSession? workout,
     int? currentExerciseIndex,
-    String? serverWorkoutId,
+    WorkoutModifications? modifications,
   }) {
     return ActiveWorkout(
       workout: workout ?? this.workout,
       currentExerciseIndex: currentExerciseIndex ?? this.currentExerciseIndex,
-      serverWorkoutId: serverWorkoutId ?? this.serverWorkoutId,
+      modifications: modifications ?? this.modifications,
     );
   }
 }
@@ -135,39 +196,97 @@ final prEventProvider = StreamProvider<PRData>((ref) {
 class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   static const _uuid = Uuid();
 
-  // Stores PRs for each exercise during this workout session
-  // Key: exerciseId, Value: max weight at reps
+  /// Maps local exercise log IDs to server IDs (for API sync).
+  final Map<String, String> _exerciseLogServerIds = {};
+
+  /// Tracks max weights per exercise in the current session (for PR detection).
   final Map<String, double> _sessionMaxWeights = {};
 
-  // Map from local exercise log IDs to server IDs
-  final Map<String, String> _exerciseLogServerIds = {};
+  /// Gets the workout history service.
+  WorkoutHistoryService get _historyService =>
+      ref.read(workoutHistoryServiceProvider);
+
+  /// Gets the workout persistence service.
+  WorkoutPersistenceService get _persistenceService =>
+      ref.read(workoutPersistenceServiceProvider);
+
+  /// Gets the notification service.
+  NotificationService get _notificationService =>
+      ref.read(notificationServiceProvider);
+
+  /// Checks if workout notifications are enabled.
+  bool get _notificationsEnabled {
+    final settings = ref.read(userSettingsProvider);
+    return settings.notifications.enabled &&
+        settings.notifications.workoutInProgressNotification;
+  }
+
+  /// Updates the workout notification if enabled.
+  Future<void> _updateWorkoutNotification(WorkoutSession workout) async {
+    if (!_notificationsEnabled) return;
+
+    try {
+      final elapsedMinutes = workout.elapsedDuration.inMinutes;
+
+      // Get the actual current exercise index from state
+      final currentState = state;
+      final exerciseIndex = currentState is ActiveWorkout
+          ? currentState.currentExerciseIndex
+          : 0;
+
+      // Use the actual current exercise, not just the last one
+      final currentExercise = workout.exerciseLogs.isNotEmpty
+          ? (exerciseIndex >= 0 && exerciseIndex < workout.exerciseLogs.length
+              ? workout.exerciseLogs[exerciseIndex].exerciseName
+              : workout.exerciseLogs.first.exerciseName)
+          : 'Ready to start';
+
+      await _notificationService.showWorkoutInProgress(
+        exerciseName: currentExercise,
+        setCount: workout.totalSets,
+        elapsedMinutes: elapsedMinutes,
+        totalExercises: workout.exerciseLogs.length,
+        currentExerciseIndex: exerciseIndex,
+      );
+    } catch (e) {
+      debugPrint('CurrentWorkoutNotifier: Error updating notification: $e');
+    }
+  }
+
+  /// Clears the workout notification.
+  Future<void> _clearWorkoutNotification() async {
+    try {
+      await _notificationService.cancelWorkoutNotification();
+    } catch (e) {
+      debugPrint('CurrentWorkoutNotifier: Error clearing notification: $e');
+    }
+  }
 
   @override
   CurrentWorkoutState build() {
-    // Check for existing active workout on startup
-    _checkForActiveWorkout();
+    // Start with no workout - persistence is loaded asynchronously via loadPersistedWorkout()
     return const NoWorkout();
   }
 
-  /// Checks for an existing active workout from the server.
-  Future<void> _checkForActiveWorkout() async {
+  /// Loads any persisted workout on app startup.
+  ///
+  /// Call this once from main.dart after the app initializes.
+  /// Returns true if a workout was restored.
+  Future<bool> loadPersistedWorkout() async {
     try {
-      final api = ref.read(apiClientProvider);
-      final response = await api.get('/workouts/active');
-      final data = response.data as Map<String, dynamic>;
-      final activeWorkout = data['data'];
-
-      if (activeWorkout != null) {
-        // Restore the active workout
-        final workout = _parseWorkoutFromApi(activeWorkout as Map<String, dynamic>);
+      final data = await _persistenceService.restoreActiveWorkout();
+      if (data != null) {
         state = ActiveWorkout(
-          workout: workout,
-          serverWorkoutId: activeWorkout['id'] as String?,
+          workout: data.workout,
+          currentExerciseIndex: data.exerciseIndex,
         );
+        debugPrint('CurrentWorkoutNotifier: Restored persisted workout');
+        return true;
       }
     } catch (e) {
-      // No active workout or network error - that's OK
+      debugPrint('CurrentWorkoutNotifier: Error loading persisted workout: $e');
     }
+    return false;
   }
 
   // ==========================================================================
@@ -179,11 +298,19 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   /// @param userId The ID of the user starting the workout
   /// @param templateId Optional template to base the workout on
   /// @param templateName Optional name of the template
-  Future<void> startWorkout({
+  /// @param programId Optional program ID if this workout is part of a program
+  /// @param programWeek Optional week number in the program (1-indexed)
+  /// @param programDay Optional day number in the week (1-indexed)
+  /// @param templateExercises Optional map of exercise ID to name for recommendations
+  void startWorkout({
     required String userId,
     String? templateId,
     String? templateName,
-  }) async {
+    String? programId,
+    int? programWeek,
+    int? programDay,
+    Map<String, String>? templateExercises,
+  }) {
     // Check if there's already an active workout
     if (state is ActiveWorkout) {
       state = WorkoutError(
@@ -202,65 +329,103 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       startedAt: DateTime.now(),
       status: WorkoutStatus.active,
       exerciseLogs: [],
+      // Program context for tracking progress
+      programId: programId,
+      programWeek: programWeek,
+      programDay: programDay,
     );
 
     // Optimistic update - UI shows workout immediately
     state = ActiveWorkout(workout: workout);
 
-    // Sync to server in background
-    try {
-      final api = ref.read(apiClientProvider);
-      final response = await api.post('/workouts', data: {
-        if (templateId != null) 'templateId': templateId,
-      });
+    if (programId != null) {
+      debugPrint(
+        'CurrentWorkoutNotifier: Started program workout - '
+        'Week $programWeek, Day $programDay',
+      );
+    }
 
-      final data = response.data as Map<String, dynamic>;
-      final serverWorkout = data['data'] as Map<String, dynamic>;
-      final serverWorkoutId = serverWorkout['id'] as String;
+    // Persist the workout immediately
+    _persistWorkout(workout);
 
-      // Update state with server ID
-      if (state is ActiveWorkout) {
-        final currentState = state as ActiveWorkout;
-        // Parse any pre-populated exercises from template
-        final updatedWorkout = _parseWorkoutFromApi(serverWorkout);
-        state = currentState.copyWith(
-          serverWorkoutId: serverWorkoutId,
-          workout: updatedWorkout.copyWith(id: localId), // Keep local ID for UI
-        );
+    // Show workout notification
+    _updateWorkoutNotification(workout);
 
-        // Map exercise log IDs
-        final exerciseLogs = serverWorkout['exerciseLogs'] as List<dynamic>?;
-        if (exerciseLogs != null) {
-          for (var i = 0; i < exerciseLogs.length; i++) {
-            final log = exerciseLogs[i] as Map<String, dynamic>;
-            if (i < updatedWorkout.exerciseLogs.length) {
-              final logId = log['id'] as String?;
-              if (logId != null) {
-                final localId = updatedWorkout.exerciseLogs[i].id;
-                if (localId != null) {
-                  _exerciseLogServerIds[localId] = logId;
-                }
-              }
-            }
-          }
-        }
-      }
-    } on DioException catch (e) {
-      // Network error - workout still active locally, will sync later
-      final error = ApiClient.getApiException(e);
-      // Don't fail the workout, just log the sync failure
-      // ignore: avoid_print
-      print('Failed to sync workout to server: ${error.message}');
+    // Generate weight recommendations if we have template data
+    if (templateId != null && templateExercises != null && templateExercises.isNotEmpty) {
+      _generateRecommendations(
+        templateId: templateId,
+        templateName: templateName ?? 'Workout',
+        exercises: templateExercises,
+        programWeek: programWeek,
+      );
     }
   }
 
+  /// Generates weight recommendations for the current template.
+  ///
+  /// This is called automatically when starting a workout with template data,
+  /// or can be called manually to refresh recommendations.
+  Future<void> _generateRecommendations({
+    required String templateId,
+    required String templateName,
+    required Map<String, String> exercises,
+    int? programWeek,
+  }) async {
+    try {
+      await ref.read(workoutRecommendationsProvider.notifier).generateForTemplate(
+        templateId: templateId,
+        templateName: templateName,
+        exercises: exercises,
+        programWeek: programWeek,
+      );
+    } catch (e) {
+      debugPrint('CurrentWorkoutNotifier: Error generating recommendations: $e');
+      // Don't fail the workout start if recommendations fail
+    }
+  }
+
+  /// Generates a recommendation for a single exercise (Issue #14).
+  ///
+  /// Called when adding exercises to quick workouts.
+  void _generateExerciseRecommendation(String exerciseId, String exerciseName) {
+    // Fire and forget - don't block UI
+    ref.read(workoutRecommendationsProvider.notifier).generateForExercise(
+      exerciseId: exerciseId,
+      exerciseName: exerciseName,
+    );
+  }
+
+  /// Manually triggers recommendation generation for the current workout.
+  ///
+  /// Use this when exercise data wasn't available at workout start.
+  Future<void> generateRecommendations({
+    required Map<String, String> exercises,
+  }) async {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    final workout = currentState.workout;
+    if (workout.templateId == null) {
+      debugPrint('CurrentWorkoutNotifier: Cannot generate recommendations without template');
+      return;
+    }
+
+    await _generateRecommendations(
+      templateId: workout.templateId!,
+      templateName: workout.templateName ?? 'Workout',
+      exercises: exercises,
+      programWeek: workout.programWeek,
+    );
+  }
+
   /// Resumes an existing workout (e.g., after app restart).
-  void resumeWorkout(WorkoutSession workout, {String? serverWorkoutId}) {
+  void resumeWorkout(WorkoutSession workout) {
     if (!workout.isActive) {
       state = const WorkoutError('Cannot resume a completed workout');
       return;
     }
-    state = ActiveWorkout(workout: workout, serverWorkoutId: serverWorkoutId);
+    state = ActiveWorkout(workout: workout);
   }
 
   /// Completes the current workout.
@@ -282,26 +447,62 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
         rating: rating,
       );
 
-      // Sync to server
-      if (currentState.serverWorkoutId != null) {
-        try {
-          final api = ref.read(apiClientProvider);
-          await api.patch('/workouts/${currentState.serverWorkoutId}/complete',
-              data: {
-                if (notes != null) 'notes': notes,
-                if (rating != null) 'rating': rating,
-              });
-        } catch (e) {
-          // Log but don't fail - workout is still complete locally
-        }
+      // Save to workout history
+      await _historyService.initialize();
+      await _historyService.saveWorkout(completedWorkout);
+      debugPrint('CurrentWorkoutNotifier: Workout saved to history');
+
+      // Update progression states for each exercise (CRITICAL for double progression)
+      await _updateProgressionStates(completedWorkout);
+
+      // Invalidate workout history providers to trigger refresh (Issue #6)
+      // These invalidations ensure the home screen and analytics update immediately
+      ref.invalidate(workoutHistoryListProvider);
+      ref.invalidate(workoutHistoryProvider);
+      ref.invalidate(weeklyStatsProvider);
+      ref.invalidate(progressSummaryProvider);
+
+      // If this workout is part of a program, update program progress
+      if (completedWorkout.isPartOfProgram) {
+        debugPrint(
+          'CurrentWorkoutNotifier: Updating program progress - '
+          'Week ${completedWorkout.programWeek}, Day ${completedWorkout.programDay}',
+        );
+
+        await ref.read(activeProgramProvider.notifier).recordCompletedWorkout(
+          workoutId: completedWorkout.id ?? '',
+          week: completedWorkout.programWeek!,
+          day: completedWorkout.programDay!,
+        );
       }
 
       // Clear exercise log ID mapping
       _exerciseLogServerIds.clear();
       _sessionMaxWeights.clear();
 
+      // Clear recommendations
+      ref.read(workoutRecommendationsProvider.notifier).clear();
+
+      // Clear persisted workout
+      await _clearPersistedWorkout();
+
+      // Stop rest timer and clear its notification
+      ref.read(restTimerProvider.notifier).stop();
+
+      // Clear workout notification and show completion
+      await _clearWorkoutNotification();
+      if (_notificationsEnabled) {
+        await _notificationService.showWorkoutComplete(
+          totalSets: completedWorkout.totalSets,
+          totalExercises: completedWorkout.exerciseCount,
+          durationMinutes: completedWorkout.elapsedDuration.inMinutes,
+          totalVolume: completedWorkout.totalVolume,
+        );
+      }
+
       state = const NoWorkout();
     } catch (e) {
+      debugPrint('CurrentWorkoutNotifier: Error completing workout: $e');
       state = WorkoutError(
         'Failed to complete workout: $e',
         workout: currentState.workout,
@@ -314,15 +515,17 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     final currentState = state;
     if (currentState is! ActiveWorkout) return;
 
-    // Delete from server if synced
-    if (currentState.serverWorkoutId != null) {
-      try {
-        final api = ref.read(apiClientProvider);
-        await api.delete('/workouts/${currentState.serverWorkoutId}');
-      } catch (e) {
-        // Ignore deletion errors
-      }
-    }
+    // Clear recommendations
+    ref.read(workoutRecommendationsProvider.notifier).clear();
+
+    // Clear persisted workout
+    await _clearPersistedWorkout();
+
+    // Stop rest timer and clear its notification
+    ref.read(restTimerProvider.notifier).stop();
+
+    // Clear workout notification
+    await _clearWorkoutNotification();
 
     _exerciseLogServerIds.clear();
     _sessionMaxWeights.clear();
@@ -339,14 +542,21 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   /// @param exerciseName The name of the exercise
   /// @param primaryMuscles The primary muscles worked
   /// @param formCues Optional form cues for the exercise
-  Future<void> addExercise({
+  /// @param fromTemplate If true, this exercise is from the original template (not tracked as modification)
+  /// @param templateSets If from template, number of sets to pre-create (for set tracking)
+  void addExercise({
     required String exerciseId,
     required String exerciseName,
     List<String> primaryMuscles = const [],
     List<String> secondaryMuscles = const [],
     List<String> equipment = const [],
     List<String> formCues = const [],
-  }) async {
+    bool isCardio = false,
+    bool usesIncline = false,
+    bool usesResistance = false,
+    bool fromTemplate = false,
+    int templateSets = 0,
+  }) {
     final currentState = state;
     if (currentState is! ActiveWorkout) return;
 
@@ -362,33 +572,32 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       formCues: formCues,
       orderIndex: currentState.workout.exerciseLogs.length,
       sets: [],
+      isCardio: isCardio,
+      usesIncline: usesIncline,
+      usesResistance: usesResistance,
+      targetSets: templateSets, // Track expected sets from template
     );
 
     final updatedWorkout = currentState.workout.addExercise(exerciseLog);
 
-    // Optimistic update
+    // Track modification if this is a template-based workout AND exercise was added by user (not from template)
+    final updatedModifications = currentState.workout.templateId != null && !fromTemplate
+        ? currentState.modifications.addExercise(exerciseName)
+        : currentState.modifications;
+
     state = currentState.copyWith(
       workout: updatedWorkout,
       currentExerciseIndex: updatedWorkout.exerciseLogs.length - 1,
+      modifications: updatedModifications,
     );
 
-    // Sync to server
-    if (currentState.serverWorkoutId != null) {
-      try {
-        final api = ref.read(apiClientProvider);
-        final response = await api.post(
-          '/workouts/${currentState.serverWorkoutId}/exercises',
-          data: {
-            'exerciseId': exerciseId,
-          },
-        );
+    _persistWorkout(updatedWorkout);
 
-        final data = response.data as Map<String, dynamic>;
-        final serverLog = data['data'] as Map<String, dynamic>;
-        _exerciseLogServerIds[localLogId] = serverLog['id'] as String;
-      } catch (e) {
-        // Log but don't fail
-      }
+    // Issue #14: Generate weight recommendation for quick workouts
+    // For template workouts, recommendations are generated at start.
+    // For quick workouts, we generate per-exercise as they're added.
+    if (currentState.workout.templateId == null && !isCardio) {
+      _generateExerciseRecommendation(exerciseId, exerciseName);
     }
   }
 
@@ -396,6 +605,12 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   void removeExercise(int exerciseIndex) {
     final currentState = state;
     if (currentState is! ActiveWorkout) return;
+
+    // Get exercise name before removing
+    final exerciseName = exerciseIndex >= 0 &&
+            exerciseIndex < currentState.workout.exerciseLogs.length
+        ? currentState.workout.exerciseLogs[exerciseIndex].exerciseName
+        : null;
 
     final updatedWorkout = currentState.workout.removeExercise(exerciseIndex);
 
@@ -406,9 +621,104 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     }
     if (newIndex < 0) newIndex = 0;
 
+    // Track modification if this is a template-based workout
+    final updatedModifications = currentState.workout.templateId != null &&
+            exerciseName != null
+        ? currentState.modifications.removeExercise(exerciseName)
+        : currentState.modifications;
+
     state = currentState.copyWith(
       workout: updatedWorkout,
       currentExerciseIndex: newIndex,
+      modifications: updatedModifications,
+    );
+  }
+
+  /// Switches an exercise at a given index with a new exercise (Issue #9).
+  ///
+  /// This allows users to replace an exercise in place without losing position.
+  /// The sets are cleared as they were for the previous exercise.
+  ///
+  /// @param exerciseIndex The index of the exercise to replace
+  /// @param exerciseId The ID of the new exercise
+  /// @param exerciseName The name of the new exercise
+  /// @param primaryMuscles The primary muscles worked by the new exercise
+  /// @param secondaryMuscles The secondary muscles worked
+  /// @param equipment Equipment used
+  /// @param formCues Form cues for the exercise
+  /// @param isCardio Whether this is a cardio exercise
+  /// @param usesIncline Whether this exercise uses incline
+  /// @param usesResistance Whether this exercise uses resistance levels
+  void switchExercise({
+    required int exerciseIndex,
+    required String exerciseId,
+    required String exerciseName,
+    List<String> primaryMuscles = const [],
+    List<String> secondaryMuscles = const [],
+    List<String> equipment = const [],
+    List<String> formCues = const [],
+    bool isCardio = false,
+    bool usesIncline = false,
+    bool usesResistance = false,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    // Validate index
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final oldExercise = currentState.workout.exerciseLogs[exerciseIndex];
+
+    // Create new exercise log at the same position
+    final newExerciseLog = ExerciseLog(
+      id: _uuid.v4(),
+      sessionId: currentState.workout.id,
+      exerciseId: exerciseId,
+      exerciseName: exerciseName,
+      primaryMuscles: primaryMuscles,
+      secondaryMuscles: secondaryMuscles,
+      equipment: equipment,
+      formCues: formCues,
+      orderIndex: exerciseIndex,
+      sets: [], // Fresh sets - user re-enters
+      isCardio: isCardio,
+      usesIncline: usesIncline,
+      usesResistance: usesResistance,
+    );
+
+    // Replace the exercise at the same index
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      newExerciseLog,
+    );
+
+    // Track modifications if from template
+    WorkoutModifications updatedModifications = currentState.modifications;
+    if (currentState.workout.templateId != null) {
+      // Add old exercise to removed, new to added
+      updatedModifications = updatedModifications
+          .removeExercise(oldExercise.exerciseName)
+          .addExercise(exerciseName);
+    }
+
+    state = currentState.copyWith(
+      workout: updatedWorkout,
+      modifications: updatedModifications,
+    );
+
+    _persistWorkout(updatedWorkout);
+
+    // Generate recommendation for the new exercise if quick workout
+    if (currentState.workout.templateId == null && !isCardio) {
+      _generateExerciseRecommendation(exerciseId, exerciseName);
+    }
+
+    debugPrint(
+      'CurrentWorkoutNotifier: Switched ${oldExercise.exerciseName} '
+      'to $exerciseName at index $exerciseIndex',
     );
   }
 
@@ -432,7 +742,35 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
 
     if (index >= 0 && index < currentState.workout.exerciseLogs.length) {
       state = currentState.copyWith(currentExerciseIndex: index);
+      // Persist the index change
+      _persistWorkout(currentState.workout);
     }
+  }
+
+  /// Updates the cable attachment for an exercise.
+  ///
+  /// Only applies to exercises that use cable equipment.
+  void updateCableAttachment({
+    required int exerciseIndex,
+    required CableAttachment? attachment,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    final updatedExercise = exercise.copyWith(cableAttachment: attachment);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
   }
 
   // ==========================================================================
@@ -500,88 +838,11 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     // Update state immediately (optimistic update)
     state = currentState.copyWith(workout: updatedWorkout);
 
-    // Emit PR event if this is a new PR
-    if (isPR) {
-      _prEventController.add(PRData(
-        exerciseName: exercise.exerciseName,
-        newWeight: weight,
-        previousWeight: previousMax ?? 0,
-        reps: reps,
-        unit: 'lbs', // TODO: get from settings
-      ));
-    }
+    // Persist in background
+    _persistWorkout(updatedWorkout);
 
-    // Sync to server in background (fire and forget for speed)
-    _syncSetToServer(
-      currentState: currentState,
-      exerciseLogId: exerciseLogId,
-      weight: weight,
-      reps: reps,
-      rpe: rpe,
-      setType: setType,
-    );
-  }
-
-  /// Syncs a set to the server in the background.
-  Future<void> _syncSetToServer({
-    required ActiveWorkout currentState,
-    required String exerciseLogId,
-    required double weight,
-    required int reps,
-    double? rpe,
-    required SetType setType,
-  }) async {
-    if (currentState.serverWorkoutId == null) return;
-
-    final serverLogId = _exerciseLogServerIds[exerciseLogId];
-    if (serverLogId == null) return;
-
-    try {
-      final api = ref.read(apiClientProvider);
-      await api.post('/workouts/${currentState.serverWorkoutId}/sets', data: {
-        'exerciseLogId': serverLogId,
-        'weight': weight,
-        'reps': reps,
-        if (rpe != null) 'rpe': rpe,
-        'setType': _setTypeToApiString(setType),
-      });
-    } catch (e) {
-      // Log but don't fail - local state is source of truth
-    }
-  }
-
-  /// Converts SetType enum to API string.
-  String _setTypeToApiString(SetType type) {
-    switch (type) {
-      case SetType.warmup:
-        return 'WARMUP';
-      case SetType.working:
-        return 'WORKING';
-      case SetType.dropset:
-        return 'DROPSET';
-      case SetType.failure:
-        return 'FAILURE';
-    }
-  }
-
-  /// Checks if the current set is a personal record.
-  /// Returns (isPR, previousMax)
-  ({bool isPR, double? previousMax}) _checkForPR(
-    String exerciseId,
-    double weight,
-    int reps,
-  ) {
-    // Get previous max from session
-    final previousMax = _sessionMaxWeights[exerciseId];
-
-    // If no previous max or this is heavier, it's a PR
-    if (previousMax == null || weight > previousMax) {
-      _sessionMaxWeights[exerciseId] = weight;
-      // Only count as PR if there was a previous max (otherwise it's first set)
-      return (isPR: previousMax != null, previousMax: previousMax);
-    }
-
-    return (isPR: false, previousMax: previousMax);
+    // Update notification
+    _updateWorkoutNotification(updatedWorkout);
   }
 
   /// Updates an existing set.
@@ -651,87 +912,213 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   }
 
   // ==========================================================================
-  // API RESPONSE PARSING
+  // CARDIO SET MANAGEMENT
   // ==========================================================================
 
-  /// Parses a workout from API response.
-  WorkoutSession _parseWorkoutFromApi(Map<String, dynamic> json) {
-    final exerciseLogsJson = json['exerciseLogs'] as List<dynamic>? ?? [];
-    final exerciseLogs = exerciseLogsJson.map((el) {
-      final log = el as Map<String, dynamic>;
-      final exercise = log['exercise'] as Map<String, dynamic>?;
-      final setsJson = log['sets'] as List<dynamic>? ?? [];
+  /// Logs a cardio set for an exercise.
+  void logCardioSet({
+    required int exerciseIndex,
+    required CardioSet cardioSet,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
 
-      final sets = setsJson.map((s) {
-        final set = s as Map<String, dynamic>;
-        return ExerciseSet(
-          id: set['id'] as String,
-          exerciseLogId: log['id'] as String,
-          setNumber: set['setNumber'] as int,
-          weight: (set['weight'] as num).toDouble(),
-          reps: set['reps'] as int,
-          rpe: (set['rpe'] as num?)?.toDouble(),
-          setType: _parseSetType(set['setType'] as String?),
-          completedAt: set['completedAt'] != null
-              ? DateTime.parse(set['completedAt'] as String)
-              : DateTime.now(),
-          isPersonalRecord: set['isPR'] as bool? ?? false,
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (!exercise.isCardio) return; // Only for cardio exercises
+
+    final updatedExercise = exercise.addCardioSet(
+      cardioSet.copyWith(
+        id: _uuid.v4(),
+        exerciseLogId: exercise.id,
+      ),
+    );
+
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+    _updateWorkoutNotification(updatedWorkout);
+  }
+
+  /// Updates an existing cardio set.
+  void updateCardioSet({
+    required int exerciseIndex,
+    required int setIndex,
+    required CardioSet cardioSet,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (!exercise.isCardio) return;
+    if (setIndex < 0 || setIndex >= exercise.cardioSets.length) {
+      return;
+    }
+
+    final updatedExercise = exercise.updateCardioSet(setIndex, cardioSet);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Removes a cardio set from an exercise.
+  void removeCardioSet({
+    required int exerciseIndex,
+    required int setIndex,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (!exercise.isCardio) return;
+    if (setIndex < 0 || setIndex >= exercise.cardioSets.length) {
+      return;
+    }
+
+    final updatedExercise = exercise.removeCardioSet(setIndex);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  // ==========================================================================
+  // PROGRESSION STATE UPDATES
+  // ==========================================================================
+
+  /// Updates progression states for all exercises in a completed workout.
+  ///
+  /// This is CRITICAL for the double progression system to work correctly.
+  /// For each exercise, we analyze the session performance and update
+  /// the phase state machine (building → readyToProgress → justProgressed, etc.)
+  Future<void> _updateProgressionStates(WorkoutSession workout) async {
+    final progressionNotifier = ref.read(progressionStateNotifierProvider.notifier);
+
+    for (final exerciseLog in workout.exerciseLogs) {
+      // Skip cardio exercises - they don't use progression tracking
+      if (exerciseLog.isCardio) continue;
+
+      // Skip exercises with no sets
+      if (exerciseLog.sets.isEmpty) continue;
+
+      // Extract reps from each set
+      final repsPerSet = exerciseLog.sets.map((s) => s.reps).toList();
+
+      // Get the weight used (use the most common weight across sets)
+      final weights = exerciseLog.sets.map((s) => s.weight).toList();
+      final weight = weights.isNotEmpty
+          ? weights.reduce((a, b) => a + b) / weights.length
+          : 0.0;
+
+      // Get RPE if available
+      final rpePerSet = exerciseLog.sets
+          .where((s) => s.rpe != null)
+          .map((s) => s.rpe!)
+          .toList();
+
+      try {
+        await progressionNotifier.updateAfterSession(
+          exerciseId: exerciseLog.exerciseId,
+          repsPerSet: repsPerSet,
+          weight: weight,
+          rpePerSet: rpePerSet.isNotEmpty ? rpePerSet : null,
         );
-      }).toList();
 
-      return ExerciseLog(
-        id: log['id'] as String,
-        sessionId: json['id'] as String,
-        exerciseId: log['exerciseId'] as String,
-        exerciseName: exercise?['name'] as String? ?? 'Unknown Exercise',
-        primaryMuscles: (exercise?['primaryMuscles'] as List<dynamic>?)
-                ?.cast<String>() ??
-            [],
-        secondaryMuscles: (exercise?['secondaryMuscles'] as List<dynamic>?)
-                ?.cast<String>() ??
-            [],
-        equipment:
-            (exercise?['equipment'] as List<dynamic>?)?.cast<String>() ?? [],
-        formCues:
-            (exercise?['formCues'] as List<dynamic>?)?.cast<String>() ?? [],
-        orderIndex: log['orderIndex'] as int? ?? 0,
-        sets: sets,
-      );
-    }).toList();
+        debugPrint(
+          'CurrentWorkoutNotifier: Updated progression for ${exerciseLog.exerciseName} '
+          '- ${repsPerSet.join(", ")} reps @ ${weight.toStringAsFixed(1)}kg',
+        );
+      } catch (e) {
+        debugPrint(
+          'CurrentWorkoutNotifier: Error updating progression for ${exerciseLog.exerciseName}: $e',
+        );
+      }
+    }
+  }
 
-    final template = json['template'] as Map<String, dynamic>?;
-    final completedAt = json['completedAt'] != null
-        ? DateTime.parse(json['completedAt'] as String)
-        : null;
+  // ==========================================================================
+  // PERSISTENCE
+  // ==========================================================================
 
-    return WorkoutSession(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      templateId: json['templateId'] as String?,
-      templateName: template?['name'] as String?,
-      startedAt: DateTime.parse(json['startedAt'] as String),
-      completedAt: completedAt,
-      status:
-          completedAt != null ? WorkoutStatus.completed : WorkoutStatus.active,
-      exerciseLogs: exerciseLogs,
-      notes: json['notes'] as String?,
-      rating: json['rating'] as int?,
+  /// Persists the workout to local storage.
+  ///
+  /// This is called after every mutation to ensure no data is lost.
+  /// The save operation runs in the background to avoid blocking the UI.
+  void _persistWorkout(WorkoutSession workout) {
+    final currentState = state;
+    final exerciseIndex = currentState is ActiveWorkout
+        ? currentState.currentExerciseIndex
+        : 0;
+
+    // Save asynchronously to avoid blocking UI
+    _persistenceService.saveActiveWorkout(
+      workout,
+      currentExerciseIndex: exerciseIndex,
     );
   }
 
-  /// Parses set type from API string.
-  SetType _parseSetType(String? type) {
-    switch (type) {
-      case 'WARMUP':
-        return SetType.warmup;
-      case 'DROPSET':
-        return SetType.dropset;
-      case 'FAILURE':
-        return SetType.failure;
-      case 'WORKING':
-      default:
-        return SetType.working;
+  /// Clears the persisted workout data.
+  ///
+  /// Called when workout is completed or discarded.
+  Future<void> _clearPersistedWorkout() async {
+    await _persistenceService.clearActiveWorkout();
+  }
+
+  /// Checks if the given weight/reps constitute a personal record for the exercise.
+  ///
+  /// Compares against the session's max weights and history service records.
+  ({bool isPR, double? previousMax}) _checkForPR(
+    String exerciseId,
+    double weight,
+    int reps,
+  ) {
+    // Calculate estimated 1RM using Epley formula
+    final estimated1RM = reps == 1 ? weight : weight * (1 + reps / 30);
+    final previousMax = _sessionMaxWeights[exerciseId];
+
+    if (previousMax == null || estimated1RM > previousMax) {
+      _sessionMaxWeights[exerciseId] = estimated1RM;
+
+      // If this is better than anything in the session, check history
+      // For now, mark as PR if it exceeds session max
+      if (previousMax != null && estimated1RM > previousMax) {
+        // Emit PR event for celebration
+        _prEventController.add(PRData(
+          exerciseName: exerciseId,
+          newWeight: weight,
+          previousWeight: previousMax,
+          reps: reps,
+        ));
+        return (isPR: true, previousMax: previousMax);
+      }
     }
+
+    return (isPR: false, previousMax: previousMax);
   }
 }
 
@@ -782,65 +1169,21 @@ final workoutDurationProvider = StreamProvider<Duration>((ref) async* {
   }
 });
 
-/// Provider for workout history from the API.
-final workoutHistoryProvider =
-    FutureProvider.autoDispose<List<WorkoutSummary>>((ref) async {
-  final api = ref.read(apiClientProvider);
-
-  try {
-    final response =
-        await api.get('/workouts', queryParameters: {'limit': 50});
-    final data = response.data as Map<String, dynamic>;
-    final workouts = data['data'] as List<dynamic>;
-
-    return workouts.map((w) {
-      final workout = w as Map<String, dynamic>;
-      return WorkoutSummary(
-        id: workout['id'] as String,
-        templateName: workout['templateName'] as String?,
-        startedAt: DateTime.parse(workout['startedAt'] as String),
-        completedAt: workout['completedAt'] != null
-            ? DateTime.parse(workout['completedAt'] as String)
-            : null,
-        durationSeconds: workout['durationSeconds'] as int?,
-        exerciseCount: workout['exerciseCount'] as int? ?? 0,
-        setCount: workout['setCount'] as int? ?? 0,
-        prCount: workout['prCount'] as int? ?? 0,
-      );
-    }).toList();
-  } on DioException catch (e) {
-    final error = ApiClient.getApiException(e);
-    throw Exception(error.message);
-  }
+/// Provider for workout modifications (for template update prompts).
+final workoutModificationsProvider = Provider<WorkoutModifications?>((ref) {
+  final state = ref.watch(currentWorkoutProvider);
+  if (state is ActiveWorkout) return state.modifications;
+  return null;
 });
 
-/// Summary of a workout for history lists.
-class WorkoutSummary {
-  final String id;
-  final String? templateName;
-  final DateTime startedAt;
-  final DateTime? completedAt;
-  final int? durationSeconds;
-  final int exerciseCount;
-  final int setCount;
-  final int prCount;
+/// Provider for whether the current workout has modifications.
+final hasWorkoutModificationsProvider = Provider<bool>((ref) {
+  final modifications = ref.watch(workoutModificationsProvider);
+  return modifications?.hasModifications ?? false;
+});
 
-  const WorkoutSummary({
-    required this.id,
-    this.templateName,
-    required this.startedAt,
-    this.completedAt,
-    this.durationSeconds,
-    required this.exerciseCount,
-    required this.setCount,
-    required this.prCount,
-  });
-
-  /// Formatted duration string.
-  String get durationString {
-    if (durationSeconds == null) return '--:--';
-    final minutes = durationSeconds! ~/ 60;
-    final seconds = durationSeconds! % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-}
+/// Provider for whether the current workout is from a template.
+final isTemplateWorkoutProvider = Provider<bool>((ref) {
+  final workout = ref.watch(currentWorkoutOrNullProvider);
+  return workout?.templateId != null;
+});

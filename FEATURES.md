@@ -265,69 +265,99 @@ This document tracks all completed features with links to their documentation.
 
 ---
 
-## Feature 26: Music Player Controls
+## AI-Powered Weight/Rep Recommendation System
 - **Status**: Complete
-- **Date**: 2026-01-27
+- **Date**: 2026-01-19
+- **Documentation**: docs/features/weight-recommendation-system.md
+- **Handover**: docs/handover/weight-recommendation-system-handover.md
 - **Key Files**:
-  - Service: `app/lib/core/services/music_service.dart`
-  - Widgets: `app/lib/features/music/widgets/music_mini_player.dart`
-  - Settings: `app/lib/features/settings/providers/settings_provider.dart`
-- **Tests**: Test files pending
-- **Coverage**: 0% (tests to be written)
+  - Models: `app/lib/features/workouts/models/weight_recommendation.dart`
+  - Service: `app/lib/shared/services/weight_recommendation_service.dart`
+  - Provider: `app/lib/features/workouts/providers/weight_recommendation_provider.dart`
+  - Settings: `app/lib/features/settings/models/user_settings.dart` (TrainingPreferences)
+  - UI: `app/lib/features/workouts/widgets/set_input_row.dart`
+- **Tests**: Unit tests pending
+- **Coverage**: Code complete, tests to be written
 
 **What was built:**
-- MusicService for controlling device music playback
-- MusicState model for track info (name, artist, album art)
-- MusicMiniPlayer compact widget for workout screen
-- MusicPlayerSheet expanded controls with progress bar
-- Toggle in settings to enable/disable music controls
-- Play/pause, skip forward/back, shuffle, repeat controls
+- Dual-path recommendation service (AI via Groq + offline algorithm)
+- Progressive overload algorithm based on RPE and rep achievement
+- TrainingPreferences model with volume, progression, and auto-regulation settings
+- Freezed models for recommendations (SetRecommendation, ExerciseRecommendation, WorkoutRecommendations)
+- Weight recommendation provider with state management
+- Suggestion indicator UI in SetInputRow with confidence colors
+- Settings screen section for AI Training Preferences
+- Target RPE range picker with range slider
+- chatWithSystemPrompt method in GroqService for structured AI tasks
+- Integration with current workout provider for automatic generation
 
 ---
 
-## Feature 28: Periodization Planner
+## Custom Program Builder with AI-Assisted Generation
 - **Status**: Complete
-- **Date**: 2026-01-27
+- **Date**: 2026-01-19
+- **Documentation**: docs/features/custom-program-builder.md
+- **Handover**: docs/handover/custom-program-builder-handover.md
 - **Key Files**:
-  - Models: `app/lib/features/periodization/models/mesocycle.dart`
-  - Providers: `app/lib/features/periodization/providers/periodization_provider.dart`
-  - Screens: `app/lib/features/periodization/screens/periodization_screen.dart`
-  - Widgets: `app/lib/features/periodization/widgets/week_card.dart`
-- **Tests**: Test files pending
-- **Coverage**: 0% (tests to be written)
+  - Provider: `app/lib/features/programs/providers/user_programs_provider.dart`
+  - Screen: `app/lib/features/programs/screens/create_program_screen.dart`
+  - Widgets: `app/lib/features/programs/widgets/template_picker_modal.dart`, `app/lib/features/programs/widgets/ai_program_dialog.dart`
+  - AI: `app/lib/shared/services/ai_generation_service.dart`, `app/lib/features/ai_coach/utils/template_parser.dart`
+  - Templates: `app/lib/features/templates/widgets/ai_template_dialog.dart`
+- **Tests**: Unit tests pending
+- **Coverage**: Code complete, tests to be written
 
 **What was built:**
-- Mesocycle model with periodization types (linear, undulating, block)
-- Week generation algorithms for different periodization styles
-- MesocycleBuilder 5-step wizard for creating plans
-- Periodization screen with active/planned/history tabs
-- Week cards showing type, volume, and intensity
-- Auto-deload week scheduling
-- Goal-based mesocycle configuration (hypertrophy, strength, endurance)
+- UserProgramsNotifier with SharedPreferences persistence
+- Create Program screen with metadata form and template management
+- Template picker modal for selecting existing templates
+- AI generation service for programs and templates
+- Template parser for converting AI markdown to models
+- AI dialog for generating programs from natural language
+- AI dialog for generating templates from natural language
+- Modified programsProvider to include user programs
+- Modified CreateTemplateScreen to include AI generation button
+- Added "Create Custom Program" button to Programs tab
+- Router integration for /programs/create route
 
 ---
 
-## Feature 30: Calendar Integration
+## Real-World Usage Feedback Implementation (13 Items)
 - **Status**: Complete
-- **Date**: 2026-01-27
+- **Date**: 2026-01-20
+- **Documentation**: docs/handover/real-world-feedback-implementation-handover.md
 - **Key Files**:
-  - Models: `app/lib/features/calendar/models/scheduled_workout.dart`
-  - Providers: `app/lib/features/calendar/providers/calendar_provider.dart`
-  - Screens: `app/lib/features/calendar/screens/workout_calendar_screen.dart`
-  - Widgets: `app/lib/features/calendar/widgets/schedule_workout_sheet.dart`
-  - Service: `app/lib/core/services/calendar_service.dart`
-- **Tests**: Test files pending
-- **Coverage**: 0% (tests to be written)
+  - Persistence: `app/lib/shared/services/workout_persistence_service.dart`
+  - Notifications: `app/lib/shared/services/notification_service.dart`
+  - Cardio: `app/lib/features/workouts/models/cardio_set.dart`, `cardio_set_input_row.dart`
+  - Weight Input: `app/lib/features/workouts/models/weight_input.dart`
+  - Set Types: `app/lib/features/workouts/models/exercise_set.dart`
+  - AI Philosophy: `app/lib/features/settings/models/user_settings.dart`
+- **Tests**: Unit tests pending
+- **Coverage**: Code complete, tests to be written
 
-**What was built:**
-- ScheduledWorkout model with status tracking
-- CalendarService for device calendar integration
-- WorkoutCalendarScreen with table_calendar package
-- Schedule workout bottom sheet with template selection
-- Reminder timing configuration
-- Device calendar sync toggle
-- Today and upcoming workouts providers
-- Completed workouts overlay on calendar
+**What was built (13 items from user testing feedback):**
+
+Phase 1: Critical UX Fixes
+- Workout persistence & resume with SharedPreferences
+- Edit previous sets after completing them
+- Reps box size increased for 2-digit numbers
+- Auto-populate next set from previous set
+- Capitalize muscle groups display
+
+Phase 2: Feature Enhancements
+- Advanced set types: AMRAP, cluster, superset
+- Template modification tracking and prompt
+- Cable grip attachment selector
+
+Phase 3: Complex Features
+- Multiple weight input types (absolute, plates, bands, bodyweight)
+- Fix exercise list "Coming Soon" button
+- Cardio exercise support with duration/distance/incline
+
+Phase 4: Optional/Advanced
+- Push notifications for workout progress and rest timer
+- AI progressive overload philosophies (6 different approaches)
 
 ---
 
@@ -356,4 +386,4 @@ Based on the development plan, the next features to implement are:
 
 ---
 
-*Last Updated: 2026-01-27*
+*Last Updated: 2026-01-20 (Real-World Usage Feedback Implementation - 13 items)*

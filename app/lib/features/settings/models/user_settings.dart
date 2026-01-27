@@ -26,7 +26,7 @@ enum DistanceUnit {
   miles,
 }
 
-/// App theme preference.
+/// App theme preference (legacy - for light/dark mode toggle).
 enum AppTheme {
   /// Follow system setting
   system,
@@ -36,6 +36,243 @@ enum AppTheme {
 
   /// Always dark mode
   dark,
+}
+
+/// LiftIQ theme presets.
+///
+/// Each theme provides a complete visual style including colors,
+/// typography weights, border radii, and shadows.
+enum LiftIQTheme {
+  /// Dark theme with electric cyan and purple accents.
+  /// Minimalist, data-forward design.
+  midnightSurge,
+
+  /// Warm light theme with coral orange accents.
+  /// Rounded, friendly design with soft shadows.
+  warmLift,
+
+  /// High contrast brutalist theme with bold red accents.
+  /// Sharp corners, thick borders, uppercase headings.
+  ironBrutalist,
+
+  /// Dark retro-futuristic theme with hot pink and cyan.
+  /// Subtle glows, rounded corners, neon aesthetic.
+  neonGym,
+
+  /// Clean minimal light theme with slate accents.
+  /// Lots of whitespace, subtle shadows, refined look.
+  cleanSlate,
+
+  /// Minimalist dark theme inspired by shadcn/ui.
+  /// Zinc color palette with clean aesthetic.
+  shadcnDark,
+}
+
+/// Extension methods for LiftIQTheme.
+extension LiftIQThemeExtension on LiftIQTheme {
+  /// Returns the display name for this theme.
+  String get displayName => switch (this) {
+    LiftIQTheme.midnightSurge => 'Midnight Surge',
+    LiftIQTheme.warmLift => 'Warm Lift',
+    LiftIQTheme.ironBrutalist => 'Iron Brutalist',
+    LiftIQTheme.neonGym => 'Neon Gym',
+    LiftIQTheme.cleanSlate => 'Clean Slate',
+    LiftIQTheme.shadcnDark => 'Shadcn Dark',
+  };
+
+  /// Returns a short description for this theme.
+  String get description => switch (this) {
+    LiftIQTheme.midnightSurge => 'Dark & minimal with electric cyan',
+    LiftIQTheme.warmLift => 'Warm & friendly with coral orange',
+    LiftIQTheme.ironBrutalist => 'Bold & high-contrast with red',
+    LiftIQTheme.neonGym => 'Retro-futuristic with neon glow',
+    LiftIQTheme.cleanSlate => 'Clean & refined with subtle slate',
+    LiftIQTheme.shadcnDark => 'Minimalist dark with zinc palette',
+  };
+
+  /// Returns whether this theme is dark mode.
+  bool get isDark => switch (this) {
+    LiftIQTheme.midnightSurge => true,
+    LiftIQTheme.warmLift => false,
+    LiftIQTheme.ironBrutalist => false,
+    LiftIQTheme.neonGym => true,
+    LiftIQTheme.cleanSlate => false,
+    LiftIQTheme.shadcnDark => true,
+  };
+}
+
+/// Volume preference for training.
+///
+/// Controls how many sets per muscle group the AI recommends.
+enum VolumePreference {
+  /// Minimal volume (10-12 sets/week per muscle)
+  low,
+
+  /// Moderate volume (14-18 sets/week per muscle)
+  medium,
+
+  /// High volume (20+ sets/week per muscle)
+  high,
+}
+
+/// Progressive overload philosophy for AI recommendations.
+///
+/// Determines how the AI approaches weight/rep progression.
+enum ProgressionPhilosophy {
+  /// Standard linear progression - add weight when hitting rep targets
+  standard,
+
+  /// Double progression - increase reps first, then weight
+  doubleProgression,
+
+  /// Wave loading - vary intensity across weeks (light/medium/heavy)
+  waveLoading,
+
+  /// RPE-based - adjust weight based on rate of perceived exertion
+  rpeBased,
+
+  /// DUP (Daily Undulating Periodization) - vary rep ranges daily
+  dailyUndulating,
+
+  /// Block periodization - focused phases (volume, strength, peaking)
+  blockPeriodization,
+}
+
+/// Extension methods for ProgressionPhilosophy.
+extension ProgressionPhilosophyExtensions on ProgressionPhilosophy {
+  /// Returns a human-readable label.
+  String get label => switch (this) {
+        ProgressionPhilosophy.standard => 'Standard Linear',
+        ProgressionPhilosophy.doubleProgression => 'Double Progression',
+        ProgressionPhilosophy.waveLoading => 'Wave Loading',
+        ProgressionPhilosophy.rpeBased => 'RPE-Based',
+        ProgressionPhilosophy.dailyUndulating => 'Daily Undulating',
+        ProgressionPhilosophy.blockPeriodization => 'Block Periodization',
+      };
+
+  /// Returns a description of the philosophy.
+  String get description => switch (this) {
+        ProgressionPhilosophy.standard =>
+          'Add weight when you hit your rep target. Classic approach that works for most lifters.',
+        ProgressionPhilosophy.doubleProgression =>
+          'Increase reps each session until you hit the top of your rep range, then add weight and reset reps.',
+        ProgressionPhilosophy.waveLoading =>
+          'Cycle through light, medium, and heavy weeks. Great for avoiding plateaus.',
+        ProgressionPhilosophy.rpeBased =>
+          'Adjust weights based on how hard sets feel (RPE). More flexible and autoregulated.',
+        ProgressionPhilosophy.dailyUndulating =>
+          'Vary rep ranges each session (e.g., 5s, 8s, 12s). Good for well-rounded development.',
+        ProgressionPhilosophy.blockPeriodization =>
+          'Focused training phases: volume accumulation, intensity, then peaking. Best for competition prep.',
+      };
+
+  /// Returns example rep schemes for this philosophy.
+  String get example => switch (this) {
+        ProgressionPhilosophy.standard =>
+          'Week 1: 3x8@100kg -> Week 2: 3x8@102.5kg',
+        ProgressionPhilosophy.doubleProgression =>
+          'Week 1: 3x8 -> Week 2: 3x9 -> Week 3: 3x10 -> Week 4: 3x8@+2.5kg',
+        ProgressionPhilosophy.waveLoading =>
+          'Week 1: 3x10 (light) -> Week 2: 3x8 (medium) -> Week 3: 3x5 (heavy)',
+        ProgressionPhilosophy.rpeBased =>
+          'Target RPE 7-8. If RPE<7, add weight. If RPE>8, reduce weight.',
+        ProgressionPhilosophy.dailyUndulating =>
+          'Day 1: 5x5 (strength) -> Day 2: 3x10 (hypertrophy) -> Day 3: 4x6 (power)',
+        ProgressionPhilosophy.blockPeriodization =>
+          'Block 1: High volume -> Block 2: Intensity -> Block 3: Peaking',
+      };
+}
+
+/// Progression style preference.
+///
+/// Controls how aggressively the AI suggests weight increases.
+enum ProgressionPreference {
+  /// Small, cautious increases (0.5x standard increment)
+  conservative,
+
+  /// Standard progression (2.5kg upper, 5kg lower)
+  moderate,
+
+  /// Faster progression (1.5x standard increment)
+  aggressive,
+}
+
+/// Auto-regulation mode for weight selection.
+///
+/// Determines how RPE affects weight recommendations.
+enum AutoRegulationMode {
+  /// Fixed weight progression regardless of RPE
+  fixed,
+
+  /// Adjust based on RPE from previous session
+  rpeBased,
+
+  /// Combination of fixed progression with RPE adjustments
+  hybrid,
+}
+
+/// Training preferences for weight recommendations.
+///
+/// These settings control how the AI coaching system generates
+/// weight and rep suggestions for progressive overload.
+@freezed
+class TrainingPreferences with _$TrainingPreferences {
+  const factory TrainingPreferences({
+    /// How much volume (sets) per muscle group
+    @Default(VolumePreference.medium) VolumePreference volumePreference,
+
+    /// How aggressively to increase weight
+    @Default(ProgressionPreference.moderate) ProgressionPreference progressionPreference,
+
+    /// How to use RPE for weight adjustments
+    @Default(AutoRegulationMode.hybrid) AutoRegulationMode autoRegulationMode,
+
+    /// Progressive overload philosophy
+    @Default(ProgressionPhilosophy.standard) ProgressionPhilosophy progressionPhilosophy,
+
+    /// Target RPE lower bound (for easier sets)
+    @Default(7.0) double targetRpeLow,
+
+    /// Target RPE upper bound (for harder sets)
+    @Default(8.5) double targetRpeHigh,
+
+    /// Whether to show confidence indicators on suggestions
+    @Default(true) bool showConfidenceIndicator,
+  }) = _TrainingPreferences;
+
+  factory TrainingPreferences.fromJson(Map<String, dynamic> json) =>
+      _$TrainingPreferencesFromJson(json);
+}
+
+/// Extension methods for TrainingPreferences.
+extension TrainingPreferencesExtensions on TrainingPreferences {
+  /// Returns the weight increment multiplier based on progression preference.
+  double get progressionMultiplier => switch (progressionPreference) {
+    ProgressionPreference.conservative => 0.5,
+    ProgressionPreference.moderate => 1.0,
+    ProgressionPreference.aggressive => 1.5,
+  };
+
+  /// Returns description of the volume preference.
+  String get volumeDescription => switch (volumePreference) {
+    VolumePreference.low => '10-12 sets/week per muscle',
+    VolumePreference.medium => '14-18 sets/week per muscle',
+    VolumePreference.high => '20+ sets/week per muscle',
+  };
+
+  /// Returns description of the progression preference.
+  String get progressionDescription => switch (progressionPreference) {
+    ProgressionPreference.conservative => 'Small, cautious increases',
+    ProgressionPreference.moderate => 'Standard progression',
+    ProgressionPreference.aggressive => 'Faster weight increases',
+  };
+
+  /// Returns description of auto-regulation mode.
+  String get autoRegulationDescription => switch (autoRegulationMode) {
+    AutoRegulationMode.fixed => 'Fixed weight targets',
+    AutoRegulationMode.rpeBased => 'Adjust based on RPE',
+    AutoRegulationMode.hybrid => 'Balanced approach',
+  };
 }
 
 /// Rest timer settings.
@@ -81,6 +318,9 @@ class NotificationSettings with _$NotificationSettings {
     /// Rest timer alerts
     @Default(true) bool restTimerAlerts,
 
+    /// Persistent notification showing workout in progress
+    @Default(true) bool workoutInProgressNotification,
+
     /// Social activity (likes, follows)
     @Default(true) bool socialActivity,
 
@@ -119,18 +359,184 @@ class PrivacySettings with _$PrivacySettings {
       _$PrivacySettingsFromJson(json);
 }
 
+/// User experience level.
+enum ExperienceLevel {
+  /// New to weight training
+  beginner,
+  /// 1-3 years of training
+  intermediate,
+  /// 3+ years of training
+  advanced,
+}
+
+/// Training goal preference.
+enum TrainingGoal {
+  /// Build strength and lift heavier
+  strength,
+  /// Build muscle size
+  hypertrophy,
+  /// General fitness and health
+  generalFitness,
+  /// Build muscular endurance
+  endurance,
+}
+
+/// Extension methods for TrainingGoal.
+extension TrainingGoalExtension on TrainingGoal {
+  /// Returns a human-readable label.
+  String get label => switch (this) {
+        TrainingGoal.strength => 'Strength',
+        TrainingGoal.hypertrophy => 'Hypertrophy',
+        TrainingGoal.generalFitness => 'General Fitness',
+        TrainingGoal.endurance => 'Endurance',
+      };
+
+  /// Returns a description.
+  String get description => switch (this) {
+        TrainingGoal.strength =>
+          'Heavy weights, low reps. Build maximal strength.',
+        TrainingGoal.hypertrophy =>
+          'Moderate weights, medium reps. Optimal for muscle growth.',
+        TrainingGoal.generalFitness =>
+          'Balanced approach for overall health and fitness.',
+        TrainingGoal.endurance =>
+          'Lighter weights, high reps. Build muscular endurance.',
+      };
+
+  /// Returns the default rep range for this goal.
+  ({int floor, int ceiling}) get defaultRepRange => switch (this) {
+        TrainingGoal.strength => (floor: 3, ceiling: 5),
+        TrainingGoal.hypertrophy => (floor: 8, ceiling: 12),
+        TrainingGoal.generalFitness => (floor: 8, ceiling: 12),
+        TrainingGoal.endurance => (floor: 15, ceiling: 20),
+      };
+
+  /// Returns the default rest period in seconds for compound exercises.
+  int get defaultCompoundRestSeconds => switch (this) {
+        TrainingGoal.strength => 180,
+        TrainingGoal.hypertrophy => 120,
+        TrainingGoal.generalFitness => 90,
+        TrainingGoal.endurance => 60,
+      };
+
+  /// Returns the default rest period in seconds for isolation exercises.
+  int get defaultIsolationRestSeconds => switch (this) {
+        TrainingGoal.strength => 120,
+        TrainingGoal.hypertrophy => 90,
+        TrainingGoal.generalFitness => 60,
+        TrainingGoal.endurance => 45,
+      };
+
+  /// Returns sessions at ceiling required before progression.
+  int get defaultSessionsAtCeiling => switch (this) {
+        TrainingGoal.strength => 2,
+        TrainingGoal.hypertrophy => 2,
+        TrainingGoal.generalFitness => 2,
+        TrainingGoal.endurance => 3,
+      };
+}
+
+/// Rep range preference for training.
+///
+/// Controls how conservative or aggressive the rep ranges are.
+enum RepRangePreference {
+  /// Conservative: Lower rep ranges, heavier focus
+  conservative,
+  /// Standard: Default balanced rep ranges
+  standard,
+  /// Aggressive: Higher rep ranges, more volume
+  aggressive,
+}
+
+/// Extension methods for RepRangePreference.
+extension RepRangePreferenceExtensions on RepRangePreference {
+  /// Returns a human-readable label.
+  String get label => switch (this) {
+        RepRangePreference.conservative => 'Conservative',
+        RepRangePreference.standard => 'Standard',
+        RepRangePreference.aggressive => 'Aggressive',
+      };
+
+  /// Returns a description.
+  String get description => switch (this) {
+        RepRangePreference.conservative =>
+          'Lower rep ranges, heavier weights. Great for strength focus.',
+        RepRangePreference.standard =>
+          'Balanced rep ranges. Good all-around approach.',
+        RepRangePreference.aggressive =>
+          'Higher rep ranges, more volume. Great for hypertrophy focus.',
+      };
+}
+
 /// Complete user settings.
 @freezed
 class UserSettings with _$UserSettings {
   const factory UserSettings({
+    // =========================================================================
+    // USER PROFILE
+    // =========================================================================
+
+    /// User's display name
+    @Default('') String displayName,
+
+    /// Whether user has completed onboarding
+    @Default(false) bool hasCompletedOnboarding,
+
+    /// User's experience level (set during onboarding)
+    @Default(ExperienceLevel.beginner) ExperienceLevel experienceLevel,
+
+    /// User's primary training goal (set during onboarding)
+    @Default(TrainingGoal.generalFitness) TrainingGoal trainingGoal,
+
+    // =========================================================================
+    // TRAINING PROFILE (from onboarding survey)
+    // =========================================================================
+
+    /// Training frequency - days per week user typically trains (2-7)
+    @Default(4) int trainingFrequency,
+
+    /// Rep range preference - controls how conservative or aggressive rep ranges are
+    @Default(RepRangePreference.standard) RepRangePreference repRangePreference,
+
+    // =========================================================================
+    // PROGRESSION SETTINGS
+    // =========================================================================
+
+    /// Sessions at ceiling required before weight increase.
+    /// Default 2 ensures consistency across sessions.
+    @Default(2) int sessionsAtCeilingRequired,
+
+    /// Weight increment for upper body exercises (in kg).
+    /// Default 2.5kg is standard for upper body lifts.
+    @Default(2.5) double upperBodyWeightIncrement,
+
+    /// Weight increment for lower body exercises (in kg).
+    /// Default 5.0kg is standard for lower body lifts.
+    @Default(5.0) double lowerBodyWeightIncrement,
+
+    /// Whether auto-deload is enabled.
+    /// When enabled, system will recommend deload weeks.
+    @Default(true) bool autoDeloadEnabled,
+
+    /// Weeks of training before recommending a deload.
+    /// Default 6 weeks is a common periodization approach.
+    @Default(6) int weeksBeforeAutoDeload,
+
+    // =========================================================================
+    // UNITS & LOCALE
+    // =========================================================================
+
     /// Weight unit preference
-    @Default(WeightUnit.lbs) WeightUnit weightUnit,
+    @Default(WeightUnit.kg) WeightUnit weightUnit,
 
     /// Distance unit preference
-    @Default(DistanceUnit.miles) DistanceUnit distanceUnit,
+    @Default(DistanceUnit.km) DistanceUnit distanceUnit,
 
-    /// App theme preference
+    /// App theme preference (legacy light/dark toggle)
     @Default(AppTheme.system) AppTheme theme,
+
+    /// Selected LiftIQ theme preset
+    @Default(LiftIQTheme.midnightSurge) LiftIQTheme selectedTheme,
 
     /// Rest timer settings
     @Default(RestTimerSettings()) RestTimerSettings restTimer,
@@ -140,6 +546,9 @@ class UserSettings with _$UserSettings {
 
     /// Privacy settings
     @Default(PrivacySettings()) PrivacySettings privacy,
+
+    /// Training preferences for AI recommendations
+    @Default(TrainingPreferences()) TrainingPreferences trainingPreferences,
 
     /// Whether to show weight suggestions
     @Default(true) bool showWeightSuggestions,

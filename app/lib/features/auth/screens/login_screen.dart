@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../providers/auth_provider.dart';
 
 /// Login screen for user authentication.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -211,25 +212,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: Implement Firebase auth
-      // if (_isSignUp) {
-      //   await ref.read(authProvider.notifier).signUp(
-      //     email: _emailController.text,
-      //     password: _passwordController.text,
-      //   );
-      // } else {
-      //   await ref.read(authProvider.notifier).signIn(
-      //     email: _emailController.text,
-      //     password: _passwordController.text,
-      //   );
-      // }
+      final authNotifier = ref.read(authProvider.notifier);
 
-      // Simulate login for now
-      await Future.delayed(const Duration(seconds: 1));
+      if (_isSignUp) {
+        await authNotifier.signUpWithEmail(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+      } else {
+        await authNotifier.signInWithEmail(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+      }
+
+      // Check auth state after operation
+      final authState = ref.read(authProvider);
 
       if (mounted) {
-        // Navigate to onboarding for new users, home for existing
-        context.go(_isSignUp ? '/onboarding' : '/');
+        if (authState is AuthError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authState.message),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+          authNotifier.clearError();
+        } else if (authState is Authenticated) {
+          // Navigate to onboarding for new users, home for existing
+          context.go(_isSignUp ? '/onboarding' : '/');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -248,11 +260,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: Implement Google sign-in
-      await Future.delayed(const Duration(seconds: 1));
-
+      // TODO: Implement Google sign-in with google_sign_in package
+      // For now, show message that it's not configured
       if (mounted) {
-        context.go('/');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google Sign-In requires additional setup'),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -272,10 +287,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       // TODO: Implement Apple sign-in
-      await Future.delayed(const Duration(seconds: 1));
-
+      // For now, show message that it's not configured
       if (mounted) {
-        context.go('/');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Apple Sign-In requires additional setup'),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -289,4 +307,5 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     }
   }
+
 }
