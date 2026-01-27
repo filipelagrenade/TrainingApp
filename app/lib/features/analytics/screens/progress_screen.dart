@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/analytics_provider.dart';
 import '../models/analytics_data.dart';
 
@@ -26,9 +27,7 @@ class ProgressScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month),
-            onPressed: () {
-              // TODO: Show calendar view
-            },
+            onPressed: () => context.push('/calendar'),
           ),
         ],
       ),
@@ -44,6 +43,10 @@ class ProgressScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Quick access tools
+              _ProgressToolsSection(),
+              const SizedBox(height: 24),
+
               // Time period selector
               _TimePeriodSelector(),
               const SizedBox(height: 24),
@@ -65,9 +68,19 @@ class ProgressScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               prsAsync.when(
-                data: (prs) => Column(
-                  children: prs.take(4).map((pr) => _PRCard(pr: pr)).toList(),
-                ),
+                data: (prs) => prs.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Complete workouts to see your personal records here.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : Column(
+                        children: prs.take(4).map((pr) => _PRCard(pr: pr)).toList(),
+                      ),
                 loading: () => const CircularProgressIndicator(),
                 error: (e, _) => _ErrorCard(message: e.toString()),
               ),
@@ -82,9 +95,19 @@ class ProgressScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               volumeAsync.when(
-                data: (volumes) => Column(
-                  children: volumes.map((v) => _VolumeBar(data: v)).toList(),
-                ),
+                data: (volumes) => volumes.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Train different muscle groups to see your volume distribution.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : Column(
+                        children: volumes.map((v) => _VolumeBar(data: v)).toList(),
+                      ),
                 loading: () => const CircularProgressIndicator(),
                 error: (e, _) => _ErrorCard(message: e.toString()),
               ),
@@ -430,6 +453,115 @@ class _ErrorCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Section with quick navigation tiles for progress-related features.
+class _ProgressToolsSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tools',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _ToolTile(
+                icon: Icons.auto_awesome,
+                label: 'Year in Review',
+                onTap: () => context.push('/yearly-wrapped'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ToolTile(
+                icon: Icons.straighten,
+                label: 'Measurements',
+                onTap: () => context.push('/measurements'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _ToolTile(
+                icon: Icons.event_note,
+                label: 'Periodization',
+                onTap: () => context.push('/periodization'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ToolTile(
+                icon: Icons.calendar_month,
+                label: 'Calendar',
+                onTap: () => context.push('/calendar'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A single tool tile card for navigation.
+class _ToolTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ToolTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 24, color: colors.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: colors.onSurfaceVariant,
+              ),
+            ],
+          ),
         ),
       ),
     );
