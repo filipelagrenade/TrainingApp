@@ -7,11 +7,11 @@
 ---
 
 ## Pre-Flight Checklist
-- [ ] Read `CLAUDE.md` at project root for communication protocol and coding standards
-- [ ] Read `app/CLAUDE.md` for Flutter patterns
-- [ ] Read `backend/CLAUDE.md` for backend patterns
-- [ ] Verify backend builds: `cd backend && npm run build`
-- [ ] Verify Flutter analyzes clean: `cd app && flutter analyze`
+- [x] Read `CLAUDE.md` at project root for communication protocol and coding standards
+- [x] Read `app/CLAUDE.md` for Flutter patterns
+- [x] Read `backend/CLAUDE.md` for backend patterns
+- [x] Verify backend builds: `cd backend && npm run build`
+- [x] Verify Flutter analyzes clean: `cd app && flutter analyze`
 
 ---
 
@@ -47,7 +47,7 @@
 - [ ] Manual test: swipe right completes set
 - [ ] Manual test: swipe left deletes set
 - [ ] Manual test: toggle works in settings
-- [ ] Commit: `feat(workout): add swipe gestures to complete/delete sets`
+- [x] Commit: `feat(workout): add swipe gestures to complete/delete sets`
 
 ---
 
@@ -99,7 +99,7 @@
 - [ ] Manual test: complete squat set with RPE 9 -> timer should be ~3:00
 - [ ] Manual test: complete bicep curl with RPE 7 -> timer should be ~1:30
 - [ ] Manual test: toggle off smart rest -> uses default duration
-- [ ] Commit: `feat(workout): add smart auto-adjusting rest timer based on exercise and RPE`
+- [x] Commit: `feat(workout): add smart auto-adjusting rest timer based on exercise and RPE`
 
 ---
 
@@ -161,7 +161,7 @@
 - [ ] Manual test: complete set -> auto-navigates to next exercise
 - [ ] Manual test: complete round -> shows round rest timer
 - [ ] Manual test: circuit mode with 30s between exercises
-- [ ] Commit: `feat(workout): add superset and circuit training mode`
+- [x] Commit: `feat(workout): add superset and circuit training mode`
 
 ---
 
@@ -224,7 +224,7 @@
 - [ ] Manual test: check deload API returns recommendation
 - [ ] Manual test: schedule deload shows on dashboard
 - [ ] Manual test: during deload week, suggestions are reduced
-- [ ] Commit: `feat(progression): add automatic deload week detection and scheduling`
+- [x] Commit: `feat(progression): add automatic deload week detection and scheduling`
 
 ---
 
@@ -266,7 +266,7 @@
 - [ ] Manual test: calendar shows workout days correctly
 - [ ] Manual test: streak count is accurate
 - [ ] Manual test: milestone celebration triggers
-- [ ] Commit: `feat(analytics): add visual workout streak calendar with milestones`
+- [x] Commit: `feat(analytics): add visual workout streak calendar with milestones`
 
 ---
 
@@ -343,7 +343,7 @@
 - [ ] Manual test: view achievements screen
 - [ ] Manual test: complete workout -> achievement unlocks
 - [ ] Manual test: unlock celebration shows
-- [ ] Commit: `feat(achievements): add gamification badge system with 30+ achievements`
+- [x] Commit: `feat(achievements): add gamification badge system with 30+ achievements`
 
 ---
 
@@ -393,7 +393,7 @@
 - [ ] Manual test: log set that beats PR -> celebration shows
 - [ ] Manual test: disable celebration in settings -> no overlay
 - [ ] Manual test: PR marked in workout history
-- [ ] Commit: `feat(workout): add animated PR celebration with confetti`
+- [x] Commit: `feat(workout): add animated PR celebration with confetti`
 
 ---
 
@@ -456,7 +456,7 @@
 - [ ] Manual test: view weekly report with data
 - [ ] Manual test: report shows correct comparisons
 - [ ] Manual test: share exports image
-- [ ] Commit: `feat(analytics): add weekly progress reports with push notifications`
+- [x] Commit: `feat(analytics): add weekly progress reports with push notifications`
 
 ---
 
@@ -528,7 +528,7 @@
 - [ ] Manual test: swipe through all cards
 - [ ] Manual test: animations play correctly
 - [ ] Manual test: share generates image
-- [ ] Commit: `feat(analytics): add Spotify-style yearly training wrapped`
+- [x] Commit: `feat(analytics): add Spotify-style yearly training wrapped`
 
 ---
 
