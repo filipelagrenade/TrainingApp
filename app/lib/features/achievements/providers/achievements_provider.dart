@@ -16,10 +16,14 @@
 library;
 
 import 'dart:async';
-import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:convert';
 
-import '../../../core/services/api_client.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/services/workout_history_service.dart';
 import '../models/achievement.dart';
 
 // ============================================================================
@@ -107,68 +111,153 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
     );
   }
 
-  /// Loads user's achievement progress from the API.
+  String get _storageKey {
+    final userId = ref.read(currentUserStorageIdProvider);
+    return UserStorageKeys.achievements(userId);
+  }
+
+  /// Loads achievement progress from local workout data and persisted state.
   Future<void> _loadAchievements() async {
     try {
-      final api = ref.read(apiClientProvider);
-      final response = await api.get('/achievements');
-      final data = response.data as Map<String, dynamic>;
-      final progressList = data['data'] as List<dynamic>? ?? [];
+      final historyService = ref.read(workoutHistoryServiceProvider);
+      await historyService.initialize();
 
-      // Build a map of achievement progress from API
-      final progressMap = <String, Map<String, dynamic>>{};
-      for (final item in progressList) {
-        final json = item as Map<String, dynamic>;
-        final id = json['achievementId'] as String? ?? json['id'] as String?;
-        if (id != null) {
-          progressMap[id] = {
-            'current': json['currentProgress'] as int? ?? 0,
-            'unlocked': json['isUnlocked'] as bool? ?? false,
-            'unlockedAt': json['unlockedAt'] != null
-                ? DateTime.parse(json['unlockedAt'] as String)
-                : null,
-          };
+      // Load persisted unlock state
+      final prefs = await SharedPreferences.getInstance();
+      final persistedJson = prefs.getString(_storageKey);
+      final persistedUnlocks = <String, DateTime>{};
+      if (persistedJson != null) {
+        final decoded = jsonDecode(persistedJson) as Map<String, dynamic>;
+        for (final entry in decoded.entries) {
+          persistedUnlocks[entry.key] = DateTime.parse(entry.value as String);
         }
       }
 
-      // Merge definitions with user progress
-      final achievementsWithProgress = AchievementDefinitions.all.map((def) {
-        final progress = progressMap[def.id];
-        if (progress != null) {
-          return Achievement(
-            id: def.id,
-            name: def.name,
-            description: def.description,
-            iconAsset: def.iconAsset,
-            color: def.color,
-            category: def.category,
-            tier: def.tier,
-            currentProgress: progress['current'] as int,
-            targetProgress: def.targetProgress,
-            isUnlocked: progress['unlocked'] as bool,
-            unlockedAt: progress['unlockedAt'] as DateTime?,
-          );
-        }
-        return def;
-      }).toList();
+      // Compute stats from real data
+      final workouts = historyService.workouts;
+      final totalWorkouts = workouts.length;
+      final totalVolume = workouts.fold<int>(0, (s, w) => s + w.totalVolume);
+      final totalPRs = workouts.fold<int>(0, (s, w) => s + w.prsAchieved);
+      final prs = historyService.personalRecords;
 
-      final unlockedCount =
-          achievementsWithProgress.where((a) => a.isUnlocked).length;
+      // Streak calculation
+      final workoutDays = workouts
+          .map((w) => DateTime(w.completedAt.year, w.completedAt.month, w.completedAt.day))
+          .toSet()
+          .toList()
+        ..sort();
+      int longestStreak = 0;
+      if (workoutDays.isNotEmpty) {
+        int temp = 1;
+        longestStreak = 1;
+        for (var i = 1; i < workoutDays.length; i++) {
+          if (workoutDays[i].difference(workoutDays[i - 1]).inDays == 1) {
+            temp++;
+            if (temp > longestStreak) longestStreak = temp;
+          } else {
+            temp = 1;
+          }
+        }
+      }
+
+      // Exercise PRs map
+      final exercisePRs = <String, double>{};
+      for (final pr in prs) {
+        exercisePRs[pr.exerciseId] = pr.estimated1RM;
+      }
+
+      // Check each achievement
+      Achievement? newlyUnlocked;
+      final updated = <Achievement>[];
+      final newUnlocks = <String, DateTime>{};
+
+      for (final def in AchievementDefinitions.all) {
+        int currentProgress = 0;
+
+        // Determine progress based on achievement type
+        if (def.id == 'first_workout') {
+          currentProgress = totalWorkouts.clamp(0, 1);
+        } else if (def.id.startsWith('workouts_')) {
+          currentProgress = totalWorkouts;
+        } else if (def.id.startsWith('streak_')) {
+          currentProgress = longestStreak;
+        } else if (def.id == 'first_pr') {
+          currentProgress = totalPRs > 0 ? 1 : 0;
+        } else if (def.id.startsWith('prs_')) {
+          currentProgress = totalPRs;
+        } else if (def.id.startsWith('volume_')) {
+          currentProgress = totalVolume;
+        } else if (def.id.startsWith('bench_')) {
+          currentProgress = (exercisePRs['bench-press'] ?? exercisePRs['barbell_bench_press'] ?? 0).round();
+        } else if (def.id.startsWith('squat_')) {
+          currentProgress = (exercisePRs['squat'] ?? exercisePRs['barbell_squat'] ?? 0).round();
+        } else if (def.id.startsWith('deadlift_')) {
+          currentProgress = (exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'] ?? 0).round();
+        } else if (def.id.startsWith('total_')) {
+          final bench = exercisePRs['bench-press'] ?? exercisePRs['barbell_bench_press'] ?? 0;
+          final squat = exercisePRs['squat'] ?? exercisePRs['barbell_squat'] ?? 0;
+          final deadlift = exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'] ?? 0;
+          currentProgress = (bench + squat + deadlift).round();
+        }
+
+        final wasUnlocked = persistedUnlocks.containsKey(def.id);
+        final isNowUnlocked = currentProgress >= def.targetProgress;
+        final justUnlocked = isNowUnlocked && !wasUnlocked;
+
+        DateTime? unlockedAt = persistedUnlocks[def.id];
+        if (justUnlocked) {
+          unlockedAt = DateTime.now();
+          newUnlocks[def.id] = unlockedAt;
+        }
+
+        final achievement = Achievement(
+          id: def.id,
+          name: def.name,
+          description: def.description,
+          iconAsset: def.iconAsset,
+          color: def.color,
+          category: def.category,
+          tier: def.tier,
+          currentProgress: currentProgress,
+          targetProgress: def.targetProgress,
+          isUnlocked: isNowUnlocked,
+          unlockedAt: unlockedAt,
+        );
+
+        updated.add(achievement);
+
+        if (justUnlocked) {
+          newlyUnlocked = achievement;
+          _achievementUnlockController.add(AchievementUnlockEvent(
+            achievement: achievement,
+            unlockedAt: unlockedAt!,
+          ));
+        }
+      }
+
+      // Persist new unlocks
+      if (newUnlocks.isNotEmpty) {
+        final allUnlocks = {...persistedUnlocks, ...newUnlocks};
+        final json = jsonEncode(
+          allUnlocks.map((k, v) => MapEntry(k, v.toIso8601String())),
+        );
+        await prefs.setString(_storageKey, json);
+      }
+
+      final unlockedCount = updated.where((a) => a.isUnlocked).length;
 
       state = state.copyWith(
-        achievements: achievementsWithProgress,
+        achievements: updated,
         isLoading: false,
         unlockedCount: unlockedCount,
+        recentlyUnlocked: newlyUnlocked,
       );
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      // On API error, show definitions with zero progress
+    } catch (e) {
+      debugPrint('AchievementsNotifier: Error loading: $e');
       state = state.copyWith(
         isLoading: false,
         achievements: AchievementDefinitions.all,
       );
-    } catch (e) {
-      state = state.copyWith(isLoading: false);
     }
   }
 
