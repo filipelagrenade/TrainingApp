@@ -3,10 +3,16 @@
 /// State management for scheduled workouts and calendar integration.
 library;
 
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/calendar_service.dart';
+import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/services/workout_history_service.dart';
 import '../models/scheduled_workout.dart';
 
 /// Provider for the calendar service.
@@ -81,6 +87,40 @@ final scheduledDatesProvider = Provider<Set<DateTime>>((ref) {
   }).toSet();
 });
 
+/// Provider for completed workout dates from workout history.
+final completedWorkoutDatesProvider = Provider<Set<DateTime>>((ref) {
+  final historyService = ref.watch(workoutHistoryServiceProvider);
+  final dates = <DateTime>{};
+  for (final w in historyService.workouts) {
+    dates.add(DateTime(w.completedAt.year, w.completedAt.month, w.completedAt.day));
+  }
+  return dates;
+});
+
+/// Combined calendar marker data: green=completed, blue=scheduled, red=missed.
+enum CalendarDayStatus { completed, scheduledFuture, missed }
+
+/// Provider for calendar day statuses (combined scheduled + completed).
+final calendarDayStatusProvider =
+    Provider.family<CalendarDayStatus?, DateTime>((ref, date) {
+  final normalizedDate = DateTime(date.year, date.month, date.day);
+  final completedDates = ref.watch(completedWorkoutDatesProvider);
+  final scheduledDates = ref.watch(scheduledDatesProvider);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  if (completedDates.contains(normalizedDate)) {
+    return CalendarDayStatus.completed;
+  }
+  if (scheduledDates.contains(normalizedDate)) {
+    if (normalizedDate.isBefore(today)) {
+      return CalendarDayStatus.missed;
+    }
+    return CalendarDayStatus.scheduledFuture;
+  }
+  return null;
+});
+
 /// State notifier for managing scheduled workouts.
 class ScheduledWorkoutsNotifier
     extends StateNotifier<AsyncValue<List<ScheduledWorkout>>> {
@@ -91,14 +131,42 @@ class ScheduledWorkoutsNotifier
     _loadScheduledWorkouts();
   }
 
-  /// Loads scheduled workouts from storage/API.
+  String get _storageKey {
+    final userId = _ref.read(currentUserStorageIdProvider);
+    return UserStorageKeys.scheduledWorkouts(userId);
+  }
+
+  /// Loads scheduled workouts from SharedPreferences.
   Future<void> _loadScheduledWorkouts() async {
     try {
-      // In a real app, this would fetch from local storage or API
-      await Future.delayed(const Duration(milliseconds: 300));
-      state = const AsyncValue.data([]);
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_storageKey);
+      if (json != null) {
+        final decoded = jsonDecode(json) as List<dynamic>;
+        final workouts = decoded
+            .map((e) =>
+                ScheduledWorkout.fromJson(e as Map<String, dynamic>))
+            .toList();
+        state = AsyncValue.data(workouts);
+      } else {
+        state = const AsyncValue.data([]);
+      }
     } catch (e, st) {
+      debugPrint('ScheduledWorkoutsNotifier: Error loading: $e');
       state = AsyncValue.error(e, st);
+    }
+  }
+
+  /// Persists scheduled workouts to SharedPreferences.
+  Future<void> _persist() async {
+    final workouts = state.valueOrNull ?? [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json =
+          jsonEncode(workouts.map((w) => w.toJson()).toList());
+      await prefs.setString(_storageKey, json);
+    } catch (e) {
+      debugPrint('ScheduledWorkoutsNotifier: Error persisting: $e');
     }
   }
 
@@ -158,6 +226,7 @@ class ScheduledWorkoutsNotifier
       workoutWithEvent,
     ]);
 
+    await _persist();
     return workoutWithEvent;
   }
 
@@ -196,6 +265,7 @@ class ScheduledWorkoutsNotifier
         else
           w,
     ]);
+    await _persist();
   }
 
   /// Cancel a scheduled workout.
@@ -225,6 +295,7 @@ class ScheduledWorkoutsNotifier
         else
           w,
     ]);
+    await _persist();
   }
 
   /// Skip a scheduled workout.
@@ -239,6 +310,7 @@ class ScheduledWorkoutsNotifier
         else
           w,
     ]);
+    await _persist();
   }
 
   /// Mark a scheduled workout as in progress.
@@ -253,6 +325,7 @@ class ScheduledWorkoutsNotifier
         else
           w,
     ]);
+    await _persist();
   }
 
   /// Mark a scheduled workout as completed.
@@ -271,6 +344,7 @@ class ScheduledWorkoutsNotifier
         else
           w,
     ]);
+    await _persist();
   }
 
   /// Delete a scheduled workout permanently.
@@ -293,6 +367,7 @@ class ScheduledWorkoutsNotifier
     state = AsyncValue.data(
       workouts.where((w) => w.id != workoutId).toList(),
     );
+    await _persist();
   }
 
   /// Refresh scheduled workouts from storage.

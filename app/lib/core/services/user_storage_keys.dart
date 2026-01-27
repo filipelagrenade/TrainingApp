@@ -4,6 +4,8 @@
 /// Ensures data isolation between different users on the same device.
 library;
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/providers/auth_provider.dart';
@@ -21,19 +23,32 @@ const String offlineModeUserId = 'local-offline-user';
 /// - The Firebase user ID if authenticated
 /// - [offlineModeUserId] if Firebase is not configured or user is not signed in
 ///
-/// This ID is used to create user-specific storage keys, ensuring
-/// data isolation between users on the same device.
+/// IMPORTANT: When Firebase IS initialized, this first checks
+/// FirebaseAuth.instance.currentUser synchronously (which survives page reloads
+/// on web) before falling back to the stream. This prevents a race condition
+/// where the stream hasn't emitted yet and data gets written to the
+/// offline-user key.
 final currentUserStorageIdProvider = Provider<String>((ref) {
   // If Firebase is not initialized, use offline mode ID
   if (!firebaseInitialized) {
     return offlineModeUserId;
   }
 
-  // Try to get the authenticated user ID
+  // First: check synchronous currentUser (populated from persisted session)
+  // This is available immediately on web/mobile even before the stream emits.
+  try {
+    final syncUser = FirebaseAuth.instance.currentUser;
+    if (syncUser != null) {
+      return syncUser.uid;
+    }
+  } catch (e) {
+    debugPrint('currentUserStorageIdProvider: sync check failed: $e');
+  }
+
+  // Fallback: watch the auth stream
   final authState = ref.watch(authStateProvider);
-  final userId = authState.maybeWhen(
+  final userId = authState.whenOrNull(
     data: (user) => user?.uid,
-    orElse: () => null,
   );
 
   // Return user ID if available, otherwise offline mode ID
@@ -81,4 +96,14 @@ class UserStorageKeys {
   /// Storage key for exercise preferences (last used weight/reps).
   static String exercisePreferences(String userId) =>
       'exercise_preferences_$userId';
+
+  /// Storage key for scheduled workouts.
+  static String scheduledWorkouts(String userId) =>
+      'scheduled_workouts_$userId';
+
+  /// Storage key for unlocked achievements.
+  static String achievements(String userId) => 'achievements_$userId';
+
+  /// Storage key for body measurements.
+  static String measurements(String userId) => 'measurements_$userId';
 }

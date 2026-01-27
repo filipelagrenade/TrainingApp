@@ -41,6 +41,7 @@ class _WorkoutCalendarScreenState
     final colors = theme.colorScheme;
     final scheduledWorkoutsAsync = ref.watch(scheduledWorkoutsProvider);
     final scheduledDates = ref.watch(scheduledDatesProvider);
+    final completedDates = ref.watch(completedWorkoutDatesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -65,7 +66,7 @@ class _WorkoutCalendarScreenState
       body: Column(
         children: [
           // Calendar widget
-          _buildCalendar(theme, colors, scheduledDates),
+          _buildCalendar(theme, colors, scheduledDates, completedDates),
 
           // Divider
           Divider(height: 1, color: colors.outlineVariant),
@@ -93,7 +94,11 @@ class _WorkoutCalendarScreenState
     ThemeData theme,
     ColorScheme colors,
     Set<DateTime> scheduledDates,
+    Set<DateTime> completedDates,
   ) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     return TableCalendar(
       firstDay: DateTime.now().subtract(const Duration(days: 365)),
       lastDay: DateTime.now().add(const Duration(days: 365)),
@@ -119,8 +124,36 @@ class _WorkoutCalendarScreenState
       },
       eventLoader: (day) {
         final normalizedDay = DateTime(day.year, day.month, day.day);
-        return scheduledDates.contains(normalizedDay) ? [true] : [];
+        if (completedDates.contains(normalizedDay)) return ['completed'];
+        if (scheduledDates.contains(normalizedDay)) {
+          if (normalizedDay.isBefore(today)) return ['missed'];
+          return ['scheduled'];
+        }
+        return [];
       },
+      calendarBuilders: CalendarBuilders(
+        markerBuilder: (context, day, events) {
+          if (events.isEmpty) return null;
+          final status = events.first as String;
+          final color = switch (status) {
+            'completed' => Colors.green,
+            'scheduled' => Colors.blue,
+            'missed' => colors.error,
+            _ => colors.tertiary,
+          };
+          return Positioned(
+            bottom: 1,
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+          );
+        },
+      ),
       calendarStyle: CalendarStyle(
         todayDecoration: BoxDecoration(
           color: colors.primaryContainer,
@@ -132,11 +165,8 @@ class _WorkoutCalendarScreenState
           shape: BoxShape.circle,
         ),
         selectedTextStyle: TextStyle(color: colors.onPrimary),
-        markerDecoration: BoxDecoration(
-          color: colors.tertiary,
-          shape: BoxShape.circle,
-        ),
-        markerSize: 6,
+        markerDecoration: const BoxDecoration(),
+        markerSize: 0,
         markersMaxCount: 1,
       ),
       headerStyle: HeaderStyle(
