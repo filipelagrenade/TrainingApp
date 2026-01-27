@@ -33,7 +33,6 @@ class ActivityFeedScreen extends ConsumerWidget {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             } else {
-              // If we can't pop, navigate to home
               context.go('/');
             }
           },
@@ -42,9 +41,9 @@ class ActivityFeedScreen extends ConsumerWidget {
         title: const Text('Activity'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => _showSearch(context),
-            tooltip: 'Search users',
+            icon: const Icon(Icons.person_add),
+            onPressed: () => _showFriendCodeDialog(context, ref),
+            tooltip: 'Friend Code',
           ),
         ],
       ),
@@ -134,10 +133,74 @@ class ActivityFeedScreen extends ConsumerWidget {
     );
   }
 
-  void _showSearch(BuildContext context) {
-    showSearch(
+  void _showFriendCodeDialog(BuildContext context, WidgetRef ref) {
+    final friendCodeAsync = ref.read(friendCodeProvider);
+    final codeController = TextEditingController();
+
+    showDialog(
       context: context,
-      delegate: _UserSearchDelegate(),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final colors = theme.colorScheme;
+        return AlertDialog(
+          title: const Text('Friend Code'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Share your code with friends:',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24, vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  friendCodeAsync.valueOrNull ?? '...',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4,
+                    color: colors.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: codeController,
+                decoration: const InputDecoration(
+                  labelText: 'Enter a friend\'s code',
+                  hintText: 'e.g. ABCD1234',
+                  border: OutlineInputBorder(),
+                ),
+                textCapitalization: TextCapitalization.characters,
+                maxLength: 8,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Close'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final code = codeController.text.trim();
+                if (code.length == 8) {
+                  await addFriendCode(code);
+                  ref.invalidate(addedFriendCodesProvider);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                }
+              },
+              child: const Text('Add Friend'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -388,71 +451,3 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// Search delegate for finding users.
-class _UserSearchDelegate extends SearchDelegate<String?> {
-  @override
-  List<Widget> buildActions(BuildContext context) {
-    return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () => query = '',
-      ),
-    ];
-  }
-
-  @override
-  Widget buildLeading(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back),
-      onPressed: () => close(context, null),
-    );
-  }
-
-  @override
-  Widget buildResults(BuildContext context) {
-    return _buildSearchResults(context);
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    return _buildSearchResults(context);
-  }
-
-  Widget _buildSearchResults(BuildContext context) {
-    if (query.isEmpty) {
-      return const Center(
-        child: Text('Search for users by username'),
-      );
-    }
-
-    return Consumer(
-      builder: (context, ref, child) {
-        final resultsAsync = ref.watch(userSearchProvider(query));
-
-        return resultsAsync.when(
-          data: (results) => results.isEmpty
-              ? Center(child: Text('No users found for "$query"'))
-              : ListView.builder(
-                  itemCount: results.length,
-                  itemBuilder: (context, index) {
-                    final user = results[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        child: Text(user.userName[0].toUpperCase()),
-                      ),
-                      title: Text(user.displayName ?? user.userName),
-                      subtitle: Text('@${user.userName}'),
-                      trailing: user.isFollowing
-                          ? const Chip(label: Text('Following'))
-                          : null,
-                      onTap: () => close(context, user.userId),
-                    );
-                  },
-                ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => const Center(child: Text('Search failed')),
-        );
-      },
-    );
-  }
-}
