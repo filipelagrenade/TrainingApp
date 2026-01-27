@@ -35,6 +35,8 @@ import '../../features/analytics/screens/weekly_report_screen.dart';
 import '../../features/analytics/screens/yearly_wrapped_screen.dart';
 import '../../features/achievements/screens/achievements_screen.dart';
 import '../../features/measurements/screens/measurements_screen.dart';
+import '../../features/periodization/screens/periodization_screen.dart';
+import '../../features/calendar/screens/workout_calendar_screen.dart';
 
 /// Provider for the app router.
 ///
@@ -244,6 +246,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/measurements',
         name: 'measurements',
         builder: (context, state) => const MeasurementsScreen(),
+      ),
+
+      // ========================================
+      // Periodization Routes
+      // ========================================
+      GoRoute(
+        path: '/periodization',
+        name: 'periodization',
+        builder: (context, state) => const PeriodizationScreen(),
+      ),
+
+      // ========================================
+      // Calendar Routes
+      // ========================================
+      GoRoute(
+        path: '/calendar',
+        name: 'calendar',
+        builder: (context, state) => const WorkoutCalendarScreen(),
       ),
 
       // ========================================

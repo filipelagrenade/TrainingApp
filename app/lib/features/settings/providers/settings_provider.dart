@@ -169,6 +169,12 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
+  /// Toggles music controls during workouts.
+  void setShowMusicControls(bool value) {
+    state = state.copyWith(showMusicControls: value);
+    _saveSettings();
+  }
+
   /// Resets all settings to defaults.
   void resetToDefaults() {
     state = const UserSettings();
@@ -359,4 +365,9 @@ final swipeToCompleteProvider = Provider<bool>((ref) {
 /// Provider for haptic feedback setting.
 final hapticFeedbackProvider = Provider<bool>((ref) {
   return ref.watch(userSettingsProvider).hapticFeedback;
+});
+
+/// Provider for music controls setting.
+final showMusicControlsProvider = Provider<bool>((ref) {
+  return ref.watch(userSettingsProvider).showMusicControls;
 });

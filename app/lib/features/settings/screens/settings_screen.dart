@@ -161,6 +161,13 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.showPRCelebration,
             onChanged: (value) => ref.read(userSettingsProvider.notifier).setShowPRCelebration(value),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.music_note),
+            title: const Text('Music Controls'),
+            subtitle: const Text('Show music player during workouts'),
+            value: settings.showMusicControls,
+            onChanged: (value) => ref.read(userSettingsProvider.notifier).setShowMusicControls(value),
+          ),
 
           const Divider(),
 

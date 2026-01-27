@@ -159,6 +159,9 @@ class UserSettings with _$UserSettings {
     /// Whether to show PR celebration animation
     @Default(true) bool showPRCelebration,
 
+    /// Whether to show music controls during workouts
+    @Default(true) bool showMusicControls,
+
     /// Date format preference
     @Default('MM/dd/yyyy') String dateFormat,
 
