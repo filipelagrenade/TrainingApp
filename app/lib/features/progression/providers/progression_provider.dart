@@ -1,15 +1,13 @@
 /// LiftIQ - Progression Provider
 ///
 /// Manages the state for progressive overload features.
-/// Provides weight suggestions, plateau detection, and PR tracking.
-///
-/// Design notes:
-/// - Uses FutureProviders for async data
-/// - Caches suggestions during a workout session
-/// - Mock data for development (API integration pending)
+/// Fetches weight suggestions, plateau detection, and PR tracking from the API.
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/services/api_client.dart';
 import '../models/progression_suggestion.dart';
 import '../models/plateau_info.dart';
 import '../models/pr_info.dart';
@@ -33,28 +31,46 @@ import '../models/pr_info.dart';
 final suggestionProvider =
     FutureProvider.autoDispose.family<ProgressionSuggestion, String>(
   (ref, exerciseId) async {
-    // TODO: Fetch from API
-    await Future.delayed(const Duration(milliseconds: 200));
+    final api = ref.read(apiClientProvider);
 
-    // Return mock data based on exercise
-    return _getMockSuggestion(exerciseId);
+    try {
+      final response = await api.get('/progression/suggest/$exerciseId');
+      final data = response.data as Map<String, dynamic>;
+      final suggestionJson = data['data'] as Map<String, dynamic>;
+      return _parseSuggestion(suggestionJson);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
 /// Provider for batch suggestions (multiple exercises at once).
 ///
 /// Useful for pre-populating a workout template with suggestions.
-final batchSuggestionsProvider =
-    FutureProvider.autoDispose.family<Map<String, ProgressionSuggestion>, List<String>>(
+final batchSuggestionsProvider = FutureProvider.autoDispose
+    .family<Map<String, ProgressionSuggestion>, List<String>>(
   (ref, exerciseIds) async {
-    // TODO: Fetch from API
-    await Future.delayed(const Duration(milliseconds: 300));
+    final api = ref.read(apiClientProvider);
 
-    final suggestions = <String, ProgressionSuggestion>{};
-    for (final id in exerciseIds) {
-      suggestions[id] = _getMockSuggestion(id);
+    try {
+      final response = await api.post('/progression/suggest/batch', data: {
+        'exerciseIds': exerciseIds,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final suggestionsJson = data['data'] as Map<String, dynamic>;
+
+      final suggestions = <String, ProgressionSuggestion>{};
+      suggestionsJson.forEach((key, value) {
+        suggestions[key] = _parseSuggestion(value as Map<String, dynamic>);
+      });
+
+      return suggestions;
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
     }
-    return suggestions;
   },
 );
 
@@ -74,10 +90,17 @@ final batchSuggestionsProvider =
 /// ```
 final plateauProvider = FutureProvider.autoDispose.family<PlateauInfo, String>(
   (ref, exerciseId) async {
-    // TODO: Fetch from API
-    await Future.delayed(const Duration(milliseconds: 200));
+    final api = ref.read(apiClientProvider);
 
-    return _getMockPlateauInfo(exerciseId);
+    try {
+      final response = await api.get('/progression/plateau/$exerciseId');
+      final data = response.data as Map<String, dynamic>;
+      final plateauJson = data['data'] as Map<String, dynamic>;
+      return _parsePlateauInfo(plateauJson);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -99,10 +122,17 @@ final plateauProvider = FutureProvider.autoDispose.family<PlateauInfo, String>(
 /// ```
 final prInfoProvider = FutureProvider.autoDispose.family<PRInfo, String>(
   (ref, exerciseId) async {
-    // TODO: Fetch from API
-    await Future.delayed(const Duration(milliseconds: 200));
+    final api = ref.read(apiClientProvider);
 
-    return _getMockPRInfo(exerciseId);
+    try {
+      final response = await api.get('/progression/pr/$exerciseId');
+      final data = response.data as Map<String, dynamic>;
+      final prJson = data['data'] as Map<String, dynamic>;
+      return _parsePRInfo(prJson, exerciseId);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -112,12 +142,46 @@ final prInfoProvider = FutureProvider.autoDispose.family<PRInfo, String>(
 final performanceHistoryProvider =
     FutureProvider.autoDispose.family<List<PerformanceHistoryEntry>, String>(
   (ref, exerciseId) async {
-    // TODO: Fetch from API
-    await Future.delayed(const Duration(milliseconds: 300));
+    final api = ref.read(apiClientProvider);
 
-    return _getMockHistory(exerciseId);
+    try {
+      final response = await api.get('/progression/history/$exerciseId', queryParameters: {
+        'limit': 10,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final historyList = data['data'] as List<dynamic>;
+
+      return historyList
+          .map((json) => _parsePerformanceHistoryEntry(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
+
+// ============================================================================
+// DELOAD PROVIDERS
+// ============================================================================
+
+/// Provider for checking if a deload is recommended.
+final deloadCheckProvider = FutureProvider.autoDispose<DeloadRecommendation?>((ref) async {
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/progression/deload-check');
+    final data = response.data as Map<String, dynamic>;
+    final deloadJson = data['data'];
+
+    if (deloadJson == null) return null;
+    return _parseDeloadRecommendation(deloadJson as Map<String, dynamic>);
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
+});
 
 // ============================================================================
 // 1RM CALCULATION
@@ -243,167 +307,109 @@ class SuggestionFeedbackNotifier extends StateNotifier<SuggestionFeedbackState> 
       modifiedCount: state.modifiedCount + (feedback == SuggestionFeedback.modified ? 1 : 0),
       dismissedCount: state.dismissedCount + (feedback == SuggestionFeedback.dismissed ? 1 : 0),
     );
-
-    // TODO: Send to analytics
   }
 }
 
 // ============================================================================
-// MOCK DATA HELPERS
+// API RESPONSE PARSING
 // ============================================================================
 
-/// Returns mock suggestion data for development.
-ProgressionSuggestion _getMockSuggestion(String exerciseId) {
-  // Different mock data based on exercise
-  if (exerciseId.contains('bench')) {
-    return const ProgressionSuggestion(
-      suggestedWeight: 102.5,
-      previousWeight: 100,
-      action: ProgressionAction.increase,
-      reasoning:
-          'Excellent! You hit 8 reps for 2 sessions in a row. Time to increase the weight!',
-      confidence: 0.9,
-      wouldBePR: true,
-      targetReps: 8,
-      sessionsAtCurrentWeight: 2,
-    );
-  } else if (exerciseId.contains('squat')) {
-    return const ProgressionSuggestion(
-      suggestedWeight: 140,
-      previousWeight: 140,
-      action: ProgressionAction.maintain,
-      reasoning:
-          'Great work hitting 6 reps! 1 more session at this level before we increase.',
-      confidence: 0.85,
-      wouldBePR: false,
-      targetReps: 8,
-      sessionsAtCurrentWeight: 1,
-    );
-  } else if (exerciseId.contains('deadlift')) {
-    return const ProgressionSuggestion(
-      suggestedWeight: 162,
-      previousWeight: 180,
-      action: ProgressionAction.deload,
-      reasoning:
-          'You\'ve struggled for 4 sessions. Taking a 10% deload to recover and rebuild.',
-      confidence: 0.85,
-      wouldBePR: false,
-      targetReps: 5,
-      sessionsAtCurrentWeight: 4,
-    );
+/// Parses a ProgressionSuggestion from API response.
+ProgressionSuggestion _parseSuggestion(Map<String, dynamic> json) {
+  final actionStr = json['action'] as String? ?? 'MAINTAIN';
+  ProgressionAction action;
+  switch (actionStr.toUpperCase()) {
+    case 'INCREASE':
+      action = ProgressionAction.increase;
+      break;
+    case 'DELOAD':
+      action = ProgressionAction.deload;
+      break;
+    case 'MAINTAIN':
+    default:
+      action = ProgressionAction.maintain;
   }
 
-  // Default for other exercises
-  return const ProgressionSuggestion(
-    suggestedWeight: 0,
-    previousWeight: 0,
-    action: ProgressionAction.maintain,
-    reasoning:
-        'This is your first time logging this exercise. Start with a weight you can do for 10 reps with good form.',
-    confidence: 0.5,
-    wouldBePR: true,
-    targetReps: 10,
-    sessionsAtCurrentWeight: 0,
+  return ProgressionSuggestion(
+    suggestedWeight: (json['suggestedWeight'] as num?)?.toDouble() ?? 0,
+    previousWeight: (json['previousWeight'] as num?)?.toDouble() ?? 0,
+    action: action,
+    reasoning: json['reasoning'] as String? ?? '',
+    confidence: (json['confidence'] as num?)?.toDouble() ?? 0.5,
+    wouldBePR: json['wouldBePR'] as bool? ?? false,
+    targetReps: json['targetReps'] as int? ?? 8,
+    sessionsAtCurrentWeight: json['sessionsAtCurrentWeight'] as int? ?? 0,
   );
 }
 
-/// Returns mock plateau data for development.
-PlateauInfo _getMockPlateauInfo(String exerciseId) {
-  if (exerciseId.contains('deadlift')) {
-    return PlateauInfo(
-      isPlateaued: true,
-      sessionsWithoutProgress: 5,
-      lastProgressDate: DateTime.now().subtract(const Duration(days: 21)),
-      suggestions: [
-        'Consider a 10% deload for 1 week',
-        'Try a different rep range (e.g., 5x5 instead of 3x8)',
-        'Check your recovery: sleep, nutrition, stress',
-        'Try a variation like Romanian deadlifts',
-      ],
-    );
-  }
+/// Parses PlateauInfo from API response.
+PlateauInfo _parsePlateauInfo(Map<String, dynamic> json) {
+  final suggestions = (json['suggestions'] as List<dynamic>?)
+          ?.map((s) => s as String)
+          .toList() ??
+      [];
 
-  return const PlateauInfo(
-    isPlateaued: false,
-    sessionsWithoutProgress: 0,
-    lastProgressDate: null,
-    suggestions: [],
+  return PlateauInfo(
+    isPlateaued: json['isPlateaued'] as bool? ?? false,
+    sessionsWithoutProgress: json['sessionsWithoutProgress'] as int? ?? 0,
+    lastProgressDate: json['lastProgressDate'] != null
+        ? DateTime.parse(json['lastProgressDate'] as String)
+        : null,
+    suggestions: suggestions,
   );
 }
 
-/// Returns mock PR info for development.
-PRInfo _getMockPRInfo(String exerciseId) {
-  if (exerciseId.contains('bench')) {
-    return PRInfo(
-      exerciseId: exerciseId,
-      prWeight: 100,
-      estimated1RM: 120.5,
-      hasPR: true,
-      prDate: DateTime.now().subtract(const Duration(days: 7)),
-      prReps: 6,
-    );
-  } else if (exerciseId.contains('squat')) {
-    return PRInfo(
-      exerciseId: exerciseId,
-      prWeight: 140,
-      estimated1RM: 165.3,
-      hasPR: true,
-      prDate: DateTime.now().subtract(const Duration(days: 14)),
-      prReps: 5,
-    );
-  }
+/// Parses PRInfo from API response.
+PRInfo _parsePRInfo(Map<String, dynamic> json, String exerciseId) {
+  final hasPR = json['hasPR'] as bool? ?? false;
 
   return PRInfo(
     exerciseId: exerciseId,
-    prWeight: null,
-    estimated1RM: null,
-    hasPR: false,
+    prWeight: hasPR ? (json['prWeight'] as num?)?.toDouble() : null,
+    estimated1RM: hasPR ? (json['estimated1RM'] as num?)?.toDouble() : null,
+    hasPR: hasPR,
+    prDate: json['prDate'] != null
+        ? DateTime.parse(json['prDate'] as String)
+        : null,
+    prReps: json['prReps'] as int?,
   );
 }
 
-/// Returns mock performance history for development.
-List<PerformanceHistoryEntry> _getMockHistory(String exerciseId) {
-  final now = DateTime.now();
+/// Parses PerformanceHistoryEntry from API response.
+PerformanceHistoryEntry _parsePerformanceHistoryEntry(Map<String, dynamic> json) {
+  final setsJson = json['sets'] as List<dynamic>? ?? [];
+  final sets = setsJson.map((s) {
+    final setJson = s as Map<String, dynamic>;
+    return SetSummary(
+      setNumber: setJson['setNumber'] as int,
+      weight: (setJson['weight'] as num).toDouble(),
+      reps: setJson['reps'] as int,
+      rpe: (setJson['rpe'] as num?)?.toDouble(),
+    );
+  }).toList();
 
-  return [
-    PerformanceHistoryEntry(
-      sessionId: 'session-1',
-      date: now.subtract(const Duration(days: 2)),
-      completedAt: now.subtract(const Duration(days: 2)),
-      topWeight: 100,
-      topReps: 8,
-      estimated1RM: 126.7,
-      sets: [
-        const SetSummary(setNumber: 1, weight: 100, reps: 8, rpe: 8),
-        const SetSummary(setNumber: 2, weight: 100, reps: 8, rpe: 8.5),
-        const SetSummary(setNumber: 3, weight: 100, reps: 7, rpe: 9),
-      ],
-    ),
-    PerformanceHistoryEntry(
-      sessionId: 'session-2',
-      date: now.subtract(const Duration(days: 5)),
-      completedAt: now.subtract(const Duration(days: 5)),
-      topWeight: 100,
-      topReps: 8,
-      estimated1RM: 126.7,
-      sets: [
-        const SetSummary(setNumber: 1, weight: 100, reps: 8, rpe: 7.5),
-        const SetSummary(setNumber: 2, weight: 100, reps: 8, rpe: 8),
-        const SetSummary(setNumber: 3, weight: 100, reps: 8, rpe: 8.5),
-      ],
-    ),
-    PerformanceHistoryEntry(
-      sessionId: 'session-3',
-      date: now.subtract(const Duration(days: 8)),
-      completedAt: now.subtract(const Duration(days: 8)),
-      topWeight: 97.5,
-      topReps: 8,
-      estimated1RM: 123.5,
-      sets: [
-        const SetSummary(setNumber: 1, weight: 97.5, reps: 8, rpe: 8),
-        const SetSummary(setNumber: 2, weight: 97.5, reps: 8, rpe: 8.5),
-        const SetSummary(setNumber: 3, weight: 97.5, reps: 8, rpe: 9),
-      ],
-    ),
-  ];
+  return PerformanceHistoryEntry(
+    sessionId: json['sessionId'] as String,
+    date: DateTime.parse(json['date'] as String),
+    completedAt: json['completedAt'] != null
+        ? DateTime.parse(json['completedAt'] as String)
+        : null,
+    topWeight: (json['topWeight'] as num?)?.toDouble() ?? 0,
+    topReps: json['topReps'] as int? ?? 0,
+    estimated1RM: (json['estimated1RM'] as num?)?.toDouble() ?? 0,
+    sets: sets,
+  );
 }
+
+/// Parses DeloadRecommendation from API response.
+DeloadRecommendation _parseDeloadRecommendation(Map<String, dynamic> json) {
+  return DeloadRecommendation(
+    needed: json['needed'] as bool? ?? false,
+    reason: json['reason'] as String? ?? '',
+    suggestedWeek: json['suggestedWeek'] != null
+        ? DateTime.parse(json['suggestedWeek'] as String)
+        : null,
+    confidence: json['confidence'] as int? ?? 0,
+  );
+}
+

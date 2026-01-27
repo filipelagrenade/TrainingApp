@@ -15,8 +15,10 @@
 library;
 
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/api_client.dart';
 import '../models/deload.dart';
 
 // ============================================================================
@@ -125,18 +127,26 @@ class DeloadNotifier extends Notifier<DeloadState> {
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      // TODO: Replace with actual API call
-      // final response = await api.get('/progression/deload-check');
-      // final recommendation = DeloadRecommendation.fromJson(response.data);
+      final api = ref.read(apiClientProvider);
+      final response = await api.get('/progression/deload-check');
+      final data = response.data as Map<String, dynamic>;
+      final recommendationJson = data['data'];
 
-      // Mock recommendation for now
-      await Future.delayed(const Duration(milliseconds: 300));
-      final recommendation = _getMockRecommendation();
+      DeloadRecommendation? recommendation;
+      if (recommendationJson != null) {
+        recommendation = _parseRecommendation(recommendationJson as Map<String, dynamic>);
+      }
 
       state = state.copyWith(
         recommendation: recommendation,
         isLoading: false,
         lastFetched: DateTime.now(),
+      );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(
+        isLoading: false,
+        error: error.message,
       );
     } catch (e) {
       state = state.copyWith(
@@ -149,15 +159,14 @@ class DeloadNotifier extends Notifier<DeloadState> {
   /// Fetches all scheduled deloads.
   Future<void> fetchScheduledDeloads() async {
     try {
-      // TODO: Replace with actual API call
-      // final response = await api.get('/progression/deloads');
-      // final deloads = (response.data as List)
-      //     .map((d) => DeloadWeek.fromJson(d))
-      //     .toList();
+      final api = ref.read(apiClientProvider);
+      final response = await api.get('/progression/deloads');
+      final data = response.data as Map<String, dynamic>;
+      final deloadsJson = data['data'] as List<dynamic>? ?? [];
 
-      // Mock data for now
-      await Future.delayed(const Duration(milliseconds: 200));
-      final deloads = _getMockScheduledDeloads();
+      final deloads = deloadsJson
+          .map((d) => _parseDeloadWeek(d as Map<String, dynamic>))
+          .toList();
 
       // Find active deload
       final now = DateTime.now();
@@ -176,6 +185,9 @@ class DeloadNotifier extends Notifier<DeloadState> {
         scheduledDeloads: deloads,
         activeDeload: active,
       );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(error: error.message);
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to fetch scheduled deloads: $e',
@@ -194,29 +206,26 @@ class DeloadNotifier extends Notifier<DeloadState> {
     String? reason,
   }) async {
     try {
-      // TODO: Replace with actual API call
-      // final response = await api.post('/progression/schedule-deload', {
-      //   'startDate': startDate.toIso8601String(),
-      //   'deloadType': type.name,
-      //   'reason': reason,
-      // });
-      // final deload = DeloadWeek.fromJson(response.data);
+      final api = ref.read(apiClientProvider);
+      final response = await api.post('/progression/schedule-deload', data: {
+        'startDate': startDate.toIso8601String(),
+        'deloadType': type.name,
+        'reason': reason ?? state.recommendation?.reason,
+      });
 
-      // Mock creation
-      await Future.delayed(const Duration(milliseconds: 300));
-      final deload = DeloadWeek(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        startDate: startDate,
-        endDate: startDate.add(const Duration(days: 7)),
-        deloadType: type,
-        reason: reason ?? state.recommendation?.reason,
-      );
+      final data = response.data as Map<String, dynamic>;
+      final deloadJson = data['data'] as Map<String, dynamic>;
+      final deload = _parseDeloadWeek(deloadJson);
 
       state = state.copyWith(
         scheduledDeloads: [...state.scheduledDeloads, deload],
       );
 
       return deload;
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(error: error.message);
+      return null;
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to schedule deload: $e',
@@ -228,12 +237,10 @@ class DeloadNotifier extends Notifier<DeloadState> {
   /// Marks a deload as completed.
   Future<void> completeDeload(String deloadId, {String? notes}) async {
     try {
-      // TODO: Replace with actual API call
-      // await api.post('/progression/deload/$deloadId/complete', {
-      //   'notes': notes,
-      // });
-
-      await Future.delayed(const Duration(milliseconds: 200));
+      final api = ref.read(apiClientProvider);
+      await api.post('/progression/deload/$deloadId/complete', data: {
+        if (notes != null) 'notes': notes,
+      });
 
       final updatedDeloads = state.scheduledDeloads.map((d) {
         if (d.id == deloadId) {
@@ -255,6 +262,9 @@ class DeloadNotifier extends Notifier<DeloadState> {
         scheduledDeloads: updatedDeloads,
         clearActiveDeload: state.activeDeload?.id == deloadId,
       );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(error: error.message);
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to complete deload: $e',
@@ -265,10 +275,8 @@ class DeloadNotifier extends Notifier<DeloadState> {
   /// Skips a scheduled deload.
   Future<void> skipDeload(String deloadId) async {
     try {
-      // TODO: Replace with actual API call
-      // await api.post('/progression/deload/$deloadId/skip');
-
-      await Future.delayed(const Duration(milliseconds: 200));
+      final api = ref.read(apiClientProvider);
+      await api.post('/progression/deload/$deloadId/skip');
 
       final updatedDeloads = state.scheduledDeloads.map((d) {
         if (d.id == deloadId) {
@@ -289,6 +297,9 @@ class DeloadNotifier extends Notifier<DeloadState> {
         scheduledDeloads: updatedDeloads,
         clearActiveDeload: state.activeDeload?.id == deloadId,
       );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(error: error.message);
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to skip deload: $e',
@@ -299,10 +310,8 @@ class DeloadNotifier extends Notifier<DeloadState> {
   /// Deletes a scheduled deload.
   Future<void> deleteDeload(String deloadId) async {
     try {
-      // TODO: Replace with actual API call
-      // await api.delete('/progression/deload/$deloadId');
-
-      await Future.delayed(const Duration(milliseconds: 200));
+      final api = ref.read(apiClientProvider);
+      await api.delete('/progression/deload/$deloadId');
 
       state = state.copyWith(
         scheduledDeloads: state.scheduledDeloads
@@ -310,6 +319,9 @@ class DeloadNotifier extends Notifier<DeloadState> {
             .toList(),
         clearActiveDeload: state.activeDeload?.id == deloadId,
       );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(error: error.message);
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to delete deload: $e',
@@ -323,39 +335,73 @@ class DeloadNotifier extends Notifier<DeloadState> {
   }
 
   // ==========================================================================
-  // MOCK DATA (TODO: Remove when API is connected)
+  // PARSING HELPERS
   // ==========================================================================
 
-  DeloadRecommendation _getMockRecommendation() {
+  /// Parses a DeloadRecommendation from API response.
+  DeloadRecommendation _parseRecommendation(Map<String, dynamic> json) {
+    final typeStr = json['deloadType'] as String? ?? 'volumeReduction';
+    DeloadType deloadType;
+    switch (typeStr.toLowerCase()) {
+      case 'intensityreduction':
+        deloadType = DeloadType.intensityReduction;
+        break;
+      case 'activerecovery':
+        deloadType = DeloadType.activeRecovery;
+        break;
+      case 'volumereduction':
+      default:
+        deloadType = DeloadType.volumeReduction;
+    }
+
+    final metricsJson = json['metrics'] as Map<String, dynamic>?;
+    final metrics = DeloadMetrics(
+      consecutiveWeeks: metricsJson?['consecutiveWeeks'] as int? ?? 0,
+      rpeTrend: (metricsJson?['rpeTrend'] as num?)?.toDouble() ?? 0,
+      decliningRepsSessions: metricsJson?['decliningRepsSessions'] as int? ?? 0,
+      daysSinceLastDeload: metricsJson?['daysSinceLastDeload'] as int?,
+      recentWorkoutCount: metricsJson?['recentWorkoutCount'] as int? ?? 0,
+      plateauExerciseCount: metricsJson?['plateauExerciseCount'] as int? ?? 0,
+    );
+
     return DeloadRecommendation(
-      needed: true,
-      reason: "You've trained consistently for 5 weeks. Your perceived effort has been increasing.",
-      suggestedWeek: _getNextMonday(),
-      deloadType: DeloadType.volumeReduction,
-      confidence: 72,
-      metrics: const DeloadMetrics(
-        consecutiveWeeks: 5,
-        rpeTrend: 0.4,
-        decliningRepsSessions: 1,
-        daysSinceLastDeload: 42,
-        recentWorkoutCount: 4,
-        plateauExerciseCount: 2,
-      ),
+      needed: json['needed'] as bool? ?? false,
+      reason: json['reason'] as String? ?? '',
+      suggestedWeek: json['suggestedWeek'] != null
+          ? DateTime.parse(json['suggestedWeek'] as String)
+          : DateTime.now().add(const Duration(days: 7)),
+      deloadType: deloadType,
+      confidence: json['confidence'] as int? ?? 0,
+      metrics: metrics,
     );
   }
 
-  List<DeloadWeek> _getMockScheduledDeloads() {
-    // Return empty list for now
-    return [];
-  }
-
-  DateTime _getNextMonday() {
-    final now = DateTime.now();
-    final daysUntilMonday = (8 - now.weekday) % 7;
-    if (daysUntilMonday == 0) {
-      return DateTime(now.year, now.month, now.day + 7);
+  /// Parses a DeloadWeek from API response.
+  DeloadWeek _parseDeloadWeek(Map<String, dynamic> json) {
+    final typeStr = json['deloadType'] as String? ?? 'volumeReduction';
+    DeloadType deloadType;
+    switch (typeStr.toLowerCase()) {
+      case 'intensityreduction':
+        deloadType = DeloadType.intensityReduction;
+        break;
+      case 'activerecovery':
+        deloadType = DeloadType.activeRecovery;
+        break;
+      case 'volumereduction':
+      default:
+        deloadType = DeloadType.volumeReduction;
     }
-    return DateTime(now.year, now.month, now.day + daysUntilMonday);
+
+    return DeloadWeek(
+      id: json['id'] as String,
+      startDate: DateTime.parse(json['startDate'] as String),
+      endDate: DateTime.parse(json['endDate'] as String),
+      deloadType: deloadType,
+      reason: json['reason'] as String?,
+      completed: json['completed'] as bool? ?? false,
+      skipped: json['skipped'] as bool? ?? false,
+      notes: json['notes'] as String?,
+    );
   }
 }
 

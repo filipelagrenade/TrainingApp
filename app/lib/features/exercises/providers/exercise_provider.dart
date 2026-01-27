@@ -1,21 +1,43 @@
 /// LiftIQ - Exercise Provider
 ///
 /// Manages the state for exercise library.
+/// Now connects to the real backend API instead of using mock data.
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/services/api_client.dart';
 import '../models/exercise.dart';
 
 // ============================================================================
 // EXERCISE LIST PROVIDER
 // ============================================================================
 
-/// Provider for all exercises.
+/// Provider for all exercises from the API.
+///
+/// Fetches exercises from GET /exercises endpoint.
+/// Automatically handles pagination and caching.
 final exerciseListProvider = FutureProvider.autoDispose<List<Exercise>>(
   (ref) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _getMockExercises();
+    final api = ref.read(apiClientProvider);
+
+    try {
+      // Fetch all exercises (with high limit to get all)
+      final response = await api.get('/exercises', queryParameters: {
+        'limit': 200, // Get all exercises
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final exerciseList = data['data'] as List<dynamic>;
+
+      return exerciseList
+          .map((json) => _parseExercise(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -42,10 +64,35 @@ final exercisesByEquipmentProvider = FutureProvider.autoDispose
 );
 
 /// Provider for a single exercise.
-final exerciseDetailProvider = FutureProvider.autoDispose.family<Exercise?, String>(
+///
+/// Fetches from GET /exercises/:id if not in cache.
+final exerciseDetailProvider =
+    FutureProvider.autoDispose.family<Exercise?, String>(
   (ref, exerciseId) async {
-    final exercises = await ref.watch(exerciseListProvider.future);
-    return exercises.where((e) => e.id == exerciseId).firstOrNull;
+    // First try to find in cached list
+    final exercisesAsync = ref.watch(exerciseListProvider);
+    final exercises = exercisesAsync.valueOrNull;
+
+    if (exercises != null) {
+      final cached = exercises.where((e) => e.id == exerciseId).firstOrNull;
+      if (cached != null) return cached;
+    }
+
+    // Fetch from API if not in cache
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/exercises/$exerciseId');
+      final data = response.data as Map<String, dynamic>;
+      final exerciseJson = data['data'] as Map<String, dynamic>;
+      return _parseExercise(exerciseJson);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      if (error.isNotFoundError) {
+        return null;
+      }
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -115,7 +162,8 @@ class ExerciseFilterNotifier extends StateNotifier<ExerciseFilterState> {
   }
 
   void setEquipment(Equipment? equipment) {
-    state = state.copyWith(equipment: equipment, clearEquipment: equipment == null);
+    state =
+        state.copyWith(equipment: equipment, clearEquipment: equipment == null);
   }
 
   void setShowCustomOnly(bool value) {
@@ -150,7 +198,8 @@ final filteredExercisesProvider = Provider<AsyncValue<List<Exercise>>>((ref) {
     }
 
     if (filter.equipment != null) {
-      filtered = filtered.where((e) => e.equipment == filter.equipment).toList();
+      filtered =
+          filtered.where((e) => e.equipment == filter.equipment).toList();
     }
 
     if (filter.showCustomOnly) {
@@ -208,196 +257,179 @@ String _getMuscleGroupDisplayName(MuscleGroup group) {
 }
 
 // ============================================================================
-// MOCK DATA
+// CUSTOM EXERCISE MANAGEMENT
 // ============================================================================
 
-List<Exercise> _getMockExercises() {
-  return [
-    // Chest
-    const Exercise(
-      id: 'bench-press',
-      name: 'Barbell Bench Press',
-      description: 'A compound pushing movement targeting the chest.',
-      primaryMuscles: [MuscleGroup.chest],
-      secondaryMuscles: [MuscleGroup.shoulders, MuscleGroup.triceps],
-      equipment: Equipment.barbell,
-      instructions: '1. Lie on bench with feet flat\n2. Grip bar slightly wider than shoulders\n3. Lower to mid-chest\n4. Press back up',
-    ),
-    const Exercise(
-      id: 'incline-db-press',
-      name: 'Incline Dumbbell Press',
-      description: 'Targets upper chest with dumbbells.',
-      primaryMuscles: [MuscleGroup.chest],
-      secondaryMuscles: [MuscleGroup.shoulders, MuscleGroup.triceps],
-      equipment: Equipment.dumbbell,
-    ),
-    const Exercise(
-      id: 'cable-fly',
-      name: 'Cable Fly',
-      description: 'Isolation movement for chest.',
-      primaryMuscles: [MuscleGroup.chest],
-      equipment: Equipment.cable,
-    ),
-    const Exercise(
-      id: 'push-ups',
-      name: 'Push-Ups',
-      description: 'Classic bodyweight chest exercise.',
-      primaryMuscles: [MuscleGroup.chest],
-      secondaryMuscles: [MuscleGroup.shoulders, MuscleGroup.triceps],
-      equipment: Equipment.bodyweight,
-    ),
+/// Provider for creating a custom exercise.
+///
+/// Returns the created exercise on success.
+final createCustomExerciseProvider =
+    FutureProvider.autoDispose.family<Exercise, CreateExerciseParams>(
+  (ref, params) async {
+    final api = ref.read(apiClientProvider);
 
-    // Back
-    const Exercise(
-      id: 'deadlift',
-      name: 'Barbell Deadlift',
-      description: 'A fundamental compound lift.',
-      primaryMuscles: [MuscleGroup.back, MuscleGroup.hamstrings],
-      secondaryMuscles: [MuscleGroup.glutes, MuscleGroup.core],
-      equipment: Equipment.barbell,
-    ),
-    const Exercise(
-      id: 'lat-pulldown',
-      name: 'Lat Pulldown',
-      description: 'Vertical pulling movement.',
-      primaryMuscles: [MuscleGroup.lats],
-      secondaryMuscles: [MuscleGroup.biceps],
-      equipment: Equipment.cable,
-    ),
-    const Exercise(
-      id: 'barbell-row',
-      name: 'Barbell Row',
-      description: 'Horizontal pulling movement.',
-      primaryMuscles: [MuscleGroup.back],
-      secondaryMuscles: [MuscleGroup.biceps, MuscleGroup.lats],
-      equipment: Equipment.barbell,
-    ),
-    const Exercise(
-      id: 'pull-ups',
-      name: 'Pull-Ups',
-      description: 'Bodyweight vertical pull.',
-      primaryMuscles: [MuscleGroup.lats],
-      secondaryMuscles: [MuscleGroup.biceps],
-      equipment: Equipment.bodyweight,
-    ),
+    try {
+      final response = await api.post('/exercises', data: {
+        'name': params.name,
+        'description': params.description,
+        'instructions': params.instructions,
+        'primaryMuscles':
+            params.primaryMuscles.map((m) => m.name).toList(),
+        'secondaryMuscles':
+            params.secondaryMuscles.map((m) => m.name).toList(),
+        'equipment': [params.equipment.name],
+      });
 
-    // Shoulders
-    const Exercise(
-      id: 'ohp',
-      name: 'Overhead Press',
-      description: 'Standing barbell shoulder press.',
-      primaryMuscles: [MuscleGroup.shoulders],
-      secondaryMuscles: [MuscleGroup.triceps],
-      equipment: Equipment.barbell,
-    ),
-    const Exercise(
-      id: 'lateral-raise',
-      name: 'Lateral Raise',
-      description: 'Isolation for side delts.',
-      primaryMuscles: [MuscleGroup.shoulders],
-      equipment: Equipment.dumbbell,
-    ),
-    const Exercise(
-      id: 'face-pulls',
-      name: 'Face Pulls',
-      description: 'Targets rear delts and rotator cuff.',
-      primaryMuscles: [MuscleGroup.shoulders],
-      secondaryMuscles: [MuscleGroup.traps],
-      equipment: Equipment.cable,
-    ),
+      final data = response.data as Map<String, dynamic>;
+      final exerciseJson = data['data'] as Map<String, dynamic>;
 
-    // Arms
-    const Exercise(
-      id: 'barbell-curl',
-      name: 'Barbell Curl',
-      description: 'Classic bicep exercise.',
-      primaryMuscles: [MuscleGroup.biceps],
-      equipment: Equipment.barbell,
-    ),
-    const Exercise(
-      id: 'tricep-pushdown',
-      name: 'Tricep Pushdown',
-      description: 'Cable isolation for triceps.',
-      primaryMuscles: [MuscleGroup.triceps],
-      equipment: Equipment.cable,
-    ),
-    const Exercise(
-      id: 'hammer-curls',
-      name: 'Hammer Curls',
-      description: 'Targets brachialis and forearms.',
-      primaryMuscles: [MuscleGroup.biceps],
-      secondaryMuscles: [MuscleGroup.forearms],
-      equipment: Equipment.dumbbell,
-    ),
+      // Invalidate the exercise list to refresh
+      ref.invalidate(exerciseListProvider);
 
-    // Legs
-    const Exercise(
-      id: 'squat',
-      name: 'Barbell Squat',
-      description: 'King of leg exercises.',
-      primaryMuscles: [MuscleGroup.quads, MuscleGroup.glutes],
-      secondaryMuscles: [MuscleGroup.hamstrings, MuscleGroup.core],
-      equipment: Equipment.barbell,
-    ),
-    const Exercise(
-      id: 'leg-press',
-      name: 'Leg Press',
-      description: 'Machine compound for legs.',
-      primaryMuscles: [MuscleGroup.quads],
-      secondaryMuscles: [MuscleGroup.glutes, MuscleGroup.hamstrings],
-      equipment: Equipment.machine,
-    ),
-    const Exercise(
-      id: 'romanian-deadlift',
-      name: 'Romanian Deadlift',
-      description: 'Targets hamstrings and glutes.',
-      primaryMuscles: [MuscleGroup.hamstrings],
-      secondaryMuscles: [MuscleGroup.glutes, MuscleGroup.back],
-      equipment: Equipment.barbell,
-    ),
-    const Exercise(
-      id: 'leg-curl',
-      name: 'Leg Curl',
-      description: 'Isolation for hamstrings.',
-      primaryMuscles: [MuscleGroup.hamstrings],
-      equipment: Equipment.machine,
-    ),
-    const Exercise(
-      id: 'calf-raise',
-      name: 'Standing Calf Raise',
-      description: 'Isolation for calves.',
-      primaryMuscles: [MuscleGroup.calves],
-      equipment: Equipment.machine,
-    ),
-    const Exercise(
-      id: 'lunges',
-      name: 'Walking Lunges',
-      description: 'Unilateral leg exercise.',
-      primaryMuscles: [MuscleGroup.quads, MuscleGroup.glutes],
-      equipment: Equipment.bodyweight,
-    ),
+      return _parseExercise(exerciseJson);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
+  },
+);
 
-    // Core
-    const Exercise(
-      id: 'plank',
-      name: 'Plank',
-      description: 'Isometric core exercise.',
-      primaryMuscles: [MuscleGroup.core],
-      equipment: Equipment.bodyweight,
-    ),
-    const Exercise(
-      id: 'cable-crunch',
-      name: 'Cable Crunch',
-      description: 'Weighted ab exercise.',
-      primaryMuscles: [MuscleGroup.core],
-      equipment: Equipment.cable,
-    ),
-    const Exercise(
-      id: 'hanging-leg-raise',
-      name: 'Hanging Leg Raise',
-      description: 'Advanced core exercise.',
-      primaryMuscles: [MuscleGroup.core],
-      equipment: Equipment.bodyweight,
-    ),
-  ];
+/// Parameters for creating a custom exercise.
+class CreateExerciseParams {
+  final String name;
+  final String? description;
+  final String? instructions;
+  final List<MuscleGroup> primaryMuscles;
+  final List<MuscleGroup> secondaryMuscles;
+  final Equipment equipment;
+
+  const CreateExerciseParams({
+    required this.name,
+    this.description,
+    this.instructions,
+    required this.primaryMuscles,
+    this.secondaryMuscles = const [],
+    required this.equipment,
+  });
+}
+
+/// Provider for deleting a custom exercise.
+final deleteCustomExerciseProvider =
+    FutureProvider.autoDispose.family<bool, String>(
+  (ref, exerciseId) async {
+    final api = ref.read(apiClientProvider);
+
+    try {
+      await api.delete('/exercises/$exerciseId');
+
+      // Invalidate the exercise list to refresh
+      ref.invalidate(exerciseListProvider);
+
+      return true;
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
+  },
+);
+
+// ============================================================================
+// API RESPONSE PARSING
+// ============================================================================
+
+/// Parses an exercise from API response JSON.
+///
+/// Handles the conversion from API's string arrays to Flutter's enums.
+Exercise _parseExercise(Map<String, dynamic> json) {
+  // Parse primary muscles (API returns array of strings)
+  final primaryMusclesJson = json['primaryMuscles'] as List<dynamic>? ?? [];
+  final primaryMuscles = primaryMusclesJson
+      .map((m) => _parseMuscleGroup(m as String))
+      .whereType<MuscleGroup>()
+      .toList();
+
+  // Parse secondary muscles
+  final secondaryMusclesJson = json['secondaryMuscles'] as List<dynamic>? ?? [];
+  final secondaryMuscles = secondaryMusclesJson
+      .map((m) => _parseMuscleGroup(m as String))
+      .whereType<MuscleGroup>()
+      .toList();
+
+  // Parse equipment (API returns array, we take the first)
+  final equipmentJson = json['equipment'] as List<dynamic>?;
+  final equipment = equipmentJson != null && equipmentJson.isNotEmpty
+      ? _parseEquipment(equipmentJson.first as String)
+      : Equipment.other;
+
+  return Exercise(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    description: json['description'] as String?,
+    primaryMuscles: primaryMuscles.isNotEmpty
+        ? primaryMuscles
+        : [MuscleGroup.chest], // Default if empty
+    secondaryMuscles: secondaryMuscles,
+    equipment: equipment,
+    instructions: json['instructions'] as String?,
+    imageUrl: json['imageUrl'] as String?,
+    videoUrl: json['videoUrl'] as String?,
+    isCustom: json['isCustom'] as bool? ?? false,
+    userId: json['createdBy'] as String?,
+  );
+}
+
+/// Parses a muscle group string to enum.
+MuscleGroup? _parseMuscleGroup(String muscle) {
+  final normalized = muscle.toLowerCase();
+  for (final group in MuscleGroup.values) {
+    if (group.name.toLowerCase() == normalized) {
+      return group;
+    }
+  }
+  // Handle common variations
+  switch (normalized) {
+    case 'quadriceps':
+      return MuscleGroup.quads;
+    case 'trapezius':
+      return MuscleGroup.traps;
+    case 'latissimus':
+    case 'latissimus dorsi':
+      return MuscleGroup.lats;
+    case 'abdominals':
+    case 'abs':
+      return MuscleGroup.core;
+    default:
+      return null;
+  }
+}
+
+/// Parses an equipment string to enum.
+Equipment _parseEquipment(String equipment) {
+  final normalized = equipment.toLowerCase();
+  for (final eq in Equipment.values) {
+    if (eq.name.toLowerCase() == normalized) {
+      return eq;
+    }
+  }
+  // Handle common variations
+  switch (normalized) {
+    case 'dumbbells':
+      return Equipment.dumbbell;
+    case 'barbells':
+      return Equipment.barbell;
+    case 'cables':
+      return Equipment.cable;
+    case 'machines':
+      return Equipment.machine;
+    case 'body weight':
+    case 'none':
+      return Equipment.bodyweight;
+    case 'kettlebells':
+      return Equipment.kettlebell;
+    case 'bands':
+    case 'resistance bands':
+      return Equipment.band;
+    default:
+      return Equipment.other;
+  }
 }

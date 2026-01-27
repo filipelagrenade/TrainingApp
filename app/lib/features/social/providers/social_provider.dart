@@ -2,9 +2,13 @@
 ///
 /// Manages the state for social features including activity feed,
 /// profiles, follows, and challenges.
+/// Now connects to the backend API.
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/services/api_client.dart';
 import '../models/activity_item.dart';
 import '../models/social_profile.dart';
 import '../models/challenge.dart';
@@ -18,9 +22,21 @@ import '../models/challenge.dart';
 /// Returns a paginated feed of activities from followed users.
 final activityFeedProvider = FutureProvider.autoDispose<ActivityFeed>(
   (ref) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 600));
-    return _getMockActivityFeed();
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/feed', queryParameters: {
+        'limit': 20,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final feedJson = data['data'] as Map<String, dynamic>;
+
+      return _parseActivityFeed(feedJson);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -28,9 +44,23 @@ final activityFeedProvider = FutureProvider.autoDispose<ActivityFeed>(
 final userActivitiesProvider = FutureProvider.autoDispose
     .family<List<ActivityItem>, String>(
   (ref, userId) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _getMockUserActivities(userId);
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/activities/$userId', queryParameters: {
+        'limit': 20,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final activitiesList = data['data'] as List<dynamic>;
+
+      return activitiesList
+          .map((json) => _parseActivityItem(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -61,21 +91,36 @@ class LikeState {
 
 /// Notifier for managing activity likes.
 class LikeNotifier extends StateNotifier<LikeState> {
-  LikeNotifier() : super(const LikeState());
+  final Ref _ref;
+
+  LikeNotifier(this._ref) : super(const LikeState());
 
   /// Toggles like on an activity.
   Future<void> toggleLike(String activityId) async {
     final newSet = Set<String>.from(state.likedActivityIds);
+    final wasLiked = newSet.contains(activityId);
 
-    if (newSet.contains(activityId)) {
+    // Optimistic update
+    if (wasLiked) {
       newSet.remove(activityId);
     } else {
       newSet.add(activityId);
     }
-
     state = state.copyWith(likedActivityIds: newSet);
 
-    // TODO: Call API to persist like
+    // Sync to API
+    try {
+      final api = _ref.read(apiClientProvider);
+      await api.post('/social/activities/$activityId/like');
+    } catch (e) {
+      // Revert on failure
+      if (wasLiked) {
+        newSet.add(activityId);
+      } else {
+        newSet.remove(activityId);
+      }
+      state = state.copyWith(likedActivityIds: newSet);
+    }
   }
 
   /// Checks if an activity is liked.
@@ -86,7 +131,7 @@ class LikeNotifier extends StateNotifier<LikeState> {
 
 /// Provider for like state management.
 final likeProvider = StateNotifierProvider<LikeNotifier, LikeState>(
-  (ref) => LikeNotifier(),
+  (ref) => LikeNotifier(ref),
 );
 
 // ============================================================================
@@ -97,18 +142,36 @@ final likeProvider = StateNotifierProvider<LikeNotifier, LikeState>(
 final socialProfileProvider = FutureProvider.autoDispose
     .family<SocialProfile, String>(
   (ref, userId) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _getMockProfile(userId);
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/profile/$userId');
+      final data = response.data as Map<String, dynamic>;
+      final profileJson = data['data'] as Map<String, dynamic>;
+
+      return _parseSocialProfile(profileJson);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
 /// Provider for current user's own profile.
 final myProfileProvider = FutureProvider.autoDispose<SocialProfile>(
   (ref) async {
-    // TODO: Call API with current user ID
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _getMockProfile('current-user');
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/profile/me');
+      final data = response.data as Map<String, dynamic>;
+      final profileJson = data['data'] as Map<String, dynamic>;
+
+      return _parseSocialProfile(profileJson);
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -118,9 +181,24 @@ final userSearchProvider = FutureProvider.autoDispose
   (ref, query) async {
     if (query.isEmpty) return [];
 
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 300));
-    return _getMockSearchResults(query);
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/search', queryParameters: {
+        'q': query,
+        'limit': 20,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final resultsList = data['data'] as List<dynamic>;
+
+      return resultsList
+          .map((json) => _parseProfileSummary(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -151,28 +229,42 @@ class FollowState {
 
 /// Notifier for managing follows.
 class FollowNotifier extends StateNotifier<FollowState> {
-  FollowNotifier() : super(const FollowState());
+  final Ref _ref;
+
+  FollowNotifier(this._ref) : super(const FollowState());
 
   /// Follows a user.
   Future<void> follow(String userId) async {
     state = state.copyWith(isLoading: true);
 
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final api = _ref.read(apiClientProvider);
+      await api.post('/social/follow/$userId');
 
-    final newSet = Set<String>.from(state.followingIds)..add(userId);
-    state = state.copyWith(followingIds: newSet, isLoading: false);
+      final newSet = Set<String>.from(state.followingIds)..add(userId);
+      state = state.copyWith(followingIds: newSet, isLoading: false);
+    } on DioException catch (e) {
+      state = state.copyWith(isLoading: false);
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   }
 
   /// Unfollows a user.
   Future<void> unfollow(String userId) async {
     state = state.copyWith(isLoading: true);
 
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final api = _ref.read(apiClientProvider);
+      await api.delete('/social/follow/$userId');
 
-    final newSet = Set<String>.from(state.followingIds)..remove(userId);
-    state = state.copyWith(followingIds: newSet, isLoading: false);
+      final newSet = Set<String>.from(state.followingIds)..remove(userId);
+      state = state.copyWith(followingIds: newSet, isLoading: false);
+    } on DioException catch (e) {
+      state = state.copyWith(isLoading: false);
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   }
 
   /// Toggles follow state.
@@ -192,16 +284,30 @@ class FollowNotifier extends StateNotifier<FollowState> {
 
 /// Provider for follow state management.
 final followProvider = StateNotifierProvider<FollowNotifier, FollowState>(
-  (ref) => FollowNotifier(),
+  (ref) => FollowNotifier(ref),
 );
 
 /// Provider for a user's followers list.
 final followersProvider = FutureProvider.autoDispose
     .family<List<ProfileSummary>, String>(
   (ref, userId) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 400));
-    return [];
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/followers/$userId', queryParameters: {
+        'limit': 50,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final followersList = data['data'] as List<dynamic>;
+
+      return followersList
+          .map((json) => _parseProfileSummary(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -209,9 +315,23 @@ final followersProvider = FutureProvider.autoDispose
 final followingProvider = FutureProvider.autoDispose
     .family<List<ProfileSummary>, String>(
   (ref, userId) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 400));
-    return [];
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/following/$userId', queryParameters: {
+        'limit': 50,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final followingList = data['data'] as List<dynamic>;
+
+      return followingList
+          .map((json) => _parseProfileSummary(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -222,18 +342,30 @@ final followingProvider = FutureProvider.autoDispose
 /// Provider for active challenges.
 final activeChallengesProvider = FutureProvider.autoDispose<List<Challenge>>(
   (ref) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _getMockChallenges();
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/challenges');
+      final data = response.data as Map<String, dynamic>;
+      final challengesList = data['data'] as List<dynamic>;
+
+      return challengesList
+          .map((json) => _parseChallenge(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
 /// Provider for challenges the user has joined.
 final myJoinedChallengesProvider = FutureProvider.autoDispose<List<Challenge>>(
   (ref) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _getMockChallenges().where((c) => c.isJoined).toList();
+    final challengesAsync = ref.watch(activeChallengesProvider);
+    final challenges = challengesAsync.valueOrNull ?? [];
+
+    return challenges.where((c) => c.isJoined).toList();
   },
 );
 
@@ -241,9 +373,23 @@ final myJoinedChallengesProvider = FutureProvider.autoDispose<List<Challenge>>(
 final challengeLeaderboardProvider = FutureProvider.autoDispose
     .family<List<LeaderboardEntry>, String>(
   (ref, challengeId) async {
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 400));
-    return _getMockLeaderboard();
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/social/challenges/$challengeId/leaderboard', queryParameters: {
+        'limit': 50,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      final leaderboardList = data['data'] as List<dynamic>;
+
+      return leaderboardList
+          .map((json) => _parseLeaderboardEntry(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   },
 );
 
@@ -270,29 +416,49 @@ class ChallengeJoinState {
 
 /// Notifier for challenge join/leave.
 class ChallengeJoinNotifier extends StateNotifier<ChallengeJoinState> {
-  ChallengeJoinNotifier() : super(const ChallengeJoinState());
+  final Ref _ref;
+
+  ChallengeJoinNotifier(this._ref) : super(const ChallengeJoinState());
 
   /// Joins a challenge.
   Future<void> join(String challengeId) async {
     state = state.copyWith(isLoading: true);
 
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final api = _ref.read(apiClientProvider);
+      await api.post('/social/challenges/$challengeId/join');
 
-    final newSet = Set<String>.from(state.joinedChallengeIds)..add(challengeId);
-    state = state.copyWith(joinedChallengeIds: newSet, isLoading: false);
+      final newSet = Set<String>.from(state.joinedChallengeIds)..add(challengeId);
+      state = state.copyWith(joinedChallengeIds: newSet, isLoading: false);
+
+      // Invalidate challenges to refresh
+      _ref.invalidate(activeChallengesProvider);
+    } on DioException catch (e) {
+      state = state.copyWith(isLoading: false);
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   }
 
   /// Leaves a challenge.
   Future<void> leave(String challengeId) async {
     state = state.copyWith(isLoading: true);
 
-    // TODO: Call API
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final api = _ref.read(apiClientProvider);
+      await api.delete('/social/challenges/$challengeId/leave');
 
-    final newSet = Set<String>.from(state.joinedChallengeIds)
-      ..remove(challengeId);
-    state = state.copyWith(joinedChallengeIds: newSet, isLoading: false);
+      final newSet = Set<String>.from(state.joinedChallengeIds)
+        ..remove(challengeId);
+      state = state.copyWith(joinedChallengeIds: newSet, isLoading: false);
+
+      // Invalidate challenges to refresh
+      _ref.invalidate(activeChallengesProvider);
+    } on DioException catch (e) {
+      state = state.copyWith(isLoading: false);
+      final error = ApiClient.getApiException(e);
+      throw Exception(error.message);
+    }
   }
 
   /// Checks if joined a challenge.
@@ -304,210 +470,133 @@ class ChallengeJoinNotifier extends StateNotifier<ChallengeJoinState> {
 /// Provider for challenge join state.
 final challengeJoinProvider =
     StateNotifierProvider<ChallengeJoinNotifier, ChallengeJoinState>(
-  (ref) => ChallengeJoinNotifier(),
+  (ref) => ChallengeJoinNotifier(ref),
 );
 
 // ============================================================================
-// MOCK DATA
+// API RESPONSE PARSING
 // ============================================================================
 
-ActivityFeed _getMockActivityFeed() {
+ActivityFeed _parseActivityFeed(Map<String, dynamic> json) {
+  final itemsList = json['items'] as List<dynamic>? ?? [];
   return ActivityFeed(
-    items: [
-      ActivityItem(
-        id: 'act-1',
-        userId: 'user-2',
-        userName: 'FitnessPro',
-        type: ActivityType.personalRecord,
-        title: 'New Bench Press PR!',
-        description: 'Hit 225 lbs for 5 reps',
-        metadata: {
-          'exerciseId': 'bench-press',
-          'weight': 225,
-          'reps': 5,
-        },
-        createdAt: DateTime.now().subtract(const Duration(minutes: 30)),
-        likes: 12,
-        comments: 3,
-      ),
-      ActivityItem(
-        id: 'act-2',
-        userId: 'user-3',
-        userName: 'GymRat42',
-        type: ActivityType.workoutCompleted,
-        title: 'Completed Push Day',
-        description: '6 exercises, 24 sets, 45 minutes',
-        metadata: {
-          'exerciseCount': 6,
-          'setCount': 24,
-          'duration': 45,
-        },
-        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-        likes: 5,
-        comments: 1,
-        isLikedByMe: true,
-      ),
-      ActivityItem(
-        id: 'act-3',
-        userId: 'user-4',
-        userName: 'IronWoman',
-        type: ActivityType.streakMilestone,
-        title: '30 Day Streak!',
-        description: "Been hitting the gym for 30 days straight. Let's go!",
-        metadata: {'streakDays': 30},
-        createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-        likes: 45,
-        comments: 8,
-      ),
-      ActivityItem(
-        id: 'act-4',
-        userId: 'user-5',
-        userName: 'NewLifter',
-        type: ActivityType.challengeJoined,
-        title: 'Joined "January Gains" Challenge',
-        description: 'Goal: Complete 20 workouts this month',
-        metadata: {'challengeId': 'challenge-january-gains'},
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        likes: 8,
-        comments: 2,
-      ),
-    ],
-    hasMore: false,
+    items: itemsList
+        .map((item) => _parseActivityItem(item as Map<String, dynamic>))
+        .toList(),
+    hasMore: json['hasMore'] as bool? ?? false,
   );
 }
 
-List<ActivityItem> _getMockUserActivities(String userId) {
-  return [
-    ActivityItem(
-      id: 'user-act-1',
-      userId: userId,
-      userName: 'User',
-      type: ActivityType.workoutCompleted,
-      title: 'Completed Leg Day',
-      description: '5 exercises, 20 sets',
-      metadata: {},
-      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-      likes: 3,
-      comments: 0,
-    ),
-  ];
+ActivityItem _parseActivityItem(Map<String, dynamic> json) {
+  return ActivityItem(
+    id: json['id'] as String,
+    userId: json['userId'] as String,
+    userName: json['userName'] as String? ?? 'Unknown',
+    type: _parseActivityType(json['type'] as String?),
+    title: json['title'] as String? ?? '',
+    description: json['description'] as String?,
+    metadata: json['metadata'] as Map<String, dynamic>? ?? {},
+    createdAt: json['createdAt'] != null
+        ? DateTime.parse(json['createdAt'] as String)
+        : DateTime.now(),
+    likes: json['likes'] as int? ?? 0,
+    comments: json['comments'] as int? ?? 0,
+    isLikedByMe: json['isLikedByMe'] as bool? ?? false,
+  );
 }
 
-SocialProfile _getMockProfile(String userId) {
+ActivityType _parseActivityType(String? type) {
+  switch (type?.toUpperCase()) {
+    case 'WORKOUT_COMPLETED':
+      return ActivityType.workoutCompleted;
+    case 'PERSONAL_RECORD':
+      return ActivityType.personalRecord;
+    case 'STREAK_MILESTONE':
+      return ActivityType.streakMilestone;
+    case 'CHALLENGE_JOINED':
+      return ActivityType.challengeJoined;
+    case 'CHALLENGE_COMPLETED':
+      return ActivityType.challengeCompleted;
+    case 'ACHIEVEMENT_UNLOCKED':
+      return ActivityType.streakMilestone;
+    default:
+      return ActivityType.workoutCompleted;
+  }
+}
+
+SocialProfile _parseSocialProfile(Map<String, dynamic> json) {
   return SocialProfile(
-    userId: userId,
-    userName: userId == 'current-user' ? 'YourUsername' : 'FitUser123',
-    displayName:
-        userId == 'current-user' ? 'Your Name' : 'Fitness Enthusiast',
-    bio: 'Passionate about lifting and helping others achieve their goals!',
-    followersCount: 156,
-    followingCount: 89,
-    workoutCount: 234,
-    prCount: 47,
-    currentStreak: 12,
-    isFollowing: userId != 'current-user',
-    isFollowedByMe: userId != 'current-user',
-    joinedAt: DateTime(2024, 6, 15),
+    userId: json['userId'] as String,
+    userName: json['userName'] as String? ?? 'Unknown',
+    displayName: json['displayName'] as String?,
+    bio: json['bio'] as String?,
+    avatarUrl: json['avatarUrl'] as String?,
+    followersCount: json['followersCount'] as int? ?? 0,
+    followingCount: json['followingCount'] as int? ?? 0,
+    workoutCount: json['workoutCount'] as int? ?? 0,
+    prCount: json['prCount'] as int? ?? 0,
+    currentStreak: json['currentStreak'] as int? ?? 0,
+    isFollowing: json['isFollowing'] as bool? ?? false,
+    isFollowedByMe: json['isFollowedByMe'] as bool? ?? false,
+    joinedAt: json['joinedAt'] != null
+        ? DateTime.parse(json['joinedAt'] as String)
+        : DateTime.now(),
   );
 }
 
-List<ProfileSummary> _getMockSearchResults(String query) {
-  return [
-    ProfileSummary(
-      userId: 'user-search-1',
-      userName: 'fit_${query.toLowerCase()}',
-      displayName: 'Fit $query',
-    ),
-    ProfileSummary(
-      userId: 'user-search-2',
-      userName: '${query.toLowerCase()}_lifter',
-      displayName: '$query Lifter',
-      isFollowing: true,
-    ),
-  ];
+ProfileSummary _parseProfileSummary(Map<String, dynamic> json) {
+  return ProfileSummary(
+    userId: json['userId'] as String,
+    userName: json['userName'] as String? ?? 'Unknown',
+    displayName: json['displayName'] as String?,
+    avatarUrl: json['avatarUrl'] as String?,
+    isFollowing: json['isFollowing'] as bool? ?? false,
+  );
 }
 
-List<Challenge> _getMockChallenges() {
-  return [
-    Challenge(
-      id: 'challenge-1',
-      title: 'January Gains',
-      description: 'Complete 20 workouts in January to earn the badge!',
-      type: ChallengeType.workoutCount,
-      targetValue: 20,
-      currentValue: 8,
-      unit: 'workouts',
-      startDate: DateTime(2026, 1, 1),
-      endDate: DateTime(2026, 1, 31),
-      participantCount: 234,
-      isJoined: true,
-      progress: 40,
-      createdBy: 'system',
-    ),
-    Challenge(
-      id: 'challenge-2',
-      title: 'Bench Press Battle',
-      description: 'Hit a combined total of 10,000 lbs on bench press',
-      type: ChallengeType.volume,
-      targetValue: 10000,
-      currentValue: 3500,
-      unit: 'lbs',
-      startDate: DateTime(2026, 1, 1),
-      endDate: DateTime(2026, 1, 31),
-      participantCount: 89,
-      isJoined: false,
-      progress: 0,
-      createdBy: 'system',
-    ),
-    Challenge(
-      id: 'challenge-3',
-      title: 'Streak Week',
-      description: 'Work out 7 days in a row',
-      type: ChallengeType.streak,
-      targetValue: 7,
-      currentValue: 3,
-      unit: 'days',
-      startDate: DateTime(2026, 1, 15),
-      endDate: DateTime(2026, 1, 22),
-      participantCount: 456,
-      isJoined: true,
-      progress: 43,
-      createdBy: 'system',
-    ),
-  ];
+Challenge _parseChallenge(Map<String, dynamic> json) {
+  return Challenge(
+    id: json['id'] as String,
+    title: json['title'] as String,
+    description: json['description'] as String? ?? '',
+    type: _parseChallengeType(json['type'] as String?),
+    targetValue: (json['targetValue'] as num?)?.toDouble() ?? 0.0,
+    currentValue: (json['currentValue'] as num?)?.toDouble() ?? 0.0,
+    unit: json['unit'] as String? ?? '',
+    startDate: json['startDate'] != null
+        ? DateTime.parse(json['startDate'] as String)
+        : DateTime.now(),
+    endDate: json['endDate'] != null
+        ? DateTime.parse(json['endDate'] as String)
+        : DateTime.now().add(const Duration(days: 30)),
+    participantCount: json['participantCount'] as int? ?? 0,
+    isJoined: json['isJoined'] as bool? ?? false,
+    progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
+    createdBy: json['createdBy'] as String? ?? 'system',
+  );
 }
 
-List<LeaderboardEntry> _getMockLeaderboard() {
-  return [
-    const LeaderboardEntry(
-      rank: 1,
-      userId: 'user-1',
-      userName: 'IronMan',
-      value: 18,
-    ),
-    const LeaderboardEntry(
-      rank: 2,
-      userId: 'user-2',
-      userName: 'GymBeast',
-      value: 16,
-    ),
-    const LeaderboardEntry(
-      rank: 3,
-      userId: 'user-3',
-      userName: 'FitQueen',
-      value: 15,
-    ),
-    const LeaderboardEntry(
-      rank: 4,
-      userId: 'user-4',
-      userName: 'LiftKing',
-      value: 12,
-    ),
-    const LeaderboardEntry(
-      rank: 5,
-      userId: 'user-5',
-      userName: 'SwolePatrol',
-      value: 10,
-    ),
-  ];
+ChallengeType _parseChallengeType(String? type) {
+  switch (type?.toUpperCase()) {
+    case 'WORKOUT_COUNT':
+      return ChallengeType.workoutCount;
+    case 'VOLUME':
+      return ChallengeType.volume;
+    case 'STREAK':
+      return ChallengeType.streak;
+    case 'EXERCISE_SPECIFIC':
+      return ChallengeType.exerciseSpecific;
+    default:
+      return ChallengeType.workoutCount;
+  }
+}
+
+LeaderboardEntry _parseLeaderboardEntry(Map<String, dynamic> json) {
+  return LeaderboardEntry(
+    rank: json['rank'] as int? ?? 0,
+    userId: json['userId'] as String,
+    userName: json['userName'] as String? ?? 'Unknown',
+    avatarUrl: json['avatarUrl'] as String?,
+    value: (json['value'] as num?)?.toDouble() ?? 0.0,
+  );
 }

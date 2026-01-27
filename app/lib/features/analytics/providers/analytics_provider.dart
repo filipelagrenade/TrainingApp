@@ -1,10 +1,13 @@
 /// LiftIQ - Analytics Provider
 ///
 /// Manages the state for analytics and progress tracking.
-/// Provides workout history, charts data, and summaries.
+/// Fetches data from the backend API instead of mock data.
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/services/api_client.dart';
 import '../models/workout_summary.dart';
 import '../models/analytics_data.dart';
 
@@ -17,6 +20,22 @@ final selectedPeriodProvider = StateProvider<TimePeriod>(
   (ref) => TimePeriod.thirtyDays,
 );
 
+/// Converts TimePeriod to API query string.
+String _periodToString(TimePeriod period) {
+  switch (period) {
+    case TimePeriod.sevenDays:
+      return '7d';
+    case TimePeriod.thirtyDays:
+      return '30d';
+    case TimePeriod.ninetyDays:
+      return '90d';
+    case TimePeriod.oneYear:
+      return '1y';
+    case TimePeriod.allTime:
+      return 'all';
+  }
+}
+
 // ============================================================================
 // WORKOUT HISTORY PROVIDERS
 // ============================================================================
@@ -24,17 +43,47 @@ final selectedPeriodProvider = StateProvider<TimePeriod>(
 /// Provider for workout history list.
 final workoutHistoryProvider =
     FutureProvider.autoDispose<List<WorkoutSummary>>((ref) async {
-  // TODO: Fetch from API
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMockHistory();
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/history', queryParameters: {
+      'limit': 50,
+      'offset': 0,
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final historyList = data['data'] as List<dynamic>;
+
+    return historyList
+        .map((json) => _parseWorkoutSummary(json as Map<String, dynamic>))
+        .toList();
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 /// Provider for paginated workout history.
 final paginatedHistoryProvider = FutureProvider.autoDispose
     .family<List<WorkoutSummary>, ({int limit, int offset})>((ref, params) async {
-  // TODO: Fetch from API with pagination
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMockHistory().skip(params.offset).take(params.limit).toList();
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/history', queryParameters: {
+      'limit': params.limit,
+      'offset': params.offset,
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final historyList = data['data'] as List<dynamic>;
+
+    return historyList
+        .map((json) => _parseWorkoutSummary(json as Map<String, dynamic>))
+        .toList();
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 // ============================================================================
@@ -45,27 +94,67 @@ final paginatedHistoryProvider = FutureProvider.autoDispose
 final oneRMTrendProvider = FutureProvider.autoDispose
     .family<List<OneRMDataPoint>, String>((ref, exerciseId) async {
   final period = ref.watch(selectedPeriodProvider);
-  // TODO: Fetch from API
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMock1RMTrend(exerciseId);
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/1rm/$exerciseId', queryParameters: {
+      'period': _periodToString(period),
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final trendList = data['data'] as List<dynamic>;
+
+    return trendList
+        .map((json) => _parseOneRMDataPoint(json as Map<String, dynamic>))
+        .toList();
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 /// Provider for volume by muscle group.
 final volumeByMuscleProvider =
     FutureProvider.autoDispose<List<MuscleVolumeData>>((ref) async {
   final period = ref.watch(selectedPeriodProvider);
-  // TODO: Fetch from API
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMockVolumeData();
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/volume', queryParameters: {
+      'period': _periodToString(period),
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final volumeList = data['data'] as List<dynamic>;
+
+    return volumeList
+        .map((json) => _parseMuscleVolumeData(json as Map<String, dynamic>))
+        .toList();
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 /// Provider for workout consistency data.
 final consistencyProvider =
     FutureProvider.autoDispose<ConsistencyData>((ref) async {
   final period = ref.watch(selectedPeriodProvider);
-  // TODO: Fetch from API
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMockConsistency(period);
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/consistency', queryParameters: {
+      'period': _periodToString(period),
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final consistencyJson = data['data'] as Map<String, dynamic>;
+
+    return _parseConsistencyData(consistencyJson, period);
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 // ============================================================================
@@ -75,9 +164,23 @@ final consistencyProvider =
 /// Provider for all-time personal records.
 final personalRecordsProvider =
     FutureProvider.autoDispose<List<PersonalRecord>>((ref) async {
-  // TODO: Fetch from API
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMockPRs();
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/prs', queryParameters: {
+      'limit': 20,
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final prsList = data['data'] as List<dynamic>;
+
+    return prsList
+        .map((json) => _parsePersonalRecord(json as Map<String, dynamic>))
+        .toList();
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 // ============================================================================
@@ -88,9 +191,21 @@ final personalRecordsProvider =
 final progressSummaryProvider =
     FutureProvider.autoDispose<ProgressSummary>((ref) async {
   final period = ref.watch(selectedPeriodProvider);
-  // TODO: Fetch from API
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMockSummary(period);
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/summary', queryParameters: {
+      'period': _periodToString(period),
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final summaryJson = data['data'] as Map<String, dynamic>;
+
+    return _parseProgressSummary(summaryJson);
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 // ============================================================================
@@ -100,323 +215,183 @@ final progressSummaryProvider =
 /// Provider for calendar data.
 final calendarDataProvider = FutureProvider.autoDispose
     .family<CalendarData, ({int year, int month})>((ref, params) async {
-  // TODO: Fetch from API
-  await Future.delayed(const Duration(milliseconds: 300));
-  return _getMockCalendar(params.year, params.month);
+  final api = ref.read(apiClientProvider);
+
+  try {
+    final response = await api.get('/analytics/calendar', queryParameters: {
+      'year': params.year,
+      'month': params.month,
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final calendarJson = data['data'] as Map<String, dynamic>;
+
+    return _parseCalendarData(calendarJson);
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 // ============================================================================
-// MOCK DATA
+// API RESPONSE PARSING
 // ============================================================================
 
-List<WorkoutSummary> _getMockHistory() {
-  final now = DateTime.now();
-  return [
-    WorkoutSummary(
-      id: 'session-1',
-      date: now.subtract(const Duration(days: 1)),
-      completedAt: now.subtract(const Duration(days: 1)),
-      durationMinutes: 65,
-      templateName: 'Push Day',
-      exerciseCount: 5,
-      totalSets: 18,
-      totalVolume: 12500,
-      muscleGroups: ['Chest', 'Shoulders', 'Triceps'],
-      prsAchieved: 1,
-    ),
-    WorkoutSummary(
-      id: 'session-2',
-      date: now.subtract(const Duration(days: 3)),
-      completedAt: now.subtract(const Duration(days: 3)),
-      durationMinutes: 55,
-      templateName: 'Pull Day',
-      exerciseCount: 5,
-      totalSets: 16,
-      totalVolume: 11200,
-      muscleGroups: ['Back', 'Biceps'],
-      prsAchieved: 0,
-    ),
-    WorkoutSummary(
-      id: 'session-3',
-      date: now.subtract(const Duration(days: 5)),
-      completedAt: now.subtract(const Duration(days: 5)),
-      durationMinutes: 70,
-      templateName: 'Leg Day',
-      exerciseCount: 4,
-      totalSets: 15,
-      totalVolume: 18500,
-      muscleGroups: ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
-      prsAchieved: 2,
-    ),
-    WorkoutSummary(
-      id: 'session-4',
-      date: now.subtract(const Duration(days: 7)),
-      completedAt: now.subtract(const Duration(days: 7)),
-      durationMinutes: 60,
-      templateName: 'Push Day',
-      exerciseCount: 5,
-      totalSets: 18,
-      totalVolume: 12000,
-      muscleGroups: ['Chest', 'Shoulders', 'Triceps'],
-      prsAchieved: 0,
-    ),
-    WorkoutSummary(
-      id: 'session-5',
-      date: now.subtract(const Duration(days: 9)),
-      completedAt: now.subtract(const Duration(days: 9)),
-      durationMinutes: 50,
-      templateName: 'Pull Day',
-      exerciseCount: 5,
-      totalSets: 15,
-      totalVolume: 10800,
-      muscleGroups: ['Back', 'Biceps'],
-      prsAchieved: 1,
-    ),
-  ];
-}
+/// Parses a WorkoutSummary from API response.
+WorkoutSummary _parseWorkoutSummary(Map<String, dynamic> json) {
+  final date = DateTime.parse(json['startedAt'] as String);
+  final completedAt = json['completedAt'] != null
+      ? DateTime.parse(json['completedAt'] as String)
+      : null;
 
-List<OneRMDataPoint> _getMock1RMTrend(String exerciseId) {
-  final now = DateTime.now();
-  return [
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 60)),
-      weight: 90,
-      reps: 8,
-      estimated1RM: 113.5,
-      isPR: false,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 53)),
-      weight: 92.5,
-      reps: 8,
-      estimated1RM: 116.7,
-      isPR: true,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 46)),
-      weight: 92.5,
-      reps: 8,
-      estimated1RM: 116.7,
-      isPR: false,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 39)),
-      weight: 95,
-      reps: 7,
-      estimated1RM: 117.2,
-      isPR: true,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 32)),
-      weight: 95,
-      reps: 8,
-      estimated1RM: 119.8,
-      isPR: true,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 25)),
-      weight: 97.5,
-      reps: 7,
-      estimated1RM: 120.3,
-      isPR: true,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 18)),
-      weight: 97.5,
-      reps: 8,
-      estimated1RM: 123.0,
-      isPR: true,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 11)),
-      weight: 100,
-      reps: 7,
-      estimated1RM: 123.3,
-      isPR: true,
-    ),
-    OneRMDataPoint(
-      date: now.subtract(const Duration(days: 4)),
-      weight: 100,
-      reps: 8,
-      estimated1RM: 126.7,
-      isPR: true,
-    ),
-  ];
-}
-
-List<MuscleVolumeData> _getMockVolumeData() {
-  return [
-    const MuscleVolumeData(
-      muscleGroup: 'Chest',
-      totalSets: 36,
-      totalVolume: 25000,
-      exerciseCount: 3,
-      averageIntensity: 85,
-    ),
-    const MuscleVolumeData(
-      muscleGroup: 'Back',
-      totalSets: 32,
-      totalVolume: 22000,
-      exerciseCount: 4,
-      averageIntensity: 80,
-    ),
-    const MuscleVolumeData(
-      muscleGroup: 'Quads',
-      totalSets: 24,
-      totalVolume: 35000,
-      exerciseCount: 2,
-      averageIntensity: 90,
-    ),
-    const MuscleVolumeData(
-      muscleGroup: 'Shoulders',
-      totalSets: 24,
-      totalVolume: 12000,
-      exerciseCount: 2,
-      averageIntensity: 75,
-    ),
-    const MuscleVolumeData(
-      muscleGroup: 'Biceps',
-      totalSets: 18,
-      totalVolume: 5400,
-      exerciseCount: 2,
-      averageIntensity: 70,
-    ),
-    const MuscleVolumeData(
-      muscleGroup: 'Triceps',
-      totalSets: 18,
-      totalVolume: 6000,
-      exerciseCount: 2,
-      averageIntensity: 72,
-    ),
-    const MuscleVolumeData(
-      muscleGroup: 'Hamstrings',
-      totalSets: 15,
-      totalVolume: 18000,
-      exerciseCount: 2,
-      averageIntensity: 85,
-    ),
-  ];
-}
-
-ConsistencyData _getMockConsistency(TimePeriod period) {
-  final now = DateTime.now();
-  return ConsistencyData(
-    period: period.value,
-    totalWorkouts: 12,
-    totalDuration: 720,
-    averageWorkoutsPerWeek: 3.0,
-    longestStreak: 8,
-    currentStreak: 4,
-    workoutsByDayOfWeek: {
-      0: 1, // Sunday
-      1: 3, // Monday
-      2: 2, // Tuesday
-      3: 1, // Wednesday
-      4: 2, // Thursday
-      5: 2, // Friday
-      6: 1, // Saturday
-    },
-    workoutsByWeek: [
-      WeeklyWorkoutCount(weekStart: now.subtract(const Duration(days: 21)), count: 3),
-      WeeklyWorkoutCount(weekStart: now.subtract(const Duration(days: 14)), count: 4),
-      WeeklyWorkoutCount(weekStart: now.subtract(const Duration(days: 7)), count: 3),
-      WeeklyWorkoutCount(weekStart: now, count: 2),
-    ],
-  );
-}
-
-List<PersonalRecord> _getMockPRs() {
-  final now = DateTime.now();
-  return [
-    PersonalRecord(
-      exerciseId: 'squat',
-      exerciseName: 'Barbell Squat',
-      weight: 140,
-      reps: 5,
-      estimated1RM: 163.3,
-      achievedAt: now.subtract(const Duration(days: 5)),
-      sessionId: 'session-3',
-      isAllTime: true,
-    ),
-    PersonalRecord(
-      exerciseId: 'bench-press',
-      exerciseName: 'Bench Press',
-      weight: 100,
-      reps: 8,
-      estimated1RM: 126.7,
-      achievedAt: now.subtract(const Duration(days: 1)),
-      sessionId: 'session-1',
-      isAllTime: true,
-    ),
-    PersonalRecord(
-      exerciseId: 'deadlift',
-      exerciseName: 'Deadlift',
-      weight: 160,
-      reps: 5,
-      estimated1RM: 186.7,
-      achievedAt: now.subtract(const Duration(days: 12)),
-      sessionId: 'session-6',
-      isAllTime: true,
-    ),
-    PersonalRecord(
-      exerciseId: 'overhead-press',
-      exerciseName: 'Overhead Press',
-      weight: 60,
-      reps: 8,
-      estimated1RM: 76.0,
-      achievedAt: now.subtract(const Duration(days: 7)),
-      sessionId: 'session-4',
-      isAllTime: true,
-    ),
-  ];
-}
-
-ProgressSummary _getMockSummary(TimePeriod period) {
-  return const ProgressSummary(
-    period: '30d',
-    workoutCount: 12,
-    totalVolume: 145000,
-    totalDuration: 720,
-    prsAchieved: 4,
-    strongestLift: StrongestLift(
-      exerciseName: 'Deadlift',
-      estimated1RM: 186.7,
-    ),
-    mostTrainedMuscle: MostTrainedMuscle(
-      muscleGroup: 'Chest',
-      sets: 36,
-    ),
-    volumeChange: 12,
-    frequencyChange: 5,
-  );
-}
-
-CalendarData _getMockCalendar(int year, int month) {
-  final now = DateTime.now();
-  final workouts = <String, CalendarDayData>{};
-
-  // Add some workout days
-  for (var i = 1; i <= 28; i += 2) {
-    if (i % 3 != 0) {
-      final date = DateTime(year, month, i);
-      final dateKey = date.toIso8601String().split('T')[0];
-      workouts[dateKey] = CalendarDayData(
-        count: 1,
-        workouts: [
-          CalendarWorkout(
-            id: 'session-$i',
-            templateName: i % 4 == 0 ? 'Push Day' : (i % 4 == 2 ? 'Pull Day' : 'Leg Day'),
-            sets: 15 + (i % 5),
-          ),
-        ],
-      );
+  final muscleGroups = <String>[];
+  final exercises = json['exercises'] as List<dynamic>? ?? [];
+  for (final ex in exercises) {
+    final muscles = (ex as Map<String, dynamic>)['muscles'] as List<dynamic>? ?? [];
+    for (final m in muscles) {
+      final muscle = m as String;
+      if (!muscleGroups.contains(muscle)) {
+        muscleGroups.add(muscle);
+      }
     }
   }
 
+  return WorkoutSummary(
+    id: json['id'] as String,
+    date: date,
+    completedAt: completedAt,
+    durationMinutes: json['durationSeconds'] != null
+        ? (json['durationSeconds'] as int) ~/ 60
+        : 0,
+    templateName: json['templateName'] as String?,
+    exerciseCount: json['exerciseCount'] as int? ?? 0,
+    totalSets: json['setCount'] as int? ?? 0,
+    totalVolume: json['totalVolume'] as int? ?? 0,
+    muscleGroups: muscleGroups,
+    prsAchieved: json['prCount'] as int? ?? 0,
+  );
+}
+
+/// Parses a OneRMDataPoint from API response.
+OneRMDataPoint _parseOneRMDataPoint(Map<String, dynamic> json) {
+  return OneRMDataPoint(
+    date: DateTime.parse(json['date'] as String),
+    weight: (json['weight'] as num).toDouble(),
+    reps: json['reps'] as int,
+    estimated1RM: (json['estimated1RM'] as num).toDouble(),
+    isPR: json['isPR'] as bool? ?? false,
+  );
+}
+
+/// Parses MuscleVolumeData from API response.
+MuscleVolumeData _parseMuscleVolumeData(Map<String, dynamic> json) {
+  return MuscleVolumeData(
+    muscleGroup: json['muscleGroup'] as String,
+    totalSets: json['totalSets'] as int? ?? 0,
+    totalVolume: json['totalVolume'] as int? ?? 0,
+    exerciseCount: json['exerciseCount'] as int? ?? 0,
+    averageIntensity: json['averageIntensity'] as int? ?? 0,
+  );
+}
+
+/// Parses ConsistencyData from API response.
+ConsistencyData _parseConsistencyData(Map<String, dynamic> json, TimePeriod period) {
+  final workoutsByDayOfWeek = <int, int>{};
+  final byDayJson = json['workoutsByDayOfWeek'] as Map<String, dynamic>? ?? {};
+  byDayJson.forEach((key, value) {
+    workoutsByDayOfWeek[int.parse(key)] = value as int;
+  });
+
+  final workoutsByWeek = <WeeklyWorkoutCount>[];
+  final byWeekJson = json['workoutsByWeek'] as List<dynamic>? ?? [];
+  for (final w in byWeekJson) {
+    final weekJson = w as Map<String, dynamic>;
+    workoutsByWeek.add(WeeklyWorkoutCount(
+      weekStart: DateTime.parse(weekJson['weekStart'] as String),
+      count: weekJson['count'] as int,
+    ));
+  }
+
+  return ConsistencyData(
+    period: json['period'] as String? ?? period.value,
+    totalWorkouts: json['totalWorkouts'] as int? ?? 0,
+    totalDuration: json['totalDuration'] as int? ?? 0,
+    averageWorkoutsPerWeek: (json['averageWorkoutsPerWeek'] as num?)?.toDouble() ?? 0,
+    longestStreak: json['longestStreak'] as int? ?? 0,
+    currentStreak: json['currentStreak'] as int? ?? 0,
+    workoutsByDayOfWeek: workoutsByDayOfWeek,
+    workoutsByWeek: workoutsByWeek,
+  );
+}
+
+/// Parses PersonalRecord from API response.
+PersonalRecord _parsePersonalRecord(Map<String, dynamic> json) {
+  return PersonalRecord(
+    exerciseId: json['exerciseId'] as String,
+    exerciseName: json['exerciseName'] as String,
+    weight: (json['weight'] as num).toDouble(),
+    reps: json['reps'] as int,
+    estimated1RM: (json['estimated1RM'] as num).toDouble(),
+    achievedAt: DateTime.parse(json['achievedAt'] as String),
+    sessionId: json['sessionId'] as String? ?? '',
+    isAllTime: json['isAllTime'] as bool? ?? true,
+  );
+}
+
+/// Parses ProgressSummary from API response.
+ProgressSummary _parseProgressSummary(Map<String, dynamic> json) {
+  final strongestLiftJson = json['strongestLift'] as Map<String, dynamic>?;
+  final mostTrainedJson = json['mostTrainedMuscle'] as Map<String, dynamic>?;
+
+  return ProgressSummary(
+    period: json['period'] as String? ?? '30d',
+    workoutCount: json['workoutCount'] as int? ?? 0,
+    totalVolume: json['totalVolume'] as int? ?? 0,
+    totalDuration: json['totalDuration'] as int? ?? 0,
+    prsAchieved: json['prsAchieved'] as int? ?? 0,
+    strongestLift: strongestLiftJson != null
+        ? StrongestLift(
+            exerciseName: strongestLiftJson['exerciseName'] as String,
+            estimated1RM: (strongestLiftJson['estimated1RM'] as num).toDouble(),
+          )
+        : null,
+    mostTrainedMuscle: mostTrainedJson != null
+        ? MostTrainedMuscle(
+            muscleGroup: mostTrainedJson['muscleGroup'] as String,
+            sets: mostTrainedJson['sets'] as int,
+          )
+        : null,
+    volumeChange: json['volumeChange'] as int? ?? 0,
+    frequencyChange: json['frequencyChange'] as int? ?? 0,
+  );
+}
+
+/// Parses CalendarData from API response.
+CalendarData _parseCalendarData(Map<String, dynamic> json) {
+  final workoutsByDate = <String, CalendarDayData>{};
+  final byDateJson = json['workoutsByDate'] as Map<String, dynamic>? ?? {};
+
+  byDateJson.forEach((dateKey, dayData) {
+    final data = dayData as Map<String, dynamic>;
+    final workoutsJson = data['workouts'] as List<dynamic>? ?? [];
+
+    workoutsByDate[dateKey] = CalendarDayData(
+      count: data['count'] as int? ?? 0,
+      workouts: workoutsJson.map((w) {
+        final workoutJson = w as Map<String, dynamic>;
+        return CalendarWorkout(
+          id: workoutJson['id'] as String,
+          templateName: workoutJson['templateName'] as String?,
+          sets: workoutJson['sets'] as int? ?? 0,
+        );
+      }).toList(),
+    );
+  });
+
   return CalendarData(
-    year: year,
-    month: month,
-    totalWorkouts: workouts.length,
-    workoutsByDate: workouts,
+    year: json['year'] as int,
+    month: json['month'] as int,
+    totalWorkouts: json['totalWorkouts'] as int? ?? 0,
+    workoutsByDate: workoutsByDate,
   );
 }

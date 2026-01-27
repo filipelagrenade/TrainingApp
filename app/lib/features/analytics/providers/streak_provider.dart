@@ -9,7 +9,10 @@
 /// - Streak milestone detection
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/services/api_client.dart';
 
 // ============================================================================
 // STREAK PROVIDERS
@@ -17,31 +20,71 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Provider for the current workout streak (consecutive days).
 final currentStreakProvider = Provider<int>((ref) {
-  final workoutDays = ref.watch(_allWorkoutDaysProvider);
-  return _calculateCurrentStreak(workoutDays);
+  final workoutDays = ref.watch(allWorkoutDaysProvider);
+  return workoutDays.when(
+    data: _calculateCurrentStreak,
+    loading: () => 0,
+    error: (_, __) => 0,
+  );
 });
 
 /// Provider for the longest workout streak.
 final longestStreakProvider = Provider<int>((ref) {
-  final workoutDays = ref.watch(_allWorkoutDaysProvider);
-  return _calculateLongestStreak(workoutDays);
+  final workoutDays = ref.watch(allWorkoutDaysProvider);
+  return workoutDays.when(
+    data: _calculateLongestStreak,
+    loading: () => 0,
+    error: (_, __) => 0,
+  );
 });
 
 /// Provider for workout days in a given month.
 final workoutDaysProvider = Provider.family<Set<DateTime>, DateTime>(
   (ref, month) {
-    final allDays = ref.watch(_allWorkoutDaysProvider);
-    return allDays
-        .where((d) => d.year == month.year && d.month == month.month)
-        .toSet();
+    final allDays = ref.watch(allWorkoutDaysProvider);
+    return allDays.when(
+      data: (days) => days
+          .where((d) => d.year == month.year && d.month == month.month)
+          .toSet(),
+      loading: () => <DateTime>{},
+      error: (_, __) => <DateTime>{},
+    );
   },
 );
 
-/// Provider for all workout days (internal).
-final _allWorkoutDaysProvider = Provider<Set<DateTime>>((ref) {
-  // TODO: Replace with actual workout history from API/database
-  // For now, return mock data
-  return _getMockWorkoutDays();
+/// Provider for all workout days - fetches from analytics/calendar API.
+final allWorkoutDaysProvider = FutureProvider<Set<DateTime>>((ref) async {
+  final api = ref.read(apiClientProvider);
+
+  try {
+    // Fetch workout calendar data from API
+    final response = await api.get('/analytics/calendar', queryParameters: {
+      'months': 12, // Last 12 months of data
+    });
+
+    final data = response.data as Map<String, dynamic>;
+    final calendarData = data['data'] as Map<String, dynamic>? ?? {};
+
+    final workoutDays = <DateTime>{};
+
+    // Parse the calendar data - expects format like: { "2026-01-15": {...}, "2026-01-17": {...} }
+    calendarData.forEach((dateStr, value) {
+      try {
+        final date = DateTime.parse(dateStr);
+        // Only add if it actually has workout data
+        if (value != null) {
+          workoutDays.add(DateTime(date.year, date.month, date.day));
+        }
+      } catch (_) {
+        // Skip invalid dates
+      }
+    });
+
+    return workoutDays;
+  } on DioException catch (e) {
+    final error = ApiClient.getApiException(e);
+    throw Exception(error.message);
+  }
 });
 
 // ============================================================================
@@ -154,34 +197,4 @@ int _calculateLongestStreak(Set<DateTime> workoutDays) {
   }
 
   return longestStreak;
-}
-
-/// Mock workout days for development.
-Set<DateTime> _getMockWorkoutDays() {
-  final now = DateTime.now();
-  final days = <DateTime>{};
-
-  // Add some mock workout days
-  // Current streak of 5 days
-  for (int i = 0; i < 5; i++) {
-    days.add(now.subtract(Duration(days: i)));
-  }
-
-  // Some older workouts
-  days.add(now.subtract(const Duration(days: 8)));
-  days.add(now.subtract(const Duration(days: 9)));
-  days.add(now.subtract(const Duration(days: 10)));
-  days.add(now.subtract(const Duration(days: 12)));
-  days.add(now.subtract(const Duration(days: 14)));
-  days.add(now.subtract(const Duration(days: 15)));
-  days.add(now.subtract(const Duration(days: 18)));
-  days.add(now.subtract(const Duration(days: 21)));
-  days.add(now.subtract(const Duration(days: 22)));
-  days.add(now.subtract(const Duration(days: 23)));
-  days.add(now.subtract(const Duration(days: 25)));
-  days.add(now.subtract(const Duration(days: 28)));
-  days.add(now.subtract(const Duration(days: 29)));
-  days.add(now.subtract(const Duration(days: 30)));
-
-  return days;
 }

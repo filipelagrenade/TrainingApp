@@ -11,13 +11,15 @@
 ///
 /// Design notes:
 /// - Uses Riverpod for state management
-/// - Calculates progress from workout history
+/// - Fetches progress from API
 /// - Provides streams for unlock events
 library;
 
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/api_client.dart';
 import '../models/achievement.dart';
 
 // ============================================================================
@@ -105,22 +107,33 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
     );
   }
 
-  /// Loads user's achievement progress.
+  /// Loads user's achievement progress from the API.
   Future<void> _loadAchievements() async {
     try {
-      // TODO: Replace with actual API call
-      // final response = await api.get('/achievements');
-      // final userProgress = (response.data as List).map((a) =>
-      //     UserAchievementProgress.fromJson(a)).toList();
+      final api = ref.read(apiClientProvider);
+      final response = await api.get('/achievements');
+      final data = response.data as Map<String, dynamic>;
+      final progressList = data['data'] as List<dynamic>? ?? [];
 
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      // Mock progress data
-      final mockProgress = _getMockProgress();
+      // Build a map of achievement progress from API
+      final progressMap = <String, Map<String, dynamic>>{};
+      for (final item in progressList) {
+        final json = item as Map<String, dynamic>;
+        final id = json['achievementId'] as String? ?? json['id'] as String?;
+        if (id != null) {
+          progressMap[id] = {
+            'current': json['currentProgress'] as int? ?? 0,
+            'unlocked': json['isUnlocked'] as bool? ?? false,
+            'unlockedAt': json['unlockedAt'] != null
+                ? DateTime.parse(json['unlockedAt'] as String)
+                : null,
+          };
+        }
+      }
 
       // Merge definitions with user progress
       final achievementsWithProgress = AchievementDefinitions.all.map((def) {
-        final progress = mockProgress[def.id];
+        final progress = progressMap[def.id];
         if (progress != null) {
           return Achievement(
             id: def.id,
@@ -146,6 +159,13 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
         achievements: achievementsWithProgress,
         isLoading: false,
         unlockedCount: unlockedCount,
+      );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      // On API error, show definitions with zero progress
+      state = state.copyWith(
+        isLoading: false,
+        achievements: AchievementDefinitions.all,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false);
@@ -266,70 +286,6 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
   Future<void> refresh() async {
     state = state.copyWith(isLoading: true);
     await _loadAchievements();
-  }
-
-  // ==========================================================================
-  // MOCK DATA (TODO: Remove when API is connected)
-  // ==========================================================================
-
-  Map<String, Map<String, dynamic>> _getMockProgress() {
-    return {
-      'first_workout': {
-        'current': 1,
-        'unlocked': true,
-        'unlockedAt': DateTime.now().subtract(const Duration(days: 30)),
-      },
-      'streak_7': {
-        'current': 7,
-        'unlocked': true,
-        'unlockedAt': DateTime.now().subtract(const Duration(days: 20)),
-      },
-      'streak_14': {
-        'current': 12,
-        'unlocked': false,
-        'unlockedAt': null,
-      },
-      'workouts_10': {
-        'current': 10,
-        'unlocked': true,
-        'unlockedAt': DateTime.now().subtract(const Duration(days: 15)),
-      },
-      'workouts_50': {
-        'current': 23,
-        'unlocked': false,
-        'unlockedAt': null,
-      },
-      'first_pr': {
-        'current': 1,
-        'unlocked': true,
-        'unlockedAt': DateTime.now().subtract(const Duration(days: 25)),
-      },
-      'prs_10': {
-        'current': 8,
-        'unlocked': false,
-        'unlockedAt': null,
-      },
-      'volume_100k': {
-        'current': 85000,
-        'unlocked': false,
-        'unlockedAt': null,
-      },
-      'bench_135': {
-        'current': 145,
-        'unlocked': true,
-        'unlockedAt': DateTime.now().subtract(const Duration(days: 10)),
-      },
-      'bench_225': {
-        'current': 145,
-        'unlocked': false,
-        'unlockedAt': null,
-      },
-      'squat_225': {
-        'current': 205,
-        'unlocked': false,
-        'unlockedAt': null,
-      },
-    };
   }
 }
 

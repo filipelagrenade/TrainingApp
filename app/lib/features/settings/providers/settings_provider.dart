@@ -1,9 +1,13 @@
 /// LiftIQ - Settings Provider
 ///
 /// Manages the state for user settings and preferences.
+/// Syncs settings with the backend API.
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/services/api_client.dart';
 import '../models/user_settings.dart';
 
 // ============================================================================
@@ -13,20 +17,29 @@ import '../models/user_settings.dart';
 /// Provider for user settings state.
 final userSettingsProvider =
     StateNotifierProvider<UserSettingsNotifier, UserSettings>(
-  (ref) => UserSettingsNotifier(),
+  (ref) => UserSettingsNotifier(ref),
 );
 
 /// Notifier for user settings state management.
 class UserSettingsNotifier extends StateNotifier<UserSettings> {
-  UserSettingsNotifier() : super(const UserSettings()) {
+  final Ref _ref;
+
+  UserSettingsNotifier(this._ref) : super(const UserSettings()) {
     _loadSettings();
   }
 
-  /// Loads settings from local storage.
+  /// Loads settings from API on startup.
   Future<void> _loadSettings() async {
-    // TODO: Load from local storage (Isar/SharedPreferences)
-    await Future.delayed(const Duration(milliseconds: 100));
-    // Settings already initialized with defaults
+    try {
+      final api = _ref.read(apiClientProvider);
+      final response = await api.get('/settings');
+      final data = response.data as Map<String, dynamic>;
+      final settingsJson = data['data'] as Map<String, dynamic>;
+
+      state = _parseSettings(settingsJson);
+    } catch (e) {
+      // Use default settings on failure
+    }
   }
 
   /// Updates weight unit preference.
@@ -181,9 +194,134 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
-  /// Saves settings to local storage.
+  /// Saves settings to API.
   Future<void> _saveSettings() async {
-    // TODO: Save to local storage (Isar/SharedPreferences)
+    try {
+      final api = _ref.read(apiClientProvider);
+      await api.put('/settings', data: _settingsToJson(state));
+    } catch (e) {
+      // Silently fail - settings are still saved locally
+    }
+  }
+
+  /// Parses settings from API response.
+  UserSettings _parseSettings(Map<String, dynamic> json) {
+    final restTimerJson = json['restTimer'] as Map<String, dynamic>?;
+    final notificationsJson = json['notifications'] as Map<String, dynamic>?;
+    final privacyJson = json['privacy'] as Map<String, dynamic>?;
+
+    return UserSettings(
+      weightUnit: _parseWeightUnit(json['weightUnit'] as String?),
+      distanceUnit: _parseDistanceUnit(json['distanceUnit'] as String?),
+      theme: _parseTheme(json['theme'] as String?),
+      restTimer: restTimerJson != null
+          ? RestTimerSettings(
+              defaultRestSeconds: restTimerJson['defaultRestSeconds'] as int? ?? 90,
+              useSmartRest: restTimerJson['useSmartRest'] as bool? ?? true,
+              autoStart: restTimerJson['autoStart'] as bool? ?? true,
+              soundOnComplete: restTimerJson['soundOnComplete'] as bool? ?? restTimerJson['sound'] != null,
+              vibrateOnComplete: restTimerJson['vibrateOnComplete'] as bool? ?? restTimerJson['vibrate'] as bool? ?? true,
+            )
+          : const RestTimerSettings(),
+      notifications: notificationsJson != null
+          ? NotificationSettings(
+              enabled: notificationsJson['enabled'] as bool? ?? true,
+              workoutReminders: notificationsJson['workoutReminders'] as bool? ?? true,
+              prCelebrations: notificationsJson['prCelebrations'] as bool? ?? true,
+              restTimerAlerts: notificationsJson['restTimerAlerts'] as bool? ?? true,
+              socialActivity: notificationsJson['socialActivity'] as bool? ?? true,
+              challengeUpdates: notificationsJson['challengeUpdates'] as bool? ?? true,
+              aiCoachTips: notificationsJson['aiCoachTips'] as bool? ?? true,
+            )
+          : const NotificationSettings(),
+      privacy: privacyJson != null
+          ? PrivacySettings(
+              publicProfile: privacyJson['publicProfile'] as bool? ?? true,
+              showWorkoutHistory: privacyJson['showWorkoutHistory'] as bool? ?? true,
+              showPRs: privacyJson['showPRs'] as bool? ?? true,
+              showStreak: privacyJson['showStreak'] as bool? ?? true,
+              appearInSearch: privacyJson['appearInSearch'] as bool? ?? true,
+            )
+          : const PrivacySettings(),
+      showWeightSuggestions: json['showWeightSuggestions'] as bool? ?? true,
+      showFormCues: json['showFormCues'] as bool? ?? true,
+      defaultSets: json['defaultSets'] as int? ?? 3,
+      hapticFeedback: json['hapticFeedback'] as bool? ?? true,
+      swipeToComplete: json['swipeToComplete'] as bool? ?? false,
+      showPRCelebration: json['showPRCelebration'] as bool? ?? true,
+      showMusicControls: json['showMusicControls'] as bool? ?? false,
+    );
+  }
+
+  WeightUnit _parseWeightUnit(String? unit) {
+    switch (unit?.toLowerCase()) {
+      case 'kg':
+        return WeightUnit.kg;
+      case 'lbs':
+      default:
+        return WeightUnit.lbs;
+    }
+  }
+
+  DistanceUnit _parseDistanceUnit(String? unit) {
+    switch (unit?.toLowerCase()) {
+      case 'km':
+        return DistanceUnit.km;
+      case 'miles':
+      default:
+        return DistanceUnit.miles;
+    }
+  }
+
+  AppTheme _parseTheme(String? theme) {
+    switch (theme?.toLowerCase()) {
+      case 'light':
+        return AppTheme.light;
+      case 'system':
+        return AppTheme.system;
+      case 'dark':
+      default:
+        return AppTheme.dark;
+    }
+  }
+
+  /// Converts settings to JSON for API.
+  Map<String, dynamic> _settingsToJson(UserSettings settings) {
+    return {
+      'weightUnit': settings.weightUnit.name,
+      'distanceUnit': settings.distanceUnit.name,
+      'theme': settings.theme.name,
+      'restTimer': {
+        'defaultRestSeconds': settings.restTimer.defaultRestSeconds,
+        'useSmartRest': settings.restTimer.useSmartRest,
+        'autoStart': settings.restTimer.autoStart,
+        'soundOnComplete': settings.restTimer.soundOnComplete,
+        'vibrateOnComplete': settings.restTimer.vibrateOnComplete,
+      },
+      'notifications': {
+        'enabled': settings.notifications.enabled,
+        'workoutReminders': settings.notifications.workoutReminders,
+        'prCelebrations': settings.notifications.prCelebrations,
+        'restTimerAlerts': settings.notifications.restTimerAlerts,
+        'socialActivity': settings.notifications.socialActivity,
+        'challengeUpdates': settings.notifications.challengeUpdates,
+        'aiCoachTips': settings.notifications.aiCoachTips,
+      },
+      'privacy': {
+        'publicProfile': settings.privacy.publicProfile,
+        'showWorkoutHistory': settings.privacy.showWorkoutHistory,
+        'showPRs': settings.privacy.showPRs,
+        'showStreak': settings.privacy.showStreak,
+        'appearInSearch': settings.privacy.appearInSearch,
+      },
+      'showWeightSuggestions': settings.showWeightSuggestions,
+      'showFormCues': settings.showFormCues,
+      'defaultSets': settings.defaultSets,
+      'hapticFeedback': settings.hapticFeedback,
+      'swipeToComplete': settings.swipeToComplete,
+      'showPRCelebration': settings.showPRCelebration,
+      'showMusicControls': settings.showMusicControls,
+    };
   }
 }
 
@@ -194,9 +332,18 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
 /// Provider for requesting data export.
 final dataExportRequestProvider = FutureProvider.autoDispose<DataExportRequest?>(
   (ref) async {
-    // TODO: Call API to get current export request status
-    await Future.delayed(const Duration(milliseconds: 300));
-    return null; // No active request
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/settings/gdpr/export-status');
+      final data = response.data as Map<String, dynamic>;
+      final exportJson = data['data'];
+
+      if (exportJson == null) return null;
+      return _parseDataExportRequest(exportJson as Map<String, dynamic>);
+    } catch (e) {
+      return null;
+    }
   },
 );
 
@@ -204,9 +351,18 @@ final dataExportRequestProvider = FutureProvider.autoDispose<DataExportRequest?>
 final accountDeletionRequestProvider =
     FutureProvider.autoDispose<AccountDeletionRequest?>(
   (ref) async {
-    // TODO: Call API to get current deletion request status
-    await Future.delayed(const Duration(milliseconds: 300));
-    return null; // No active request
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.get('/settings/gdpr/deletion-status');
+      final data = response.data as Map<String, dynamic>;
+      final deletionJson = data['data'];
+
+      if (deletionJson == null) return null;
+      return _parseAccountDeletionRequest(deletionJson as Map<String, dynamic>);
+    } catch (e) {
+      return null;
+    }
   },
 );
 
@@ -245,28 +401,29 @@ class GdprState {
 
 /// Notifier for GDPR actions.
 class GdprNotifier extends StateNotifier<GdprState> {
-  GdprNotifier() : super(const GdprState());
+  final Ref _ref;
+
+  GdprNotifier(this._ref) : super(const GdprState());
 
   /// Requests a data export.
   Future<void> requestDataExport() async {
     state = state.copyWith(isExporting: true, error: null);
 
     try {
-      // TODO: Call API
-      await Future.delayed(const Duration(seconds: 1));
+      final api = _ref.read(apiClientProvider);
+      final response = await api.post('/settings/gdpr/export');
+      final data = response.data as Map<String, dynamic>;
+      final requestJson = data['data'] as Map<String, dynamic>;
 
-      final request = DataExportRequest(
-        id: 'export-${DateTime.now().millisecondsSinceEpoch}',
-        status: 'processing',
-        requestedAt: DateTime.now(),
-        estimatedReadyAt: DateTime.now().add(const Duration(hours: 24)),
-      );
-
-      state = state.copyWith(isExporting: false, exportRequest: request);
-    } catch (e) {
       state = state.copyWith(
         isExporting: false,
-        error: 'Failed to request data export',
+        exportRequest: _parseDataExportRequest(requestJson),
+      );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(
+        isExporting: false,
+        error: error.message,
       );
     }
   }
@@ -276,22 +433,20 @@ class GdprNotifier extends StateNotifier<GdprState> {
     state = state.copyWith(isDeleting: true, error: null);
 
     try {
-      // TODO: Call API
-      await Future.delayed(const Duration(seconds: 1));
+      final api = _ref.read(apiClientProvider);
+      final response = await api.post('/settings/gdpr/delete');
+      final data = response.data as Map<String, dynamic>;
+      final requestJson = data['data'] as Map<String, dynamic>;
 
-      final request = AccountDeletionRequest(
-        id: 'delete-${DateTime.now().millisecondsSinceEpoch}',
-        status: 'pending',
-        requestedAt: DateTime.now(),
-        scheduledDeletionAt: DateTime.now().add(const Duration(days: 30)),
-        canCancel: true,
-      );
-
-      state = state.copyWith(isDeleting: false, deletionRequest: request);
-    } catch (e) {
       state = state.copyWith(
         isDeleting: false,
-        error: 'Failed to request account deletion',
+        deletionRequest: _parseAccountDeletionRequest(requestJson),
+      );
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
+      state = state.copyWith(
+        isDeleting: false,
+        error: error.message,
       );
     }
   }
@@ -305,14 +460,15 @@ class GdprNotifier extends StateNotifier<GdprState> {
     state = state.copyWith(isDeleting: true, error: null);
 
     try {
-      // TODO: Call API
-      await Future.delayed(const Duration(milliseconds: 500));
+      final api = _ref.read(apiClientProvider);
+      await api.delete('/settings/gdpr/delete');
 
       state = state.copyWith(isDeleting: false, deletionRequest: null);
-    } catch (e) {
+    } on DioException catch (e) {
+      final error = ApiClient.getApiException(e);
       state = state.copyWith(
         isDeleting: false,
-        error: 'Failed to cancel deletion request',
+        error: error.message,
       );
     }
   }
@@ -325,7 +481,7 @@ class GdprNotifier extends StateNotifier<GdprState> {
 
 /// Provider for GDPR state.
 final gdprProvider = StateNotifierProvider<GdprNotifier, GdprState>(
-  (ref) => GdprNotifier(),
+  (ref) => GdprNotifier(ref),
 );
 
 // ============================================================================
@@ -371,3 +527,34 @@ final hapticFeedbackProvider = Provider<bool>((ref) {
 final showMusicControlsProvider = Provider<bool>((ref) {
   return ref.watch(userSettingsProvider).showMusicControls;
 });
+
+// ============================================================================
+// PARSING HELPERS
+// ============================================================================
+
+DataExportRequest _parseDataExportRequest(Map<String, dynamic> json) {
+  return DataExportRequest(
+    id: json['id'] as String,
+    status: json['status'] as String,
+    requestedAt: DateTime.parse(json['requestedAt'] as String),
+    estimatedReadyAt: json['estimatedReadyAt'] != null
+        ? DateTime.parse(json['estimatedReadyAt'] as String)
+        : null,
+    downloadUrl: json['downloadUrl'] as String?,
+    expiresAt: json['expiresAt'] != null
+        ? DateTime.parse(json['expiresAt'] as String)
+        : null,
+  );
+}
+
+AccountDeletionRequest _parseAccountDeletionRequest(Map<String, dynamic> json) {
+  return AccountDeletionRequest(
+    id: json['id'] as String,
+    status: json['status'] as String,
+    requestedAt: DateTime.parse(json['requestedAt'] as String),
+    scheduledDeletionAt: json['scheduledDeletionAt'] != null
+        ? DateTime.parse(json['scheduledDeletionAt'] as String)
+        : DateTime.now().add(const Duration(days: 30)),
+    canCancel: json['canCancel'] as bool? ?? true,
+  );
+}

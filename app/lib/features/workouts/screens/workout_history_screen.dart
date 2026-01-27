@@ -15,58 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../models/workout_session.dart';
-
-// ============================================================================
-// PROVIDERS
-// ============================================================================
-
-/// Provider for workout history.
-///
-/// TODO: Implement actual data fetching from repository
-final workoutHistoryProvider =
-    FutureProvider.autoDispose<List<WorkoutSession>>((ref) async {
-  // Simulated data for development
-  await Future.delayed(const Duration(milliseconds: 500));
-
-  return [
-    WorkoutSession(
-      id: '1',
-      userId: 'user-1',
-      templateName: 'Push Day',
-      startedAt: DateTime.now().subtract(const Duration(hours: 2)),
-      completedAt: DateTime.now(),
-      durationSeconds: 3600,
-      rating: 4,
-      status: WorkoutStatus.completed,
-      exerciseLogs: [], // Would have actual exercise data
-    ),
-    WorkoutSession(
-      id: '2',
-      userId: 'user-1',
-      templateName: 'Pull Day',
-      startedAt: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
-      completedAt:
-          DateTime.now().subtract(const Duration(days: 1, hours: 2)),
-      durationSeconds: 4200,
-      rating: 5,
-      status: WorkoutStatus.completed,
-      exerciseLogs: [],
-    ),
-    WorkoutSession(
-      id: '3',
-      userId: 'user-1',
-      templateName: 'Leg Day',
-      startedAt: DateTime.now().subtract(const Duration(days: 3, hours: 5)),
-      completedAt:
-          DateTime.now().subtract(const Duration(days: 3, hours: 4)),
-      durationSeconds: 3900,
-      rating: 3,
-      status: WorkoutStatus.completed,
-      exerciseLogs: [],
-    ),
-  ];
-});
+import '../providers/current_workout_provider.dart';
 
 // ============================================================================
 // SCREEN
@@ -110,7 +59,7 @@ class WorkoutHistoryScreen extends ConsumerWidget {
     BuildContext context,
     ThemeData theme,
     ColorScheme colors,
-    List<WorkoutSession> workouts,
+    List<WorkoutSummary> workouts,
   ) {
     if (workouts.isEmpty) {
       return _buildEmptyState(theme, colors);
@@ -219,7 +168,7 @@ class WorkoutHistoryScreen extends ConsumerWidget {
 
 /// Card displaying a workout summary.
 class _WorkoutHistoryCard extends StatelessWidget {
-  final WorkoutSession workout;
+  final WorkoutSummary workout;
 
   const _WorkoutHistoryCard({required this.workout});
 
@@ -232,9 +181,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          if (workout.id != null) {
-            context.push('/history/${workout.id}');
-          }
+          context.push('/history/${workout.id}');
         },
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -265,9 +212,6 @@ class _WorkoutHistoryCard extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  // Rating stars
-                  if (workout.rating != null) _buildRating(colors),
                 ],
               ),
               const SizedBox(height: 12),
@@ -277,7 +221,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
                 children: [
                   _buildStat(
                     icon: Icons.timer_outlined,
-                    value: workout.formattedDuration,
+                    value: _formatDuration(workout.durationSeconds),
                     colors: colors,
                   ),
                   const SizedBox(width: 16),
@@ -289,7 +233,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
                   const SizedBox(width: 16),
                   _buildStat(
                     icon: Icons.format_list_numbered,
-                    value: '${workout.totalSets} sets',
+                    value: '${workout.setCount} sets',
                     colors: colors,
                   ),
                 ],
@@ -325,43 +269,10 @@ class _WorkoutHistoryCard extends StatelessWidget {
                   ),
                 ),
               ],
-
-              // Muscle groups worked
-              if (workout.muscleGroups.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: workout.muscleGroups.take(4).map((muscle) {
-                    return Chip(
-                      label: Text(muscle),
-                      labelStyle: theme.textTheme.labelSmall,
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    );
-                  }).toList(),
-                ),
-              ],
             ],
           ),
         ),
       ),
-    );
-  }
-
-  /// Build rating display.
-  Widget _buildRating(ColorScheme colors) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (index) {
-        return Icon(
-          index < (workout.rating ?? 0) ? Icons.star : Icons.star_border,
-          size: 18,
-          color:
-              index < (workout.rating ?? 0) ? colors.primary : colors.outline,
-        );
-      }),
     );
   }
 
@@ -389,6 +300,17 @@ class _WorkoutHistoryCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// Format duration for display.
+  String _formatDuration(int? seconds) {
+    if (seconds == null || seconds == 0) return '--';
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
   }
 
   /// Format date for display.
