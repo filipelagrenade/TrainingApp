@@ -21,7 +21,7 @@ class ApiConfig {
   ///
   /// Set to `true` when deploying to production.
   /// Set to `false` during local development.
-  static const bool useProduction = false;
+  static const bool useProduction = true;
 
   /// Local development API base URL.
   ///
@@ -34,7 +34,7 @@ class ApiConfig {
   /// Replace with your actual Railway deployment URL.
   /// Example: 'https://liftiq-backend.up.railway.app/api/v1'
   static const String productionBaseUrl =
-      'https://YOUR-APP.up.railway.app/api/v1';
+      'https://liftiq-production.up.railway.app/api/v1';
 
   /// The active base URL based on environment.
   ///

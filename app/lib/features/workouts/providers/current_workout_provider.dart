@@ -236,7 +236,10 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
             if (i < updatedWorkout.exerciseLogs.length) {
               final logId = log['id'] as String?;
               if (logId != null) {
-                _exerciseLogServerIds[updatedWorkout.exerciseLogs[i].id] = logId;
+                final localId = updatedWorkout.exerciseLogs[i].id;
+                if (localId != null) {
+                  _exerciseLogServerIds[localId] = logId;
+                }
               }
             }
           }

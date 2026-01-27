@@ -14,9 +14,12 @@
 /// - Backend: REST API with Firebase Auth
 library;
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'firebase_options.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
@@ -49,8 +52,10 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // TODO: Initialize Isar database
-  // TODO: Initialize Firebase
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Run the app with Riverpod provider scope
   runApp(
