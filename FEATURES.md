@@ -265,6 +265,72 @@ This document tracks all completed features with links to their documentation.
 
 ---
 
+## Feature 26: Music Player Controls
+- **Status**: Complete
+- **Date**: 2026-01-27
+- **Key Files**:
+  - Service: `app/lib/core/services/music_service.dart`
+  - Widgets: `app/lib/features/music/widgets/music_mini_player.dart`
+  - Settings: `app/lib/features/settings/providers/settings_provider.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- MusicService for controlling device music playback
+- MusicState model for track info (name, artist, album art)
+- MusicMiniPlayer compact widget for workout screen
+- MusicPlayerSheet expanded controls with progress bar
+- Toggle in settings to enable/disable music controls
+- Play/pause, skip forward/back, shuffle, repeat controls
+
+---
+
+## Feature 28: Periodization Planner
+- **Status**: Complete
+- **Date**: 2026-01-27
+- **Key Files**:
+  - Models: `app/lib/features/periodization/models/mesocycle.dart`
+  - Providers: `app/lib/features/periodization/providers/periodization_provider.dart`
+  - Screens: `app/lib/features/periodization/screens/periodization_screen.dart`
+  - Widgets: `app/lib/features/periodization/widgets/week_card.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- Mesocycle model with periodization types (linear, undulating, block)
+- Week generation algorithms for different periodization styles
+- MesocycleBuilder 5-step wizard for creating plans
+- Periodization screen with active/planned/history tabs
+- Week cards showing type, volume, and intensity
+- Auto-deload week scheduling
+- Goal-based mesocycle configuration (hypertrophy, strength, endurance)
+
+---
+
+## Feature 30: Calendar Integration
+- **Status**: Complete
+- **Date**: 2026-01-27
+- **Key Files**:
+  - Models: `app/lib/features/calendar/models/scheduled_workout.dart`
+  - Providers: `app/lib/features/calendar/providers/calendar_provider.dart`
+  - Screens: `app/lib/features/calendar/screens/workout_calendar_screen.dart`
+  - Widgets: `app/lib/features/calendar/widgets/schedule_workout_sheet.dart`
+  - Service: `app/lib/core/services/calendar_service.dart`
+- **Tests**: Test files pending
+- **Coverage**: 0% (tests to be written)
+
+**What was built:**
+- ScheduledWorkout model with status tracking
+- CalendarService for device calendar integration
+- WorkoutCalendarScreen with table_calendar package
+- Schedule workout bottom sheet with template selection
+- Reminder timing configuration
+- Device calendar sync toggle
+- Today and upcoming workouts providers
+- Completed workouts overlay on calendar
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -290,4 +356,4 @@ Based on the development plan, the next features to implement are:
 
 ---
 
-*Last Updated: 2026-01-18*
+*Last Updated: 2026-01-27*
