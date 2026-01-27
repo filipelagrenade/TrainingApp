@@ -161,23 +161,20 @@ class DeloadNotifier extends Notifier<DeloadState> {
 
       // Find active deload
       final now = DateTime.now();
-      final active = deloads.firstWhere(
-        (d) =>
-            d.startDate.isBefore(now) &&
+      DeloadWeek? active;
+      for (final d in deloads) {
+        if (d.startDate.isBefore(now) &&
             d.endDate.isAfter(now) &&
             !d.completed &&
-            !d.skipped,
-        orElse: () => const DeloadWeek(
-          id: '',
-          startDate: DateTime.now(),
-          endDate: DateTime.now(),
-          deloadType: DeloadType.volumeReduction,
-        ),
-      );
+            !d.skipped) {
+          active = d;
+          break;
+        }
+      }
 
       state = state.copyWith(
         scheduledDeloads: deloads,
-        activeDeload: active.id.isNotEmpty ? active : null,
+        activeDeload: active,
       );
     } catch (e) {
       state = state.copyWith(
