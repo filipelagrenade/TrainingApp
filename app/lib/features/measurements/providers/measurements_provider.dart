@@ -10,13 +10,19 @@
 /// - Unit conversion preferences
 library;
 
-import 'package:dio/dio.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'dart:convert';
 
-import '../../../core/services/api_client.dart';
+import 'package:flutter/foundation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../core/services/user_storage_keys.dart';
 import '../models/body_measurement.dart';
 
 part 'measurements_provider.g.dart';
+
+const _uuid = Uuid();
 
 /// Provider for measurements state.
 @riverpod
@@ -28,27 +34,37 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
     return const MeasurementsState(isLoading: true);
   }
 
-  /// Loads all measurements from API.
+  String get _measurementsKey => UserStorageKeys.measurements('local-offline-user');
+  String get _photosKey => '${_measurementsKey}_photos';
+
+  /// Loads all measurements from SharedPreferences.
   Future<void> _loadMeasurements() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final api = ref.read(apiClientProvider);
+      final prefs = await SharedPreferences.getInstance();
 
-      // Fetch measurements and photos in parallel
-      final measurementsResponse = await api.get('/measurements');
-      final photosResponse = await api.get('/measurements/photos');
+      // Load measurements
+      final measurementsJson = prefs.getString(_measurementsKey);
+      List<BodyMeasurement> measurementsList = [];
+      if (measurementsJson != null) {
+        final decoded = jsonDecode(measurementsJson) as List<dynamic>;
+        measurementsList = decoded
+            .map((json) => BodyMeasurement.fromJson(json as Map<String, dynamic>))
+            .toList();
+        // Sort by date descending (most recent first)
+        measurementsList.sort((a, b) => b.measuredAt.compareTo(a.measuredAt));
+      }
 
-      final measurementsData = measurementsResponse.data as Map<String, dynamic>;
-      final photosData = photosResponse.data as Map<String, dynamic>;
-
-      final measurementsList = (measurementsData['data'] as List<dynamic>? ?? [])
-          .map((json) => _parseMeasurement(json as Map<String, dynamic>))
-          .toList();
-
-      final photosList = (photosData['data'] as List<dynamic>? ?? [])
-          .map((json) => _parsePhoto(json as Map<String, dynamic>))
-          .toList();
+      // Load photos
+      final photosJson = prefs.getString(_photosKey);
+      List<ProgressPhoto> photosList = [];
+      if (photosJson != null) {
+        final decoded = jsonDecode(photosJson) as List<dynamic>;
+        photosList = decoded
+            .map((json) => ProgressPhoto.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
 
       final trends = _calculateTrends(measurementsList);
 
@@ -60,13 +76,8 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
         trends: trends,
         isLoading: false,
       );
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      state = state.copyWith(
-        isLoading: false,
-        error: error.message,
-      );
     } catch (e) {
+      debugPrint('MeasurementsNotifier: Error loading: $e');
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to load measurements: $e',
@@ -74,63 +85,30 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
     }
   }
 
-  /// Parses a BodyMeasurement from API response.
-  BodyMeasurement _parseMeasurement(Map<String, dynamic> json) {
-    return BodyMeasurement(
-      id: json['id'] as String,
-      measuredAt: DateTime.parse(json['measuredAt'] as String),
-      weight: (json['weight'] as num?)?.toDouble(),
-      bodyFat: (json['bodyFat'] as num?)?.toDouble(),
-      neck: (json['neck'] as num?)?.toDouble(),
-      shoulders: (json['shoulders'] as num?)?.toDouble(),
-      chest: (json['chest'] as num?)?.toDouble(),
-      leftBicep: (json['leftBicep'] as num?)?.toDouble(),
-      rightBicep: (json['rightBicep'] as num?)?.toDouble(),
-      leftForearm: (json['leftForearm'] as num?)?.toDouble(),
-      rightForearm: (json['rightForearm'] as num?)?.toDouble(),
-      waist: (json['waist'] as num?)?.toDouble(),
-      hips: (json['hips'] as num?)?.toDouble(),
-      leftThigh: (json['leftThigh'] as num?)?.toDouble(),
-      rightThigh: (json['rightThigh'] as num?)?.toDouble(),
-      leftCalf: (json['leftCalf'] as num?)?.toDouble(),
-      rightCalf: (json['rightCalf'] as num?)?.toDouble(),
-      notes: json['notes'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-    );
+  /// Persists measurements to SharedPreferences.
+  Future<void> _persistMeasurements() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = jsonEncode(
+        state.measurements.map((m) => m.toJson()).toList(),
+      );
+      await prefs.setString(_measurementsKey, json);
+    } catch (e) {
+      debugPrint('MeasurementsNotifier: Error persisting: $e');
+    }
   }
 
-  /// Parses a ProgressPhoto from API response.
-  ProgressPhoto _parsePhoto(Map<String, dynamic> json) {
-    final typeStr = json['photoType'] as String? ?? 'front';
-    PhotoType photoType;
-    switch (typeStr.toLowerCase()) {
-      case 'front':
-        photoType = PhotoType.front;
-        break;
-      case 'back':
-        photoType = PhotoType.back;
-        break;
-      case 'sideleft':
-      case 'side_left':
-        photoType = PhotoType.sideLeft;
-        break;
-      case 'sideright':
-      case 'side_right':
-        photoType = PhotoType.sideRight;
-        break;
-      default:
-        photoType = PhotoType.front;
+  /// Persists photos to SharedPreferences.
+  Future<void> _persistPhotos() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = jsonEncode(
+        state.photos.map((p) => p.toJson()).toList(),
+      );
+      await prefs.setString(_photosKey, json);
+    } catch (e) {
+      debugPrint('MeasurementsNotifier: Error persisting photos: $e');
     }
-
-    return ProgressPhoto(
-      id: json['id'] as String,
-      photoUrl: json['photoUrl'] as String,
-      photoType: photoType,
-      takenAt: DateTime.parse(json['takenAt'] as String),
-      measurementId: json['measurementId'] as String?,
-      notes: json['notes'] as String?,
-    );
   }
 
   /// Refreshes all measurements data.
@@ -143,31 +121,29 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
     CreateMeasurementInput input,
   ) async {
     try {
-      final api = ref.read(apiClientProvider);
-
-      final response = await api.post('/measurements', data: {
-        'measuredAt': (input.measuredAt ?? DateTime.now()).toIso8601String(),
-        if (input.weight != null) 'weight': input.weight,
-        if (input.bodyFat != null) 'bodyFat': input.bodyFat,
-        if (input.neck != null) 'neck': input.neck,
-        if (input.shoulders != null) 'shoulders': input.shoulders,
-        if (input.chest != null) 'chest': input.chest,
-        if (input.leftBicep != null) 'leftBicep': input.leftBicep,
-        if (input.rightBicep != null) 'rightBicep': input.rightBicep,
-        if (input.leftForearm != null) 'leftForearm': input.leftForearm,
-        if (input.rightForearm != null) 'rightForearm': input.rightForearm,
-        if (input.waist != null) 'waist': input.waist,
-        if (input.hips != null) 'hips': input.hips,
-        if (input.leftThigh != null) 'leftThigh': input.leftThigh,
-        if (input.rightThigh != null) 'rightThigh': input.rightThigh,
-        if (input.leftCalf != null) 'leftCalf': input.leftCalf,
-        if (input.rightCalf != null) 'rightCalf': input.rightCalf,
-        if (input.notes != null) 'notes': input.notes,
-      });
-
-      final data = response.data as Map<String, dynamic>;
-      final measurementJson = data['data'] as Map<String, dynamic>;
-      final measurement = _parseMeasurement(measurementJson);
+      final now = DateTime.now();
+      final measurement = BodyMeasurement(
+        id: _uuid.v4(),
+        measuredAt: input.measuredAt ?? now,
+        weight: input.weight,
+        bodyFat: input.bodyFat,
+        neck: input.neck,
+        shoulders: input.shoulders,
+        chest: input.chest,
+        leftBicep: input.leftBicep,
+        rightBicep: input.rightBicep,
+        leftForearm: input.leftForearm,
+        rightForearm: input.rightForearm,
+        waist: input.waist,
+        hips: input.hips,
+        leftThigh: input.leftThigh,
+        rightThigh: input.rightThigh,
+        leftCalf: input.leftCalf,
+        rightCalf: input.rightCalf,
+        notes: input.notes,
+        createdAt: now,
+        updatedAt: now,
+      );
 
       final updatedList = [measurement, ...state.measurements];
       final trends = _calculateTrends(updatedList);
@@ -178,11 +154,8 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
         trends: trends,
       );
 
+      await _persistMeasurements();
       return measurement;
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      state = state.copyWith(error: error.message);
-      return null;
     } catch (e) {
       state = state.copyWith(error: 'Failed to create measurement: $e');
       return null;
@@ -195,34 +168,32 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
     CreateMeasurementInput input,
   ) async {
     try {
-      final api = ref.read(apiClientProvider);
-
-      final response = await api.patch('/measurements/$id', data: {
-        if (input.measuredAt != null) 'measuredAt': input.measuredAt!.toIso8601String(),
-        if (input.weight != null) 'weight': input.weight,
-        if (input.bodyFat != null) 'bodyFat': input.bodyFat,
-        if (input.neck != null) 'neck': input.neck,
-        if (input.shoulders != null) 'shoulders': input.shoulders,
-        if (input.chest != null) 'chest': input.chest,
-        if (input.leftBicep != null) 'leftBicep': input.leftBicep,
-        if (input.rightBicep != null) 'rightBicep': input.rightBicep,
-        if (input.leftForearm != null) 'leftForearm': input.leftForearm,
-        if (input.rightForearm != null) 'rightForearm': input.rightForearm,
-        if (input.waist != null) 'waist': input.waist,
-        if (input.hips != null) 'hips': input.hips,
-        if (input.leftThigh != null) 'leftThigh': input.leftThigh,
-        if (input.rightThigh != null) 'rightThigh': input.rightThigh,
-        if (input.leftCalf != null) 'leftCalf': input.leftCalf,
-        if (input.rightCalf != null) 'rightCalf': input.rightCalf,
-        if (input.notes != null) 'notes': input.notes,
-      });
-
-      final data = response.data as Map<String, dynamic>;
-      final measurementJson = data['data'] as Map<String, dynamic>;
-      final updated = _parseMeasurement(measurementJson);
-
       final index = state.measurements.indexWhere((m) => m.id == id);
-      if (index == -1) return updated;
+      if (index == -1) return null;
+
+      final existing = state.measurements[index];
+      final updated = BodyMeasurement(
+        id: existing.id,
+        measuredAt: input.measuredAt ?? existing.measuredAt,
+        weight: input.weight ?? existing.weight,
+        bodyFat: input.bodyFat ?? existing.bodyFat,
+        neck: input.neck ?? existing.neck,
+        shoulders: input.shoulders ?? existing.shoulders,
+        chest: input.chest ?? existing.chest,
+        leftBicep: input.leftBicep ?? existing.leftBicep,
+        rightBicep: input.rightBicep ?? existing.rightBicep,
+        leftForearm: input.leftForearm ?? existing.leftForearm,
+        rightForearm: input.rightForearm ?? existing.rightForearm,
+        waist: input.waist ?? existing.waist,
+        hips: input.hips ?? existing.hips,
+        leftThigh: input.leftThigh ?? existing.leftThigh,
+        rightThigh: input.rightThigh ?? existing.rightThigh,
+        leftCalf: input.leftCalf ?? existing.leftCalf,
+        rightCalf: input.rightCalf ?? existing.rightCalf,
+        notes: input.notes ?? existing.notes,
+        createdAt: existing.createdAt,
+        updatedAt: DateTime.now(),
+      );
 
       final updatedList = [...state.measurements];
       updatedList[index] = updated;
@@ -234,11 +205,8 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
         trends: trends,
       );
 
+      await _persistMeasurements();
       return updated;
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      state = state.copyWith(error: error.message);
-      return null;
     } catch (e) {
       state = state.copyWith(error: 'Failed to update measurement: $e');
       return null;
@@ -248,9 +216,6 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
   /// Deletes a measurement.
   Future<bool> deleteMeasurement(String id) async {
     try {
-      final api = ref.read(apiClientProvider);
-      await api.delete('/measurements/$id');
-
       final updatedList =
           state.measurements.where((m) => m.id != id).toList();
       final trends = _calculateTrends(updatedList);
@@ -262,11 +227,8 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
         trends: trends,
       );
 
+      await _persistMeasurements();
       return true;
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      state = state.copyWith(error: error.message);
-      return false;
     } catch (e) {
       state = state.copyWith(error: 'Failed to delete measurement: $e');
       return false;
@@ -281,28 +243,18 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
     String? notes,
   }) async {
     try {
-      final api = ref.read(apiClientProvider);
-
-      final photoTypeStr = photoType.name;
-
-      final response = await api.post('/measurements/photos', data: {
-        'photoUrl': photoUrl,
-        'photoType': photoTypeStr,
-        'takenAt': DateTime.now().toIso8601String(),
-        if (measurementId != null) 'measurementId': measurementId,
-        if (notes != null) 'notes': notes,
-      });
-
-      final data = response.data as Map<String, dynamic>;
-      final photoJson = data['data'] as Map<String, dynamic>;
-      final photo = _parsePhoto(photoJson);
+      final photo = ProgressPhoto(
+        id: _uuid.v4(),
+        photoUrl: photoUrl,
+        photoType: photoType,
+        takenAt: DateTime.now(),
+        measurementId: measurementId,
+        notes: notes,
+      );
 
       state = state.copyWith(photos: [photo, ...state.photos]);
+      await _persistPhotos();
       return photo;
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      state = state.copyWith(error: error.message);
-      return null;
     } catch (e) {
       state = state.copyWith(error: 'Failed to add photo: $e');
       return null;
@@ -312,18 +264,11 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
   /// Deletes a progress photo.
   Future<bool> deletePhoto(String id) async {
     try {
-      final api = ref.read(apiClientProvider);
-      await api.delete('/measurements/photos/$id');
-
       state = state.copyWith(
         photos: state.photos.where((p) => p.id != id).toList(),
       );
-
+      await _persistPhotos();
       return true;
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      state = state.copyWith(error: error.message);
-      return false;
     } catch (e) {
       state = state.copyWith(error: 'Failed to delete photo: $e');
       return false;
