@@ -10,9 +10,13 @@
 /// - Share reports
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/weekly_report.dart';
+import '../../../shared/services/workout_history_service.dart';
+import '../../programs/providers/active_program_provider.dart';
+import '../../programs/models/active_program.dart';
 
 // ============================================================================
 // STATE
@@ -98,19 +102,19 @@ class WeeklyReportNotifier extends Notifier<WeeklyReportState> {
     final now = DateTime.now();
     final weekStart = _getWeekStart(now);
 
-    // Auto-load current week's report
-    Future.microtask(() => loadReport(weekStart));
+    // Auto-load current week's report (no cache — fresh on rebuild)
+    Future.microtask(() => loadReport(weekStart, bypassCache: true));
 
     return WeeklyReportState(selectedWeekStart: weekStart);
   }
 
   /// Loads the report for a specific week.
-  Future<void> loadReport(DateTime weekStart) async {
+  Future<void> loadReport(DateTime weekStart, {bool bypassCache = false}) async {
     final normalizedWeekStart = _getWeekStart(weekStart);
     final cacheKey = _getCacheKey(normalizedWeekStart);
 
-    // Check cache first
-    if (state.reportCache.containsKey(cacheKey)) {
+    // Check cache first (unless bypassed, e.g. after new workout)
+    if (!bypassCache && state.reportCache.containsKey(cacheKey)) {
       state = state.copyWith(
         currentReport: state.reportCache[cacheKey],
         status: WeeklyReportStatus.ready,
@@ -232,12 +236,13 @@ class WeeklyReportNotifier extends Notifier<WeeklyReportState> {
     return '${weekStart.year}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}';
   }
 
-  /// Generates a weekly report (mock implementation).
+  /// Generates a weekly report from real workout history.
   Future<WeeklyReport> _generateReport(DateTime weekStart) async {
-    // Simulate API call
-    await Future.delayed(const Duration(milliseconds: 600));
+    final service = ref.read(workoutHistoryServiceProvider);
+    await service.initialize();
 
     final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekEndExclusive = weekStart.add(const Duration(days: 7));
     final now = DateTime.now();
 
     // Calculate week number
@@ -245,7 +250,216 @@ class WeeklyReportNotifier extends Notifier<WeeklyReportState> {
     final daysSinceYearStart = weekStart.difference(firstDayOfYear).inDays;
     final weekNumber = (daysSinceYearStart / 7).ceil() + 1;
 
-    // Mock data - in real implementation this would come from the API
+    // Filter workouts for this week
+    final weekWorkouts = service.workouts.where((w) {
+      return !w.completedAt.isBefore(weekStart) && w.completedAt.isBefore(weekEndExclusive);
+    }).toList()
+      ..sort((a, b) => a.completedAt.compareTo(b.completedAt));
+
+    // Previous week workouts for comparisons
+    final prevWeekStart = weekStart.subtract(const Duration(days: 7));
+    final prevWeekWorkouts = service.workouts.where((w) {
+      return !w.completedAt.isBefore(prevWeekStart) && w.completedAt.isBefore(weekStart);
+    }).toList();
+
+    // Build workout entries
+    final workoutEntries = weekWorkouts.map((w) {
+      return WeeklyWorkout(
+        id: w.id,
+        date: w.completedAt,
+        templateName: w.templateName,
+        durationMinutes: w.durationMinutes,
+        exerciseCount: w.exercises.length,
+        setsCompleted: w.totalSets,
+        volume: w.totalVolume,
+        muscleGroups: w.muscleGroups.toList(),
+        hadPR: w.prsAchieved > 0,
+      );
+    }).toList();
+
+    // Build muscle distribution
+    final muscleSetCounts = <String, _MuscleAcc>{};
+    for (final workout in weekWorkouts) {
+      for (final exercise in workout.exercises) {
+        for (final muscle in exercise.primaryMuscles) {
+          muscleSetCounts[muscle] ??= _MuscleAcc();
+          muscleSetCounts[muscle]!.sets += exercise.completedSets;
+          muscleSetCounts[muscle]!.volume += exercise.volume;
+          muscleSetCounts[muscle]!.exercises++;
+        }
+      }
+    }
+
+    // Previous week muscle data for comparison
+    final prevMuscleSetCounts = <String, int>{};
+    for (final workout in prevWeekWorkouts) {
+      for (final exercise in workout.exercises) {
+        for (final muscle in exercise.primaryMuscles) {
+          prevMuscleSetCounts[muscle] = (prevMuscleSetCounts[muscle] ?? 0) + exercise.completedSets;
+        }
+      }
+    }
+
+    final totalSetsAll = muscleSetCounts.values.fold<int>(0, (s, a) => s + a.sets);
+    final muscleDistribution = muscleSetCounts.entries.map((e) {
+      final prevSets = prevMuscleSetCounts[e.key] ?? 0;
+      final change = prevSets > 0
+          ? ((e.value.sets - prevSets) / prevSets * 100).round()
+          : 0;
+      return MuscleGroupStats(
+        muscleGroup: e.key,
+        totalSets: e.value.sets,
+        totalVolume: e.value.volume,
+        exerciseCount: e.value.exercises,
+        percentageOfTotal: totalSetsAll > 0 ? e.value.sets / totalSetsAll * 100 : 0,
+        changeFromLastWeek: change,
+      );
+    }).toList()
+      ..sort((a, b) => b.totalSets.compareTo(a.totalSets));
+
+    // Compute summary stats
+    final totalVolume = weekWorkouts.fold<int>(0, (s, w) => s + w.totalVolume);
+    final totalDuration = weekWorkouts.fold<int>(0, (s, w) => s + w.durationMinutes);
+    final totalSets = weekWorkouts.fold<int>(0, (s, w) => s + w.totalSets);
+    final totalReps = weekWorkouts.fold<int>(0, (s, w) => s + w.exercises.fold<int>(0,
+      (es, e) => es + e.sets.fold<int>(0, (rs, set) => rs + set.reps)));
+    final prs = weekWorkouts.fold<int>(0, (s, w) => s + w.prsAchieved);
+    final avgDuration = weekWorkouts.isNotEmpty ? totalDuration ~/ weekWorkouts.length : 0;
+    final workoutDays = weekWorkouts.map((w) =>
+      DateTime(w.completedAt.year, w.completedAt.month, w.completedAt.day)).toSet();
+    final restDays = 7 - workoutDays.length;
+
+    // Target workouts per week from active program, default 3
+    int targetPerWeek = 3;
+    final programState = ref.read(activeProgramProvider);
+    if (programState is ProgramActive) {
+      final program = programState.program;
+      if (program.daysPerWeek > 0) targetPerWeek = program.daysPerWeek;
+    }
+
+    // Rolling 4-week consistency: count workouts over 4 weeks ending at this week
+    final fourWeeksAgo = weekStart.subtract(const Duration(days: 21)); // 3 prior weeks + this week
+    final fourWeekWorkouts = service.workouts.where((w) {
+      return !w.completedAt.isBefore(fourWeeksAgo) &&
+          w.completedAt.isBefore(weekEnd.add(const Duration(days: 1)));
+    }).toList();
+    final targetOver4Weeks = targetPerWeek * 4;
+    final consistencyScore = targetOver4Weeks > 0
+        ? ((fourWeekWorkouts.length / targetOver4Weeks) * 100)
+            .clamp(0, 100)
+            .round()
+        : 0;
+
+    // Trend: compare current 4-week block vs previous 4-week block
+    final prev4WeeksStart = fourWeeksAgo.subtract(const Duration(days: 28));
+    final prev4WeekWorkouts = service.workouts.where((w) {
+      return !w.completedAt.isBefore(prev4WeeksStart) &&
+          w.completedAt.isBefore(fourWeeksAgo);
+    }).length;
+    final prevConsistency = targetOver4Weeks > 0
+        ? (prev4WeekWorkouts / targetOver4Weeks * 100).clamp(0, 100)
+        : 0.0;
+    final consistencyTrend = consistencyScore - prevConsistency;
+
+    // Volume comparison
+    final prevVolume = prevWeekWorkouts.fold<int>(0, (s, w) => s + w.totalVolume);
+    final volChange = prevVolume > 0
+        ? ((totalVolume - prevVolume) / prevVolume * 100)
+        : 0.0;
+    final freqChange = prevWeekWorkouts.isNotEmpty
+        ? ((weekWorkouts.length - prevWeekWorkouts.length) / prevWeekWorkouts.length * 100)
+        : 0.0;
+
+    // Build PRs list from workout data
+    // CompletedSet doesn't track isPersonalRecord, so we use prsAchieved
+    // and pick the best set per exercise as the likely PR
+    final weeklyPRs = <WeeklyPR>[];
+    for (final workout in weekWorkouts) {
+      if (workout.prsAchieved > 0) {
+        for (final exercise in workout.exercises) {
+          double bestEst = 0;
+          double bestW = 0;
+          int bestR = 0;
+          for (final set in exercise.sets) {
+            final est = set.weight * (1 + set.reps / 30);
+            if (est > bestEst) {
+              bestEst = est;
+              bestW = set.weight;
+              bestR = set.reps;
+            }
+          }
+          if (bestEst > 0) {
+            weeklyPRs.add(WeeklyPR(
+              exerciseId: exercise.exerciseId,
+              exerciseName: exercise.exerciseName,
+              weight: bestW,
+              reps: bestR,
+              estimated1RM: bestEst,
+              achievedAt: workout.completedAt,
+              prType: PRType.oneRM,
+            ));
+          }
+        }
+      }
+    }
+
+    // Generate insights from real data
+    final insights = <WeeklyInsight>[];
+
+    if (weeklyPRs.isNotEmpty) {
+      insights.add(WeeklyInsight(
+        type: InsightType.achievement,
+        title: '${weeklyPRs.length} new PR${weeklyPRs.length > 1 ? "s" : ""} this week!',
+        description: 'You set personal records on ${weeklyPRs.map((p) => p.exerciseName).toSet().join(", ")}.',
+        priority: 5,
+      ));
+    }
+
+    if (prevVolume > 0 && volChange.abs() > 5) {
+      insights.add(InsightGenerators.volumeProgression(totalVolume, prevVolume));
+    }
+
+    if (prevWeekWorkouts.isNotEmpty && weekWorkouts.length > prevWeekWorkouts.length) {
+      insights.add(InsightGenerators.consistencyImproved(
+        weekWorkouts.length, prevWeekWorkouts.length,
+      ));
+    }
+
+    // Rolling consistency trend insight
+    if (consistencyTrend > 5) {
+      insights.add(WeeklyInsight(
+        type: InsightType.achievement,
+        title: 'Consistency improving!',
+        description: 'Your 4-week adherence is trending up. Grade: ${_consistencyGrade(consistencyScore)}.',
+        priority: 3,
+      ));
+    } else if (consistencyTrend < -5) {
+      insights.add(WeeklyInsight(
+        type: InsightType.warning,
+        title: 'Consistency declining',
+        description: 'Your 4-week adherence dropped. Current grade: ${_consistencyGrade(consistencyScore)}. Try to hit $targetPerWeek sessions this week.',
+        priority: 4,
+      ));
+    }
+
+    // Find most trained muscle
+    final mostTrained = muscleDistribution.isNotEmpty ? muscleDistribution.first.muscleGroup : null;
+
+    // Best lift this week
+    String? bestLift;
+    double bestEst1RM = 0;
+    for (final workout in weekWorkouts) {
+      for (final exercise in workout.exercises) {
+        for (final set in exercise.sets) {
+          final est = set.weight * (1 + set.reps / 30);
+          if (est > bestEst1RM) {
+            bestEst1RM = est;
+            bestLift = '${exercise.exerciseName} - ${set.weight}kg × ${set.reps}';
+          }
+        }
+      }
+    }
+
     return WeeklyReport(
       id: 'report-${_getCacheKey(weekStart)}',
       userId: 'current-user',
@@ -254,233 +468,52 @@ class WeeklyReportNotifier extends Notifier<WeeklyReportState> {
       generatedAt: now,
       weekNumber: weekNumber,
       summary: WeeklySummary(
-        workoutCount: 4,
-        totalDurationMinutes: 240,
-        totalVolume: 48500,
-        totalSets: 68,
-        totalReps: 612,
-        prsAchieved: 2,
-        averageWorkoutDuration: 60,
-        mostTrainedMuscle: 'Chest',
-        bestLift: 'Bench Press - 100kg × 8',
-        consistencyScore: 85,
-        intensityScore: 78,
-        restDays: 3,
+        workoutCount: weekWorkouts.length,
+        totalDurationMinutes: totalDuration,
+        totalVolume: totalVolume,
+        totalSets: totalSets,
+        totalReps: totalReps,
+        prsAchieved: prs,
+        averageWorkoutDuration: avgDuration,
+        mostTrainedMuscle: mostTrained,
+        bestLift: bestLift,
+        consistencyScore: consistencyScore,
+        restDays: restDays,
       ),
-      workouts: [
-        WeeklyWorkout(
-          id: 'w1',
-          date: weekStart,
-          templateName: 'Push Day',
-          durationMinutes: 65,
-          exerciseCount: 5,
-          setsCompleted: 18,
-          volume: 12500,
-          muscleGroups: ['Chest', 'Shoulders', 'Triceps'],
-          hadPR: true,
-          averageRpe: 8.0,
-        ),
-        WeeklyWorkout(
-          id: 'w2',
-          date: weekStart.add(const Duration(days: 1)),
-          templateName: 'Pull Day',
-          durationMinutes: 55,
-          exerciseCount: 5,
-          setsCompleted: 16,
-          volume: 11200,
-          muscleGroups: ['Back', 'Biceps'],
-          hadPR: false,
-          averageRpe: 7.5,
-        ),
-        WeeklyWorkout(
-          id: 'w3',
-          date: weekStart.add(const Duration(days: 3)),
-          templateName: 'Leg Day',
-          durationMinutes: 70,
-          exerciseCount: 4,
-          setsCompleted: 15,
-          volume: 18500,
-          muscleGroups: ['Quads', 'Hamstrings', 'Glutes'],
-          hadPR: true,
-          averageRpe: 8.5,
-        ),
-        WeeklyWorkout(
-          id: 'w4',
-          date: weekStart.add(const Duration(days: 5)),
-          templateName: 'Upper Body',
-          durationMinutes: 50,
-          exerciseCount: 6,
-          setsCompleted: 19,
-          volume: 6300,
-          muscleGroups: ['Chest', 'Back', 'Shoulders'],
-          hadPR: false,
-          averageRpe: 7.0,
-        ),
-      ],
-      personalRecords: [
-        WeeklyPR(
-          exerciseId: 'bench-press',
-          exerciseName: 'Bench Press',
-          weight: 100,
-          reps: 8,
-          estimated1RM: 126.7,
-          previousBest: 123.0,
-          achievedAt: weekStart,
-          prType: PRType.oneRM,
-        ),
-        WeeklyPR(
-          exerciseId: 'squat',
-          exerciseName: 'Barbell Squat',
-          weight: 140,
-          reps: 5,
-          estimated1RM: 163.3,
-          previousBest: 158.0,
-          achievedAt: weekStart.add(const Duration(days: 3)),
-          prType: PRType.weight,
-        ),
-      ],
-      muscleDistribution: [
-        const MuscleGroupStats(
-          muscleGroup: 'Chest',
-          totalSets: 18,
-          totalVolume: 12600,
-          exerciseCount: 3,
-          percentageOfTotal: 26.0,
-          changeFromLastWeek: 10,
-          recommendedSets: 16,
-        ),
-        const MuscleGroupStats(
-          muscleGroup: 'Back',
-          totalSets: 16,
-          totalVolume: 11200,
-          exerciseCount: 4,
-          percentageOfTotal: 23.1,
-          changeFromLastWeek: 0,
-          recommendedSets: 16,
-        ),
-        const MuscleGroupStats(
-          muscleGroup: 'Quads',
-          totalSets: 10,
-          totalVolume: 14000,
-          exerciseCount: 2,
-          percentageOfTotal: 28.9,
-          changeFromLastWeek: 5,
-          recommendedSets: 12,
-        ),
-        const MuscleGroupStats(
-          muscleGroup: 'Shoulders',
-          totalSets: 9,
-          totalVolume: 4500,
-          exerciseCount: 2,
-          percentageOfTotal: 9.3,
-          changeFromLastWeek: -5,
-          recommendedSets: 10,
-        ),
-        const MuscleGroupStats(
-          muscleGroup: 'Triceps',
-          totalSets: 8,
-          totalVolume: 3200,
-          exerciseCount: 2,
-          percentageOfTotal: 6.6,
-          changeFromLastWeek: 15,
-          recommendedSets: 8,
-        ),
-        const MuscleGroupStats(
-          muscleGroup: 'Biceps',
-          totalSets: 7,
-          totalVolume: 3000,
-          exerciseCount: 2,
-          percentageOfTotal: 6.2,
-          changeFromLastWeek: 0,
-          recommendedSets: 8,
-        ),
-      ],
-      volumeComparison: const WeeklyComparison(
-        current: 48500,
-        previous: 44200,
-        percentChange: 9.7,
-        trend: TrendDirection.up,
+      workouts: workoutEntries,
+      personalRecords: weeklyPRs,
+      muscleDistribution: muscleDistribution,
+      volumeComparison: WeeklyComparison(
+        current: totalVolume,
+        previous: prevVolume,
+        percentChange: volChange,
+        trend: volChange > 1 ? TrendDirection.up : (volChange < -1 ? TrendDirection.down : TrendDirection.stable),
       ),
-      frequencyComparison: const WeeklyComparison(
-        current: 4,
-        previous: 3,
-        percentChange: 33.3,
-        trend: TrendDirection.up,
+      frequencyComparison: WeeklyComparison(
+        current: weekWorkouts.length,
+        previous: prevWeekWorkouts.length,
+        percentChange: freqChange,
+        trend: freqChange > 1 ? TrendDirection.up : (freqChange < -1 ? TrendDirection.down : TrendDirection.stable),
       ),
-      insights: [
-        const WeeklyInsight(
-          type: InsightType.achievement,
-          title: 'Two new PRs this week!',
-          description:
-              'You hit new personal records on Bench Press and Squat. '
-              'Your strength is clearly improving. Keep up the great work!',
-          priority: 5,
-          actionItems: [
-            'Consider a lighter session next time to recover',
-            'Focus on sleep and nutrition this week',
-          ],
-        ),
-        const WeeklyInsight(
-          type: InsightType.progression,
-          title: 'Volume up 10%',
-          description:
-              'Your total training volume increased from 44.2k kg to 48.5k kg. '
-              'This progressive overload is key to muscle growth.',
-          priority: 4,
-        ),
-        const WeeklyInsight(
-          type: InsightType.balance,
-          title: 'Shoulders need attention',
-          description:
-              'Your shoulder volume dropped 5% from last week. '
-              'Consider adding an extra set or two next week.',
-          priority: 3,
-          actionItems: [
-            'Add lateral raises to your push day',
-            'Include face pulls for rear delts',
-          ],
-        ),
-        const WeeklyInsight(
-          type: InsightType.streak,
-          title: 'Consistency improved!',
-          description:
-              'You completed 4 workouts this week, up from 3 last week. '
-              'Your consistency score is 85% - great job staying on track!',
-          priority: 4,
-        ),
-      ],
-      goalsProgress: [
-        const GoalProgress(
-          goalId: 'bench-100',
-          title: 'Bench Press 100kg',
-          target: 100,
-          current: 100,
-          unit: 'kg',
-          progressPercent: 100,
-          achieved: true,
-        ),
-        const GoalProgress(
-          goalId: 'weekly-workouts',
-          title: '4 workouts per week',
-          target: 4,
-          current: 4,
-          unit: 'workouts',
-          progressPercent: 100,
-          achieved: true,
-        ),
-        const GoalProgress(
-          goalId: 'squat-180',
-          title: 'Squat 180kg',
-          target: 180,
-          current: 163.3,
-          unit: 'kg',
-          progressPercent: 90.7,
-          achieved: false,
-        ),
-      ],
-      achievementsUnlocked: ['Century Club', 'Four Timer'],
+      insights: insights,
     );
   }
+
+  /// Returns a consistency grade letter from a score.
+  String _consistencyGrade(int score) {
+    if (score >= 90) return 'A';
+    if (score >= 75) return 'B';
+    if (score >= 60) return 'C';
+    if (score >= 40) return 'D';
+    return 'F';
+  }
+}
+
+/// Accumulator helper for muscle group stats.
+class _MuscleAcc {
+  int sets = 0;
+  int volume = 0;
+  int exercises = 0;
 }
 
 // ============================================================================
