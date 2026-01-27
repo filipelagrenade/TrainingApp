@@ -302,6 +302,43 @@ class ActiveProgramNotifier extends Notifier<ActiveProgramState> {
     await _saveActiveProgram(null);
   }
 
+  /// Skips to the next week (manual advance).
+  Future<void> skipToNextWeek() async {
+    final currentState = state;
+    if (currentState is! ProgramActive) return;
+
+    final program = currentState.program;
+    if (program.currentWeek >= program.totalWeeks) return;
+
+    final updated = program.copyWith(
+      currentWeek: program.currentWeek + 1,
+      currentDayInWeek: 1,
+    );
+    state = ProgramActive(updated);
+    await _saveActiveProgram(updated);
+    debugPrint('ActiveProgramNotifier: Skipped to Week ${updated.currentWeek}');
+  }
+
+  /// Repeats the current week (go back to day 1 of current week).
+  Future<void> repeatCurrentWeek() async {
+    final currentState = state;
+    if (currentState is! ProgramActive) return;
+
+    final program = currentState.program;
+    // Remove completed sessions for this week
+    final filtered = program.completedSessions
+        .where((s) => s.weekNumber != program.currentWeek)
+        .toList();
+
+    final updated = program.copyWith(
+      currentDayInWeek: 1,
+      completedSessions: filtered,
+    );
+    state = ProgramActive(updated);
+    await _saveActiveProgram(updated);
+    debugPrint('ActiveProgramNotifier: Repeating Week ${updated.currentWeek}');
+  }
+
   /// Force refreshes the active program state from storage.
   Future<void> refresh() async {
     state = const ProgramLoading();

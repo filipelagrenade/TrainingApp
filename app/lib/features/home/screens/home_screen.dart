@@ -25,6 +25,9 @@ import '../../programs/models/active_program.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../workouts/providers/current_workout_provider.dart';
 import '../../workouts/models/workout_session.dart';
+import '../../analytics/widgets/weekly_report_card.dart';
+import '../../analytics/widgets/streak_calendar.dart';
+import '../../progression/widgets/deload_suggestion_card.dart';
 
 /// Provider for the current bottom navigation tab index.
 /// This allows child widgets to switch tabs programmatically.
@@ -207,11 +210,12 @@ class _DashboardTab extends ConsumerWidget {
               // Or "Browse Programs" prompt when not enrolled
               const _CurrentProgramCard(),
               const _BrowseProgramsPrompt(),
-              // Weekly summary card with real data
-              const _WeeklySummaryCard(),
-              const SizedBox(height: 16),
-              // TODO: Weekly report, deload suggestion, and streak cards
-              // These widgets are planned for a future iteration.
+              // Weekly report card with real data (replaces old "This Week" block)
+              const WeeklyReportCard(),
+              const SizedBox(height: 12),
+              const DeloadSuggestionCard(),
+              const SizedBox(height: 12),
+              const StreakCard(),
               const SizedBox(height: 16),
               // Recent workouts section
               Row(
@@ -602,7 +606,8 @@ class _CurrentProgramCard extends ConsumerWidget {
                       Text(
                         program.isCompleted
                             ? 'Program Completed!'
-                            : 'Week ${program.currentWeek} of ${program.totalWeeks} • Day ${program.currentDayInWeek}',
+                            : 'Week ${program.currentWeek} of ${program.totalWeeks} • Day ${program.currentDayInWeek}'
+                              '${program.isDeloadWeek(program.currentWeek) ? ' (Deload)' : ''}',
                         style: context.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w500,
                         ),
@@ -764,84 +769,67 @@ class _ResumeWorkoutCard extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       clipBehavior: Clip.antiAlias,
+      color: Theme.of(context).colorScheme.tertiary,
       child: InkWell(
         onTap: () => context.go('/workout'),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                context.colors.tertiary,
-                context.colors.tertiary.withOpacity(0.7),
-              ],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Pulsing workout icon
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header row with icon and label
+              Row(
+                children: [
+                  Icon(
                     Icons.fitness_center,
-                    color: Colors.white,
-                    size: 28,
+                    color: Colors.white.withOpacity(0.8),
+                    size: 18,
                   ),
-                ),
-                const SizedBox(width: 16),
-                // Workout info - fixed layout (Issue #12)
-                // Use Flexible instead of Expanded for the text column
-                // and add mainAxisSize.min to prevent vertical expansion
-                Flexible(
-                  fit: FlexFit.tight,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Workout in Progress',
-                        style: context.textTheme.labelSmall?.copyWith(
-                          color: Colors.white.withOpacity(0.8),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        workout.templateName ?? 'Quick Workout',
-                        style: context.textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$durationText • ${workout.exerciseCount} exercises • ${workout.totalSets} sets',
-                        style: context.textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  Text(
+                    'Workout in Progress',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Colors.white.withOpacity(0.8),
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Workout name
+              Text(
+                workout.templateName ?? 'Quick Workout',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(width: 12),
-                // Resume button
-                FilledButton(
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              // Stats row
+              Text(
+                '$durationText  •  ${workout.exerciseCount} exercises  •  ${workout.totalSets} sets',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.white.withOpacity(0.9),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Resume button - full width
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
                   onPressed: () => context.go('/workout'),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.white,
-                    foregroundColor: context.colors.tertiary,
+                    foregroundColor: Theme.of(context).colorScheme.tertiary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Resume'),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Resume Workout'),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

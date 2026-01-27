@@ -168,6 +168,17 @@ extension ActiveProgramExtensions on ActiveProgram {
     return false;
   }
 
+  /// Returns true if the given week is a deload week.
+  /// Default: every 4th week is a deload.
+  bool isDeloadWeek(int week, {int deloadInterval = 4}) {
+    return week > 0 && week % deloadInterval == 0;
+  }
+
+  /// Returns the deload multiplier for the given week (1.0 = normal, 0.6 = deload).
+  double deloadMultiplier(int week, {int deloadInterval = 4}) {
+    return isDeloadWeek(week, deloadInterval: deloadInterval) ? 0.6 : 1.0;
+  }
+
   /// Creates a copy with the session marked as completed and progress advanced.
   ActiveProgram markSessionCompleted(String workoutId, int week, int day) {
     // Add the completed session
