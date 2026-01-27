@@ -190,7 +190,7 @@ class ScheduledWorkoutsNotifier
     }
 
     state = AsyncValue.data([
-      for (final w in state.valueOrNull ?? [])
+      for (final w in state.valueOrNull ?? <ScheduledWorkout>[])
         if (w.id == workout.id)
           workout.copyWith(updatedAt: DateTime.now())
         else
@@ -230,7 +230,7 @@ class ScheduledWorkoutsNotifier
   /// Skip a scheduled workout.
   Future<void> skipScheduledWorkout(String workoutId) async {
     state = AsyncValue.data([
-      for (final w in state.valueOrNull ?? [])
+      for (final w in state.valueOrNull ?? <ScheduledWorkout>[])
         if (w.id == workoutId)
           w.copyWith(
             status: ScheduledWorkoutStatus.skipped,
@@ -244,7 +244,7 @@ class ScheduledWorkoutsNotifier
   /// Mark a scheduled workout as in progress.
   Future<void> startScheduledWorkout(String workoutId) async {
     state = AsyncValue.data([
-      for (final w in state.valueOrNull ?? [])
+      for (final w in state.valueOrNull ?? <ScheduledWorkout>[])
         if (w.id == workoutId)
           w.copyWith(
             status: ScheduledWorkoutStatus.inProgress,
@@ -261,7 +261,7 @@ class ScheduledWorkoutsNotifier
     String? sessionId,
   }) async {
     state = AsyncValue.data([
-      for (final w in state.valueOrNull ?? [])
+      for (final w in state.valueOrNull ?? <ScheduledWorkout>[])
         if (w.id == workoutId)
           w.copyWith(
             status: ScheduledWorkoutStatus.completed,
