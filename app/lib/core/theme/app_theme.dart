@@ -137,6 +137,102 @@ abstract final class ShadcnDarkColors {
   static const success = Color(0xFF22C55E); // green-500
 }
 
+/// Midnight Blue theme colors.
+abstract final class MidnightBlueColors {
+  static const background = Color(0xFF0D1137);
+  static const surface = Color(0xFF141852);
+  static const surfaceContainer = Color(0xFF1A1F6A);
+  static const primary = Color(0xFF5C6BC0); // Indigo
+  static const secondary = Color(0xFF9FA8DA);
+  static const onPrimary = Color(0xFFFFFFFF);
+  static const onSecondary = Color(0xFF000000);
+  static const textPrimary = Color(0xFFE8EAF6);
+  static const textSecondary = Color(0xFF9FA8DA);
+  static const outline = Color(0xFF283593);
+  static const error = Color(0xFFEF5350);
+  static const success = Color(0xFF66BB6A);
+}
+
+/// Forest theme colors.
+abstract final class ForestColors {
+  static const background = Color(0xFF0D1F0D);
+  static const surface = Color(0xFF1B2E1B);
+  static const surfaceContainer = Color(0xFF243D24);
+  static const primary = Color(0xFF4CAF50); // Green
+  static const secondary = Color(0xFF81C784);
+  static const onPrimary = Color(0xFFFFFFFF);
+  static const onSecondary = Color(0xFF000000);
+  static const textPrimary = Color(0xFFE8F5E9);
+  static const textSecondary = Color(0xFFA5D6A7);
+  static const outline = Color(0xFF2E7D32);
+  static const error = Color(0xFFEF5350);
+  static const success = Color(0xFF66BB6A);
+}
+
+/// Sunset theme colors.
+abstract final class SunsetColors {
+  static const background = Color(0xFFFFF3E0);
+  static const surface = Color(0xFFFFFFFF);
+  static const surfaceContainer = Color(0xFFFFE0B2);
+  static const primary = Color(0xFFE65100); // Deep orange
+  static const secondary = Color(0xFFFF8F00);
+  static const onPrimary = Color(0xFFFFFFFF);
+  static const onSecondary = Color(0xFF000000);
+  static const textPrimary = Color(0xFF3E2723);
+  static const textSecondary = Color(0xFF795548);
+  static const outline = Color(0xFFFFCC80);
+  static const error = Color(0xFFD32F2F);
+  static const success = Color(0xFF388E3C);
+}
+
+/// Monochrome theme colors.
+abstract final class MonochromeColors {
+  static const background = Color(0xFFFAFAFA);
+  static const surface = Color(0xFFFFFFFF);
+  static const surfaceContainer = Color(0xFFF5F5F5);
+  static const primary = Color(0xFF424242); // Grey
+  static const secondary = Color(0xFF757575);
+  static const onPrimary = Color(0xFFFFFFFF);
+  static const onSecondary = Color(0xFFFFFFFF);
+  static const textPrimary = Color(0xFF212121);
+  static const textSecondary = Color(0xFF9E9E9E);
+  static const outline = Color(0xFFE0E0E0);
+  static const error = Color(0xFFD32F2F);
+  static const success = Color(0xFF388E3C);
+}
+
+/// Ocean theme colors.
+abstract final class OceanColors {
+  static const background = Color(0xFF01172F);
+  static const surface = Color(0xFF022B50);
+  static const surfaceContainer = Color(0xFF033E6B);
+  static const primary = Color(0xFF039BE5); // Light blue
+  static const secondary = Color(0xFF4FC3F7);
+  static const onPrimary = Color(0xFFFFFFFF);
+  static const onSecondary = Color(0xFF000000);
+  static const textPrimary = Color(0xFFE1F5FE);
+  static const textSecondary = Color(0xFF81D4FA);
+  static const outline = Color(0xFF0277BD);
+  static const error = Color(0xFFEF5350);
+  static const success = Color(0xFF66BB6A);
+}
+
+/// Rose Gold theme colors.
+abstract final class RoseGoldColors {
+  static const background = Color(0xFFFCE4EC);
+  static const surface = Color(0xFFFFFFFF);
+  static const surfaceContainer = Color(0xFFF8BBD0);
+  static const primary = Color(0xFFAD1457); // Pink
+  static const secondary = Color(0xFFE91E63);
+  static const onPrimary = Color(0xFFFFFFFF);
+  static const onSecondary = Color(0xFFFFFFFF);
+  static const textPrimary = Color(0xFF311B1B);
+  static const textSecondary = Color(0xFF880E4F);
+  static const outline = Color(0xFFF48FB1);
+  static const error = Color(0xFFD32F2F);
+  static const success = Color(0xFF388E3C);
+}
+
 // ============================================================================
 // THEME CONFIGURATION
 // ============================================================================
@@ -263,6 +359,58 @@ abstract final class ThemeConfigs {
     uppercaseHeadings: false,
   );
 
+  /// Midnight Blue config
+  static const midnightBlue = ThemeConfig(
+    borderRadius: 12.0,
+    cardBorderRadius: 16.0,
+    buttonBorderRadius: 12.0,
+    borderWidth: 1.0,
+  );
+
+  /// Forest config
+  static const forest = ThemeConfig(
+    borderRadius: 10.0,
+    cardBorderRadius: 14.0,
+    buttonBorderRadius: 10.0,
+    borderWidth: 1.0,
+  );
+
+  /// Sunset config
+  static const sunset = ThemeConfig(
+    borderRadius: 14.0,
+    cardBorderRadius: 16.0,
+    buttonBorderRadius: 14.0,
+    borderWidth: 0.0,
+    cardElevation: 2.0,
+    buttonElevation: 1.0,
+  );
+
+  /// Monochrome config
+  static const monochrome = ThemeConfig(
+    borderRadius: 8.0,
+    cardBorderRadius: 8.0,
+    buttonBorderRadius: 8.0,
+    borderWidth: 1.0,
+    cardElevation: 0.0,
+  );
+
+  /// Ocean config
+  static const ocean = ThemeConfig(
+    borderRadius: 12.0,
+    cardBorderRadius: 16.0,
+    buttonBorderRadius: 12.0,
+    borderWidth: 1.0,
+  );
+
+  /// Rose Gold config
+  static const roseGold = ThemeConfig(
+    borderRadius: 16.0,
+    cardBorderRadius: 20.0,
+    buttonBorderRadius: 16.0,
+    borderWidth: 0.0,
+    cardElevation: 1.0,
+  );
+
   /// Gets the config for a given theme.
   static ThemeConfig forTheme(LiftIQTheme theme) => switch (theme) {
     LiftIQTheme.midnightSurge => midnightSurge,
@@ -271,6 +419,12 @@ abstract final class ThemeConfigs {
     LiftIQTheme.neonGym => neonGym,
     LiftIQTheme.cleanSlate => cleanSlate,
     LiftIQTheme.shadcnDark => shadcnDark,
+    LiftIQTheme.midnightBlue => midnightBlue,
+    LiftIQTheme.forest => forest,
+    LiftIQTheme.sunset => sunset,
+    LiftIQTheme.monochrome => monochrome,
+    LiftIQTheme.ocean => ocean,
+    LiftIQTheme.roseGold => roseGold,
   };
 }
 
@@ -297,6 +451,60 @@ abstract final class AppTheme {
     LiftIQTheme.neonGym => neonGym,
     LiftIQTheme.cleanSlate => cleanSlate,
     LiftIQTheme.shadcnDark => shadcnDark,
+    LiftIQTheme.midnightBlue => _buildNewTheme(
+      brightness: Brightness.dark,
+      config: ThemeConfigs.midnightBlue,
+      bg: MidnightBlueColors.background, surf: MidnightBlueColors.surface, surfCont: MidnightBlueColors.surfaceContainer,
+      prim: MidnightBlueColors.primary, onPrim: MidnightBlueColors.onPrimary,
+      sec: MidnightBlueColors.secondary, onSec: MidnightBlueColors.onSecondary,
+      txtPrim: MidnightBlueColors.textPrimary, txtSec: MidnightBlueColors.textSecondary,
+      outl: MidnightBlueColors.outline, err: MidnightBlueColors.error, succ: MidnightBlueColors.success,
+    ),
+    LiftIQTheme.forest => _buildNewTheme(
+      brightness: Brightness.dark,
+      config: ThemeConfigs.forest,
+      bg: ForestColors.background, surf: ForestColors.surface, surfCont: ForestColors.surfaceContainer,
+      prim: ForestColors.primary, onPrim: ForestColors.onPrimary,
+      sec: ForestColors.secondary, onSec: ForestColors.onSecondary,
+      txtPrim: ForestColors.textPrimary, txtSec: ForestColors.textSecondary,
+      outl: ForestColors.outline, err: ForestColors.error, succ: ForestColors.success,
+    ),
+    LiftIQTheme.sunset => _buildNewTheme(
+      brightness: Brightness.light,
+      config: ThemeConfigs.sunset,
+      bg: SunsetColors.background, surf: SunsetColors.surface, surfCont: SunsetColors.surfaceContainer,
+      prim: SunsetColors.primary, onPrim: SunsetColors.onPrimary,
+      sec: SunsetColors.secondary, onSec: SunsetColors.onSecondary,
+      txtPrim: SunsetColors.textPrimary, txtSec: SunsetColors.textSecondary,
+      outl: SunsetColors.outline, err: SunsetColors.error, succ: SunsetColors.success,
+    ),
+    LiftIQTheme.monochrome => _buildNewTheme(
+      brightness: Brightness.light,
+      config: ThemeConfigs.monochrome,
+      bg: MonochromeColors.background, surf: MonochromeColors.surface, surfCont: MonochromeColors.surfaceContainer,
+      prim: MonochromeColors.primary, onPrim: MonochromeColors.onPrimary,
+      sec: MonochromeColors.secondary, onSec: MonochromeColors.onSecondary,
+      txtPrim: MonochromeColors.textPrimary, txtSec: MonochromeColors.textSecondary,
+      outl: MonochromeColors.outline, err: MonochromeColors.error, succ: MonochromeColors.success,
+    ),
+    LiftIQTheme.ocean => _buildNewTheme(
+      brightness: Brightness.dark,
+      config: ThemeConfigs.ocean,
+      bg: OceanColors.background, surf: OceanColors.surface, surfCont: OceanColors.surfaceContainer,
+      prim: OceanColors.primary, onPrim: OceanColors.onPrimary,
+      sec: OceanColors.secondary, onSec: OceanColors.onSecondary,
+      txtPrim: OceanColors.textPrimary, txtSec: OceanColors.textSecondary,
+      outl: OceanColors.outline, err: OceanColors.error, succ: OceanColors.success,
+    ),
+    LiftIQTheme.roseGold => _buildNewTheme(
+      brightness: Brightness.light,
+      config: ThemeConfigs.roseGold,
+      bg: RoseGoldColors.background, surf: RoseGoldColors.surface, surfCont: RoseGoldColors.surfaceContainer,
+      prim: RoseGoldColors.primary, onPrim: RoseGoldColors.onPrimary,
+      sec: RoseGoldColors.secondary, onSec: RoseGoldColors.onSecondary,
+      txtPrim: RoseGoldColors.textPrimary, txtSec: RoseGoldColors.textSecondary,
+      outl: RoseGoldColors.outline, err: RoseGoldColors.error, succ: RoseGoldColors.success,
+    ),
   };
 
   /// Legacy light theme (maps to Clean Slate).
@@ -512,6 +720,35 @@ abstract final class AppTheme {
       backgroundColor: ShadcnDarkColors.background,
       textSecondary: ShadcnDarkColors.textSecondary,
       successColor: ShadcnDarkColors.success,
+    );
+  }
+
+  /// Helper to build a new theme from color parameters.
+  static ThemeData _buildNewTheme({
+    required Brightness brightness,
+    required ThemeConfig config,
+    required Color bg, required Color surf, required Color surfCont,
+    required Color prim, required Color onPrim,
+    required Color sec, required Color onSec,
+    required Color txtPrim, required Color txtSec,
+    required Color outl, required Color err, required Color succ,
+  }) {
+    final colorScheme = ColorScheme(
+      brightness: brightness,
+      primary: prim, onPrimary: onPrim,
+      secondary: sec, onSecondary: onSec,
+      error: err, onError: Colors.white,
+      surface: surf, onSurface: txtPrim,
+      surfaceContainerHighest: surfCont,
+      outline: outl,
+      outlineVariant: outl.withValues(alpha: 0.5),
+    );
+    return _buildTheme(
+      colorScheme: colorScheme,
+      config: config,
+      backgroundColor: bg,
+      textSecondary: txtSec,
+      successColor: succ,
     );
   }
 

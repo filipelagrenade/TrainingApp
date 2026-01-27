@@ -66,6 +66,24 @@ enum LiftIQTheme {
   /// Minimalist dark theme inspired by shadcn/ui.
   /// Zinc color palette with clean aesthetic.
   shadcnDark,
+
+  /// Deep indigo dark theme.
+  midnightBlue,
+
+  /// Rich green nature theme.
+  forest,
+
+  /// Warm orange sunset theme.
+  sunset,
+
+  /// Grayscale monochrome theme.
+  monochrome,
+
+  /// Deep blue ocean theme.
+  ocean,
+
+  /// Pink/rose gold theme.
+  roseGold,
 }
 
 /// Extension methods for LiftIQTheme.
@@ -78,6 +96,12 @@ extension LiftIQThemeExtension on LiftIQTheme {
     LiftIQTheme.neonGym => 'Neon Gym',
     LiftIQTheme.cleanSlate => 'Clean Slate',
     LiftIQTheme.shadcnDark => 'Shadcn Dark',
+    LiftIQTheme.midnightBlue => 'Midnight Blue',
+    LiftIQTheme.forest => 'Forest',
+    LiftIQTheme.sunset => 'Sunset',
+    LiftIQTheme.monochrome => 'Monochrome',
+    LiftIQTheme.ocean => 'Ocean',
+    LiftIQTheme.roseGold => 'Rose Gold',
   };
 
   /// Returns a short description for this theme.
@@ -88,6 +112,12 @@ extension LiftIQThemeExtension on LiftIQTheme {
     LiftIQTheme.neonGym => 'Retro-futuristic with neon glow',
     LiftIQTheme.cleanSlate => 'Clean & refined with subtle slate',
     LiftIQTheme.shadcnDark => 'Minimalist dark with zinc palette',
+    LiftIQTheme.midnightBlue => 'Deep indigo with elegant dark tones',
+    LiftIQTheme.forest => 'Rich green nature-inspired theme',
+    LiftIQTheme.sunset => 'Warm orange sunset vibes',
+    LiftIQTheme.monochrome => 'Clean grayscale minimalist',
+    LiftIQTheme.ocean => 'Deep blue ocean depths',
+    LiftIQTheme.roseGold => 'Elegant pink rose gold accents',
   };
 
   /// Returns whether this theme is dark mode.
@@ -98,6 +128,12 @@ extension LiftIQThemeExtension on LiftIQTheme {
     LiftIQTheme.neonGym => true,
     LiftIQTheme.cleanSlate => false,
     LiftIQTheme.shadcnDark => true,
+    LiftIQTheme.midnightBlue => true,
+    LiftIQTheme.forest => true,
+    LiftIQTheme.sunset => false,
+    LiftIQTheme.monochrome => false,
+    LiftIQTheme.ocean => true,
+    LiftIQTheme.roseGold => false,
   };
 }
 
