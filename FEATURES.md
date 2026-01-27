@@ -361,6 +361,25 @@ Phase 4: Optional/Advanced
 
 ---
 
+## Overnight Round 2 - Full Feature Completion (10 Phases)
+- **Status**: Complete
+- **Date**: 2026-01-27
+- **Handover**: docs/handover/overnight-round2-completion-handover.md
+
+**What was built:**
+- Phase 1: Year in Review with real WorkoutHistoryService data
+- Phase 2: Calendar with SharedPreferences persistence + color-coded markers
+- Phase 3: Weekly Report with rolling 4-week consistency grading (A-F)
+- Phase 4: Achievements linked to real workout data with persistence
+- Phase 5: Measurements with local CRUD via SharedPreferences
+- Phase 6: Progress Tab verified (empty states added)
+- Phase 7: UI/MD3 audit (confirmed compliance)
+- Phase 8: 6 new color themes (Midnight Blue, Forest, Sunset, Monochrome, Ocean, Rose Gold)
+- Phase 9: Periodization with deload week detection + skip/repeat week controls
+- Phase 10: Social/Friends rewritten to local-first with friend codes and activity feed
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -386,4 +405,4 @@ Based on the development plan, the next features to implement are:
 
 ---
 
-*Last Updated: 2026-01-20 (Real-World Usage Feedback Implementation - 13 items)*
+*Last Updated: 2026-01-27 (Overnight Round 2 - Full Feature Completion)*
