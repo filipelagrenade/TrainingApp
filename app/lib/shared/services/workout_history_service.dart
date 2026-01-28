@@ -17,6 +17,8 @@ import '../../features/workouts/models/exercise_log.dart';
 import '../../features/workouts/models/exercise_set.dart';
 import '../../features/analytics/models/analytics_data.dart';
 import '../../features/analytics/models/workout_summary.dart';
+import '../models/sync_queue_item.dart';
+import 'sync_queue_service.dart';
 
 // ============================================================================
 // WORKOUT HISTORY SERVICE
@@ -32,8 +34,14 @@ class WorkoutHistoryService {
   /// The user ID this service instance is scoped to.
   final String _userId;
 
+  /// Optional sync queue service for syncing changes.
+  final SyncQueueService? _syncQueueService;
+
   /// Creates a workout history service for the given user.
-  WorkoutHistoryService(this._userId);
+  ///
+  /// If [syncQueueService] is provided, changes will be queued for sync.
+  WorkoutHistoryService(this._userId, {SyncQueueService? syncQueueService})
+      : _syncQueueService = syncQueueService;
 
   /// Gets the storage key for workouts.
   String get _storageKey => UserStorageKeys.workoutHistory(_userId);
@@ -102,12 +110,55 @@ class WorkoutHistoryService {
 
     await _persist();
     debugPrint('WorkoutHistoryService: Saved workout ${completed.id}');
+
+    // Queue for sync
+    await _queueWorkoutSync(completed, SyncAction.create);
   }
 
   /// Deletes a workout from history.
   Future<void> deleteWorkout(String workoutId) async {
     _workouts.removeWhere((w) => w.id == workoutId);
     await _persist();
+
+    // Queue deletion for sync
+    await _queueWorkoutDeleteSync(workoutId);
+  }
+
+  /// Queues a workout change for sync.
+  Future<void> _queueWorkoutSync(CompletedWorkout workout, SyncAction action) async {
+    if (_syncQueueService == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.workout,
+        action: action,
+        entityId: workout.id,
+        data: workout.toJson(),
+        lastModifiedAt: DateTime.now(),
+      );
+      await _syncQueueService!.addToQueue(item);
+      debugPrint('WorkoutHistoryService: Queued workout ${workout.id} for sync');
+    } catch (e) {
+      debugPrint('WorkoutHistoryService: Error queuing workout for sync: $e');
+    }
+  }
+
+  /// Queues a workout deletion for sync.
+  Future<void> _queueWorkoutDeleteSync(String workoutId) async {
+    if (_syncQueueService == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.workout,
+        action: SyncAction.delete,
+        entityId: workoutId,
+        lastModifiedAt: DateTime.now(),
+      );
+      await _syncQueueService!.addToQueue(item);
+      debugPrint('WorkoutHistoryService: Queued workout $workoutId for deletion sync');
+    } catch (e) {
+      debugPrint('WorkoutHistoryService: Error queuing workout deletion for sync: $e');
+    }
   }
 
   /// Gets previous performance data for a specific exercise (Issue #2).
@@ -1054,9 +1105,11 @@ class CompletedCardioSet {
 ///
 /// Creates a user-specific service instance that isolates data per user.
 /// When the user changes (login/logout), a new service instance is created.
+/// Injects the sync queue service for automatic sync queueing.
 final workoutHistoryServiceProvider = Provider<WorkoutHistoryService>((ref) {
   final userId = ref.watch(currentUserStorageIdProvider);
-  return WorkoutHistoryService(userId);
+  final syncQueueService = ref.watch(syncQueueServiceProvider);
+  return WorkoutHistoryService(userId, syncQueueService: syncQueueService);
 });
 
 /// Provider that initializes and exposes the workout history.

@@ -14,6 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/api_client.dart';
 import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/models/sync_queue_item.dart';
+import '../../../shared/services/sync_queue_service.dart';
 import '../models/workout_template.dart';
 import '../models/training_program.dart';
 import '../../programs/providers/user_programs_provider.dart';
@@ -31,10 +33,15 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
   /// The user ID this notifier is scoped to.
   final String _userId;
 
+  /// Optional sync queue service for syncing changes.
+  final SyncQueueService? _syncQueueService;
+
   /// Gets the storage key for this user's templates.
   String get _storageKey => UserStorageKeys.customTemplates(_userId);
 
-  UserTemplatesNotifier(this._userId) : super([]) {
+  UserTemplatesNotifier(this._userId, {SyncQueueService? syncQueueService})
+      : _syncQueueService = syncQueueService,
+        super([]) {
     _loadTemplates();
   }
 
@@ -79,6 +86,10 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
     );
     state = [...state, newTemplate];
     await _saveTemplates();
+
+    // Queue for sync
+    await _queueTemplateSync(newTemplate, SyncAction.create);
+
     return newTemplate;
   }
 
@@ -87,12 +98,55 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
     final updated = template.copyWith(updatedAt: DateTime.now());
     state = state.map((t) => t.id == template.id ? updated : t).toList();
     await _saveTemplates();
+
+    // Queue for sync
+    await _queueTemplateSync(updated, SyncAction.update);
   }
 
   /// Deletes a user template by ID.
   Future<void> deleteTemplate(String templateId) async {
     state = state.where((t) => t.id != templateId).toList();
     await _saveTemplates();
+
+    // Queue deletion for sync
+    await _queueTemplateDeleteSync(templateId);
+  }
+
+  /// Queues a template change for sync.
+  Future<void> _queueTemplateSync(WorkoutTemplate template, SyncAction action) async {
+    if (_syncQueueService == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.template,
+        action: action,
+        entityId: template.id ?? '',
+        data: template.toJson(),
+        lastModifiedAt: DateTime.now(),
+      );
+      await _syncQueueService!.addToQueue(item);
+      debugPrint('UserTemplatesNotifier: Queued template ${template.id} for sync');
+    } catch (e) {
+      debugPrint('UserTemplatesNotifier: Error queuing template for sync: $e');
+    }
+  }
+
+  /// Queues a template deletion for sync.
+  Future<void> _queueTemplateDeleteSync(String templateId) async {
+    if (_syncQueueService == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.template,
+        action: SyncAction.delete,
+        entityId: templateId,
+        lastModifiedAt: DateTime.now(),
+      );
+      await _syncQueueService!.addToQueue(item);
+      debugPrint('UserTemplatesNotifier: Queued template $templateId for deletion sync');
+    } catch (e) {
+      debugPrint('UserTemplatesNotifier: Error queuing template deletion for sync: $e');
+    }
   }
 
   /// Gets a user template by ID.
@@ -119,11 +173,13 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
 /// Provider for user templates notifier.
 ///
 /// Creates a user-specific notifier that isolates templates per user.
+/// Injects the sync queue service for automatic sync queueing.
 final userTemplatesProvider =
     StateNotifierProvider<UserTemplatesNotifier, List<WorkoutTemplate>>(
   (ref) {
     final userId = ref.watch(currentUserStorageIdProvider);
-    return UserTemplatesNotifier(userId);
+    final syncQueueService = ref.watch(syncQueueServiceProvider);
+    return UserTemplatesNotifier(userId, syncQueueService: syncQueueService);
   },
 );
 

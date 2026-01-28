@@ -2,7 +2,7 @@
 
 > **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `.claude/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
 
-**STATUS**: IN PROGRESS — 2/6 phases complete
+**STATUS**: IN PROGRESS — 3/6 phases complete
 
 ## Overview
 
@@ -16,7 +16,7 @@ Implement real-time bi-directional sync between Flutter local storage and backen
 
 - [x] **Phase 1** — Backend Sync Infrastructure
 - [x] **Phase 2** — Flutter Sync Models & Queue
-- [ ] **Phase 3** — Flutter Sync Service
+- [x] **Phase 3** — Flutter Sync Service
 - [ ] **Phase 4** — Integrate Sync into Existing Services
 - [ ] **Phase 5** — App Lifecycle & Background Sync
 - [ ] **Phase 6** — Testing & Verification

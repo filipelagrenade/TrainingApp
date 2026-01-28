@@ -11,15 +11,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../shared/models/sync_queue_item.dart';
+import '../../../shared/services/sync_queue_service.dart';
 import '../models/mesocycle.dart';
 
 const _storageKey = 'liftiq_mesocycles';
 const _uuid = Uuid();
 
+/// Global sync queue service - injected via provider override or lazy initialization.
+SyncQueueService? _globalSyncQueueService;
+
 /// Provider for accessing all user mesocycles.
 final mesocyclesProvider =
     StateNotifierProvider<MesocyclesNotifier, AsyncValue<List<Mesocycle>>>(
-  (ref) => MesocyclesNotifier(),
+  (ref) {
+    // Inject sync queue service
+    _globalSyncQueueService = ref.watch(syncQueueServiceProvider);
+    return MesocyclesNotifier();
+  },
 );
 
 /// Provider for the currently active mesocycle.
@@ -127,7 +136,48 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
 
     state = AsyncValue.data([...state.valueOrNull ?? [], mesocycle]);
     await _persist();
+
+    // Queue for sync
+    await _queueMesocycleSync(mesocycle, SyncAction.create);
+
     return id;
+  }
+
+  /// Queues a mesocycle change for sync.
+  Future<void> _queueMesocycleSync(Mesocycle mesocycle, SyncAction action) async {
+    if (_globalSyncQueueService == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.mesocycle,
+        action: action,
+        entityId: mesocycle.id,
+        data: mesocycle.toJson(),
+        lastModifiedAt: DateTime.now(),
+      );
+      await _globalSyncQueueService!.addToQueue(item);
+      debugPrint('MesocyclesNotifier: Queued mesocycle ${mesocycle.id} for sync');
+    } catch (e) {
+      debugPrint('MesocyclesNotifier: Error queuing mesocycle for sync: $e');
+    }
+  }
+
+  /// Queues a mesocycle deletion for sync.
+  Future<void> _queueMesocycleDeleteSync(String mesocycleId) async {
+    if (_globalSyncQueueService == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.mesocycle,
+        action: SyncAction.delete,
+        entityId: mesocycleId,
+        lastModifiedAt: DateTime.now(),
+      );
+      await _globalSyncQueueService!.addToQueue(item);
+      debugPrint('MesocyclesNotifier: Queued mesocycle $mesocycleId for deletion sync');
+    } catch (e) {
+      debugPrint('MesocyclesNotifier: Error queuing mesocycle deletion for sync: $e');
+    }
   }
 
   /// Generates weeks for a mesocycle based on periodization type.
@@ -224,23 +274,33 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
   /// Starts a mesocycle (changes status to active).
   Future<void> startMesocycle(String mesocycleId) async {
     final mesocycles = state.valueOrNull ?? [];
+    Mesocycle? startedMesocycle;
+
     final updatedMesocycles = mesocycles.map((m) {
       if (m.status == MesocycleStatus.active) {
         return m.copyWith(status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
       }
       if (m.id == mesocycleId) {
-        return m.copyWith(status: MesocycleStatus.active, currentWeek: 1, updatedAt: DateTime.now());
+        startedMesocycle = m.copyWith(status: MesocycleStatus.active, currentWeek: 1, updatedAt: DateTime.now());
+        return startedMesocycle!;
       }
       return m;
     }).toList();
 
     state = AsyncValue.data(updatedMesocycles);
     await _persist();
+
+    // Queue for sync
+    if (startedMesocycle != null) {
+      await _queueMesocycleSync(startedMesocycle!, SyncAction.update);
+    }
   }
 
   /// Advances to the next week in the mesocycle.
   Future<void> advanceWeek(String mesocycleId) async {
     final mesocycles = state.valueOrNull ?? [];
+    Mesocycle? updatedMesocycle;
+
     final updatedMesocycles = mesocycles.map((m) {
       if (m.id != mesocycleId) return m;
 
@@ -252,26 +312,38 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
       }).toList();
 
       if (m.currentWeek >= m.totalWeeks) {
-        return m.copyWith(status: MesocycleStatus.completed, weeks: updatedWeeks, updatedAt: DateTime.now());
+        updatedMesocycle = m.copyWith(status: MesocycleStatus.completed, weeks: updatedWeeks, updatedAt: DateTime.now());
+        return updatedMesocycle!;
       }
 
-      return m.copyWith(currentWeek: m.currentWeek + 1, weeks: updatedWeeks, updatedAt: DateTime.now());
+      updatedMesocycle = m.copyWith(currentWeek: m.currentWeek + 1, weeks: updatedWeeks, updatedAt: DateTime.now());
+      return updatedMesocycle!;
     }).toList();
 
     state = AsyncValue.data(updatedMesocycles);
     await _persist();
+
+    // Queue for sync
+    if (updatedMesocycle != null) {
+      await _queueMesocycleSync(updatedMesocycle!, SyncAction.update);
+    }
   }
 
   /// Updates a mesocycle.
   Future<void> updateMesocycle(Mesocycle mesocycle) async {
     final mesocycles = state.valueOrNull ?? [];
+    final updated = mesocycle.copyWith(updatedAt: DateTime.now());
+
     final updatedMesocycles = mesocycles.map((m) {
-      if (m.id == mesocycle.id) return mesocycle.copyWith(updatedAt: DateTime.now());
+      if (m.id == mesocycle.id) return updated;
       return m;
     }).toList();
 
     state = AsyncValue.data(updatedMesocycles);
     await _persist();
+
+    // Queue for sync
+    await _queueMesocycleSync(updated, SyncAction.update);
   }
 
   /// Deletes a mesocycle.
@@ -279,20 +351,31 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
     final mesocycles = state.valueOrNull ?? [];
     state = AsyncValue.data(mesocycles.where((m) => m.id != mesocycleId).toList());
     await _persist();
+
+    // Queue deletion for sync
+    await _queueMesocycleDeleteSync(mesocycleId);
   }
 
   /// Abandons a mesocycle.
   Future<void> abandonMesocycle(String mesocycleId) async {
     final mesocycles = state.valueOrNull ?? [];
+    Mesocycle? abandonedMesocycle;
+
     final updatedMesocycles = mesocycles.map((m) {
       if (m.id == mesocycleId) {
-        return m.copyWith(status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
+        abandonedMesocycle = m.copyWith(status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
+        return abandonedMesocycle!;
       }
       return m;
     }).toList();
 
     state = AsyncValue.data(updatedMesocycles);
     await _persist();
+
+    // Queue for sync
+    if (abandonedMesocycle != null) {
+      await _queueMesocycleSync(abandonedMesocycle!, SyncAction.update);
+    }
   }
 
   /// Refreshes mesocycles from local storage.
