@@ -34,6 +34,9 @@ class PeriodizationScreen extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
         title: const Text('Periodization'),
+        titleTextStyle: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline),
@@ -686,25 +689,27 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
             if (_currentStep == 3) _buildDetailsStep(theme),
             if (_currentStep == 4) _buildReviewStep(theme),
 
-            const SizedBox(height: 24),
-
-            // Navigation buttons
-            Row(
-              children: [
-                if (_currentStep > 0)
-                  TextButton(
-                    onPressed: _onStepCancel,
-                    child: const Text('Back'),
-                  ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: _onStepContinue,
-                  child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 80),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              if (_currentStep > 0)
+                TextButton(
+                  onPressed: _onStepCancel,
+                  child: const Text('Back'),
+                ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _onStepContinue,
+                child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
+              ),
+            ],
+          ),
         ),
       ),
     );
