@@ -642,12 +642,13 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
         ),
         title: const Text('Create Mesocycle'),
       ),
-      body: Column(
-        children: [
-          // Progress indicator
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Progress indicator
+            Row(
               children: List.generate(5, (i) {
                 return Expanded(
                   child: Container(
@@ -663,69 +664,39 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
                 );
               }),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Step ${_currentStep + 1} of 5',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            const SizedBox(height: 8),
+            Text(
+              'Step ${_currentStep + 1} of 5',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
-
-          // Scrollable step content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    const ['Select Goal', 'Duration', 'Periodization Type', 'Details', 'Review'][_currentStep],
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_currentStep == 0) _buildGoalStep(theme),
-                  if (_currentStep == 1) _buildDurationStep(theme),
-                  if (_currentStep == 2) _buildPeriodizationStep(theme),
-                  if (_currentStep == 3) _buildDetailsStep(theme),
-                  if (_currentStep == 4) _buildReviewStep(theme),
-                ],
-              ),
-            ),
-          ),
-
-          // Always-visible bottom buttons
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              border: Border(
-                top: BorderSide(color: theme.colorScheme.outlineVariant),
-              ),
-            ),
-            child: Row(
+            const SizedBox(height: 16),
+            Row(
               children: [
                 if (_currentStep > 0)
-                  TextButton(
+                  TextButton.icon(
                     onPressed: _onStepCancel,
-                    child: const Text('Back'),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Back'),
                   ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: _onStepContinue,
-                  child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
-                ),
               ],
             ),
-          ),
-        ],
+            if (_currentStep > 0) const SizedBox(height: 8),
+            Text(
+              const ['Select Goal', 'Duration', 'Periodization Type', 'Details', 'Review'][_currentStep],
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_currentStep == 0) _buildGoalStep(theme),
+            if (_currentStep == 1) _buildDurationStep(theme),
+            if (_currentStep == 2) _buildPeriodizationStep(theme),
+            if (_currentStep == 3) _buildDetailsStep(theme),
+            if (_currentStep == 4) _buildReviewStep(theme),
+          ],
+        ),
       ),
     );
   }
@@ -733,12 +704,30 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
   Widget _buildGoalStep(ThemeData theme) {
     return Column(
       children: MesocycleGoal.values.map((goal) {
-        return RadioListTile<MesocycleGoal>(
-          value: goal,
-          groupValue: _selectedGoal,
-          onChanged: (value) => setState(() => _selectedGoal = value!),
-          title: Text(goal.displayName),
-          subtitle: Text(goal.description),
+        final isSelected = _selectedGoal == goal;
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          color: isSelected ? theme.colorScheme.primaryContainer : null,
+          child: ListTile(
+            leading: Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              color: isSelected ? theme.colorScheme.primary : null,
+            ),
+            title: Text(
+              goal.displayName,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            subtitle: Text(goal.description),
+            onTap: () {
+              setState(() => _selectedGoal = goal);
+              // Auto-advance after short delay
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted) _onStepContinue();
+              });
+            },
+          ),
         );
       }).toList(),
     );
@@ -769,6 +758,19 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
           'Recommended: 4-8 weeks for most goals',
           style: theme.textTheme.bodySmall,
         ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _onStepContinue,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Continue'),
+          ),
+        ),
       ],
     );
   }
@@ -776,12 +778,30 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
   Widget _buildPeriodizationStep(ThemeData theme) {
     return Column(
       children: PeriodizationType.values.map((type) {
-        return RadioListTile<PeriodizationType>(
-          value: type,
-          groupValue: _periodizationType,
-          onChanged: (value) => setState(() => _periodizationType = value!),
-          title: Text(type.displayName),
-          subtitle: Text(type.description),
+        final isSelected = _periodizationType == type;
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          color: isSelected ? theme.colorScheme.primaryContainer : null,
+          child: ListTile(
+            leading: Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              color: isSelected ? theme.colorScheme.primary : null,
+            ),
+            title: Text(
+              type.displayName,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            subtitle: Text(type.description),
+            onTap: () {
+              setState(() => _periodizationType = type);
+              // Auto-advance after short delay
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted) _onStepContinue();
+              });
+            },
+          ),
         );
       }).toList(),
     );
@@ -829,6 +849,19 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
             }
           },
         ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _onStepContinue,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Continue'),
+          ),
+        ),
       ],
     );
   }
@@ -852,6 +885,19 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
         _buildReviewRow('Type', _periodizationType.displayName),
         _buildReviewRow('Start', '${_startDate.day}/${_startDate.month}/${_startDate.year}'),
         _buildReviewRow('End', '${endDate.day}/${endDate.month}/${endDate.year}'),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _onStepContinue,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Create Mesocycle'),
+          ),
+        ),
       ],
     );
   }
