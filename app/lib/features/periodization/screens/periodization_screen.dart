@@ -642,13 +642,12 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
         ),
         title: const Text('Create Mesocycle'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Progress indicator
-            Row(
+      body: Column(
+        children: [
+          // Progress indicator
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
               children: List.generate(5, (i) {
                 return Expanded(
                   child: Container(
@@ -657,60 +656,76 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
                     decoration: BoxDecoration(
                       color: i <= _currentStep
                           ? theme.colorScheme.primary
-                          : theme.colorScheme.surfaceContainerHighest,
+                          : theme.colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 );
               }),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Step ${_currentStep + 1} of 5',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Step title
-            Text(
-              const ['Select Goal', 'Duration', 'Periodization Type', 'Details', 'Review'][_currentStep],
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Step content
-            if (_currentStep == 0) _buildGoalStep(theme),
-            if (_currentStep == 1) _buildDurationStep(theme),
-            if (_currentStep == 2) _buildPeriodizationStep(theme),
-            if (_currentStep == 3) _buildDetailsStep(theme),
-            if (_currentStep == 4) _buildReviewStep(theme),
-
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              if (_currentStep > 0)
-                TextButton(
-                  onPressed: _onStepCancel,
-                  child: const Text('Back'),
-                ),
-              const Spacer(),
-              FilledButton(
-                onPressed: _onStepContinue,
-                child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
-              ),
-            ],
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Step ${_currentStep + 1} of 5',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+
+          // Scrollable step content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    const ['Select Goal', 'Duration', 'Periodization Type', 'Details', 'Review'][_currentStep],
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_currentStep == 0) _buildGoalStep(theme),
+                  if (_currentStep == 1) _buildDurationStep(theme),
+                  if (_currentStep == 2) _buildPeriodizationStep(theme),
+                  if (_currentStep == 3) _buildDetailsStep(theme),
+                  if (_currentStep == 4) _buildReviewStep(theme),
+                ],
+              ),
+            ),
+          ),
+
+          // Always-visible bottom buttons
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(
+                top: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
+            child: Row(
+              children: [
+                if (_currentStep > 0)
+                  TextButton(
+                    onPressed: _onStepCancel,
+                    child: const Text('Back'),
+                  ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: _onStepContinue,
+                  child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
