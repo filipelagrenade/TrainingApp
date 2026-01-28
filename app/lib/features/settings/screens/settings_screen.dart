@@ -5,8 +5,10 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/user_settings.dart';
 import '../providers/settings_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 /// Main settings screen.
 class SettingsScreen extends ConsumerWidget {
@@ -24,17 +26,6 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          // Profile Section
-          _SectionHeader(title: 'Profile'),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: const Text('Edit Profile'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _navigateToProfile(context),
-          ),
-
-          const Divider(),
-
           // Units Section
           _SectionHeader(title: 'Units'),
           ListTile(
@@ -59,9 +50,9 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.palette_outlined),
             title: const Text('Theme'),
-            subtitle: Text(_getThemeName(settings.theme)),
+            subtitle: Text(settings.selectedTheme.displayName),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showThemePicker(context, ref, settings.theme),
+            onTap: () => _showThemePicker(context, ref, settings.selectedTheme),
           ),
 
           const Divider(),
@@ -205,14 +196,46 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () {},
           ),
 
+          const Divider(),
+
+          // Account Section
+          _SectionHeader(title: 'Account'),
+          ListTile(
+            leading: Icon(Icons.logout, color: colors.error),
+            title: Text('Sign Out', style: TextStyle(color: colors.error)),
+            onTap: () => _showSignOutDialog(context, ref),
+          ),
+
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  void _navigateToProfile(BuildContext context) {
-    // TODO: Navigate to profile edit screen
+  void _showSignOutDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(authProvider.notifier).signOut();
+            },
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showWeightUnitPicker(BuildContext context, WidgetRef ref, WeightUnit current) {
@@ -279,57 +302,35 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showThemePicker(BuildContext context, WidgetRef ref, AppTheme current) {
+  void _showThemePicker(BuildContext context, WidgetRef ref, LiftIQTheme current) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Theme'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<AppTheme>(
-              title: const Text('System'),
-              subtitle: const Text('Follow system setting'),
-              value: AppTheme.system,
-              groupValue: current,
-              onChanged: (value) {
-                ref.read(userSettingsProvider.notifier).setTheme(value!);
-                Navigator.pop(context);
-              },
+        content: SizedBox(
+          width: double.maxFinite,
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final theme in LiftIQTheme.values)
+                  RadioListTile<LiftIQTheme>(
+                    title: Text(theme.displayName),
+                    subtitle: Text(theme.description),
+                    value: theme,
+                    groupValue: current,
+                    onChanged: (value) {
+                      ref.read(userSettingsProvider.notifier).setSelectedTheme(value!);
+                      Navigator.pop(context);
+                    },
+                  ),
+              ],
             ),
-            RadioListTile<AppTheme>(
-              title: const Text('Light'),
-              value: AppTheme.light,
-              groupValue: current,
-              onChanged: (value) {
-                ref.read(userSettingsProvider.notifier).setTheme(value!);
-                Navigator.pop(context);
-              },
-            ),
-            RadioListTile<AppTheme>(
-              title: const Text('Dark'),
-              value: AppTheme.dark,
-              groupValue: current,
-              onChanged: (value) {
-                ref.read(userSettingsProvider.notifier).setTheme(value!);
-                Navigator.pop(context);
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
-  }
-
-  String _getThemeName(AppTheme theme) {
-    switch (theme) {
-      case AppTheme.system:
-        return 'System';
-      case AppTheme.light:
-        return 'Light';
-      case AppTheme.dark:
-        return 'Dark';
-    }
   }
 
   void _showRestTimerSettings(BuildContext context, WidgetRef ref, RestTimerSettings settings) {

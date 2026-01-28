@@ -135,6 +135,58 @@ enum MuscleGroup {
   lats,
 }
 
+/// Extension to provide human-readable display names for muscle groups.
+extension MuscleGroupDisplay on MuscleGroup {
+  String get displayName {
+    switch (this) {
+      case MuscleGroup.chest:
+        return 'Chest';
+      case MuscleGroup.back:
+        return 'Back';
+      case MuscleGroup.shoulders:
+        return 'Shoulders';
+      case MuscleGroup.anteriorDelt:
+        return 'Front Delt';
+      case MuscleGroup.lateralDelt:
+        return 'Side Delt';
+      case MuscleGroup.posteriorDelt:
+        return 'Rear Delt';
+      case MuscleGroup.biceps:
+        return 'Biceps';
+      case MuscleGroup.triceps:
+        return 'Triceps';
+      case MuscleGroup.forearms:
+        return 'Forearms';
+      case MuscleGroup.core:
+        return 'Core';
+      case MuscleGroup.quads:
+        return 'Quads';
+      case MuscleGroup.hamstrings:
+        return 'Hamstrings';
+      case MuscleGroup.glutes:
+        return 'Glutes';
+      case MuscleGroup.calves:
+        return 'Calves';
+      case MuscleGroup.traps:
+        return 'Traps';
+      case MuscleGroup.lats:
+        return 'Lats';
+    }
+  }
+}
+
+/// Converts a raw muscle group string (enum name) to a display name.
+String muscleGroupDisplayName(String raw) {
+  try {
+    final mg = MuscleGroup.values.firstWhere((e) => e.name == raw);
+    return mg.displayName;
+  } catch (_) {
+    // Capitalize first letter as fallback
+    if (raw.isEmpty) return raw;
+    return raw[0].toUpperCase() + raw.substring(1);
+  }
+}
+
 /// An exercise in the library.
 @freezed
 class Exercise with _$Exercise {
@@ -165,7 +217,7 @@ class Exercise with _$Exercise {
 extension ExerciseExtensions on Exercise {
   /// Returns primary muscles as a comma-separated string.
   String get primaryMusclesString =>
-      primaryMuscles.map((m) => m.name).join(', ');
+      primaryMuscles.map((m) => m.displayName).join(', ');
 
   /// Returns equipment as a display string.
   String get equipmentString {

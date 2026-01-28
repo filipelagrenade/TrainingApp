@@ -11,6 +11,8 @@ library;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'weight_input.dart';
+
 part 'exercise_set.freezed.dart';
 part 'exercise_set.g.dart';
 
@@ -127,6 +129,13 @@ class ExerciseSet with _$ExerciseSet {
 
     /// Whether this set has been synced to the server
     @Default(false) bool isSynced,
+
+    /// The type of weight input used (null = absolute/default)
+    WeightInputType? weightType,
+
+    /// Band resistance level (only set when weightType is band)
+    String? bandResistance,
+
   }) = _ExerciseSet;
 
   /// Creates a set from JSON.
@@ -161,7 +170,14 @@ extension ExerciseSetExtensions on ExerciseSet {
   /// Example: "100 kg x 8 @ RPE 8" or "100 kg x 8 @ RPE 7.5"
   /// RPE now displays with half-step precision (Issue #11)
   String toDisplayString({bool showRpe = true, String unit = 'kg'}) {
-    final base = '${weight.toStringAsFixed(weight % 1 == 0 ? 0 : 1)} $unit × $reps';
+    String base;
+    if (weightType == WeightInputType.bodyweight) {
+      base = 'BW × $reps';
+    } else if (weightType == WeightInputType.band && bandResistance != null) {
+      base = '$bandResistance × $reps';
+    } else {
+      base = '${weight.toStringAsFixed(weight % 1 == 0 ? 0 : 1)} $unit × $reps';
+    }
     if (showRpe && rpe != null) {
       // Format RPE: show decimal only if it's a half step (e.g., 7.5)
       final rpeStr = rpe! % 1 == 0

@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../exercises/models/exercise.dart';
 import '../models/superset.dart';
 import '../models/exercise_log.dart';
 
@@ -260,7 +261,7 @@ class _SupersetCreatorSheetState extends ConsumerState<SupersetCreatorSheet> {
                 ),
               ),
               subtitle: exercise.primaryMuscles.isNotEmpty
-                  ? Text(exercise.primaryMuscles.join(', '))
+                  ? Text(exercise.primaryMuscles.map((m) => muscleGroupDisplayName(m)).join(', '))
                   : null,
               trailing: isSelected
                   ? ReorderableDragStartListener(

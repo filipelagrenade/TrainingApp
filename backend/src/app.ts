@@ -15,6 +15,7 @@
  * 7. Error handling - Catch and format errors
  */
 
+import path from 'path';
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -39,7 +40,9 @@ const createApp = (): Application => {
   // - X-Frame-Options: DENY
   // - X-XSS-Protection: 1; mode=block
   // - And more...
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: false, // Flutter web requires inline scripts and eval
+  }));
 
   // CORS configuration
   // In production, restrict to specific origins
@@ -112,18 +115,20 @@ const createApp = (): Application => {
   app.use('/api/v1', routes);
 
   // ============================================================================
-  // 404 HANDLER
+  // FLUTTER WEB APP (PWA)
   // ============================================================================
 
-  // Handle requests to non-existent endpoints
-  app.use((_req: Request, res: Response) => {
-    res.status(404).json({
-      success: false,
-      error: {
-        code: 'NOT_FOUND',
-        message: 'The requested endpoint does not exist',
-      },
-    });
+  // Serve Flutter web build as a PWA from the /public directory
+  const publicPath = path.join(__dirname, '..', 'public');
+  app.use(express.static(publicPath));
+
+  // SPA fallback: serve index.html for any non-API route (client-side routing)
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    // Don't intercept API routes
+    if (req.path.startsWith('/api/') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(publicPath, 'index.html'));
   });
 
   // ============================================================================

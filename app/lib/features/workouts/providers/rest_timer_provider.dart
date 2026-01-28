@@ -16,7 +16,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/services/notification_service.dart';
 import '../models/exercise_set.dart';
+import '../models/superset.dart';
 import '../services/rest_calculator.dart';
+import 'superset_provider.dart';
 
 // ============================================================================
 // STATE
@@ -60,6 +62,9 @@ class RestTimerState {
   /// Reason for the calculated duration (for display)
   final String? durationReason;
 
+  /// The timestamp when the timer will end (for surviving background)
+  final DateTime? endTime;
+
   const RestTimerState({
     this.status = RestTimerStatus.idle,
     this.totalSeconds = 90,
@@ -69,6 +74,7 @@ class RestTimerState {
     this.exerciseId,
     this.exerciseName,
     this.durationReason,
+    this.endTime,
   });
 
   /// Creates a copy with updated values.
@@ -81,6 +87,7 @@ class RestTimerState {
     String? exerciseId,
     String? exerciseName,
     String? durationReason,
+    DateTime? endTime,
   }) {
     return RestTimerState(
       status: status ?? this.status,
@@ -91,6 +98,7 @@ class RestTimerState {
       exerciseId: exerciseId ?? this.exerciseId,
       exerciseName: exerciseName ?? this.exerciseName,
       durationReason: durationReason ?? this.durationReason,
+      endTime: endTime ?? this.endTime,
     );
   }
 
@@ -204,6 +212,8 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
       reason = null;
     }
 
+    final endTime = DateTime.now().add(Duration(seconds: totalSeconds));
+
     state = state.copyWith(
       status: RestTimerStatus.running,
       totalSeconds: totalSeconds,
@@ -211,6 +221,7 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
       exerciseId: exerciseId,
       exerciseName: exerciseName,
       durationReason: reason,
+      endTime: endTime,
     );
 
     _startTimer();
@@ -228,7 +239,11 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
   void resume() {
     if (!state.isPaused) return;
 
-    state = state.copyWith(status: RestTimerStatus.running);
+    final endTime = DateTime.now().add(Duration(seconds: state.remainingSeconds));
+    state = state.copyWith(
+      status: RestTimerStatus.running,
+      endTime: endTime,
+    );
     _startTimer();
   }
 
@@ -255,9 +270,11 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
   void addTime(int seconds) {
     if (state.isIdle) return;
 
+    final newEndTime = state.endTime?.add(Duration(seconds: seconds));
     state = state.copyWith(
       totalSeconds: state.totalSeconds + seconds,
       remainingSeconds: state.remainingSeconds + seconds,
+      endTime: newEndTime,
     );
   }
 
@@ -270,8 +287,10 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
     if (newRemaining <= 0) {
       _onTimerComplete();
     } else {
+      final newEndTime = state.endTime?.subtract(Duration(seconds: seconds));
       state = state.copyWith(
         remainingSeconds: newRemaining,
+        endTime: newEndTime,
       );
     }
   }
@@ -315,6 +334,8 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
         ? 'Rest before next round'
         : 'Next exercise in superset';
 
+    final endTime = DateTime.now().add(Duration(seconds: durationSeconds));
+
     state = state.copyWith(
       status: RestTimerStatus.running,
       totalSeconds: durationSeconds,
@@ -322,6 +343,7 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
       durationReason: reason,
       exerciseId: null,
       exerciseName: null,
+      endTime: endTime,
     );
 
     _startTimer();
@@ -331,19 +353,23 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
   // PRIVATE METHODS
   // ==========================================================================
 
-  /// Starts the timer countdown.
+  /// Starts the timer countdown using timestamp-based calculation.
+  /// This ensures the timer stays accurate even when the web app is backgrounded.
   void _startTimer() {
-    // Show initial notification with countdown
     _updateNotificationCountdown();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (state.remainingSeconds <= 1) {
+      if (state.endTime == null) {
+        _onTimerComplete();
+        return;
+      }
+
+      final remaining = state.endTime!.difference(DateTime.now()).inSeconds;
+
+      if (remaining <= 0) {
         _onTimerComplete();
       } else {
-        state = state.copyWith(
-          remainingSeconds: state.remainingSeconds - 1,
-        );
-        // Update notification with countdown every second
+        state = state.copyWith(remainingSeconds: remaining);
         _updateNotificationCountdown();
       }
     });
@@ -365,6 +391,13 @@ class RestTimerNotifier extends Notifier<RestTimerState> {
       status: RestTimerStatus.completed,
       remainingSeconds: 0,
     );
+
+    // Resume superset if it was resting between rounds/exercises
+    final supersetState = ref.read(supersetProvider);
+    final activeSuperset = supersetState.activeSuperset;
+    if (activeSuperset != null && activeSuperset.status == SupersetStatus.resting) {
+      ref.read(supersetProvider.notifier).completeRest();
+    }
 
     // Play haptic feedback (vibration)
     HapticFeedback.heavyImpact();

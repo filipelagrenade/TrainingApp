@@ -146,81 +146,10 @@ class SocialService {
   ): Promise<ActivityFeed> {
     logger.info({ userId, cursor, limit }, 'Fetching activity feed');
 
-    // TODO: Implement with real database
-    // For now, return mock data
-    const mockActivities: ActivityItem[] = [
-      {
-        id: 'act-1',
-        userId: 'user-2',
-        userName: 'FitnessPro',
-        userAvatarUrl: undefined,
-        type: ActivityType.PERSONAL_RECORD,
-        title: 'New Bench Press PR!',
-        description: 'Hit 225 lbs for 5 reps',
-        metadata: {
-          exerciseId: 'bench-press',
-          weight: 225,
-          reps: 5,
-          estimated1RM: 253,
-        },
-        createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 min ago
-        likes: 12,
-        comments: 3,
-        isLikedByMe: false,
-      },
-      {
-        id: 'act-2',
-        userId: 'user-3',
-        userName: 'GymRat42',
-        type: ActivityType.WORKOUT_COMPLETED,
-        title: 'Completed Push Day',
-        description: '6 exercises, 24 sets, 45 minutes',
-        metadata: {
-          workoutId: 'workout-123',
-          exerciseCount: 6,
-          setCount: 24,
-          duration: 45,
-        },
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        likes: 5,
-        comments: 1,
-        isLikedByMe: true,
-      },
-      {
-        id: 'act-3',
-        userId: 'user-4',
-        userName: 'IronWoman',
-        type: ActivityType.STREAK_MILESTONE,
-        title: '30 Day Streak!',
-        description: "Been hitting the gym for 30 days straight. Let's go!",
-        metadata: {
-          streakDays: 30,
-        },
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5 hours ago
-        likes: 45,
-        comments: 8,
-        isLikedByMe: false,
-      },
-      {
-        id: 'act-4',
-        userId: 'user-5',
-        userName: 'NewLifter',
-        type: ActivityType.CHALLENGE_JOINED,
-        title: 'Joined "January Gains" Challenge',
-        description: 'Goal: Complete 20 workouts this month',
-        metadata: {
-          challengeId: 'challenge-january-gains',
-          targetWorkouts: 20,
-        },
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-        likes: 8,
-        comments: 2,
-        isLikedByMe: false,
-      },
-    ];
-
+    // TODO: Implement with real database queries
+    // Returns empty feed until social tables are set up
     return {
-      items: mockActivities,
+      items: [],
       hasMore: false,
       nextCursor: undefined,
     };
@@ -398,23 +327,24 @@ class SocialService {
     logger.info({ userId, viewerId }, 'Fetching social profile');
 
     // TODO: Implement with real database
-    const mockProfile: SocialProfile = {
+    // Return minimal profile until social tables are set up
+    const profile: SocialProfile = {
       userId,
-      userName: 'FitUser123',
-      displayName: 'Fitness Enthusiast',
+      userName: userId,
+      displayName: undefined,
       avatarUrl: undefined,
-      bio: 'Passionate about lifting and helping others achieve their goals. Push Pull Legs for life!',
-      followersCount: 156,
-      followingCount: 89,
-      workoutCount: 234,
-      prCount: 47,
-      currentStreak: 12,
+      bio: undefined,
+      followersCount: 0,
+      followingCount: 0,
+      workoutCount: 0,
+      prCount: 0,
+      currentStreak: 0,
       isFollowing: false,
-      isFollowedByMe: viewerId ? Math.random() > 0.5 : false,
-      joinedAt: new Date('2024-06-15'),
+      isFollowedByMe: false,
+      joinedAt: new Date(),
     };
 
-    return mockProfile;
+    return profile;
   }
 
   /**
@@ -462,55 +392,8 @@ class SocialService {
     logger.info({ userId }, 'Fetching active challenges');
 
     // TODO: Implement with real database
-    const mockChallenges: Challenge[] = [
-      {
-        id: 'challenge-1',
-        title: 'January Gains',
-        description: 'Complete 20 workouts in January to earn the badge!',
-        type: 'workout_count',
-        targetValue: 20,
-        currentValue: 8,
-        unit: 'workouts',
-        startDate: new Date('2026-01-01'),
-        endDate: new Date('2026-01-31'),
-        participantCount: 234,
-        isJoined: true,
-        progress: 40,
-        createdBy: 'system',
-      },
-      {
-        id: 'challenge-2',
-        title: 'Bench Press Battle',
-        description: 'Hit a combined total of 10,000 lbs on bench press this month',
-        type: 'volume',
-        targetValue: 10000,
-        currentValue: 3500,
-        unit: 'lbs',
-        startDate: new Date('2026-01-01'),
-        endDate: new Date('2026-01-31'),
-        participantCount: 89,
-        isJoined: false,
-        progress: 0,
-        createdBy: 'system',
-      },
-      {
-        id: 'challenge-3',
-        title: 'Streak Week',
-        description: 'Work out 7 days in a row',
-        type: 'streak',
-        targetValue: 7,
-        currentValue: 3,
-        unit: 'days',
-        startDate: new Date('2026-01-15'),
-        endDate: new Date('2026-01-22'),
-        participantCount: 456,
-        isJoined: true,
-        progress: 43,
-        createdBy: 'system',
-      },
-    ];
-
-    return mockChallenges;
+    // Returns empty list until challenge tables are set up
+    return [];
   }
 
   /**
@@ -553,11 +436,7 @@ class SocialService {
     logger.info({ challengeId, limit }, 'Fetching challenge leaderboard');
 
     // TODO: Implement with real database
-    return [
-      { rank: 1, userId: 'user-1', userName: 'IronMan', value: 18 },
-      { rank: 2, userId: 'user-2', userName: 'GymBeast', value: 16 },
-      { rank: 3, userId: 'user-3', userName: 'FitQueen', value: 15 },
-    ];
+    return [];
   }
 }
 

@@ -141,6 +141,9 @@ class ExerciseLog with _$ExerciseLog {
     /// Target number of sets from the template (0 means not from template)
     /// Used to show the expected number of sets to complete
     @Default(0) int targetSets,
+
+    /// Whether this exercise is performed unilaterally (single arm/leg)
+    @Default(false) bool isUnilateral,
   }) = _ExerciseLog;
 
   /// Creates an exercise log from JSON.

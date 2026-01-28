@@ -14,7 +14,7 @@ TASK_FILE="$CLAUDE_DIR/task.md"
 HANDOVER_FILE="$CLAUDE_DIR/handover.md"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG_FILE="$CLAUDE_DIR/overnight-$TIMESTAMP.log"
-MAX_ITERATIONS=10
+MAX_ITERATIONS=20
 ITERATION_TIMEOUT=3600  # 1 hour max per iteration
 
 # Ensure .claude directory exists

@@ -123,22 +123,22 @@ class StreakCard extends ConsumerWidget {
   }
 
   String _getMotivationEmoji(int streak) {
-    if (streak >= 100) return '\u{1F451}'; // Crown
-    if (streak >= 60) return '\u{1F525}'; // Fire
-    if (streak >= 30) return '\u{1F4AA}'; // Flexed bicep
-    if (streak >= 14) return '\u{2B50}'; // Star
-    if (streak >= 7) return '\u{1F44D}'; // Thumbs up
+    if (streak >= 52) return '\u{1F451}'; // Crown
+    if (streak >= 24) return '\u{1F525}'; // Fire
+    if (streak >= 12) return '\u{1F4AA}'; // Flexed bicep
+    if (streak >= 8) return '\u{2B50}'; // Star
+    if (streak >= 4) return '\u{1F44D}'; // Thumbs up
     return '\u{1F44F}'; // Clapping hands
   }
 
   String _getMotivationText(int streak) {
-    if (streak >= 100) return 'Legendary! Over 100 days of dedication!';
-    if (streak >= 60) return 'Two months strong! Nothing can stop you!';
-    if (streak >= 30) return 'One month milestone! Keep pushing!';
-    if (streak >= 14) return 'Two weeks in! A habit is forming!';
-    if (streak >= 7) return 'One week down! You\'re building momentum!';
-    if (streak >= 3) return 'Great start! Keep showing up!';
-    return 'Every rep counts. Let\'s go!';
+    if (streak >= 52) return 'A full year of consistency! Legendary!';
+    if (streak >= 24) return 'Six months strong! Nothing can stop you!';
+    if (streak >= 12) return 'Three months! A real habit now!';
+    if (streak >= 8) return 'Two months of hitting your weekly target!';
+    if (streak >= 4) return 'One month of weekly consistency!';
+    if (streak >= 2) return 'Great start! Keep hitting your weekly target!';
+    return 'Complete your planned workouts this week!';
   }
 }
 
@@ -177,7 +177,7 @@ class _StreakStat extends StatelessWidget {
           ],
         ),
         Text(
-          '$label days',
+          '$label weeks',
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

@@ -26,11 +26,14 @@ import '../models/workout_session.dart';
 import '../models/exercise_log.dart';
 import '../models/exercise_set.dart';
 import '../models/cardio_set.dart';
+import '../models/weight_input.dart';
 // CableAttachment is exported from exercise_log.dart
 import '../../../shared/services/workout_history_service.dart';
 import '../../../shared/services/workout_persistence_service.dart';
 import '../../../shared/services/notification_service.dart';
 import '../../analytics/providers/analytics_provider.dart';
+import '../../analytics/providers/weekly_report_provider.dart';
+import '../../analytics/providers/streak_provider.dart';
 import '../../programs/providers/active_program_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import './weight_recommendation_provider.dart';
@@ -447,33 +450,46 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
         rating: rating,
       );
 
-      // Save to workout history
+      // Save to workout history (CRITICAL - must succeed)
       await _historyService.initialize();
       await _historyService.saveWorkout(completedWorkout);
       debugPrint('CurrentWorkoutNotifier: Workout saved to history');
 
-      // Update progression states for each exercise (CRITICAL for double progression)
-      await _updateProgressionStates(completedWorkout);
+      // Everything below is best-effort — workout is already saved.
+      // Wrap each step so failures don't prevent completion.
 
-      // Invalidate workout history providers to trigger refresh (Issue #6)
-      // These invalidations ensure the home screen and analytics update immediately
+      try {
+        await _updateProgressionStates(completedWorkout);
+      } catch (e) {
+        debugPrint('CurrentWorkoutNotifier: Progression update failed: $e');
+      }
+
+      // Invalidate the history service itself so a fresh instance re-reads from disk
+      ref.invalidate(workoutHistoryServiceProvider);
+
+      // Invalidate all providers that depend on workout history
       ref.invalidate(workoutHistoryListProvider);
       ref.invalidate(workoutHistoryProvider);
       ref.invalidate(weeklyStatsProvider);
       ref.invalidate(progressSummaryProvider);
+      ref.invalidate(weeklyReportProvider);
+      ref.invalidate(allWorkoutDaysProvider);
 
       // If this workout is part of a program, update program progress
       if (completedWorkout.isPartOfProgram) {
-        debugPrint(
-          'CurrentWorkoutNotifier: Updating program progress - '
-          'Week ${completedWorkout.programWeek}, Day ${completedWorkout.programDay}',
-        );
-
-        await ref.read(activeProgramProvider.notifier).recordCompletedWorkout(
-          workoutId: completedWorkout.id ?? '',
-          week: completedWorkout.programWeek!,
-          day: completedWorkout.programDay!,
-        );
+        try {
+          debugPrint(
+            'CurrentWorkoutNotifier: Updating program progress - '
+            'Week ${completedWorkout.programWeek}, Day ${completedWorkout.programDay}',
+          );
+          await ref.read(activeProgramProvider.notifier).recordCompletedWorkout(
+            workoutId: completedWorkout.id ?? '',
+            week: completedWorkout.programWeek!,
+            day: completedWorkout.programDay!,
+          );
+        } catch (e) {
+          debugPrint('CurrentWorkoutNotifier: Program progress update failed: $e');
+        }
       }
 
       // Clear exercise log ID mapping
@@ -481,23 +497,39 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       _sessionMaxWeights.clear();
 
       // Clear recommendations
-      ref.read(workoutRecommendationsProvider.notifier).clear();
+      try {
+        ref.read(workoutRecommendationsProvider.notifier).clear();
+      } catch (e) {
+        debugPrint('CurrentWorkoutNotifier: Clear recommendations failed: $e');
+      }
 
       // Clear persisted workout
-      await _clearPersistedWorkout();
+      try {
+        await _clearPersistedWorkout();
+      } catch (e) {
+        debugPrint('CurrentWorkoutNotifier: Clear persisted workout failed: $e');
+      }
 
       // Stop rest timer and clear its notification
-      ref.read(restTimerProvider.notifier).stop();
+      try {
+        ref.read(restTimerProvider.notifier).stop();
+      } catch (e) {
+        debugPrint('CurrentWorkoutNotifier: Stop rest timer failed: $e');
+      }
 
       // Clear workout notification and show completion
-      await _clearWorkoutNotification();
-      if (_notificationsEnabled) {
-        await _notificationService.showWorkoutComplete(
-          totalSets: completedWorkout.totalSets,
-          totalExercises: completedWorkout.exerciseCount,
-          durationMinutes: completedWorkout.elapsedDuration.inMinutes,
-          totalVolume: completedWorkout.totalVolume,
-        );
+      try {
+        await _clearWorkoutNotification();
+        if (_notificationsEnabled) {
+          await _notificationService.showWorkoutComplete(
+            totalSets: completedWorkout.totalSets,
+            totalExercises: completedWorkout.exerciseCount,
+            durationMinutes: completedWorkout.elapsedDuration.inMinutes,
+            totalVolume: completedWorkout.totalVolume,
+          );
+        }
+      } catch (e) {
+        debugPrint('CurrentWorkoutNotifier: Notification failed: $e');
       }
 
       state = const NoWorkout();
@@ -599,6 +631,38 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     if (currentState.workout.templateId == null && !isCardio) {
       _generateExerciseRecommendation(exerciseId, exerciseName);
     }
+  }
+
+  /// Updates the notes for an exercise at the given index.
+  void updateExerciseNotes(int exerciseIndex, String? notes) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    final logs = List<ExerciseLog>.from(currentState.workout.exerciseLogs);
+    if (exerciseIndex < 0 || exerciseIndex >= logs.length) return;
+
+    logs[exerciseIndex] = logs[exerciseIndex].copyWith(notes: notes);
+
+    final updatedWorkout = currentState.workout.copyWith(exerciseLogs: logs);
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Toggles unilateral mode for an exercise at the given index.
+  void toggleUnilateral(int exerciseIndex) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    final logs = List<ExerciseLog>.from(currentState.workout.exerciseLogs);
+    if (exerciseIndex < 0 || exerciseIndex >= logs.length) return;
+
+    logs[exerciseIndex] = logs[exerciseIndex].copyWith(
+      isUnilateral: !logs[exerciseIndex].isUnilateral,
+    );
+
+    final updatedWorkout = currentState.workout.copyWith(exerciseLogs: logs);
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
   }
 
   /// Removes an exercise from the workout.
@@ -792,6 +856,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     required int reps,
     double? rpe,
     SetType setType = SetType.working,
+    WeightInputType? weightType,
+    BandResistance? bandResistance,
   }) {
     final currentState = state;
     if (currentState is! ActiveWorkout) return;
@@ -827,6 +893,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       setType: setType,
       completedAt: now,
       isPersonalRecord: isPR,
+      weightType: weightType,
+      bandResistance: bandResistance != null ? bandResistance.name : null,
     );
 
     // Update the workout with the new set

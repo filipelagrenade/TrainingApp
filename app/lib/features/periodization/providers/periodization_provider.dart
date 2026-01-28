@@ -1,48 +1,47 @@
 /// LiftIQ - Periodization Provider
 ///
 /// State management for mesocycles and periodization planning.
-/// Handles CRUD operations and progress tracking for training blocks.
+/// Local-first: all data is stored in SharedPreferences.
 library;
 
-import 'package:dio/dio.dart';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/services/api_client.dart';
 import '../models/mesocycle.dart';
+
+const _storageKey = 'liftiq_mesocycles';
+const _uuid = Uuid();
 
 /// Provider for accessing all user mesocycles.
 final mesocyclesProvider =
     StateNotifierProvider<MesocyclesNotifier, AsyncValue<List<Mesocycle>>>(
-  (ref) => MesocyclesNotifier(ref),
+  (ref) => MesocyclesNotifier(),
 );
 
 /// Provider for the currently active mesocycle.
 final activeMesocycleProvider = Provider<Mesocycle?>((ref) {
   final mesocyclesAsync = ref.watch(mesocyclesProvider);
-  return mesocyclesAsync.valueOrNull?.firstWhere(
-    (m) => m.status == MesocycleStatus.active,
-    orElse: () => throw StateError('No active mesocycle'),
-  );
+  final mesocycles = mesocyclesAsync.valueOrNull ?? [];
+  try {
+    return mesocycles.firstWhere((m) => m.status == MesocycleStatus.active);
+  } catch (_) {
+    return null;
+  }
 });
 
 /// Provider that returns true if there's an active mesocycle.
 final hasActiveMesocycleProvider = Provider<bool>((ref) {
-  final mesocyclesAsync = ref.watch(mesocyclesProvider);
-  return mesocyclesAsync.valueOrNull?.any(
-        (m) => m.status == MesocycleStatus.active,
-      ) ??
-      false;
+  return ref.watch(activeMesocycleProvider) != null;
 });
 
 /// Provider for the current week's parameters.
 final currentWeekProvider = Provider<MesocycleWeek?>((ref) {
-  try {
-    final activeMesocycle = ref.watch(activeMesocycleProvider);
-    return activeMesocycle?.currentWeekData;
-  } catch (_) {
-    return null;
-  }
+  final activeMesocycle = ref.watch(activeMesocycleProvider);
+  return activeMesocycle?.currentWeekData;
 });
 
 /// Provider for volume multiplier from active mesocycle.
@@ -57,185 +56,78 @@ final intensityMultiplierProvider = Provider<double>((ref) {
   return currentWeek?.intensityMultiplier ?? 1.0;
 });
 
-/// State notifier for managing mesocycles.
+/// State notifier for managing mesocycles locally.
 class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
-  final Ref _ref;
-
-  MesocyclesNotifier(this._ref) : super(const AsyncValue.loading()) {
-    _loadMesocycles();
+  MesocyclesNotifier() : super(const AsyncValue.loading()) {
+    Future.microtask(() => _loadMesocycles());
   }
 
-  final _uuid = const Uuid();
-
-  /// Loads mesocycles from API.
+  /// Loads mesocycles from SharedPreferences.
   Future<void> _loadMesocycles() async {
     try {
-      final api = _ref.read(apiClientProvider);
-      final response = await api.get('/periodization/mesocycles');
-      final data = response.data as Map<String, dynamic>;
-      final mesocyclesList = data['data'] as List<dynamic>? ?? [];
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_storageKey);
 
-      final mesocycles = mesocyclesList
-          .map((json) => _parseMesocycle(json as Map<String, dynamic>))
-          .toList();
-
-      state = AsyncValue.data(mesocycles);
-    } on DioException catch (e, st) {
-      final error = ApiClient.getApiException(e);
-      state = AsyncValue.error(error.message, st);
+      if (json != null) {
+        final decoded = jsonDecode(json) as List<dynamic>;
+        final mesocycles = decoded
+            .map((e) => Mesocycle.fromJson(e as Map<String, dynamic>))
+            .toList();
+        state = AsyncValue.data(mesocycles);
+      } else {
+        state = const AsyncValue.data([]);
+      }
     } catch (e, st) {
+      debugPrint('PeriodizationProvider: Error loading mesocycles: $e');
       state = AsyncValue.error(e, st);
     }
   }
 
-  /// Parses a Mesocycle from API response.
-  Mesocycle _parseMesocycle(Map<String, dynamic> json) {
-    final statusStr = json['status'] as String? ?? 'planned';
-    MesocycleStatus status;
-    switch (statusStr.toLowerCase()) {
-      case 'active':
-        status = MesocycleStatus.active;
-        break;
-      case 'completed':
-        status = MesocycleStatus.completed;
-        break;
-      case 'abandoned':
-        status = MesocycleStatus.abandoned;
-        break;
-      case 'planned':
-      default:
-        status = MesocycleStatus.planned;
+  /// Persists mesocycles to SharedPreferences.
+  Future<void> _persist() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final mesocycles = state.valueOrNull ?? [];
+      final json = jsonEncode(mesocycles.map((m) => m.toJson()).toList());
+      await prefs.setString(_storageKey, json);
+    } catch (e) {
+      debugPrint('PeriodizationProvider: Error saving mesocycles: $e');
     }
-
-    final periodizationTypeStr = json['periodizationType'] as String? ?? 'linear';
-    PeriodizationType periodizationType;
-    switch (periodizationTypeStr.toLowerCase()) {
-      case 'undulating':
-        periodizationType = PeriodizationType.undulating;
-        break;
-      case 'block':
-        periodizationType = PeriodizationType.block;
-        break;
-      case 'linear':
-      default:
-        periodizationType = PeriodizationType.linear;
-    }
-
-    final goalStr = json['goal'] as String? ?? 'strength';
-    MesocycleGoal goal;
-    switch (goalStr.toLowerCase()) {
-      case 'hypertrophy':
-        goal = MesocycleGoal.hypertrophy;
-        break;
-      case 'peaking':
-        goal = MesocycleGoal.peaking;
-        break;
-      case 'power':
-        goal = MesocycleGoal.power;
-        break;
-      case 'strength':
-      default:
-        goal = MesocycleGoal.strength;
-    }
-
-    final weeksJson = json['weeks'] as List<dynamic>? ?? [];
-    final weeks = weeksJson.map((w) => _parseWeek(w as Map<String, dynamic>)).toList();
-
-    return Mesocycle(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String?,
-      startDate: DateTime.parse(json['startDate'] as String),
-      endDate: DateTime.parse(json['endDate'] as String),
-      totalWeeks: json['totalWeeks'] as int,
-      currentWeek: json['currentWeek'] as int? ?? 1,
-      periodizationType: periodizationType,
-      goal: goal,
-      status: status,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      weeks: weeks,
-    );
-  }
-
-  /// Parses a MesocycleWeek from API response.
-  MesocycleWeek _parseWeek(Map<String, dynamic> json) {
-    final weekTypeStr = json['weekType'] as String? ?? 'accumulation';
-    WeekType weekType;
-    switch (weekTypeStr.toLowerCase()) {
-      case 'intensification':
-        weekType = WeekType.intensification;
-        break;
-      case 'deload':
-        weekType = WeekType.deload;
-        break;
-      case 'peak':
-        weekType = WeekType.peak;
-        break;
-      case 'accumulation':
-      default:
-        weekType = WeekType.accumulation;
-    }
-
-    return MesocycleWeek(
-      id: json['id'] as String,
-      mesocycleId: json['mesocycleId'] as String,
-      weekNumber: json['weekNumber'] as int,
-      weekType: weekType,
-      volumeMultiplier: (json['volumeMultiplier'] as num?)?.toDouble() ?? 1.0,
-      intensityMultiplier: (json['intensityMultiplier'] as num?)?.toDouble() ?? 1.0,
-      rirTarget: json['rirTarget'] as int?,
-      isCompleted: json['isCompleted'] as bool? ?? false,
-      completedAt: json['completedAt'] != null
-          ? DateTime.parse(json['completedAt'] as String)
-          : null,
-    );
   }
 
   /// Creates a new mesocycle with the given configuration.
   Future<String> createMesocycle(MesocycleConfig config) async {
-    try {
-      final api = _ref.read(apiClientProvider);
+    final id = _uuid.v4();
+    final now = DateTime.now();
+    final endDate = config.startDate.add(Duration(days: config.totalWeeks * 7));
 
-      // Generate weeks locally for preview (API will also generate)
-      final weeks = _generateWeeks(
-        mesocycleId: 'temp',
-        totalWeeks: config.totalWeeks,
-        periodizationType: config.periodizationType,
-        goal: config.goal,
-      );
+    final weeks = _generateWeeks(
+      mesocycleId: id,
+      totalWeeks: config.totalWeeks,
+      periodizationType: config.periodizationType,
+      goal: config.goal,
+    );
 
-      final response = await api.post('/periodization/mesocycles', data: {
-        'name': config.name,
-        'description': config.description,
-        'startDate': config.startDate.toIso8601String(),
-        'totalWeeks': config.totalWeeks,
-        'periodizationType': config.periodizationType.name,
-        'goal': config.goal.name,
-        'weeks': weeks.map((w) => {
-          'weekNumber': w.weekNumber,
-          'weekType': w.weekType.name,
-          'volumeMultiplier': w.volumeMultiplier,
-          'intensityMultiplier': w.intensityMultiplier,
-          'rirTarget': w.rirTarget,
-        }).toList(),
-      });
+    final mesocycle = Mesocycle(
+      id: id,
+      userId: 'local-offline-user',
+      name: config.name,
+      description: config.description,
+      startDate: config.startDate,
+      endDate: endDate,
+      totalWeeks: config.totalWeeks,
+      currentWeek: 1,
+      periodizationType: config.periodizationType,
+      goal: config.goal,
+      status: MesocycleStatus.planned,
+      createdAt: now,
+      updatedAt: now,
+      weeks: weeks,
+    );
 
-      final data = response.data as Map<String, dynamic>;
-      final mesocycleJson = data['data'] as Map<String, dynamic>;
-      final mesocycle = _parseMesocycle(mesocycleJson);
-
-      state = AsyncValue.data([
-        ...state.valueOrNull ?? [],
-        mesocycle,
-      ]);
-
-      return mesocycle.id;
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+    state = AsyncValue.data([...state.valueOrNull ?? [], mesocycle]);
+    await _persist();
+    return id;
   }
 
   /// Generates weeks for a mesocycle based on periodization type.
@@ -269,7 +161,6 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
     return weeks;
   }
 
-  /// Gets the parameters for a specific week based on periodization type.
   _WeekParameters _getWeekParameters({
     required int weekNumber,
     required int totalWeeks,
@@ -286,267 +177,125 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
     }
   }
 
-  /// Linear periodization: gradual increase in intensity.
-  _WeekParameters _getLinearWeekParams(
-    int weekNumber,
-    int totalWeeks,
-    MesocycleGoal goal,
-  ) {
-    // Last week is always deload
+  _WeekParameters _getLinearWeekParams(int weekNumber, int totalWeeks, MesocycleGoal goal) {
     if (weekNumber == totalWeeks) {
-      return _WeekParameters(
-        weekType: WeekType.deload,
-        volumeMultiplier: 0.5,
-        intensityMultiplier: 0.85,
-        rirTarget: 4,
-      );
+      return _WeekParameters(weekType: WeekType.deload, volumeMultiplier: 0.5, intensityMultiplier: 0.85, rirTarget: 4);
     }
-
-    // Gradual progression
     final progress = weekNumber / (totalWeeks - 1);
-    final volumeMultiplier = 1.0 - (progress * 0.15); // Slight volume decrease
-    final intensityMultiplier = 0.85 + (progress * 0.15); // Intensity increase
-
     return _WeekParameters(
       weekType: WeekType.accumulation,
-      volumeMultiplier: volumeMultiplier,
-      intensityMultiplier: intensityMultiplier,
+      volumeMultiplier: 1.0 - (progress * 0.15),
+      intensityMultiplier: 0.85 + (progress * 0.15),
       rirTarget: (3 - (progress * 2)).round().clamp(1, 3),
     );
   }
 
-  /// Undulating periodization: varied intensity pattern.
-  _WeekParameters _getUndulatingWeekParams(
-    int weekNumber,
-    int totalWeeks,
-    MesocycleGoal goal,
-  ) {
-    // Deload every 4th week or last week
+  _WeekParameters _getUndulatingWeekParams(int weekNumber, int totalWeeks, MesocycleGoal goal) {
     if (weekNumber % 4 == 0 || weekNumber == totalWeeks) {
-      return _WeekParameters(
-        weekType: WeekType.deload,
-        volumeMultiplier: 0.5,
-        intensityMultiplier: 0.85,
-        rirTarget: 4,
-      );
+      return _WeekParameters(weekType: WeekType.deload, volumeMultiplier: 0.5, intensityMultiplier: 0.85, rirTarget: 4);
     }
-
-    // Alternate between high volume and high intensity weeks
     final weekInCycle = weekNumber % 3;
     switch (weekInCycle) {
-      case 1: // High volume week
-        return _WeekParameters(
-          weekType: WeekType.accumulation,
-          volumeMultiplier: 1.1,
-          intensityMultiplier: 0.85,
-          rirTarget: 3,
-        );
-      case 2: // High intensity week
-        return _WeekParameters(
-          weekType: WeekType.intensification,
-          volumeMultiplier: 0.85,
-          intensityMultiplier: 1.0,
-          rirTarget: 1,
-        );
-      case 0: // Moderate week
+      case 1:
+        return _WeekParameters(weekType: WeekType.accumulation, volumeMultiplier: 1.1, intensityMultiplier: 0.85, rirTarget: 3);
+      case 2:
+        return _WeekParameters(weekType: WeekType.intensification, volumeMultiplier: 0.85, intensityMultiplier: 1.0, rirTarget: 1);
+      case 0:
       default:
-        return _WeekParameters(
-          weekType: WeekType.accumulation,
-          volumeMultiplier: 1.0,
-          intensityMultiplier: 0.9,
-          rirTarget: 2,
-        );
+        return _WeekParameters(weekType: WeekType.accumulation, volumeMultiplier: 1.0, intensityMultiplier: 0.9, rirTarget: 2);
     }
   }
 
-  /// Block periodization: distinct training phases.
-  _WeekParameters _getBlockWeekParams(
-    int weekNumber,
-    int totalWeeks,
-    MesocycleGoal goal,
-  ) {
-    // Divide into blocks: 50% accumulation, 30% intensification, 20% peak/deload
+  _WeekParameters _getBlockWeekParams(int weekNumber, int totalWeeks, MesocycleGoal goal) {
     final accumulationEnd = (totalWeeks * 0.5).ceil();
     final intensificationEnd = (totalWeeks * 0.8).ceil();
 
     if (weekNumber <= accumulationEnd) {
-      return _WeekParameters(
-        weekType: WeekType.accumulation,
-        volumeMultiplier: 1.1,
-        intensityMultiplier: 0.8,
-        rirTarget: 3,
-      );
+      return _WeekParameters(weekType: WeekType.accumulation, volumeMultiplier: 1.1, intensityMultiplier: 0.8, rirTarget: 3);
     } else if (weekNumber <= intensificationEnd) {
-      return _WeekParameters(
-        weekType: WeekType.intensification,
-        volumeMultiplier: 0.9,
-        intensityMultiplier: 0.95,
-        rirTarget: 2,
-      );
+      return _WeekParameters(weekType: WeekType.intensification, volumeMultiplier: 0.9, intensityMultiplier: 0.95, rirTarget: 2);
     } else if (weekNumber == totalWeeks) {
-      return _WeekParameters(
-        weekType: WeekType.deload,
-        volumeMultiplier: 0.5,
-        intensityMultiplier: 0.85,
-        rirTarget: 4,
-      );
+      return _WeekParameters(weekType: WeekType.deload, volumeMultiplier: 0.5, intensityMultiplier: 0.85, rirTarget: 4);
     } else {
-      return _WeekParameters(
-        weekType: WeekType.peak,
-        volumeMultiplier: 0.6,
-        intensityMultiplier: 1.0,
-        rirTarget: 0,
-      );
+      return _WeekParameters(weekType: WeekType.peak, volumeMultiplier: 0.6, intensityMultiplier: 1.0, rirTarget: 0);
     }
   }
 
   /// Starts a mesocycle (changes status to active).
   Future<void> startMesocycle(String mesocycleId) async {
-    try {
-      final api = _ref.read(apiClientProvider);
-      await api.post('/periodization/mesocycles/$mesocycleId/start');
+    final mesocycles = state.valueOrNull ?? [];
+    final updatedMesocycles = mesocycles.map((m) {
+      if (m.status == MesocycleStatus.active) {
+        return m.copyWith(status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
+      }
+      if (m.id == mesocycleId) {
+        return m.copyWith(status: MesocycleStatus.active, currentWeek: 1, updatedAt: DateTime.now());
+      }
+      return m;
+    }).toList();
 
-      final mesocycles = state.valueOrNull ?? [];
-
-      // First, complete or abandon any currently active mesocycle
-      final updatedMesocycles = mesocycles.map((m) {
-        if (m.status == MesocycleStatus.active) {
-          return m.copyWith(
-            status: MesocycleStatus.abandoned,
-            updatedAt: DateTime.now(),
-          );
-        }
-        if (m.id == mesocycleId) {
-          return m.copyWith(
-            status: MesocycleStatus.active,
-            currentWeek: 1,
-            updatedAt: DateTime.now(),
-          );
-        }
-        return m;
-      }).toList();
-
-      state = AsyncValue.data(updatedMesocycles);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+    state = AsyncValue.data(updatedMesocycles);
+    await _persist();
   }
 
   /// Advances to the next week in the mesocycle.
   Future<void> advanceWeek(String mesocycleId) async {
-    try {
-      final api = _ref.read(apiClientProvider);
-      await api.post('/periodization/mesocycles/$mesocycleId/advance-week');
+    final mesocycles = state.valueOrNull ?? [];
+    final updatedMesocycles = mesocycles.map((m) {
+      if (m.id != mesocycleId) return m;
 
-      final mesocycles = state.valueOrNull ?? [];
-
-      final updatedMesocycles = mesocycles.map((m) {
-        if (m.id != mesocycleId) return m;
-
-        // Mark current week as completed
-        final updatedWeeks = m.weeks.map((w) {
-          if (w.weekNumber == m.currentWeek) {
-            return w.copyWith(
-              isCompleted: true,
-              completedAt: DateTime.now(),
-            );
-          }
-          return w;
-        }).toList();
-
-        // Check if this was the last week
-        if (m.currentWeek >= m.totalWeeks) {
-          return m.copyWith(
-            status: MesocycleStatus.completed,
-            weeks: updatedWeeks,
-            updatedAt: DateTime.now(),
-          );
+      final updatedWeeks = m.weeks.map((w) {
+        if (w.weekNumber == m.currentWeek) {
+          return w.copyWith(isCompleted: true, completedAt: DateTime.now());
         }
-
-        // Advance to next week
-        return m.copyWith(
-          currentWeek: m.currentWeek + 1,
-          weeks: updatedWeeks,
-          updatedAt: DateTime.now(),
-        );
+        return w;
       }).toList();
 
-      state = AsyncValue.data(updatedMesocycles);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+      if (m.currentWeek >= m.totalWeeks) {
+        return m.copyWith(status: MesocycleStatus.completed, weeks: updatedWeeks, updatedAt: DateTime.now());
+      }
+
+      return m.copyWith(currentWeek: m.currentWeek + 1, weeks: updatedWeeks, updatedAt: DateTime.now());
+    }).toList();
+
+    state = AsyncValue.data(updatedMesocycles);
+    await _persist();
   }
 
   /// Updates a mesocycle.
   Future<void> updateMesocycle(Mesocycle mesocycle) async {
-    try {
-      final api = _ref.read(apiClientProvider);
-      await api.patch('/periodization/mesocycles/${mesocycle.id}', data: {
-        'name': mesocycle.name,
-        'description': mesocycle.description,
-        'currentWeek': mesocycle.currentWeek,
-      });
+    final mesocycles = state.valueOrNull ?? [];
+    final updatedMesocycles = mesocycles.map((m) {
+      if (m.id == mesocycle.id) return mesocycle.copyWith(updatedAt: DateTime.now());
+      return m;
+    }).toList();
 
-      final mesocycles = state.valueOrNull ?? [];
-
-      final updatedMesocycles = mesocycles.map((m) {
-        if (m.id == mesocycle.id) {
-          return mesocycle.copyWith(updatedAt: DateTime.now());
-        }
-        return m;
-      }).toList();
-
-      state = AsyncValue.data(updatedMesocycles);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+    state = AsyncValue.data(updatedMesocycles);
+    await _persist();
   }
 
   /// Deletes a mesocycle.
   Future<void> deleteMesocycle(String mesocycleId) async {
-    try {
-      final api = _ref.read(apiClientProvider);
-      await api.delete('/periodization/mesocycles/$mesocycleId');
-
-      final mesocycles = state.valueOrNull ?? [];
-      state = AsyncValue.data(
-        mesocycles.where((m) => m.id != mesocycleId).toList(),
-      );
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+    final mesocycles = state.valueOrNull ?? [];
+    state = AsyncValue.data(mesocycles.where((m) => m.id != mesocycleId).toList());
+    await _persist();
   }
 
-  /// Abandons a mesocycle (stops it without completing).
+  /// Abandons a mesocycle.
   Future<void> abandonMesocycle(String mesocycleId) async {
-    try {
-      final api = _ref.read(apiClientProvider);
-      await api.post('/periodization/mesocycles/$mesocycleId/abandon');
+    final mesocycles = state.valueOrNull ?? [];
+    final updatedMesocycles = mesocycles.map((m) {
+      if (m.id == mesocycleId) {
+        return m.copyWith(status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
+      }
+      return m;
+    }).toList();
 
-      final mesocycles = state.valueOrNull ?? [];
-
-      final updatedMesocycles = mesocycles.map((m) {
-        if (m.id == mesocycleId) {
-          return m.copyWith(
-            status: MesocycleStatus.abandoned,
-            updatedAt: DateTime.now(),
-          );
-        }
-        return m;
-      }).toList();
-
-      state = AsyncValue.data(updatedMesocycles);
-    } on DioException catch (e) {
-      final error = ApiClient.getApiException(e);
-      throw Exception(error.message);
-    }
+    state = AsyncValue.data(updatedMesocycles);
+    await _persist();
   }
 
-  /// Refreshes mesocycles from the server.
+  /// Refreshes mesocycles from local storage.
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     await _loadMesocycles();

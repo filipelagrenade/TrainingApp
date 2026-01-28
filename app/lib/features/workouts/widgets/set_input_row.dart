@@ -17,6 +17,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/exercise_set.dart';
+import '../models/weight_input.dart';
+import 'plate_calculator.dart';
 
 /// Callback when a set is completed.
 typedef OnSetComplete = void Function({
@@ -24,6 +26,8 @@ typedef OnSetComplete = void Function({
   required int reps,
   double? rpe,
   SetType setType,
+  WeightInputType? weightType,
+  BandResistance? bandResistance,
 });
 
 /// Widget for inputting and logging a set.
@@ -106,6 +110,8 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
   SetType _setType = SetType.working;
   bool _showRpeInput = false;
   double? _rpe;
+  WeightInputType _weightType = WeightInputType.absolute;
+  BandResistance _bandResistance = BandResistance.medium;
 
   @override
   void initState() {
@@ -188,21 +194,50 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
             children: [
               // Set number badge
               _buildSetNumberBadge(theme, colors),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
 
-              // Weight input with +/- buttons
-              Expanded(
-                flex: 5,
-                child: _buildWeightInput(theme, colors),
-              ),
-              const SizedBox(width: 8),
+              // Weight type chip
+              _buildWeightTypeChip(theme, colors),
+              const SizedBox(width: 4),
 
-              // Reps input with +/- buttons
+              // Weight input (hidden for bodyweight)
+              if (_weightType != WeightInputType.bodyweight) ...[
+                Expanded(
+                  flex: 4,
+                  child: _weightType == WeightInputType.band
+                      ? _buildBandSelector(theme, colors)
+                      : _buildWeightInput(theme, colors),
+                ),
+                const SizedBox(width: 4),
+              ] else ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('BW', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                ),
+              ],
+
+              // Reps input
               Expanded(
                 flex: 3,
                 child: _buildRepsInput(theme, colors),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
+
+              // RPE toggle
+              InkWell(
+                onTap: () => setState(() => _showRpeInput = !_showRpeInput),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Text(
+                    'RPE',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: _showRpeInput ? colors.primary : colors.onSurfaceVariant,
+                      fontWeight: _showRpeInput ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ),
 
               // Complete button
               _buildCompleteButton(theme, colors),
@@ -309,122 +344,160 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
     );
   }
 
-  /// Weight input with increment/decrement buttons.
+  /// Weight input field (no +/- buttons).
   Widget _buildWeightInput(ThemeData theme, ColorScheme colors) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Decrement button
-        _buildIncrementButton(
-          icon: Icons.remove,
-          onTap: () => _adjustWeight(-widget.weightIncrement),
-          colors: colors,
-          size: 20,
+    return TextField(
+      controller: _weightController,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.bold,
+      ),
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        border: InputBorder.none,
+        hintText: 'Weight',
+        suffixText: widget.unit,
+        suffixStyle: theme.textTheme.labelSmall?.copyWith(
+          color: colors.onSurfaceVariant,
         ),
-
-        // Weight text field
-        Expanded(
-          child: TextField(
-            controller: _weightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-              border: InputBorder.none,
-              hintText: '0',
-              suffixText: widget.unit,
-              suffixStyle: theme.textTheme.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-            ],
-          ),
-        ),
-
-        // Increment button
-        _buildIncrementButton(
-          icon: Icons.add,
-          onTap: () => _adjustWeight(widget.weightIncrement),
-          colors: colors,
-          size: 20,
-        ),
+      ),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
       ],
     );
   }
 
-  /// Reps input with increment/decrement buttons.
+  /// Reps input field (no +/- buttons).
   Widget _buildRepsInput(ThemeData theme, ColorScheme colors) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Decrement button
-        _buildIncrementButton(
-          icon: Icons.remove,
-          onTap: () => _adjustReps(-1),
-          colors: colors,
-          size: 18,
-        ),
-
-        // Reps text field
-        Expanded(
-          child: TextField(
-            controller: _repsController,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-            decoration: const InputDecoration(
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-              border: InputBorder.none,
-              hintText: '0',
-              suffixText: 'reps',
-            ),
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-          ),
-        ),
-
-        // Increment button
-        _buildIncrementButton(
-          icon: Icons.add,
-          onTap: () => _adjustReps(1),
-          colors: colors,
-          size: 18,
-        ),
+    return TextField(
+      controller: _repsController,
+      keyboardType: TextInputType.number,
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.bold,
+      ),
+      decoration: const InputDecoration(
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        border: InputBorder.none,
+        hintText: 'Reps',
+      ),
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
       ],
     );
   }
 
-  /// Increment/decrement button.
-  Widget _buildIncrementButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    required ColorScheme colors,
-    double size = 20,
-  }) {
+  /// Weight type selector chip.
+  Widget _buildWeightTypeChip(ThemeData theme, ColorScheme colors) {
+    final icon = switch (_weightType) {
+      WeightInputType.absolute => Icons.fitness_center,
+      WeightInputType.bodyweight => Icons.accessibility_new,
+      WeightInputType.band => Icons.power_input,
+      WeightInputType.plates => Icons.fitness_center,
+    };
+
     return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
+      onTap: _showWeightTypePicker,
       borderRadius: BorderRadius.circular(6),
       child: Container(
-        width: size + 8,
-        height: size + 8,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
           color: colors.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Icon(icon, size: size * 0.7),
+        child: Icon(icon, size: 16),
+      ),
+    );
+  }
+
+  /// Shows picker for weight input type.
+  void _showWeightTypePicker() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final type in [WeightInputType.absolute, WeightInputType.bodyweight, WeightInputType.band])
+            ListTile(
+              leading: Icon(switch (type) {
+                WeightInputType.absolute => Icons.fitness_center,
+                WeightInputType.bodyweight => Icons.accessibility_new,
+                WeightInputType.band => Icons.power_input,
+                WeightInputType.plates => Icons.fitness_center,
+              }),
+              title: Text(switch (type) {
+                WeightInputType.absolute => 'Weight',
+                WeightInputType.bodyweight => 'Bodyweight',
+                WeightInputType.band => 'Band',
+                WeightInputType.plates => 'Plates',
+              }),
+              selected: _weightType == type,
+              onTap: () {
+                setState(() => _weightType = type);
+                Navigator.pop(ctx);
+              },
+            ),
+          ListTile(
+            leading: const Icon(Icons.calculate),
+            title: const Text('Plate Calculator'),
+            subtitle: const Text('See plate breakdown for current weight'),
+            onTap: () {
+              Navigator.pop(ctx);
+              final weight = double.tryParse(_weightController.text) ?? 0;
+              // Show calculator even with 0 — it will display "bar only"
+              showPlateCalculator(
+                context,
+                targetWeight: weight,
+                barWeight: widget.unit == 'kg' ? 20 : 45,
+                unit: widget.unit,
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  /// Band resistance selector.
+  Widget _buildBandSelector(ThemeData theme, ColorScheme colors) {
+    return InkWell(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          builder: (ctx) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final band in BandResistance.values)
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: band.colorValue,
+                    radius: 12,
+                  ),
+                  title: Text(band.label),
+                  subtitle: Text(band.resistanceRange),
+                  selected: _bandResistance == band,
+                  onTap: () {
+                    setState(() => _bandResistance = band);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+        child: Text(
+          _bandResistance.label,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
@@ -505,35 +578,27 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
 
   /// Whether the set can be completed.
   bool get _canComplete {
-    final weight = double.tryParse(_weightController.text);
     final reps = int.tryParse(_repsController.text);
-    return weight != null && weight >= 0 && reps != null && reps > 0;
-  }
-
-  /// Adjusts the weight by the given amount.
-  void _adjustWeight(double amount) {
-    final current = double.tryParse(_weightController.text) ?? 0;
-    final newWeight = (current + amount).clamp(0, 9999);
-    _weightController.text = _formatWeight(newWeight.toDouble());
-    setState(() {});
-  }
-
-  /// Adjusts the reps by the given amount.
-  void _adjustReps(int amount) {
-    final current = int.tryParse(_repsController.text) ?? 0;
-    final newReps = (current + amount).clamp(0, 999);
-    _repsController.text = newReps.toString();
-    setState(() {});
+    if (reps == null || reps <= 0) return false;
+    if (_weightType == WeightInputType.bodyweight || _weightType == WeightInputType.band) return true;
+    final weight = double.tryParse(_weightController.text);
+    return weight != null && weight >= 0;
   }
 
   /// Completes the set and calls the callback.
   void _completeSet() {
-    final weight = double.tryParse(_weightController.text);
     final reps = int.tryParse(_repsController.text);
+    if (reps == null) return;
 
-    if (weight == null || reps == null) return;
+    double weight;
+    if (_weightType == WeightInputType.bodyweight) {
+      weight = 0;
+    } else if (_weightType == WeightInputType.band) {
+      weight = _bandResistance.equivalentWeight;
+    } else {
+      weight = double.tryParse(_weightController.text) ?? 0;
+    }
 
-    // Haptic feedback for satisfaction
     HapticFeedback.mediumImpact();
 
     widget.onComplete(
@@ -541,6 +606,8 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       reps: reps,
       rpe: _rpe,
       setType: _setType,
+      weightType: _weightType,
+      bandResistance: _weightType == WeightInputType.band ? _bandResistance : null,
     );
   }
 }

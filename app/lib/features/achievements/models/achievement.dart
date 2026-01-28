@@ -338,7 +338,7 @@ class AchievementDefinitions {
   static const volume100k = Achievement(
     id: 'volume_100k',
     name: 'Heavy Lifter',
-    description: 'Lift 100,000 lbs total volume',
+    description: 'Lift 100,000 total volume',
     iconAsset: '🏋️',
     color: Color(0xFFFF9800),
     category: AchievementCategory.volume,
@@ -349,7 +349,7 @@ class AchievementDefinitions {
   static const volume500k = Achievement(
     id: 'volume_500k',
     name: 'Half-Ton Hero',
-    description: 'Lift 500,000 lbs total volume',
+    description: 'Lift 500,000 total volume',
     iconAsset: '💪',
     color: Color(0xFFFF9800),
     category: AchievementCategory.volume,
@@ -359,8 +359,8 @@ class AchievementDefinitions {
 
   static const volume1m = Achievement(
     id: 'volume_1m',
-    name: 'Million Pound Club',
-    description: 'Lift 1,000,000 lbs total volume',
+    name: 'Volume King',
+    description: 'Lift 1,000,000 total volume',
     iconAsset: '🔱',
     color: Color(0xFFFF9800),
     category: AchievementCategory.volume,
@@ -371,7 +371,7 @@ class AchievementDefinitions {
   static const volume5m = Achievement(
     id: 'volume_5m',
     name: 'Iron Giant',
-    description: 'Lift 5,000,000 lbs total volume',
+    description: 'Lift 5,000,000 total volume',
     iconAsset: '🗿',
     color: Color(0xFFFF9800),
     category: AchievementCategory.volume,
@@ -386,7 +386,7 @@ class AchievementDefinitions {
   static const bench135 = Achievement(
     id: 'bench_135',
     name: 'One Plate Bench',
-    description: 'Bench press 135 lbs (1 plate per side)',
+    description: 'Bench press 135 (1 plate per side)',
     iconAsset: '🥈',
     color: Color(0xFF607D8B),
     category: AchievementCategory.strength,
@@ -397,7 +397,7 @@ class AchievementDefinitions {
   static const bench225 = Achievement(
     id: 'bench_225',
     name: 'Two Plate Bench',
-    description: 'Bench press 225 lbs (2 plates per side)',
+    description: 'Bench press 225 (2 plates per side)',
     iconAsset: '🥇',
     color: Color(0xFF607D8B),
     category: AchievementCategory.strength,
@@ -408,7 +408,7 @@ class AchievementDefinitions {
   static const bench315 = Achievement(
     id: 'bench_315',
     name: 'Three Plate Bench',
-    description: 'Bench press 315 lbs (3 plates per side)',
+    description: 'Bench press 315 (3 plates per side)',
     iconAsset: '👑',
     color: Color(0xFF607D8B),
     category: AchievementCategory.strength,
@@ -419,7 +419,7 @@ class AchievementDefinitions {
   static const squat225 = Achievement(
     id: 'squat_225',
     name: 'Two Plate Squat',
-    description: 'Squat 225 lbs (2 plates per side)',
+    description: 'Squat 225 (2 plates per side)',
     iconAsset: '🦵',
     color: Color(0xFF795548),
     category: AchievementCategory.strength,
@@ -430,7 +430,7 @@ class AchievementDefinitions {
   static const squat315 = Achievement(
     id: 'squat_315',
     name: 'Three Plate Squat',
-    description: 'Squat 315 lbs (3 plates per side)',
+    description: 'Squat 315 (3 plates per side)',
     iconAsset: '🦿',
     color: Color(0xFF795548),
     category: AchievementCategory.strength,
@@ -441,7 +441,7 @@ class AchievementDefinitions {
   static const squat405 = Achievement(
     id: 'squat_405',
     name: 'Four Plate Squat',
-    description: 'Squat 405 lbs (4 plates per side)',
+    description: 'Squat 405 (4 plates per side)',
     iconAsset: '🏅',
     color: Color(0xFF795548),
     category: AchievementCategory.strength,
@@ -452,7 +452,7 @@ class AchievementDefinitions {
   static const deadlift315 = Achievement(
     id: 'deadlift_315',
     name: 'Three Plate Deadlift',
-    description: 'Deadlift 315 lbs (3 plates per side)',
+    description: 'Deadlift 315 (3 plates per side)',
     iconAsset: '⬆️',
     color: Color(0xFF424242),
     category: AchievementCategory.strength,
@@ -463,7 +463,7 @@ class AchievementDefinitions {
   static const deadlift405 = Achievement(
     id: 'deadlift_405',
     name: 'Four Plate Deadlift',
-    description: 'Deadlift 405 lbs (4 plates per side)',
+    description: 'Deadlift 405 (4 plates per side)',
     iconAsset: '🔝',
     color: Color(0xFF424242),
     category: AchievementCategory.strength,
@@ -474,7 +474,7 @@ class AchievementDefinitions {
   static const deadlift495 = Achievement(
     id: 'deadlift_495',
     name: 'Five Plate Deadlift',
-    description: 'Deadlift 495 lbs (5 plates per side)',
+    description: 'Deadlift 495 (5 plates per side)',
     iconAsset: '💎',
     color: Color(0xFF424242),
     category: AchievementCategory.strength,
@@ -489,7 +489,7 @@ class AchievementDefinitions {
   static const total1000 = Achievement(
     id: 'total_1000',
     name: '1000 Pound Club',
-    description: 'Achieve 1,000 lbs total (squat + bench + deadlift)',
+    description: 'Achieve 1,000 total (squat + bench + deadlift)',
     iconAsset: '🎯',
     color: Color(0xFFE91E63),
     category: AchievementCategory.strength,
@@ -500,7 +500,7 @@ class AchievementDefinitions {
   static const total1500 = Achievement(
     id: 'total_1500',
     name: '1500 Pound Club',
-    description: 'Achieve 1,500 lbs total (squat + bench + deadlift)',
+    description: 'Achieve 1,500 total (squat + bench + deadlift)',
     iconAsset: '🏆',
     color: Color(0xFFE91E63),
     category: AchievementCategory.strength,
@@ -567,5 +567,25 @@ class AchievementDefinitions {
   /// Get achievements by tier.
   static List<Achievement> getByTier(AchievementTier tier) {
     return all.where((a) => a.tier == tier).toList();
+  }
+}
+
+/// Extension to provide unit-aware descriptions for achievements.
+extension AchievementUnitDisplay on Achievement {
+  /// Returns description with the correct weight unit appended for volume achievements.
+  String descriptionWithUnit(String unit) {
+    if (category == AchievementCategory.volume) {
+      // "Lift 100,000 total volume" → "Lift 100,000 total volume kg"
+      return '$description $unit';
+    }
+    if (category == AchievementCategory.strength) {
+      // "Bench press 135 (1 plate per side)" → "Bench press 135 kg (1 plate per side)"
+      // "Achieve 1,000 total (squat...)" → "Achieve 1,000 kg total (squat...)"
+      return description.replaceFirstMapped(
+        RegExp(r'(\d[\d,]*)\s+(total|\()'),
+        (m) => '${m[1]} $unit ${m[2]}',
+      );
+    }
+    return description;
   }
 }

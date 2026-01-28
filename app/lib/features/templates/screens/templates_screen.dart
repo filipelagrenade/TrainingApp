@@ -45,6 +45,11 @@ class TemplatesScreen extends ConsumerWidget {
           ),
           actions: [
             IconButton(
+              icon: const Icon(Icons.event_note),
+              tooltip: 'Periodization Planner',
+              onPressed: () => context.push('/periodization'),
+            ),
+            IconButton(
               icon: const Icon(Icons.add),
               onPressed: () => _createNewTemplate(context, ref),
             ),

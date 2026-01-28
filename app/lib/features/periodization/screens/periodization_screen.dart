@@ -640,22 +640,28 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
         title: const Text('Create Mesocycle'),
       ),
       body: Stepper(
+        type: StepperType.vertical,
         currentStep: _currentStep,
         onStepContinue: _onStepContinue,
         onStepCancel: _onStepCancel,
+        onStepTapped: (step) {
+          if (step <= _currentStep) {
+            setState(() => _currentStep = step);
+          }
+        },
         controlsBuilder: (context, details) {
           return Padding(
             padding: const EdgeInsets.only(top: 16),
             child: Row(
               children: [
                 FilledButton(
-                  onPressed: details.onStepContinue,
+                  onPressed: _onStepContinue,
                   child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
                 ),
                 const SizedBox(width: 12),
                 if (_currentStep > 0)
                   TextButton(
-                    onPressed: details.onStepCancel,
+                    onPressed: _onStepCancel,
                     child: const Text('Back'),
                   ),
               ],

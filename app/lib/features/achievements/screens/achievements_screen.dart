@@ -17,10 +17,12 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/achievement.dart';
 import '../providers/achievements_provider.dart';
 import '../widgets/achievement_badge.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// Screen showing all achievements.
 class AchievementsScreen extends ConsumerStatefulWidget {
@@ -68,6 +70,10 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+        ),
         title: const Text('Achievements'),
         bottom: TabBar(
           controller: _tabController,
@@ -198,15 +204,17 @@ class _AchievementGrid extends ConsumerWidget {
 }
 
 /// Detail sheet for an achievement.
-class _AchievementDetailSheet extends StatelessWidget {
+class _AchievementDetailSheet extends ConsumerWidget {
   final Achievement achievement;
 
   const _AchievementDetailSheet({required this.achievement});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final weightUnit = ref.watch(weightUnitProvider);
+    final unitLabel = weightUnit.name;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -266,7 +274,7 @@ class _AchievementDetailSheet extends StatelessWidget {
 
           // Description
           Text(
-            achievement.description,
+            achievement.descriptionWithUnit(unitLabel),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colors.onSurfaceVariant,
             ),

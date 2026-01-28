@@ -217,12 +217,9 @@ extension SupersetExtensions on Superset {
   /// Records a completed set for an exercise.
   Superset recordCompletedSet(String exerciseId) {
     final currentCount = completedSetsPerExercise[exerciseId] ?? 0;
-    return copyWith(
-      completedSetsPerExercise: {
-        ...completedSetsPerExercise,
-        exerciseId: currentCount + 1,
-      },
-    );
+    final updated = Map<String, int>.from(completedSetsPerExercise);
+    updated[exerciseId] = currentCount + 1;
+    return copyWith(completedSetsPerExercise: updated);
   }
 
   /// Returns the rest duration needed after completing current exercise.

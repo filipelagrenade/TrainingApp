@@ -178,6 +178,13 @@ class _DashboardTab extends ConsumerWidget {
           title: const Text('LiftIQ'),
           actions: [
             IconButton(
+              icon: const Icon(Icons.calendar_month_outlined),
+              tooltip: 'Workout Calendar',
+              onPressed: () {
+                context.push('/calendar');
+              },
+            ),
+            IconButton(
               icon: const Icon(Icons.emoji_events_outlined),
               tooltip: 'Achievements',
               onPressed: () {

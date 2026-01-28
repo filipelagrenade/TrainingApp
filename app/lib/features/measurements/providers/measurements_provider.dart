@@ -29,8 +29,8 @@ const _uuid = Uuid();
 class MeasurementsNotifier extends _$MeasurementsNotifier {
   @override
   MeasurementsState build() {
-    // Load initial data
-    _loadMeasurements();
+    // Schedule async load after build completes
+    Future.microtask(() => _loadMeasurements());
     return const MeasurementsState(isLoading: true);
   }
 

@@ -19,9 +19,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/achievement.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// A badge displaying an achievement.
-class AchievementBadge extends StatelessWidget {
+class AchievementBadge extends ConsumerWidget {
   final Achievement achievement;
   final double size;
   final bool showProgress;
@@ -38,9 +39,11 @@ class AchievementBadge extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final weightUnit = ref.watch(weightUnitProvider);
+    final unitLabel = weightUnit.name;
 
     return GestureDetector(
       onTap: onTap,
@@ -177,7 +180,7 @@ class AchievementBadge extends StatelessWidget {
 }
 
 /// A compact badge for use in lists.
-class AchievementBadgeCompact extends StatelessWidget {
+class AchievementBadgeCompact extends ConsumerWidget {
   final Achievement achievement;
   final VoidCallback? onTap;
 
@@ -188,9 +191,11 @@ class AchievementBadgeCompact extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final weightUnit = ref.watch(weightUnitProvider);
+    final unitLabel = weightUnit.name;
 
     return InkWell(
       onTap: onTap,
@@ -252,7 +257,7 @@ class AchievementBadgeCompact extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    achievement.description,
+                    achievement.descriptionWithUnit(unitLabel),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),

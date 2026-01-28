@@ -18,7 +18,9 @@ library;
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../settings/providers/settings_provider.dart';
 import '../models/achievement.dart';
 
 /// Shows the achievement unlock celebration.
@@ -50,16 +52,16 @@ void showAchievementUnlockDialog(BuildContext context, Achievement achievement) 
 }
 
 /// The achievement unlock celebration dialog.
-class AchievementUnlockDialog extends StatefulWidget {
+class AchievementUnlockDialog extends ConsumerStatefulWidget {
   final Achievement achievement;
 
   const AchievementUnlockDialog({super.key, required this.achievement});
 
   @override
-  State<AchievementUnlockDialog> createState() => _AchievementUnlockDialogState();
+  ConsumerState<AchievementUnlockDialog> createState() => _AchievementUnlockDialogState();
 }
 
-class _AchievementUnlockDialogState extends State<AchievementUnlockDialog>
+class _AchievementUnlockDialogState extends ConsumerState<AchievementUnlockDialog>
     with TickerProviderStateMixin {
   late AnimationController _badgeController;
   late AnimationController _confettiController;
@@ -251,7 +253,7 @@ class _AchievementUnlockDialogState extends State<AchievementUnlockDialog>
 
                   // Description
                   Text(
-                    widget.achievement.description,
+                    widget.achievement.descriptionWithUnit(ref.watch(weightUnitProvider).name),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),

@@ -23,8 +23,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../exercises/models/exercise.dart';
+import '../../../shared/services/workout_history_service.dart';
 import '../models/exercise_log.dart';
 import '../models/exercise_set.dart';
+import '../models/weight_input.dart';
 import '../models/workout_session.dart';
 import '../providers/current_workout_provider.dart';
 import '../providers/rest_timer_provider.dart';
@@ -39,6 +42,9 @@ import '../providers/superset_provider.dart';
 import '../models/superset.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/models/user_settings.dart';
+import '../../music/widgets/music_mini_player.dart';
+import '../providers/weight_recommendation_provider.dart';
+import '../models/weight_recommendation.dart';
 
 /// The main active workout screen.
 ///
@@ -179,6 +185,11 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
               child: SupersetIndicator(),
             ),
 
+          // Music mini player (shown when music is playing)
+          MusicMiniPlayer(
+            onTap: () => showMusicPlayerSheet(context),
+          ),
+
           // Rest timer bar (shown when timer is running)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -296,6 +307,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     WorkoutSession workout,
   ) {
     return ReorderableListView.builder(
+      buildDefaultDragHandles: false,
       padding: const EdgeInsets.only(bottom: 100), // Space for FAB
       itemCount: workout.exerciseLogs.length,
       onReorder: (oldIndex, newIndex) {
@@ -431,14 +443,21 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Discard Workout?'),
+        title: const Text('Leave Workout?'),
         content: const Text(
-          'Are you sure you want to discard this workout? All progress will be lost.',
+          'You can continue later or discard this workout entirely.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Keep Working'),
+          ),
+          FilledButton.tonal(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.go('/');
+            },
+            child: const Text('Continue Later'),
           ),
           TextButton(
             onPressed: () {
@@ -698,6 +717,9 @@ class _ExerciseCard extends ConsumerWidget {
           // Exercise header
           _buildHeader(context, ref, theme, colors),
 
+          // AI recommendation chip (if available)
+          _buildRecommendationBanner(ref, theme, colors),
+
           // Sets list - completed sets can be swiped to delete
           ...exerciseLog.sets.asMap().entries.map((entry) {
             return Padding(
@@ -715,11 +737,23 @@ class _ExerciseCard extends ConsumerWidget {
                         setIndex: entry.key,
                       );
                 },
+                onEdit: () {
+                  _showEditSetDialog(
+                    context,
+                    ref,
+                    exerciseIndex,
+                    entry.key,
+                    entry.value,
+                    unitString,
+                  );
+                },
                 onComplete: ({
                   required weight,
                   required reps,
                   rpe,
                   setType = SetType.working,
+                  weightType,
+                  bandResistance,
                 }) {
                   // Update existing set
                   ref.read(currentWorkoutProvider.notifier).updateSet(
@@ -752,8 +786,10 @@ class _ExerciseCard extends ConsumerWidget {
                 required reps,
                 rpe,
                 setType = SetType.working,
+                weightType,
+                bandResistance,
               }) {
-                _logSetAndHandleSuperset(ref, weight, reps, rpe: rpe, setType: setType);
+                _logSetAndHandleSuperset(ref, weight, reps, rpe: rpe, setType: setType, weightType: weightType, bandResistance: bandResistance);
               },
             ),
           ),
@@ -769,12 +805,14 @@ class _ExerciseCard extends ConsumerWidget {
     int? reps, {
     double? rpe,
     SetType setType = SetType.working,
+    WeightInputType? weightType,
+    BandResistance? bandResistance,
   }) {
     // Determine weight and reps (use previous or provided)
     final actualWeight = weight ?? exerciseLog.sets.lastOrNull?.weight ?? 0.0;
     final actualReps = reps ?? exerciseLog.sets.lastOrNull?.reps ?? 0;
 
-    if (actualWeight <= 0 || actualReps <= 0) return;
+    if (actualReps <= 0) return;
 
     // Log the set
     ref.read(currentWorkoutProvider.notifier).logSet(
@@ -783,6 +821,8 @@ class _ExerciseCard extends ConsumerWidget {
           reps: actualReps,
           rpe: rpe,
           setType: setType,
+          weightType: weightType,
+          bandResistance: bandResistance,
         );
 
     // Check if this exercise is part of an active superset
@@ -810,6 +850,60 @@ class _ExerciseCard extends ConsumerWidget {
     }
   }
 
+  Widget _buildRecommendationBanner(WidgetRef ref, ThemeData theme, ColorScheme colors) {
+    final recommendation = ref.watch(exerciseRecommendationProvider(exerciseLog.exerciseId));
+    if (recommendation == null || recommendation.sets.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final firstSet = recommendation.firstSet!;
+    final unitStr = ref.watch(weightUnitProvider) == WeightUnit.kg ? 'kg' : 'lbs';
+    final confidenceIcon = switch (recommendation.confidence) {
+      RecommendationConfidence.high => Icons.verified,
+      RecommendationConfidence.medium => Icons.check_circle_outline,
+      RecommendationConfidence.low => Icons.help_outline,
+    };
+    final confidenceColor = switch (recommendation.confidence) {
+      RecommendationConfidence.high => Colors.green,
+      RecommendationConfidence.medium => Colors.amber,
+      RecommendationConfidence.low => Colors.grey,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome, size: 14, color: colors.primary),
+              const SizedBox(width: 4),
+              Text(
+                '${recommendation.isProgression ? "↑ " : ""}Suggested: ${firstSet.toDisplayString(unit: unitStr)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(confidenceIcon, size: 14, color: confidenceColor),
+            ],
+          ),
+          if (recommendation.phaseFeedback != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                recommendation.phaseFeedback!,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader(
     BuildContext context,
     WidgetRef ref,
@@ -831,14 +925,17 @@ class _ExerciseCard extends ConsumerWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
-      subtitle: exerciseLog.primaryMuscles.isNotEmpty
-          ? Text(
-              exerciseLog.primaryMuscles.join(', '),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            )
-          : null,
+      subtitle: Text(
+        [
+          if (exerciseLog.isUnilateral) 'Unilateral',
+          if (exerciseLog.cableAttachment != null) exerciseLog.cableAttachment!.label,
+          if (exerciseLog.primaryMuscles.isNotEmpty)
+            exerciseLog.primaryMuscles.map((m) => muscleGroupDisplayName(m)).join(', '),
+        ].join(' · '),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: exerciseLog.isUnilateral ? colors.primary : colors.onSurfaceVariant,
+        ),
+      ),
       trailing: PopupMenuButton(
         icon: const Icon(Icons.more_vert),
         itemBuilder: (context) => [
@@ -847,6 +944,43 @@ class _ExerciseCard extends ConsumerWidget {
             child: ListTile(
               leading: Icon(Icons.note_add),
               title: Text('Add Notes'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'history',
+            child: ListTile(
+              leading: Icon(Icons.history),
+              title: Text('View History'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          if (exerciseLog.equipment.contains('cable') ||
+              exerciseLog.equipment.contains('Cable'))
+            const PopupMenuItem(
+              value: 'attachment',
+              child: ListTile(
+                leading: Icon(Icons.link),
+                title: Text('Cable Attachment'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          PopupMenuItem(
+            value: 'unilateral',
+            child: ListTile(
+              leading: Icon(
+                Icons.back_hand_outlined,
+                color: exerciseLog.isUnilateral ? Theme.of(context).colorScheme.primary : null,
+              ),
+              title: Text(exerciseLog.isUnilateral ? 'Set Bilateral' : 'Set Unilateral'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'switch',
+            child: ListTile(
+              leading: Icon(Icons.swap_horiz),
+              title: Text('Switch Exercise'),
               contentPadding: EdgeInsets.zero,
             ),
           ),
@@ -862,7 +996,19 @@ class _ExerciseCard extends ConsumerWidget {
         onSelected: (value) {
           switch (value) {
             case 'notes':
-              // TODO: Show notes dialog
+              _showNotesDialog(context, ref, exerciseIndex, exerciseLog);
+              break;
+            case 'history':
+              _showExerciseHistory(context, ref, exerciseLog);
+              break;
+            case 'attachment':
+              _showCableAttachmentPicker(context, ref, exerciseIndex, exerciseLog);
+              break;
+            case 'unilateral':
+              _toggleUnilateral(ref, exerciseIndex, exerciseLog);
+              break;
+            case 'switch':
+              _showSwitchExercise(context, ref, exerciseIndex);
               break;
             case 'remove':
               ref.read(currentWorkoutProvider.notifier).removeExercise(
@@ -871,6 +1017,190 @@ class _ExerciseCard extends ConsumerWidget {
               break;
           }
         },
+      ),
+    );
+  }
+
+  void _showCableAttachmentPicker(
+    BuildContext context,
+    WidgetRef ref,
+    int exerciseIndex,
+    ExerciseLog exerciseLog,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cable Attachment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: CableAttachment.values.map((attachment) {
+            return RadioListTile<CableAttachment>(
+              title: Text(attachment.label),
+              value: attachment,
+              groupValue: exerciseLog.cableAttachment,
+              onChanged: (value) {
+                ref.read(currentWorkoutProvider.notifier).updateCableAttachment(
+                      exerciseIndex: exerciseIndex,
+                      attachment: value,
+                    );
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _toggleUnilateral(WidgetRef ref, int exerciseIndex, ExerciseLog exerciseLog) {
+    ref.read(currentWorkoutProvider.notifier).toggleUnilateral(exerciseIndex);
+  }
+
+  void _showExerciseHistory(
+    BuildContext context,
+    WidgetRef ref,
+    ExerciseLog exerciseLog,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => _ExerciseHistorySheet(
+          exerciseId: exerciseLog.exerciseId,
+          exerciseName: exerciseLog.exerciseName,
+          scrollController: scrollController,
+        ),
+      ),
+    );
+  }
+
+  void _showSwitchExercise(
+    BuildContext context,
+    WidgetRef ref,
+    int exerciseIndex,
+  ) async {
+    final exercise = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const ExercisePickerModal(),
+    );
+
+    if (exercise != null) {
+      ref.read(currentWorkoutProvider.notifier).switchExercise(
+            exerciseIndex: exerciseIndex,
+            exerciseId: exercise.id,
+            exerciseName: exercise.name,
+            primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
+            secondaryMuscles: exercise.secondaryMuscles.map((m) => m.name).toList(),
+            equipment: [exercise.equipment.name],
+            formCues: exercise.formCues,
+          );
+    }
+  }
+
+  void _showEditSetDialog(
+    BuildContext context,
+    WidgetRef ref,
+    int exerciseIndex,
+    int setIndex,
+    ExerciseSet set,
+    String unit,
+  ) {
+    final weightController = TextEditingController(text: set.weight.toString());
+    final repsController = TextEditingController(text: set.reps.toString());
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit Set ${setIndex + 1}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: weightController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Weight ($unit)',
+                border: const OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: repsController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Reps',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final weight = double.tryParse(weightController.text) ?? set.weight;
+              final reps = int.tryParse(repsController.text) ?? set.reps;
+              ref.read(currentWorkoutProvider.notifier).updateSet(
+                    exerciseIndex: exerciseIndex,
+                    setIndex: setIndex,
+                    weight: weight,
+                    reps: reps,
+                    rpe: set.rpe,
+                    setType: set.setType,
+                  );
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNotesDialog(
+    BuildContext context,
+    WidgetRef ref,
+    int exerciseIndex,
+    ExerciseLog exerciseLog,
+  ) {
+    final controller = TextEditingController(text: exerciseLog.notes ?? '');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exercise Notes'),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Add notes for this exercise...',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(currentWorkoutProvider.notifier).updateExerciseNotes(
+                    exerciseIndex,
+                    controller.text.isEmpty ? null : controller.text,
+                  );
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }
@@ -970,4 +1300,140 @@ class _FinishWorkoutDialogState extends ConsumerState<_FinishWorkoutDialog> {
       ],
     );
   }
+}
+
+/// Sheet showing exercise history from previous workouts.
+class _ExerciseHistorySheet extends ConsumerWidget {
+  final String exerciseId;
+  final String exerciseName;
+  final ScrollController scrollController;
+
+  const _ExerciseHistorySheet({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.scrollController,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final historyService = ref.read(workoutHistoryServiceProvider);
+    final allWorkouts = historyService.workouts;
+
+    // Find workouts containing this exercise
+    final exerciseHistory = <_ExerciseHistoryEntry>[];
+    for (final workout in allWorkouts) {
+      for (final exercise in workout.exercises) {
+        if (exercise.exerciseId == exerciseId) {
+          exerciseHistory.add(_ExerciseHistoryEntry(
+            date: workout.startedAt,
+            sets: exercise.sets,
+            workoutName: workout.templateName ?? 'Workout',
+          ));
+        }
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Text(
+            '$exerciseName History',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (exerciseHistory.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  'No previous history for this exercise.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.separated(
+                controller: scrollController,
+                itemCount: exerciseHistory.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (context, index) {
+                  final entry = exerciseHistory[index];
+                  return _buildHistoryEntry(theme, colors, entry);
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryEntry(
+    ThemeData theme,
+    ColorScheme colors,
+    _ExerciseHistoryEntry entry,
+  ) {
+    final dateStr = '${entry.date.day}/${entry.date.month}/${entry.date.year}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              dateStr,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              entry.workoutName,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ...entry.sets.map((set) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                '${set.weight} x ${set.reps}${set.rpe != null ? ' @ RPE ${set.rpe}' : ''}',
+                style: theme.textTheme.bodyMedium,
+              ),
+            )),
+      ],
+    );
+  }
+}
+
+class _ExerciseHistoryEntry {
+  final DateTime date;
+  final List<CompletedSet> sets;
+  final String workoutName;
+
+  _ExerciseHistoryEntry({
+    required this.date,
+    required this.sets,
+    required this.workoutName,
+  });
 }
