@@ -1,233 +1,278 @@
-# Overnight Autonomous Run — Full Feature Completion (Round 2)
+# Overnight Autonomous Run — PostgreSQL Sync Implementation
 
-> **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `docs/handover/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
+> **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `.claude/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
 
-**STATUS**: PENDING — 0/10 phases complete
+**STATUS**: PENDING — 0/6 phases complete
+
+## Overview
+
+Implement real-time bi-directional sync between Flutter local storage and backend PostgreSQL. Local storage remains source of truth for current session (offline-first), with background sync to PostgreSQL on every data change. Use last-write-wins conflict resolution based on `lastModifiedAt` timestamps.
+
+**Data to Sync**: Workouts, templates, measurements, progression states, settings, mesocycles, achievements, personal records.
 
 ## Phase Checklist
 
 > **Tick off each phase as you complete it. The overnight runner MUST update this checklist after each phase.**
 
-- [ ] **Phase 1** — Year in Review (Real Data)
-- [ ] **Phase 2** — Calendar & Scheduled Workouts
-- [ ] **Phase 3** — Weekly Report Polish
-- [ ] **Phase 4** — Achievements (Real Data + Celebrations)
-- [ ] **Phase 5** — Measurements (Photos & Trends)
-- [ ] **Phase 6** — Progress Tab Verification
-- [ ] **Phase 7** — UI Design Review (MD3 Audit)
-- [ ] **Phase 8** — Additional Themes (6 New)
-- [ ] **Phase 9** — Periodization & Program Progression
-- [ ] **Phase 10** — Social/Friends (Local-First)
+- [ ] **Phase 1** — Backend Sync Infrastructure
+- [ ] **Phase 2** — Flutter Sync Models & Queue
+- [ ] **Phase 3** — Flutter Sync Service
+- [ ] **Phase 4** — Integrate Sync into Existing Services
+- [ ] **Phase 5** — App Lifecycle & Background Sync
+- [ ] **Phase 6** — Testing & Verification
 
 ---
 
-## Phase 1: Year in Review (Real Data)
+## Phase 1: Backend Sync Infrastructure
 
-**Goal**: Replace mock data in `yearly_wrapped_provider.dart` `_generateWrapped()` with real `WorkoutHistoryService` data.
-
-**Files to modify**:
-- `app/lib/features/analytics/providers/yearly_wrapped_provider.dart` — rewrite `_generateWrapped()`
-- `app/lib/shared/services/workout_history_service.dart` (read for available methods)
-
-**Tasks**:
-- [ ] Read `WorkoutHistoryService` to understand available query methods
-- [ ] Rewrite `_generateWrapped()` to compute from real data: total workouts, total volume, most trained muscle group, longest streak, favorite exercise, monthly breakdown
-- [ ] Handle edge cases: no workouts, partial year, new user (show friendly empty state)
-- [ ] Add loading/error states to the wrapped screen
-- [ ] `flutter build web` succeeds
-
-**Commit**: `feat(analytics): connect year-in-review to real workout data`
-
----
-
-## Phase 2: Calendar & Scheduled Workouts
-
-**Goal**: Implement `_loadScheduledWorkouts()` stub in `calendar_provider.dart` with SharedPreferences persistence.
-
-**Files to modify**:
-- `app/lib/features/calendar/providers/calendar_provider.dart` — implement `_loadScheduledWorkouts()`
-- `app/lib/core/services/user_storage_keys.dart` — add `scheduledWorkouts` key
-
-**Tasks**:
-- [ ] Implement `_loadScheduledWorkouts()` reading JSON list of `{date, templateId, templateName}` from SharedPreferences
-- [ ] Implement `scheduleWorkout(date, templateId, templateName)` and `removeScheduledWorkout(date)`
-- [ ] Merge scheduled workouts with completed workouts on calendar view
-- [ ] Color-code: completed = green, scheduled-future = blue, missed = red
-- [ ] `flutter build web` succeeds
-
-**Commit**: `feat(calendar): implement scheduled workouts with local persistence`
-
----
-
-## Phase 3: Weekly Report Polish
-
-**Goal**: Make rest days and consistency grade meaningful using rolling 4-week adherence.
-
-**Files to modify**:
-- `app/lib/features/analytics/providers/weekly_report_provider.dart`
-- `app/lib/features/analytics/providers/streak_provider.dart`
-- `app/lib/features/analytics/screens/weekly_report_screen.dart`
-
-**Tasks**:
-- [ ] Calculate rest days from actual workout dates (7 - workout days this week)
-- [ ] Implement consistency grade: A (>=90%), B (>=75%), C (>=60%), D (>=40%), F (<40%) over rolling 4 weeks
-- [ ] Base adherence on user's target days/week from settings vs actual workouts
-- [ ] Show trend arrow (improving/declining/stable) comparing current vs previous 4-week block
-- [ ] `flutter build web` succeeds
-
-**Commit**: `feat(analytics): meaningful weekly report with rolling adherence grading`
-
----
-
-## Phase 4: Achievements (Real Data + Celebrations)
-
-**Goal**: Link achievements to real workout data via `WorkoutHistoryService`, add unlock celebrations, persist locally.
-
-**Files to modify**:
-- `app/lib/features/achievements/screens/achievements_screen.dart`
-- `app/lib/core/services/user_storage_keys.dart` — add achievement keys
-
-**Tasks**:
-- [ ] Check unlock conditions against `WorkoutHistoryService` data on screen load (First Workout, 10/50/100/500 Workouts, 7/30/100-Day Streak, 1000kg/10000kg Total Volume, First PR, 10/50 PRs)
-- [ ] Persist unlocked achievements + unlock dates in SharedPreferences
-- [ ] Show celebration dialog on first unlock detection (scale animation + highlight)
-- [ ] Display progress bars for locked achievements showing % toward unlock
-- [ ] `flutter build web` succeeds
-
-**Commit**: `feat(achievements): real data achievements with unlock celebrations`
-
----
-
-## Phase 5: Measurements (Photos & Trends)
-
-**Goal**: Ensure body measurements photos and trends tabs work with local persistence.
+**Goal**: Create backend sync endpoints and add sync metadata to Prisma schema.
 
 **Files to modify/create**:
-- `app/lib/features/measurements/screens/measurements_screen.dart` (create if missing)
-- `app/lib/core/services/user_storage_keys.dart` — add measurement keys
+- `backend/prisma/schema.prisma` — add sync fields
+- `backend/src/services/sync.service.ts` — create new
+- `backend/src/routes/sync.routes.ts` — create new
+- `backend/src/routes/index.ts` — mount sync routes
 
 **Tasks**:
-- [ ] Create measurements data model: `{date, weight, bodyFat%, chest, waist, hips, arms, thighs}` stored as JSON in SharedPreferences
-- [ ] Implement add/edit/delete measurement entries
-- [ ] Trends tab: line charts for each metric over time using fl_chart
-- [ ] Photos tab: store photo file paths with dates, display in grid/timeline
-- [ ] Handle empty states with helpful onboarding text
-- [ ] `flutter build web` succeeds
+- [ ] Update Prisma schema — add to WorkoutSession, WorkoutTemplate, BodyMeasurement, Mesocycle, MesocycleWeek:
+  ```prisma
+  lastModifiedAt DateTime @updatedAt
+  clientId       String?
+  ```
+- [ ] Run `npx prisma migrate dev --name add_sync_fields`
+- [ ] Create `backend/src/services/sync.service.ts`:
+  - `processChanges(userId, changes[])` — apply batch changes with last-write-wins
+  - `getChangesSince(userId, timestamp)` — get all changes since timestamp
+  - `resolveConflict(local, remote)` — compare lastModifiedAt, newer wins
+- [ ] Create `backend/src/routes/sync.routes.ts`:
+  - `POST /api/v1/sync/push` — receive batch of changes from client, return success/failed
+  - `GET /api/v1/sync/pull?since=<timestamp>` — return changes since timestamp with serverTime
+- [ ] Mount routes in `backend/src/routes/index.ts`
+- [ ] Test endpoints manually with curl (create test user, push a workout, pull it back)
+- [ ] `cd backend && npm run build` succeeds
 
-**Commit**: `feat(measurements): body measurements with photos and trend charts`
+**Commit**: `feat(backend): add sync endpoints with last-write-wins conflict resolution`
 
 ---
 
-## Phase 6: Progress Tab Verification
+## Phase 2: Flutter Sync Models & Queue
 
-**Goal**: Verify all progress/analytics sections use real data, remove any remaining mock/static content.
+**Goal**: Create sync queue model and service for offline-first queuing of changes.
+
+**Files to create**:
+- `app/lib/shared/models/sync_queue_item.dart`
+- `app/lib/shared/services/sync_queue_service.dart`
 
 **Files to modify**:
-- `app/lib/features/analytics/screens/progress_screen.dart`
-- `app/lib/features/analytics/providers/analytics_provider.dart`
-- Any widgets in `app/lib/features/analytics/widgets/`
+- `app/pubspec.yaml` — add connectivity_plus
 
 **Tasks**:
-- [ ] Audit every data source in progress_screen.dart — flag any hardcoded or mock values
-- [ ] Replace any mock data with `WorkoutHistoryService` queries
-- [ ] Verify volume charts, exercise PRs, muscle group distribution all use real data
-- [ ] Ensure empty states display properly for new users
+- [ ] Add to `pubspec.yaml`:
+  ```yaml
+  connectivity_plus: ^6.0.0
+  ```
+- [ ] Run `flutter pub get`
+- [ ] Create `app/lib/shared/models/sync_queue_item.dart`:
+  ```dart
+  enum SyncEntityType { workout, template, measurement, progression, settings, mesocycle, achievement }
+  enum SyncAction { create, update, delete }
+
+  class SyncQueueItem {
+    final String id;
+    final SyncEntityType entityType;
+    final SyncAction action;
+    final String entityId;
+    final Map<String, dynamic> data;
+    final DateTime createdAt;
+    final int retryCount;
+    // JSON serialization methods
+  }
+  ```
+- [ ] Create `app/lib/shared/services/sync_queue_service.dart`:
+  - `addToQueue(item)` — add change to queue, persist to SharedPreferences
+  - `getQueuedItems()` — get all pending items
+  - `removeFromQueue(id)` — remove after successful sync
+  - `incrementRetryCount(id)` — track failed attempts (max 5 retries)
+  - `clearQueue()` — remove all items
+  - Use user-scoped storage keys from `UserStorageKeys`
 - [ ] `flutter build web` succeeds
 
-**Commit**: `fix(analytics): ensure all progress data is real, remove mock content`
+**Commit**: `feat(sync): add sync queue model and service for offline-first changes`
 
 ---
 
-## Phase 7: UI Design Review (Material Design 3 Audit)
+## Phase 3: Flutter Sync Service
 
-**Goal**: Audit spacing, typography, empty/loading/error states, touch targets across all screens.
+**Goal**: Create main sync orchestration service and connectivity monitoring.
 
-**Files to modify**: Multiple screens and widgets across `app/lib/features/`
+**Files to create**:
+- `app/lib/shared/services/connectivity_service.dart`
+- `app/lib/shared/services/sync_service.dart`
+- `app/lib/providers/sync_provider.dart`
 
 **Tasks**:
-- [ ] Audit spacing: consistent padding (16px standard, 8px compact, 24px section gaps)
-- [ ] Audit typography: use `Theme.of(context).textTheme` consistently, no hardcoded font sizes
-- [ ] Ensure every screen has: loading state, error state with retry, empty state with text
-- [ ] Touch targets: minimum 48x48dp for all interactive elements
-- [ ] Check dark mode renders correctly on all screens
+- [ ] Create `app/lib/shared/services/connectivity_service.dart`:
+  - Use `connectivity_plus` package
+  - Expose `Stream<bool> onConnectivityChanged`
+  - `Future<bool> isOnline()` method
+  - Auto-trigger callback when connection restored
+- [ ] Create `app/lib/shared/services/sync_service.dart`:
+  - Constructor takes: ApiClient, SyncQueueService, ConnectivityService
+  - `pushChanges()` — send queued items to `POST /api/v1/sync/push`, remove successful items from queue
+  - `pullChanges()` — fetch from `GET /api/v1/sync/pull?since=<lastSync>`, apply to local storage
+  - `syncAll()` — push then pull
+  - `getLastSyncTimestamp()` / `setLastSyncTimestamp()` — persist in SharedPreferences
+  - Retry logic with exponential backoff (1s, 2s, 4s, 8s, 16s)
+  - Listen to connectivity changes, auto-sync when online
+- [ ] Create `app/lib/providers/sync_provider.dart`:
+  - `syncStatusProvider` — enum: idle, syncing, error, offline
+  - `pendingChangesCountProvider` — count of queued items
+  - `lastSyncTimeProvider` — DateTime of last successful sync
+  - `syncServiceProvider` — singleton instance
 - [ ] `flutter build web` succeeds
 
-**Commit**: `style(ui): Material Design 3 audit — spacing, typography, states, touch targets`
+**Commit**: `feat(sync): add sync service with connectivity monitoring and auto-sync`
 
 ---
 
-## Phase 8: Additional Themes
+## Phase 4: Integrate Sync into Existing Services
 
-**Goal**: Add 6 new color themes users can select in settings.
+**Goal**: Hook sync queue into all data mutation points across the app.
 
 **Files to modify**:
-- `app/lib/core/theme/app_theme.dart`
-- `app/lib/features/settings/screens/settings_screen.dart`
+- `app/lib/shared/services/workout_history_service.dart`
+- `app/lib/features/templates/providers/templates_provider.dart`
+- `app/lib/shared/services/progression_state_service.dart`
+- `app/lib/features/periodization/providers/periodization_provider.dart`
 - `app/lib/features/settings/providers/settings_provider.dart`
+- `app/lib/features/measurements/` (if exists)
 
 **Tasks**:
-- [ ] Define 6 new themes in `app_theme.dart`, each with light + dark variants:
-  - Midnight Blue: primary `#1A237E`
-  - Forest: primary `#2E7D32`
-  - Sunset: primary `#E65100`
-  - Monochrome: primary `#424242`
-  - Ocean: primary `#0277BD`
-  - Rose Gold: primary `#AD1457`
-- [ ] Add theme selection UI in settings (grid of color circles with names)
-- [ ] Persist selected theme in SharedPreferences
-- [ ] Apply theme reactively via Riverpod
+- [ ] Modify `WorkoutHistoryService`:
+  - Inject `SyncQueueService` via provider
+  - After `saveWorkout()` → `syncQueue.addToQueue(SyncQueueItem(entityType: workout, action: create, ...))`
+  - After `deleteWorkout()` → queue delete action
+  - Add `applyRemoteChanges(List<Change>)` method for incoming sync data
+- [ ] Modify `UserTemplatesNotifier` in templates_provider.dart:
+  - After `addTemplate()` → queue create
+  - After `updateTemplate()` → queue update
+  - After `deleteTemplate()` → queue delete
+- [ ] Modify `ProgressionStateService`:
+  - After `saveState()` → queue update
+  - Add method to apply remote progression states
+- [ ] Modify `MesocyclesNotifier` in periodization_provider.dart:
+  - After `createMesocycle()` → queue create
+  - After `startMesocycle()`, `advanceWeek()`, `abandonMesocycle()` → queue update
+- [ ] Modify settings provider (if exists) or create sync hook for user settings
 - [ ] `flutter build web` succeeds
 
-**Commit**: `feat(themes): add 6 new color themes with settings picker`
+**Commit**: `feat(sync): integrate sync queue into all data mutation services`
 
 ---
 
-## Phase 9: Periodization & Program Progression
+## Phase 5: App Lifecycle & Background Sync
 
-**Goal**: Ensure program progression works locally — week tracking, auto-advance, deload weeks.
+**Goal**: Trigger sync on app lifecycle events and add UI indicators.
 
 **Files to modify**:
-- `app/lib/features/programs/providers/active_program_provider.dart`
-- `app/lib/features/programs/models/active_program.dart`
-- `app/lib/features/progression/providers/progression_provider.dart`
+- `app/lib/main.dart` or `app/lib/app.dart`
+- `app/lib/features/settings/screens/settings_screen.dart`
+- Create `app/lib/shared/widgets/sync_status_indicator.dart`
 
 **Tasks**:
-- [ ] Track current week number within active program (persist in SharedPreferences)
-- [ ] Auto-advance to next week when all workouts for current week are completed
-- [ ] Implement deload week logic: every 4th week (configurable), reduce volume/intensity by 40%
-- [ ] Show program progress bar (week X of Y) on home screen
-- [ ] Allow manual week skip/repeat from program detail screen
+- [ ] Add `WidgetsBindingObserver` to main app widget:
+  - On `resumed` (app foreground) → trigger `syncService.syncAll()`
+  - On `paused` (app background) → trigger `syncService.pushChanges()` if queue not empty
+- [ ] Create `SyncStatusIndicator` widget:
+  - Small icon showing: cloud-check (synced), cloud-sync (syncing), cloud-off (offline), cloud-alert (error)
+  - Show pending count badge when items queued
+  - Tap to trigger manual sync
+- [ ] Add `SyncStatusIndicator` to app bar (home screen or global)
+- [ ] Add sync section to settings screen:
+  - Last sync time display
+  - Manual "Sync Now" button
+  - Pending changes count
+  - "Clear sync queue" option (with confirmation)
 - [ ] `flutter build web` succeeds
 
-**Commit**: `feat(programs): local periodization with week tracking and deload logic`
+**Commit**: `feat(sync): add app lifecycle sync triggers and UI status indicator`
 
 ---
 
-## Phase 10: Social/Friends (Local-First)
+## Phase 6: Testing & Verification
 
-**Goal**: Local-first friend code system with activity feed and leaderboard placeholders.
-
-**Files to create/modify**:
-- `app/lib/features/social/screens/social_screen.dart` (create)
-- `app/lib/features/social/providers/social_provider.dart` (create)
-- `app/lib/core/router/app_router.dart` (add route)
+**Goal**: Verify sync works end-to-end in various scenarios.
 
 **Tasks**:
-- [ ] Generate unique 8-character friend code per user (persist locally)
-- [ ] UI to share friend code and enter others' codes
-- [ ] Local activity feed showing own recent workouts, PRs, achievements
-- [ ] Leaderboard placeholder UI (weekly volume, streak, total workouts) — local data only
-- [ ] Add Social tab to bottom navigation or as section in home
+- [ ] Test offline queue:
+  - Enable airplane mode (or disconnect network)
+  - Complete a workout
+  - Check SharedPreferences for queued item
+  - Reconnect network
+  - Verify sync triggers automatically and queue empties
+  - Verify workout appears in database (check via Prisma Studio or API)
+- [ ] Test pull sync:
+  - Insert a workout directly in PostgreSQL via Prisma Studio
+  - Pull on app
+  - Verify workout appears in local workout history
+- [ ] Test conflict resolution:
+  - Create template locally
+  - Sync to server
+  - Modify template on server (change name, update lastModifiedAt)
+  - Modify same template locally with older timestamp
+  - Sync
+  - Verify server version wins (newer timestamp)
+- [ ] Test app lifecycle:
+  - Start workout, log some sets
+  - Background app
+  - Check logs for push attempt
+  - Resume app
+  - Check logs for full sync
+- [ ] Build and deploy:
+  - `cd app && flutter build web --release`
+  - `rm -rf ../backend/public/* && cp -r build/web/* ../backend/public/`
+  - Test on Railway deployment
 - [ ] `flutter build web` succeeds
 
-**Commit**: `feat(social): local-first friend codes, activity feed, leaderboard placeholders`
+**Commit**: `test(sync): verify sync functionality across all scenarios`
 
 ---
 
 ## Post-Completion
 
-After all 10 phases:
+After all 6 phases:
 1. Run full `flutter build web` and copy to `backend/public/`
-2. Create final handover at `docs/handover/overnight-round2-completion-handover.md`
-3. Update `FEATURES.md` with all new/improved features
-4. Final commit: `feat: overnight round 2 complete — all 10 phases implemented`
+2. Create final handover at `.claude/handover.md`
+3. Update `FEATURES.md` with sync feature documentation
+4. Final commit: `feat: PostgreSQL sync implementation complete`
+5. Push to remote: `git push`
+
+---
+
+## Key Files Reference
+
+**Backend (new)**:
+| File | Purpose |
+|------|---------|
+| `backend/src/services/sync.service.ts` | Sync business logic, conflict resolution |
+| `backend/src/routes/sync.routes.ts` | POST /sync/push, GET /sync/pull endpoints |
+
+**Flutter (new)**:
+| File | Purpose |
+|------|---------|
+| `app/lib/shared/models/sync_queue_item.dart` | Queue item model with enums |
+| `app/lib/shared/services/sync_queue_service.dart` | Local queue persistence |
+| `app/lib/shared/services/sync_service.dart` | Sync orchestration |
+| `app/lib/shared/services/connectivity_service.dart` | Network monitoring |
+| `app/lib/providers/sync_provider.dart` | Riverpod providers for sync state |
+| `app/lib/shared/widgets/sync_status_indicator.dart` | UI indicator widget |
+
+**Modified**:
+| File | Change |
+|------|--------|
+| `backend/prisma/schema.prisma` | Add lastModifiedAt, clientId fields |
+| `app/pubspec.yaml` | Add connectivity_plus |
+| `app/lib/shared/services/workout_history_service.dart` | Queue sync on mutations |
+| `app/lib/features/templates/providers/templates_provider.dart` | Queue sync on mutations |
+| `app/lib/shared/services/progression_state_service.dart` | Queue sync on mutations |
+| `app/lib/features/periodization/providers/periodization_provider.dart` | Queue sync on mutations |

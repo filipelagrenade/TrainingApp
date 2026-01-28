@@ -177,6 +177,10 @@ model WorkoutTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Sync fields for offline-first sync
+  lastModifiedAt DateTime @default(now()) @updatedAt
+  clientId       String?  // Client-generated UUID for sync
+
   // Relations
   user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
   program   Program?           @relation(fields: [programId], references: [id], onDelete: SetNull)
@@ -185,6 +189,7 @@ model WorkoutTemplate {
 
   @@index([userId])
   @@index([programId])
+  @@index([lastModifiedAt])
 }
 
 /// TemplateExercise represents an exercise within a workout template.
@@ -220,6 +225,10 @@ model WorkoutSession {
   notes           String?
   rating          Int?      // User rating 1-5
 
+  // Sync fields for offline-first sync
+  lastModifiedAt DateTime @default(now()) @updatedAt
+  clientId       String?  // Client-generated UUID for sync
+
   // Relations
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
@@ -229,6 +238,7 @@ model WorkoutSession {
   @@index([templateId])
   @@index([startedAt])
   @@index([completedAt])
+  @@index([lastModifiedAt])
 }
 
 /// ExerciseLog represents a single exercise performed within a workout session.
@@ -502,12 +512,17 @@ model BodyMeasurement {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  // Sync fields for offline-first sync
+  lastModifiedAt DateTime @default(now()) @updatedAt
+  clientId       String?  // Client-generated UUID for sync
+
   // Relations
   user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   photos ProgressPhoto[]
 
   @@index([userId])
   @@index([measuredAt])
+  @@index([lastModifiedAt])
 }
 
 /// ProgressPhoto stores progress photos linked to measurements.
@@ -586,6 +601,10 @@ model Mesocycle {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
+  // Sync fields for offline-first sync
+  lastModifiedAt DateTime @default(now()) @updatedAt
+  clientId       String?  // Client-generated UUID for sync
+
   // Relations
   user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   weeks MesocycleWeek[]
@@ -593,6 +612,7 @@ model Mesocycle {
   @@index([userId])
   @@index([startDate])
   @@index([status])
+  @@index([lastModifiedAt])
 }
 
 /// MesocycleWeek represents a single week within a mesocycle.
@@ -609,9 +629,14 @@ model MesocycleWeek {
   isCompleted         Boolean  @default(false)
   completedAt         DateTime?
 
+  // Sync fields for offline-first sync
+  lastModifiedAt DateTime @default(now()) @updatedAt
+  clientId       String?  // Client-generated UUID for sync
+
   // Relations
   mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
 
   @@unique([mesocycleId, weekNumber])
   @@index([mesocycleId])
+  @@index([lastModifiedAt])
 }
