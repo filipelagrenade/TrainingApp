@@ -56,6 +56,9 @@ dependencies:
   # Charts
   fl_chart: ^0.67.0
 
+  # Connectivity for sync
+  connectivity_plus: ^6.0.0
+
   # Celebrations
   confetti: ^0.7.0
 
