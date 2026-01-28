@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/sync_status_indicator.dart';
 import '../models/user_settings.dart';
 import '../providers/settings_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -108,6 +109,15 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Privacy Settings'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showPrivacySettings(context, ref, settings.privacy),
+          ),
+
+          const Divider(),
+
+          // Sync Section
+          _SectionHeader(title: 'Cloud Sync'),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: SyncStatusCard(),
           ),
 
           const Divider(),

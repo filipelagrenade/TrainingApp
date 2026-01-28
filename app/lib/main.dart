@@ -28,6 +28,8 @@ import 'features/settings/models/user_settings.dart';
 import 'features/workouts/providers/current_workout_provider.dart';
 import 'firebase_options.dart';
 import 'shared/services/notification_service.dart';
+import 'shared/services/sync_service.dart';
+import 'shared/services/sync_queue_service.dart';
 
 /// Main entry point for the application.
 ///
@@ -207,6 +209,46 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
       debugPrint('LiftIQApp: App going to background, workout will persist');
       // Note: Workout is already persisted after each mutation,
       // so no additional action needed here
+
+      // Push any pending sync changes when going to background
+      _pushSyncChanges();
+    }
+
+    // Trigger full sync when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('LiftIQApp: App resumed, triggering sync');
+      _triggerSync();
+    }
+  }
+
+  /// Pushes any pending sync changes to the server.
+  ///
+  /// Called when the app goes to background to ensure offline changes
+  /// are synced before the app is potentially killed.
+  Future<void> _pushSyncChanges() async {
+    try {
+      final queueService = ref.read(syncQueueServiceProvider);
+      if (queueService.hasPendingChanges) {
+        final syncService = ref.read(syncServiceProvider);
+        await syncService.pushChanges();
+        debugPrint('LiftIQApp: Pushed sync changes before backgrounding');
+      }
+    } catch (e) {
+      debugPrint('LiftIQApp: Error pushing sync changes: $e');
+    }
+  }
+
+  /// Triggers a full sync when the app is resumed.
+  ///
+  /// This ensures any changes made on other devices are pulled
+  /// and local changes are pushed.
+  Future<void> _triggerSync() async {
+    try {
+      final syncService = ref.read(syncServiceProvider);
+      await syncService.syncAll();
+      debugPrint('LiftIQApp: Full sync completed on resume');
+    } catch (e) {
+      debugPrint('LiftIQApp: Error during sync on resume: $e');
     }
   }
 
