@@ -28,6 +28,7 @@ import '../../workouts/models/workout_session.dart';
 import '../../analytics/widgets/weekly_report_card.dart';
 import '../../analytics/widgets/streak_calendar.dart';
 import '../../progression/widgets/deload_suggestion_card.dart';
+import '../../templates/providers/templates_provider.dart';
 
 /// Provider for the current bottom navigation tab index.
 /// This allows child widgets to switch tabs programmatically.
@@ -262,31 +263,8 @@ class _DashboardTab extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              // Template cards
-              SizedBox(
-                height: 120,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _TemplateCard(
-                      name: 'Push Day',
-                      exercises: 6,
-                      onTap: () => context.go('/templates/push-day'),
-                    ),
-                    _TemplateCard(
-                      name: 'Pull Day',
-                      exercises: 5,
-                      onTap: () => context.go('/templates/pull-day'),
-                    ),
-                    _TemplateCard(
-                      name: 'Leg Day',
-                      exercises: 5,
-                      onTap: () => context.go('/templates/leg-day'),
-                    ),
-                    _AddTemplateCard(onTap: () => context.go('/templates/create')),
-                  ],
-                ),
-              ),
+              // Template cards from actual data
+              _TemplatesList(),
               const SizedBox(height: 80), // Space for FAB
             ]),
           ),
@@ -388,6 +366,35 @@ class _StatItem extends StatelessWidget {
           style: context.textTheme.bodySmall,
         ),
       ],
+    );
+  }
+}
+
+class _TemplatesList extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final templatesAsync = ref.watch(templatesProvider);
+
+    return SizedBox(
+      height: 120,
+      child: templatesAsync.when(
+        data: (templates) => ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            ...templates.take(5).map((t) => _TemplateCard(
+                  name: t.name,
+                  exercises: t.exercises.length,
+                  onTap: () => context.push('/templates'),
+                )),
+            _AddTemplateCard(onTap: () => context.push('/templates')),
+          ],
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => Center(
+          child: Text('Could not load templates',
+              style: context.textTheme.bodySmall),
+        ),
+      ),
     );
   }
 }

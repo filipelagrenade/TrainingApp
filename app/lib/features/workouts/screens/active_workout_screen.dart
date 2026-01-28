@@ -424,6 +424,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           exerciseId: exercise.id,
           exerciseName: exercise.name,
           primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
+          equipment: [exercise.equipment.name],
           formCues: exercise.instructions?.split('\n') ?? [],
         );
     HapticFeedback.lightImpact();
@@ -955,8 +956,7 @@ class _ExerciseCard extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
             ),
           ),
-          if (exerciseLog.equipment.contains('cable') ||
-              exerciseLog.equipment.contains('Cable'))
+          if (exerciseLog.usesCableEquipment)
             const PopupMenuItem(
               value: 'attachment',
               child: ListTile(

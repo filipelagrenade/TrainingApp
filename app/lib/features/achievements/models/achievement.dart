@@ -570,22 +570,54 @@ class AchievementDefinitions {
   }
 }
 
+/// Plate-based achievement IDs whose targets are defined in lbs.
+const _lbsPlateAchievementIds = {
+  'bench_135', 'bench_225', 'bench_315',
+  'squat_225', 'squat_315', 'squat_405',
+  'deadlift_315', 'deadlift_405', 'deadlift_495',
+  'total_1000', 'total_1500',
+};
+
+/// Lbs-to-kg rounded conversions for plate milestones.
+const _lbsToKgMap = {
+  135: 60, 225: 100, 315: 140, 405: 185, 495: 225,
+  1000: 455, 1500: 680,
+};
+
 /// Extension to provide unit-aware descriptions for achievements.
 extension AchievementUnitDisplay on Achievement {
-  /// Returns description with the correct weight unit appended for volume achievements.
+  /// Returns description with the correct weight unit and converted numbers.
   String descriptionWithUnit(String unit) {
+    final isKg = unit.toLowerCase() == 'kg';
+
     if (category == AchievementCategory.volume) {
-      // "Lift 100,000 total volume" → "Lift 100,000 total volume kg"
       return '$description $unit';
     }
-    if (category == AchievementCategory.strength) {
-      // "Bench press 135 (1 plate per side)" → "Bench press 135 kg (1 plate per side)"
-      // "Achieve 1,000 total (squat...)" → "Achieve 1,000 kg total (squat...)"
-      return description.replaceFirstMapped(
+
+    // Plate-based strength milestones — convert numbers for kg users
+    if (_lbsPlateAchievementIds.contains(id)) {
+      var desc = description;
+      if (isKg) {
+        // Replace each lbs number with its kg equivalent
+        desc = desc.replaceAllMapped(
+          RegExp(r'\b(\d[\d,]*)\b'),
+          (m) {
+            final raw = m[1]!.replaceAll(',', '');
+            final lbs = int.tryParse(raw);
+            if (lbs != null && _lbsToKgMap.containsKey(lbs)) {
+              return '${_lbsToKgMap[lbs]}';
+            }
+            return m[0]!;
+          },
+        );
+      }
+      // Insert unit after the main number
+      return desc.replaceFirstMapped(
         RegExp(r'(\d[\d,]*)\s+(total|\()'),
         (m) => '${m[1]} $unit ${m[2]}',
       );
     }
+
     return description;
   }
 }

@@ -639,79 +639,73 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
         ),
         title: const Text('Create Mesocycle'),
       ),
-      body: Stepper(
-        type: StepperType.vertical,
-        currentStep: _currentStep,
-        onStepContinue: _onStepContinue,
-        onStepCancel: _onStepCancel,
-        onStepTapped: (step) {
-          if (step <= _currentStep) {
-            setState(() => _currentStep = step);
-          }
-        },
-        controlsBuilder: (context, details) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Row(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Progress indicator
+            Row(
+              children: List.generate(5, (i) {
+                return Expanded(
+                  child: Container(
+                    height: 4,
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: i <= _currentStep
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Step ${_currentStep + 1} of 5',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Step title
+            Text(
+              const ['Select Goal', 'Duration', 'Periodization Type', 'Details', 'Review'][_currentStep],
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Step content
+            if (_currentStep == 0) _buildGoalStep(theme),
+            if (_currentStep == 1) _buildDurationStep(theme),
+            if (_currentStep == 2) _buildPeriodizationStep(theme),
+            if (_currentStep == 3) _buildDetailsStep(theme),
+            if (_currentStep == 4) _buildReviewStep(theme),
+
+            const SizedBox(height: 24),
+
+            // Navigation buttons
+            Row(
               children: [
-                FilledButton(
-                  onPressed: _onStepContinue,
-                  child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
-                ),
-                const SizedBox(width: 12),
                 if (_currentStep > 0)
                   TextButton(
                     onPressed: _onStepCancel,
                     child: const Text('Back'),
                   ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: _onStepContinue,
+                  child: Text(_currentStep == 4 ? 'Create' : 'Continue'),
+                ),
               ],
             ),
-          );
-        },
-        steps: [
-          // Step 1: Goal
-          Step(
-            title: const Text('Select Goal'),
-            subtitle: _currentStep > 0 ? Text(_selectedGoal.displayName) : null,
-            isActive: _currentStep >= 0,
-            state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-            content: _buildGoalStep(theme),
-          ),
-
-          // Step 2: Duration
-          Step(
-            title: const Text('Duration'),
-            subtitle: _currentStep > 1 ? Text('$_totalWeeks weeks') : null,
-            isActive: _currentStep >= 1,
-            state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-            content: _buildDurationStep(theme),
-          ),
-
-          // Step 3: Periodization Type
-          Step(
-            title: const Text('Periodization Type'),
-            subtitle: _currentStep > 2 ? Text(_periodizationType.displayName) : null,
-            isActive: _currentStep >= 2,
-            state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-            content: _buildPeriodizationStep(theme),
-          ),
-
-          // Step 4: Start Date & Name
-          Step(
-            title: const Text('Details'),
-            isActive: _currentStep >= 3,
-            state: _currentStep > 3 ? StepState.complete : StepState.indexed,
-            content: _buildDetailsStep(theme),
-          ),
-
-          // Step 5: Review
-          Step(
-            title: const Text('Review'),
-            isActive: _currentStep >= 4,
-            state: StepState.indexed,
-            content: _buildReviewStep(theme),
-          ),
-        ],
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
