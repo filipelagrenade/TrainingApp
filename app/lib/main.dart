@@ -178,9 +178,10 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
     // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(this);
 
-    // Load any persisted workout on startup
+    // Load any persisted workout on startup, then sync
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPersistedWorkout();
+      _triggerSync();
     });
   }
 

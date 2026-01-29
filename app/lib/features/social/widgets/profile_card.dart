@@ -89,7 +89,7 @@ class ProfileCard extends ConsumerWidget {
                                 ? null
                                 : () => ref
                                     .read(followProvider.notifier)
-                                    .unfollow(profile.userId),
+                                    .toggleFollow(profile.userId),
                             child: const Text('Following'),
                           )
                         : FilledButton(
@@ -97,7 +97,7 @@ class ProfileCard extends ConsumerWidget {
                                 ? null
                                 : () => ref
                                     .read(followProvider.notifier)
-                                    .follow(profile.userId),
+                                    .toggleFollow(profile.userId),
                             child: const Text('Follow'),
                           ),
                 ],
@@ -254,14 +254,14 @@ class ProfileTile extends ConsumerWidget {
                   ? null
                   : () => ref
                       .read(followProvider.notifier)
-                      .unfollow(profile.userId),
+                      .toggleFollow(profile.userId),
               child: const Text('Following'),
             )
           : FilledButton(
               onPressed: followState.isLoading
                   ? null
                   : () =>
-                      ref.read(followProvider.notifier).follow(profile.userId),
+                      ref.read(followProvider.notifier).toggleFollow(profile.userId),
               child: const Text('Follow'),
             ),
     );

@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/api_client.dart';
+import '../../../shared/services/sync_service.dart';
 import '../models/workout_session.dart';
 import '../models/exercise_log.dart';
 import '../models/exercise_set.dart';
@@ -533,6 +534,15 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       }
 
       state = const NoWorkout();
+
+      // Trigger sync to push workout to backend
+      try {
+        await ref.read(syncServiceProvider).pushChanges();
+        debugPrint('CurrentWorkoutNotifier: Sync push completed');
+      } catch (e) {
+        debugPrint('CurrentWorkoutNotifier: Background sync failed: $e');
+        // Don't fail - workout is already saved locally and queued for retry
+      }
     } catch (e) {
       debugPrint('CurrentWorkoutNotifier: Error completing workout: $e');
       state = WorkoutError(

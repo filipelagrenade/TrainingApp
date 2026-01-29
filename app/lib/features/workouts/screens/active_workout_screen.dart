@@ -1082,7 +1082,7 @@ class _ExerciseCard extends ConsumerWidget {
     WidgetRef ref,
     int exerciseIndex,
   ) async {
-    final exercise = await showModalBottomSheet(
+    final exercise = await showModalBottomSheet<Exercise>(
       context: context,
       isScrollControlled: true,
       builder: (context) => const ExercisePickerModal(),
@@ -1095,8 +1095,8 @@ class _ExerciseCard extends ConsumerWidget {
             exerciseName: exercise.name,
             primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
             secondaryMuscles: exercise.secondaryMuscles.map((m) => m.name).toList(),
-            equipment: [exercise.equipment.name],
-            formCues: exercise.formCues,
+            equipment: <String>[exercise.equipment.name],
+            formCues: <String>[],
           );
     }
   }
