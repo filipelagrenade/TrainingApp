@@ -63,7 +63,7 @@ class DefaultFirebaseOptions {
   // ===========================================================================
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCIg28TC4NrrpCtE2FI2nQZ5aMqqOhhKJ8',
+    apiKey: 'AIzaSyCKznUGfvaEK6MpOyOKau3NepDCfXc16Ec',
     appId: '1:1056359094939:web:1946e612fedbf0cc3ac43e',
     messagingSenderId: '1056359094939',
     projectId: 'liftiq-app-2ea11',
@@ -74,7 +74,7 @@ class DefaultFirebaseOptions {
   /// Web platform Firebase options.
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCLj1SeSfkWog7cgiyzUGtHgKPS36lzGhs',
+    apiKey: 'AIzaSyBunRvkvCGo6otFFaut5hoiDDuvqDXezvo',
     appId: '1:1056359094939:android:d4c95bcf71d626dc3ac43e',
     messagingSenderId: '1056359094939',
     projectId: 'liftiq-app-2ea11',
@@ -84,11 +84,12 @@ class DefaultFirebaseOptions {
   /// Android platform Firebase options.
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBmABB2QrjVEnA819H60LPJd1vACPaUprI',
+    apiKey: 'AIzaSyAIUcgeu1NMZqwilZj5sItZSpBnSKbBAvw',
     appId: '1:1056359094939:ios:398e1a604822b44a3ac43e',
     messagingSenderId: '1056359094939',
     projectId: 'liftiq-app-2ea11',
     storageBucket: 'liftiq-app-2ea11.firebasestorage.app',
+    iosClientId: '1056359094939-abud474q2oarur2uqcl0omepcam4vv14.apps.googleusercontent.com',
     iosBundleId: 'com.example.liftiq',
   );
 
@@ -105,7 +106,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCIg28TC4NrrpCtE2FI2nQZ5aMqqOhhKJ8',
+    apiKey: 'AIzaSyCKznUGfvaEK6MpOyOKau3NepDCfXc16Ec',
     appId: '1:1056359094939:web:1c1173e37e9cfc753ac43e',
     messagingSenderId: '1056359094939',
     projectId: 'liftiq-app-2ea11',

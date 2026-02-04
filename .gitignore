@@ -102,6 +102,9 @@ lib/generated_plugin_registrant.dart
 # Web
 **/web/favicon.png
 
+# Flutter web build output (served by backend)
+backend/public/
+
 # Exceptions
 !.gitkeep
 
