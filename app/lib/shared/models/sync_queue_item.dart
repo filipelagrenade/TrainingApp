@@ -43,6 +43,15 @@ enum SyncEntityType {
 
   /// User achievements
   achievement,
+
+  /// Custom exercises
+  exercise,
+
+  /// Training programs
+  program,
+
+  /// AI chat history
+  chatHistory,
 }
 
 /// Extension to convert SyncEntityType to/from string.
@@ -66,6 +75,12 @@ extension SyncEntityTypeExtension on SyncEntityType {
         return 'mesocycleWeek';
       case SyncEntityType.achievement:
         return 'achievement';
+      case SyncEntityType.exercise:
+        return 'exercise';
+      case SyncEntityType.program:
+        return 'program';
+      case SyncEntityType.chatHistory:
+        return 'chatHistory';
     }
   }
 
@@ -88,6 +103,12 @@ extension SyncEntityTypeExtension on SyncEntityType {
         return SyncEntityType.mesocycleWeek;
       case 'achievement':
         return SyncEntityType.achievement;
+      case 'exercise':
+        return SyncEntityType.exercise;
+      case 'program':
+        return SyncEntityType.program;
+      case 'chatHistory':
+        return SyncEntityType.chatHistory;
       default:
         throw ArgumentError('Unknown SyncEntityType: $name');
     }

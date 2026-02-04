@@ -31,6 +31,9 @@ import { routes } from './routes';
 const createApp = (): Application => {
   const app = express();
 
+  // Trust proxy headers (Railway runs behind a reverse proxy)
+  app.set('trust proxy', 1);
+
   // ============================================================================
   // SECURITY MIDDLEWARE
   // ============================================================================
@@ -78,10 +81,10 @@ const createApp = (): Application => {
 
   // Parse JSON request bodies
   // Limit to 10kb to prevent large payload attacks
-  app.use(express.json({ limit: '10kb' }));
+  app.use(express.json({ limit: '5mb' }));
 
   // Parse URL-encoded bodies (for form submissions)
-  app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
   // ============================================================================
   // REQUEST LOGGING

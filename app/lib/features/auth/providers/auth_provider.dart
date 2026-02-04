@@ -11,7 +11,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/user_storage_keys.dart';
 import '../../../main.dart' show firebaseInitialized;
+import '../../../shared/services/hydration_service.dart';
+import '../../../shared/services/sync_service.dart';
 
 // ============================================================================
 // AUTH STATE
@@ -254,7 +257,7 @@ final authServiceProvider = Provider<AuthService>((ref) {
 /// Provider for the auth state notifier.
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final authService = ref.watch(authServiceProvider);
-  return AuthNotifier(authService);
+  return AuthNotifier(authService, ref);
 });
 
 /// Provider for the current user (stream).
@@ -280,10 +283,14 @@ final currentUserIdProvider = Provider<String?>((ref) {
 // ============================================================================
 
 /// Notifier for managing authentication state.
+///
+/// Hooks into hydration service on login and clears local data on logout
+/// to support multi-device and multi-account usage.
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
+  final Ref _ref;
 
-  AuthNotifier(this._authService) : super(const Unauthenticated()) {
+  AuthNotifier(this._authService, this._ref) : super(const Unauthenticated()) {
     _init();
   }
 
@@ -305,6 +312,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Signs in with email and password.
+  ///
+  /// After successful sign-in, hydrates local storage from the backend
+  /// if this is the first time on this device.
   Future<void> signInWithEmail({
     required String email,
     required String password,
@@ -317,6 +327,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         password: password,
       );
       state = Authenticated(user);
+
+      // Hydrate data from server in background
+      _hydrateAfterLogin(user.uid);
     } on AuthException catch (e) {
       state = AuthError(e.message);
     } catch (e) {
@@ -325,6 +338,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Signs up with email and password.
+  ///
+  /// After successful sign-up, hydrates local storage (will be empty
+  /// for a new account but sets up the sync timestamp).
   Future<void> signUpWithEmail({
     required String email,
     required String password,
@@ -339,6 +355,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         displayName: displayName,
       );
       state = Authenticated(user);
+
+      // Hydrate (will mostly be empty for new accounts)
+      _hydrateAfterLogin(user.uid);
     } on AuthException catch (e) {
       state = AuthError(e.message);
     } catch (e) {
@@ -346,10 +365,52 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Hydrates local storage from backend after login.
+  Future<void> _hydrateAfterLogin(String userId) async {
+    try {
+      final alreadyHydrated = await HydrationService.hasBeenHydrated(userId);
+      if (!alreadyHydrated) {
+        debugPrint('AuthNotifier: First login on this device, hydrating...');
+        final hydrationService = _ref.read(hydrationServiceProvider);
+        await hydrationService.hydrateAll();
+
+        // Bump sync version so providers re-read
+        _ref.read(syncVersionProvider.notifier).state++;
+      } else {
+        // Already hydrated, just do a normal sync
+        debugPrint('AuthNotifier: Already hydrated, running incremental sync');
+        final syncService = _ref.read(syncServiceProvider);
+        syncService.syncAll();
+      }
+    } catch (e) {
+      debugPrint('AuthNotifier: Post-login hydration/sync error: $e');
+    }
+  }
+
   /// Signs out the current user.
+  ///
+  /// Clears local data for the current user to prevent data leaking
+  /// to the next account that signs in on this device.
   Future<void> signOut() async {
+    // Capture userId before signing out
+    final currentState = state;
+    String? userId;
+    if (currentState is Authenticated) {
+      userId = currentState.userId;
+    }
+
     await _authService.signOut();
     state = const Unauthenticated();
+
+    // Clear local data for the signed-out user
+    if (userId != null) {
+      try {
+        await UserStorageKeys.clearAllUserData(userId);
+        debugPrint('AuthNotifier: Cleared local data for $userId');
+      } catch (e) {
+        debugPrint('AuthNotifier: Error clearing user data: $e');
+      }
+    }
   }
 
   /// Clears any error state.

@@ -17,8 +17,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/api_client.dart';
+import '../../core/services/user_storage_keys.dart';
 import '../models/sync_queue_item.dart';
 import 'connectivity_service.dart';
+import 'sync_applicator.dart';
 import 'sync_queue_service.dart';
 
 // ============================================================================
@@ -75,6 +77,12 @@ class SyncService {
   /// Connectivity service for monitoring network status.
   final ConnectivityService _connectivityService;
 
+  /// Applicator for applying pulled changes to local storage.
+  final SyncApplicator _applicator;
+
+  /// Callback to increment the sync version after pull applies changes.
+  final VoidCallback? onChangesApplied;
+
   /// Current sync status.
   SyncStatus _status = SyncStatus.idle;
 
@@ -96,9 +104,12 @@ class SyncService {
     required ApiClient apiClient,
     required SyncQueueService queueService,
     required ConnectivityService connectivityService,
+    required SyncApplicator applicator,
+    this.onChangesApplied,
   })  : _apiClient = apiClient,
         _queueService = queueService,
-        _connectivityService = connectivityService {
+        _connectivityService = connectivityService,
+        _applicator = applicator {
     _initialize();
   }
 
@@ -187,55 +198,70 @@ class SyncService {
     debugPrint('SyncService: Pushing ${items.length} changes');
 
     try {
-      // Prepare payload
-      final changes = items.map((item) => item.toApiPayload()).toList();
+      // Batch items into chunks of 100 (backend limit)
+      const batchSize = 100;
+      var totalSuccess = 0;
+      var totalFailed = 0;
+      String? lastServerTime;
 
-      // Call API
-      final response = await _apiClient.post<Map<String, dynamic>>(
-        '/sync/push',
-        data: {'changes': changes},
-      );
+      for (var i = 0; i < items.length; i += batchSize) {
+        final batch = items.skip(i).take(batchSize).toList();
+        final changes = batch.map((item) => item.toApiPayload()).toList();
 
-      // Process results
-      final data = response.data?['data'] as Map<String, dynamic>?;
-      if (data == null) {
-        throw Exception('Invalid response from sync push');
-      }
+        // Call API
+        final response = await _apiClient.post<Map<String, dynamic>>(
+          '/sync/push',
+          data: {'changes': changes},
+        );
 
-      final results = (data['results'] as List<dynamic>)
-          .map((r) => SyncChangeResult.fromJson(r as Map<String, dynamic>))
-          .toList();
+        // Process results
+        final data = response.data?['data'] as Map<String, dynamic>?;
+        if (data == null) {
+          throw Exception('Invalid response from sync push');
+        }
 
-      // Handle each result
-      final successIds = <String>[];
-      final failedIds = <String>[];
+        final results = (data['results'] as List<dynamic>)
+            .map((r) => SyncChangeResult.fromJson(r as Map<String, dynamic>))
+            .toList();
 
-      for (final result in results) {
-        if (result.success) {
-          successIds.add(result.id);
-        } else {
-          failedIds.add(result.id);
-          debugPrint('SyncService: Failed to push ${result.id}: ${result.error}');
+        // Handle each result
+        final successIds = <String>[];
+        final failedIds = <String>[];
+
+        for (final result in results) {
+          if (result.success) {
+            successIds.add(result.id);
+          } else {
+            failedIds.add(result.id);
+            debugPrint('SyncService: Failed to push ${result.id}: ${result.error}');
+          }
+        }
+
+        // Remove successful items from queue
+        if (successIds.isNotEmpty) {
+          await _queueService.removeFromQueueBatch(successIds);
+        }
+
+        // Increment retry count for failed items
+        for (final id in failedIds) {
+          await _queueService.incrementRetryCount(id);
+        }
+
+        totalSuccess += successIds.length;
+        totalFailed += failedIds.length;
+
+        if (data['serverTime'] != null) {
+          lastServerTime = data['serverTime'] as String;
         }
       }
 
-      // Remove successful items from queue
-      if (successIds.isNotEmpty) {
-        await _queueService.removeFromQueueBatch(successIds);
-      }
-
-      // Increment retry count for failed items
-      for (final id in failedIds) {
-        await _queueService.incrementRetryCount(id);
-      }
-
-      // Update last sync timestamp
-      if (data['serverTime'] != null) {
-        final serverTime = DateTime.parse(data['serverTime'] as String);
+      // Update last sync timestamp from final batch
+      if (lastServerTime != null) {
+        final serverTime = DateTime.parse(lastServerTime);
         await _queueService.setLastSyncTimestamp(serverTime);
       }
 
-      debugPrint('SyncService: Push completed - ${successIds.length} succeeded, ${failedIds.length} failed');
+      debugPrint('SyncService: Push completed - $totalSuccess succeeded, $totalFailed failed');
     } on DioException catch (e) {
       final apiException = ApiClient.getApiException(e);
       debugPrint('SyncService: Push failed: ${apiException.message}');
@@ -286,6 +312,11 @@ class SyncService {
         await _queueService.setLastSyncTimestamp(serverTime);
       }
 
+      // Notify listeners so UI providers re-read from storage
+      if (changes.isNotEmpty) {
+        onChangesApplied?.call();
+      }
+
       debugPrint('SyncService: Pull completed, applied ${changes.length} changes');
     } on DioException catch (e) {
       final apiException = ApiClient.getApiException(e);
@@ -299,29 +330,13 @@ class SyncService {
 
   /// Applies a remote change to local storage.
   ///
-  /// This method delegates to the appropriate service based on entity type.
+  /// Delegates to [SyncApplicator] which handles per-entity-type logic
+  /// for upserting/deleting in SharedPreferences.
   Future<void> _applyRemoteChange(SyncPullChange change) async {
     debugPrint('SyncService: Applying ${change.entityType.apiName} '
         '${change.action.apiName} for ${change.entityId}');
 
-    // TODO: Implement actual application of changes to local storage
-    // This will be implemented in Phase 4 when we integrate with existing services
-    //
-    // switch (change.entityType) {
-    //   case SyncEntityType.workout:
-    //     await _workoutHistoryService.applyRemoteChange(change);
-    //     break;
-    //   case SyncEntityType.template:
-    //     await _templatesService.applyRemoteChange(change);
-    //     break;
-    //   case SyncEntityType.measurement:
-    //     await _measurementsService.applyRemoteChange(change);
-    //     break;
-    //   case SyncEntityType.mesocycle:
-    //     await _periodizationService.applyRemoteChange(change);
-    //     break;
-    //   // etc.
-    // }
+    await _applicator.applyChange(change);
   }
 
   /// Pushes changes with retry logic.
@@ -364,6 +379,12 @@ class SyncService {
 // PROVIDERS
 // ============================================================================
 
+/// Provider that increments whenever pulled changes are applied.
+///
+/// Data-reading providers should `ref.watch(syncVersionProvider)` to
+/// automatically re-read from SharedPreferences after a pull sync.
+final syncVersionProvider = StateProvider<int>((ref) => 0);
+
 /// Provider for the sync service.
 ///
 /// The service is a singleton that manages all sync operations.
@@ -371,11 +392,17 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final queueService = ref.watch(syncQueueServiceProvider);
   final connectivityService = ref.watch(connectivityServiceProvider);
+  final userId = ref.watch(currentUserStorageIdProvider);
 
   final service = SyncService(
     apiClient: apiClient,
     queueService: queueService,
     connectivityService: connectivityService,
+    applicator: SyncApplicator(userId: userId),
+    onChangesApplied: () {
+      // Increment sync version to trigger UI rebuilds
+      ref.read(syncVersionProvider.notifier).state++;
+    },
   );
 
   ref.onDispose(() {

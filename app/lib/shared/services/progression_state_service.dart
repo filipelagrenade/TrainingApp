@@ -28,16 +28,33 @@ import '../../features/settings/models/user_settings.dart';
 /// Key prefix for storing progression states in SharedPreferences.
 const _kProgressionStatePrefix = 'progression_state_';
 
-/// Key for storing the list of exercise IDs with progression states.
-const _kProgressionStateIdsKey = 'progression_state_exercise_ids';
+/// Key suffix for storing the list of exercise IDs with progression states.
+const _kProgressionStateIdsSuffix = '_exercise_ids';
 
 /// Service for persisting exercise progression states.
 ///
 /// This service manages the storage and retrieval of progression states,
 /// as well as the logic for transitioning between phases based on
 /// session performance.
+///
+/// Storage keys are user-scoped to support multi-account usage on the
+/// same device: `progression_state_{userId}_{exerciseId}`.
 class ProgressionStateService {
   SharedPreferences? _prefs;
+
+  /// The user ID for scoping storage keys.
+  final String userId;
+
+  /// Creates a progression state service scoped to [userId].
+  ProgressionStateService({required this.userId});
+
+  /// Returns the storage key for a given exercise's progression state.
+  String _stateKey(String exerciseId) =>
+      '$_kProgressionStatePrefix${userId}_$exerciseId';
+
+  /// Returns the storage key for the list of exercise IDs with states.
+  String get _idsKey =>
+      '$_kProgressionStatePrefix$userId$_kProgressionStateIdsSuffix';
 
   /// Initializes the service with SharedPreferences.
   Future<void> initialize() async {
@@ -64,7 +81,7 @@ class ProgressionStateService {
     final states = <String, ExerciseProgressionState>{};
 
     // Get the list of exercise IDs with states
-    final exerciseIds = _prefs!.getStringList(_kProgressionStateIdsKey) ?? [];
+    final exerciseIds = _prefs!.getStringList(_idsKey) ?? [];
 
     for (final exerciseId in exerciseIds) {
       final state = await loadState(exerciseId);
@@ -81,7 +98,7 @@ class ProgressionStateService {
   Future<ExerciseProgressionState?> loadState(String exerciseId) async {
     await _ensureInitialized();
 
-    final key = '$_kProgressionStatePrefix$exerciseId';
+    final key = _stateKey(exerciseId);
     final jsonStr = _prefs!.getString(key);
 
     if (jsonStr == null) return null;
@@ -99,16 +116,16 @@ class ProgressionStateService {
   Future<void> saveState(ExerciseProgressionState state) async {
     await _ensureInitialized();
 
-    final key = '$_kProgressionStatePrefix${state.exerciseId}';
+    final key = _stateKey(state.exerciseId);
     final jsonStr = jsonEncode(state.toJson());
 
     await _prefs!.setString(key, jsonStr);
 
     // Update the list of exercise IDs
-    final exerciseIds = _prefs!.getStringList(_kProgressionStateIdsKey) ?? [];
+    final exerciseIds = _prefs!.getStringList(_idsKey) ?? [];
     if (!exerciseIds.contains(state.exerciseId)) {
       exerciseIds.add(state.exerciseId);
-      await _prefs!.setStringList(_kProgressionStateIdsKey, exerciseIds);
+      await _prefs!.setStringList(_idsKey, exerciseIds);
     }
 
     debugPrint('ProgressionStateService: Saved state for ${state.exerciseId} (${state.phase.label})');
@@ -118,25 +135,25 @@ class ProgressionStateService {
   Future<void> deleteState(String exerciseId) async {
     await _ensureInitialized();
 
-    final key = '$_kProgressionStatePrefix$exerciseId';
+    final key = _stateKey(exerciseId);
     await _prefs!.remove(key);
 
     // Update the list of exercise IDs
-    final exerciseIds = _prefs!.getStringList(_kProgressionStateIdsKey) ?? [];
+    final exerciseIds = _prefs!.getStringList(_idsKey) ?? [];
     exerciseIds.remove(exerciseId);
-    await _prefs!.setStringList(_kProgressionStateIdsKey, exerciseIds);
+    await _prefs!.setStringList(_idsKey, exerciseIds);
   }
 
   /// Clears all progression states (for testing or account reset).
   Future<void> clearAllStates() async {
     await _ensureInitialized();
 
-    final exerciseIds = _prefs!.getStringList(_kProgressionStateIdsKey) ?? [];
+    final exerciseIds = _prefs!.getStringList(_idsKey) ?? [];
     for (final exerciseId in exerciseIds) {
-      final key = '$_kProgressionStatePrefix$exerciseId';
+      final key = _stateKey(exerciseId);
       await _prefs!.remove(key);
     }
-    await _prefs!.remove(_kProgressionStateIdsKey);
+    await _prefs!.remove(_idsKey);
 
     debugPrint('ProgressionStateService: Cleared all states');
   }

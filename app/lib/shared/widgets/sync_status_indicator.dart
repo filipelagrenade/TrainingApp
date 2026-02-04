@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/sync_provider.dart';
+import '../services/hydration_service.dart';
 
 /// A compact indicator showing sync status.
 ///
@@ -234,6 +235,56 @@ class _AnimatedSyncIconState extends State<_AnimatedSyncIcon>
 class SyncStatusCard extends ConsumerWidget {
   const SyncStatusCard({super.key});
 
+  /// Pushes all local data to the server (full upload).
+  Future<void> _pushAllToServer(BuildContext context, WidgetRef ref) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Queuing all local data for sync...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      final hydrationService = ref.read(hydrationServiceProvider);
+      final queueService = ref.read(syncQueueServiceProvider);
+      final count = await hydrationService.pushAllLocalData(queueService);
+
+      if (!context.mounted) return;
+
+      if (count == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No local data to sync'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      // Now push
+      await ref.read(manualSyncProvider.notifier).pushOnly();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Synced $count items to server'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Full sync failed: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final syncState = ref.watch(simpleSyncStateProvider);
@@ -290,20 +341,32 @@ class SyncStatusCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonal(
-                onPressed: syncState.canSync
-                    ? () => ref.read(manualSyncProvider.notifier).sync()
-                    : null,
-                child: syncState.isSyncing
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Sync Now'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: syncState.canSync
+                        ? () => ref.read(manualSyncProvider.notifier).sync()
+                        : null,
+                    child: syncState.isSyncing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Sync Now'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: syncState.canSync
+                        ? () => _pushAllToServer(context, ref)
+                        : null,
+                    child: const Text('Sync All to Server'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

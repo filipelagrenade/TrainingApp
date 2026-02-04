@@ -36,13 +36,13 @@ syncRoutes.use(authMiddleware);
  * Schema for a single sync change item.
  */
 const SyncChangeItemSchema = z.object({
-  id: z.string().uuid(),
-  entityType: z.enum(['workout', 'template', 'measurement', 'mesocycle', 'mesocycleWeek']),
+  id: z.string(),
+  entityType: z.enum(['workout', 'template', 'measurement', 'mesocycle', 'mesocycleWeek', 'settings', 'exercise', 'achievement', 'progression', 'program', 'chatHistory']),
   action: z.enum(['create', 'update', 'delete']),
-  entityId: z.string().uuid(),
+  entityId: z.string(),
   data: z.record(z.unknown()).optional(),
-  lastModifiedAt: z.string().datetime(),
-  clientId: z.string().uuid().optional(),
+  lastModifiedAt: z.string(),
+  clientId: z.string().optional(),
 });
 
 /**
@@ -56,7 +56,7 @@ const PushChangesSchema = z.object({
  * Schema for pull query parameters.
  */
 const PullChangesSchema = z.object({
-  since: z.string().datetime(),
+  since: z.string(),
 });
 
 // ============================================================================

@@ -7,6 +7,7 @@ library;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/providers/auth_provider.dart';
 import '../../main.dart' show firebaseInitialized;
@@ -106,4 +107,52 @@ class UserStorageKeys {
 
   /// Storage key for body measurements.
   static String measurements(String userId) => 'measurements_$userId';
+
+  /// Storage key for progression state exercise IDs list.
+  static String progressionStateIds(String userId) =>
+      'progression_state_${userId}_exercise_ids';
+
+  /// All known key patterns for a given user.
+  ///
+  /// Used by [clearAllUserData] to wipe local data on logout.
+  static List<String> allKeys(String userId) => [
+        workoutHistory(userId),
+        personalRecords(userId),
+        userSettings(userId),
+        activeWorkout(userId),
+        currentExerciseIndex(userId),
+        customExercises(userId),
+        customTemplates(userId),
+        customPrograms(userId),
+        aiChatHistory(userId),
+        exercisePreferences(userId),
+        scheduledWorkouts(userId),
+        achievements(userId),
+        measurements(userId),
+        progressionStateIds(userId),
+        // Sync keys
+        'sync_queue_$userId',
+        'last_sync_timestamp_$userId',
+      ];
+
+  /// Clears all locally stored data for a user.
+  ///
+  /// Call this on logout to prevent data leaking between accounts.
+  static Future<void> clearAllUserData(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Remove all known keys
+    for (final key in allKeys(userId)) {
+      await prefs.remove(key);
+    }
+
+    // Also remove progression state individual keys
+    final progressionIds =
+        prefs.getStringList(progressionStateIds(userId)) ?? [];
+    for (final exerciseId in progressionIds) {
+      await prefs.remove('progression_state_${userId}_$exerciseId');
+    }
+
+    debugPrint('UserStorageKeys: Cleared all data for user $userId');
+  }
 }

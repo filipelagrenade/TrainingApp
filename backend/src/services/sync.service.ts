@@ -36,7 +36,13 @@ export type SyncEntityType =
   | 'template'
   | 'measurement'
   | 'mesocycle'
-  | 'mesocycleWeek';
+  | 'mesocycleWeek'
+  | 'settings'
+  | 'exercise'
+  | 'achievement'
+  | 'progression'
+  | 'program'
+  | 'chatHistory';
 
 /**
  * Action type for sync changes.
@@ -191,6 +197,18 @@ class SyncService {
         return this.processMesocycleChange(userId, change, changeTime);
       case 'mesocycleWeek':
         return this.processMesocycleWeekChange(userId, change, changeTime);
+      case 'settings':
+        return this.processSettingsChange(userId, change, changeTime);
+      case 'exercise':
+        return this.processExerciseChange(userId, change, changeTime);
+      case 'achievement':
+      case 'progression':
+      case 'program':
+      case 'chatHistory':
+        // These entity types are accepted but not yet stored in PostgreSQL.
+        // Return success so the client clears them from its queue.
+        logger.info({ entityType: change.entityType, entityId: change.entityId, userId }, 'Sync accepted (no-op entity type)');
+        return { id: change.id, success: true, serverTimestamp: new Date().toISOString() };
       default:
         throw new ValidationError(`Unknown entity type: ${change.entityType}`);
     }
@@ -621,6 +639,127 @@ class SyncService {
     }
   }
 
+  /**
+   * Processes a settings change.
+   *
+   * Settings are stored on the User model, so this updates user fields.
+   */
+  private async processSettingsChange(
+    userId: string,
+    change: SyncChangeItem,
+    changeTime: Date
+  ): Promise<SyncChangeResult> {
+    if (change.action === 'delete') {
+      // Settings can't be deleted, just reset
+      return { id: change.id, success: true, serverTimestamp: new Date().toISOString() };
+    }
+
+    const data = change.data || {};
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        unitPreference: data.unitPreference ? (data.unitPreference as string).toUpperCase() as 'KG' | 'LBS' : undefined,
+        displayName: data.displayName as string | undefined,
+      },
+    });
+
+    logger.info({ userId }, 'Settings updated via sync');
+
+    return {
+      id: change.id,
+      success: true,
+      entity: updated as unknown as Record<string, unknown>,
+      serverTimestamp: updated.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Processes a custom exercise change.
+   */
+  private async processExerciseChange(
+    userId: string,
+    change: SyncChangeItem,
+    changeTime: Date
+  ): Promise<SyncChangeResult> {
+    if (change.action === 'delete') {
+      const existing = await prisma.exercise.findUnique({
+        where: { id: change.entityId },
+      });
+
+      if (existing && existing.createdBy === userId) {
+        await prisma.exercise.delete({ where: { id: change.entityId } });
+        logger.info({ exerciseId: change.entityId, userId }, 'Exercise deleted via sync');
+      }
+
+      return { id: change.id, success: true, serverTimestamp: new Date().toISOString() };
+    }
+
+    const existing = await prisma.exercise.findUnique({
+      where: { id: change.entityId },
+    });
+
+    const data = change.data || {};
+
+    if (existing) {
+      if (existing.createdBy !== userId) {
+        throw new ValidationError('Cannot modify exercise belonging to another user');
+      }
+
+      if (existing.updatedAt > changeTime) {
+        return {
+          id: change.id,
+          success: true,
+          entity: existing as unknown as Record<string, unknown>,
+          serverTimestamp: existing.updatedAt.toISOString(),
+        };
+      }
+
+      const updated = await prisma.exercise.update({
+        where: { id: change.entityId },
+        data: {
+          name: data.name as string | undefined,
+          description: data.description as string | undefined,
+          instructions: data.instructions as string | undefined,
+          primaryMuscles: data.primaryMuscles as string[] | undefined,
+          secondaryMuscles: data.secondaryMuscles as string[] | undefined,
+          equipment: data.equipment as string[] | undefined,
+          category: data.category as string | undefined,
+          isCompound: data.isCompound as boolean | undefined,
+        },
+      });
+
+      return {
+        id: change.id,
+        success: true,
+        entity: updated as unknown as Record<string, unknown>,
+        serverTimestamp: updated.updatedAt.toISOString(),
+      };
+    } else {
+      const created = await prisma.exercise.create({
+        data: {
+          id: change.entityId,
+          name: (data.name as string) || 'Unnamed Exercise',
+          description: data.description as string | undefined,
+          instructions: data.instructions as string | undefined,
+          primaryMuscles: (data.primaryMuscles as string[]) || [],
+          secondaryMuscles: (data.secondaryMuscles as string[]) || [],
+          equipment: (data.equipment as string[]) || [],
+          category: data.category as string | undefined,
+          isCompound: (data.isCompound as boolean) || false,
+          isCustom: true,
+          createdBy: userId,
+        },
+      });
+
+      return {
+        id: change.id,
+        success: true,
+        entity: created as unknown as Record<string, unknown>,
+        serverTimestamp: created.updatedAt.toISOString(),
+      };
+    }
+  }
+
   // ==========================================================================
   // PULL METHODS
   // ==========================================================================
@@ -640,7 +779,7 @@ class SyncService {
     const changes: SyncPullResult['changes'] = [];
 
     // Fetch all modified entities since the timestamp
-    const [workouts, templates, measurements, mesocycles, mesocycleWeeks] =
+    const [workouts, templates, measurements, mesocycles, mesocycleWeeks, exercises] =
       await Promise.all([
         prisma.workoutSession.findMany({
           where: {
@@ -670,6 +809,13 @@ class SyncService {
           where: {
             mesocycle: { userId },
             lastModifiedAt: { gt: sinceDate },
+          },
+        }),
+        prisma.exercise.findMany({
+          where: {
+            createdBy: userId,
+            isCustom: true,
+            updatedAt: { gt: sinceDate },
           },
         }),
       ]);
@@ -722,6 +868,16 @@ class SyncService {
         action: 'update',
         data: week as unknown as Record<string, unknown>,
         lastModifiedAt: week.lastModifiedAt.toISOString(),
+      });
+    }
+
+    for (const exercise of exercises) {
+      changes.push({
+        entityType: 'exercise',
+        entityId: exercise.id,
+        action: 'update',
+        data: exercise as unknown as Record<string, unknown>,
+        lastModifiedAt: exercise.updatedAt.toISOString(),
       });
     }
 
@@ -825,9 +981,9 @@ class SyncService {
       endDate: data.endDate ? new Date(data.endDate as string) : new Date(),
       totalWeeks: (data.totalWeeks as number) || 4,
       currentWeek: (data.currentWeek as number) || 1,
-      periodizationType: data.periodizationType as 'LINEAR' | 'UNDULATING' | 'BLOCK' | undefined,
-      goal: data.goal as 'STRENGTH' | 'HYPERTROPHY' | 'POWER' | 'PEAKING' | 'GENERAL_FITNESS' | undefined,
-      status: data.status as 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'ABANDONED' | undefined,
+      periodizationType: data.periodizationType ? (data.periodizationType as string).toUpperCase() as 'LINEAR' | 'UNDULATING' | 'BLOCK' : undefined,
+      goal: data.goal ? (data.goal as string).toUpperCase() as 'STRENGTH' | 'HYPERTROPHY' | 'POWER' | 'PEAKING' | 'GENERAL_FITNESS' : undefined,
+      status: data.status ? (data.status as string).toUpperCase() as 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'ABANDONED' : undefined,
       notes: data.notes as string | undefined,
     };
   }
@@ -840,7 +996,7 @@ class SyncService {
   ): Omit<Prisma.MesocycleWeekCreateInput, 'mesocycle'> {
     return {
       weekNumber: (data.weekNumber as number) || 1,
-      weekType: data.weekType as 'ACCUMULATION' | 'INTENSIFICATION' | 'DELOAD' | 'PEAK' | 'TRANSITION' | undefined,
+      weekType: data.weekType ? (data.weekType as string).toUpperCase() as 'ACCUMULATION' | 'INTENSIFICATION' | 'DELOAD' | 'PEAK' | 'TRANSITION' : undefined,
       volumeMultiplier: data.volumeMultiplier as number | undefined,
       intensityMultiplier: data.intensityMultiplier as number | undefined,
       rirTarget: data.rirTarget as number | undefined,

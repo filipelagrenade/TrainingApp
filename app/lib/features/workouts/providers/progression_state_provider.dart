@@ -26,14 +26,18 @@ import '../models/rep_range.dart';
 import '../../settings/models/user_settings.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../../shared/services/progression_state_service.dart';
+import '../../../core/services/user_storage_keys.dart';
 
 // ============================================================================
 // SERVICE PROVIDER
 // ============================================================================
 
 /// Provider for the progression state service.
+///
+/// Scoped to the current user so different accounts see different states.
 final progressionStateServiceProvider = Provider<ProgressionStateService>((ref) {
-  return ProgressionStateService();
+  final userId = ref.watch(currentUserStorageIdProvider);
+  return ProgressionStateService(userId: userId);
 });
 
 // ============================================================================

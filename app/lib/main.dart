@@ -27,6 +27,8 @@ import 'features/settings/providers/settings_provider.dart';
 import 'features/settings/models/user_settings.dart';
 import 'features/workouts/providers/current_workout_provider.dart';
 import 'firebase_options.dart';
+import 'core/services/user_storage_keys.dart';
+import 'shared/services/hydration_service.dart';
 import 'shared/services/notification_service.dart';
 import 'shared/services/sync_service.dart';
 import 'shared/services/sync_queue_service.dart';
@@ -178,10 +180,10 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
     // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(this);
 
-    // Load any persisted workout on startup, then sync
+    // Load any persisted workout on startup, then hydrate/sync
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPersistedWorkout();
-      _triggerSync();
+      _hydrateOrSync();
     });
   }
 
@@ -236,6 +238,37 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
       }
     } catch (e) {
       debugPrint('LiftIQApp: Error pushing sync changes: $e');
+    }
+  }
+
+  /// Hydrates data if this is a fresh install/new device, otherwise syncs.
+  ///
+  /// On first launch with an existing auth session, fetches all data from
+  /// backend. On subsequent launches, does an incremental sync.
+  Future<void> _hydrateOrSync() async {
+    try {
+      final userId = ref.read(currentUserStorageIdProvider);
+
+      // Skip hydration for offline mode
+      if (userId == offlineModeUserId) {
+        return;
+      }
+
+      final alreadyHydrated = await HydrationService.hasBeenHydrated(userId);
+
+      if (!alreadyHydrated) {
+        debugPrint('LiftIQApp: First launch for user, hydrating from server');
+        final hydrationService = ref.read(hydrationServiceProvider);
+        await hydrationService.hydrateAll();
+
+        // Notify providers to re-read
+        ref.read(syncVersionProvider.notifier).state++;
+      } else {
+        // Normal incremental sync
+        _triggerSync();
+      }
+    } catch (e) {
+      debugPrint('LiftIQApp: Error during hydrate/sync: $e');
     }
   }
 
