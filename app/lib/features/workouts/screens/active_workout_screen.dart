@@ -33,6 +33,7 @@ import '../providers/current_workout_provider.dart';
 import '../providers/rest_timer_provider.dart';
 import '../widgets/set_input_row.dart';
 import '../widgets/swipeable_set_row.dart';
+import '../widgets/drop_set_row.dart';
 import '../widgets/rest_timer_display.dart';
 import '../widgets/exercise_picker_modal.dart';
 import '../widgets/pr_celebration.dart';
@@ -722,8 +723,8 @@ class _ExerciseCard extends ConsumerWidget {
           _buildRecommendationBanner(ref, theme, colors),
 
           // Sets list - completed sets can be swiped to delete
-          ...exerciseLog.sets.asMap().entries.map((entry) {
-            return Padding(
+          ...exerciseLog.sets.asMap().entries.expand((entry) {
+            final setWidget = Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: SwipeableSetRow(
                 setNumber: entry.key + 1,
@@ -768,6 +769,60 @@ class _ExerciseCard extends ConsumerWidget {
                 },
               ),
             );
+
+            // Show drop set sub-rows below dropset sets
+            if (entry.value.setType == SetType.dropset &&
+                entry.value.dropSets.isNotEmpty) {
+              return [
+                setWidget,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: DropSetSubRows(
+                    dropSets: entry.value.dropSets,
+                    unit: unitString,
+                    onCompleteDrop: (dropIndex, reps) {
+                      ref.read(currentWorkoutProvider.notifier).completeDropSet(
+                            exerciseIndex: exerciseIndex,
+                            setIndex: entry.key,
+                            dropIndex: dropIndex,
+                            reps: reps,
+                          );
+                    },
+                    onWeightChanged: (dropIndex, weight) {
+                      ref.read(currentWorkoutProvider.notifier).updateDropSet(
+                            exerciseIndex: exerciseIndex,
+                            setIndex: entry.key,
+                            dropIndex: dropIndex,
+                            weight: weight,
+                          );
+                    },
+                    onRepsChanged: (dropIndex, reps) {
+                      ref.read(currentWorkoutProvider.notifier).updateDropSet(
+                            exerciseIndex: exerciseIndex,
+                            setIndex: entry.key,
+                            dropIndex: dropIndex,
+                            reps: reps,
+                          );
+                    },
+                    onRemoveDrop: (dropIndex) {
+                      ref.read(currentWorkoutProvider.notifier).removeDropSet(
+                            exerciseIndex: exerciseIndex,
+                            setIndex: entry.key,
+                            dropIndex: dropIndex,
+                          );
+                    },
+                    onAddDrop: () {
+                      ref.read(currentWorkoutProvider.notifier).addDropSet(
+                            exerciseIndex: exerciseIndex,
+                            setIndex: entry.key,
+                          );
+                    },
+                  ),
+                ),
+              ];
+            }
+
+            return [setWidget];
           }),
 
           // Add set row (input for next set) - swipe right to complete

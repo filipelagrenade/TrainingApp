@@ -894,6 +894,16 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     // Create the new set
     final localSetId = _uuid.v4();
     final exerciseLogId = exercise.id ?? _uuid.v4();
+
+    // Auto-generate drop sub-rows if this is a dropset
+    final dropSets = setType == SetType.dropset && weight > 0
+        ? [
+            DropSetEntry(weight: _roundWeight(weight * 0.8)),
+            DropSetEntry(weight: _roundWeight(weight * 0.6)),
+            DropSetEntry(weight: _roundWeight(weight * 0.5)),
+          ]
+        : <DropSetEntry>[];
+
     final newSet = ExerciseSet(
       id: localSetId,
       exerciseLogId: exerciseLogId,
@@ -906,6 +916,7 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       isPersonalRecord: isPR,
       weightType: weightType,
       bandResistance: bandResistance != null ? bandResistance.name : null,
+      dropSets: dropSets,
     );
 
     // Update the workout with the new set
@@ -947,11 +958,45 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     }
 
     final existingSet = exercise.sets[setIndex];
+    final newSetType = setType ?? existingSet.setType;
+    final newWeight = weight ?? existingSet.weight;
+
+    // Determine if we need to auto-generate or recalculate drop sets
+    List<DropSetEntry> dropSets = existingSet.dropSets;
+
+    // Auto-generate drops when switching TO dropset type
+    if (newSetType == SetType.dropset && existingSet.setType != SetType.dropset) {
+      dropSets = [
+        DropSetEntry(weight: _roundWeight(newWeight * 0.8)),
+        DropSetEntry(weight: _roundWeight(newWeight * 0.6)),
+        DropSetEntry(weight: _roundWeight(newWeight * 0.5)),
+      ];
+    }
+    // Clear drops when switching AWAY from dropset type
+    else if (newSetType != SetType.dropset && existingSet.setType == SetType.dropset) {
+      dropSets = [];
+    }
+    // Recalculate drops proportionally when main weight changes
+    else if (newSetType == SetType.dropset &&
+        weight != null &&
+        existingSet.weight > 0 &&
+        weight != existingSet.weight) {
+      final ratio = weight / existingSet.weight;
+      dropSets = existingSet.dropSets
+          .map((d) => DropSetEntry(
+                weight: _roundWeight(d.weight * ratio),
+                reps: d.reps,
+                isCompleted: d.isCompleted,
+              ))
+          .toList();
+    }
+
     final updatedSet = existingSet.copyWith(
-      weight: weight ?? existingSet.weight,
+      weight: newWeight,
       reps: reps ?? existingSet.reps,
       rpe: rpe ?? existingSet.rpe,
-      setType: setType ?? existingSet.setType,
+      setType: newSetType,
+      dropSets: dropSets,
     );
 
     final updatedExercise = exercise.updateSet(setIndex, updatedSet);
@@ -961,6 +1006,204 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     );
 
     state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Generates default drop set sub-rows for a set at the given index.
+  ///
+  /// Auto-generates 3 drops: 80%, 60%, 50% of the main set weight.
+  /// Called when user changes set type to dropset.
+  void generateDropSets({
+    required int exerciseIndex,
+    required int setIndex,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (setIndex < 0 || setIndex >= exercise.sets.length) return;
+
+    final mainSet = exercise.sets[setIndex];
+    final baseWeight = mainSet.weight;
+
+    final drops = [
+      DropSetEntry(weight: _roundWeight(baseWeight * 0.8)),
+      DropSetEntry(weight: _roundWeight(baseWeight * 0.6)),
+      DropSetEntry(weight: _roundWeight(baseWeight * 0.5)),
+    ];
+
+    final updatedSet = mainSet.copyWith(dropSets: drops);
+    final updatedExercise = exercise.updateSet(setIndex, updatedSet);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Adds another drop sub-row to a drop set.
+  void addDropSet({
+    required int exerciseIndex,
+    required int setIndex,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (setIndex < 0 || setIndex >= exercise.sets.length) return;
+
+    final mainSet = exercise.sets[setIndex];
+    // New drop uses 50% of main weight or last drop weight × 0.8
+    final lastDropWeight = mainSet.dropSets.isNotEmpty
+        ? mainSet.dropSets.last.weight
+        : mainSet.weight;
+    final newDropWeight = _roundWeight(lastDropWeight * 0.8);
+
+    final updatedDrops = [...mainSet.dropSets, DropSetEntry(weight: newDropWeight)];
+    final updatedSet = mainSet.copyWith(dropSets: updatedDrops);
+    final updatedExercise = exercise.updateSet(setIndex, updatedSet);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Removes a drop sub-row from a drop set.
+  void removeDropSet({
+    required int exerciseIndex,
+    required int setIndex,
+    required int dropIndex,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (setIndex < 0 || setIndex >= exercise.sets.length) return;
+
+    final mainSet = exercise.sets[setIndex];
+    if (dropIndex < 0 || dropIndex >= mainSet.dropSets.length) return;
+
+    final updatedDrops = List<DropSetEntry>.from(mainSet.dropSets)
+      ..removeAt(dropIndex);
+    final updatedSet = mainSet.copyWith(dropSets: updatedDrops);
+    final updatedExercise = exercise.updateSet(setIndex, updatedSet);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Updates a drop sub-row's weight and/or reps.
+  void updateDropSet({
+    required int exerciseIndex,
+    required int setIndex,
+    required int dropIndex,
+    double? weight,
+    int? reps,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (setIndex < 0 || setIndex >= exercise.sets.length) return;
+
+    final mainSet = exercise.sets[setIndex];
+    if (dropIndex < 0 || dropIndex >= mainSet.dropSets.length) return;
+
+    final drop = mainSet.dropSets[dropIndex];
+    final updatedDrop = DropSetEntry(
+      weight: weight ?? drop.weight,
+      reps: reps ?? drop.reps,
+      isCompleted: drop.isCompleted,
+    );
+
+    final updatedDrops = List<DropSetEntry>.from(mainSet.dropSets);
+    updatedDrops[dropIndex] = updatedDrop;
+
+    final updatedSet = mainSet.copyWith(dropSets: updatedDrops);
+    final updatedExercise = exercise.updateSet(setIndex, updatedSet);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Marks a drop sub-row as completed.
+  void completeDropSet({
+    required int exerciseIndex,
+    required int setIndex,
+    required int dropIndex,
+    required int reps,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    if (exerciseIndex < 0 ||
+        exerciseIndex >= currentState.workout.exerciseLogs.length) {
+      return;
+    }
+
+    final exercise = currentState.workout.exerciseLogs[exerciseIndex];
+    if (setIndex < 0 || setIndex >= exercise.sets.length) return;
+
+    final mainSet = exercise.sets[setIndex];
+    if (dropIndex < 0 || dropIndex >= mainSet.dropSets.length) return;
+
+    final drop = mainSet.dropSets[dropIndex];
+    final updatedDrop = DropSetEntry(
+      weight: drop.weight,
+      reps: reps,
+      isCompleted: true,
+    );
+
+    final updatedDrops = List<DropSetEntry>.from(mainSet.dropSets);
+    updatedDrops[dropIndex] = updatedDrop;
+
+    final updatedSet = mainSet.copyWith(dropSets: updatedDrops);
+    final updatedExercise = exercise.updateSet(setIndex, updatedSet);
+    final updatedWorkout = currentState.workout.updateExercise(
+      exerciseIndex,
+      updatedExercise,
+    );
+
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Rounds weight to nearest 2.5 increment.
+  double _roundWeight(double weight) {
+    return (weight / 2.5).round() * 2.5;
   }
 
   /// Removes a set from an exercise.

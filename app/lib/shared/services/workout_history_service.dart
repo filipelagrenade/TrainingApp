@@ -850,12 +850,17 @@ class CompletedWorkout {
 
   factory CompletedWorkout.fromSession(WorkoutSession session) {
     final exercises = session.exerciseLogs.map((log) {
-      // Convert strength sets
+      // Convert strength sets (including drop set sub-entries)
       final sets = log.sets.map((s) => CompletedSet(
         weight: s.weight,
         reps: s.reps,
         rpe: s.rpe,
         setType: s.setType.name,
+        dropSets: s.dropSets.map((d) => CompletedDropSet(
+          weight: d.weight,
+          reps: d.reps,
+          isCompleted: d.isCompleted,
+        )).toList(),
       )).toList();
 
       // Convert cardio sets
@@ -869,10 +874,10 @@ class CompletedWorkout {
         intensity: cs.intensity.name,
       )).toList();
 
-      // Calculate volume (only for strength exercises)
+      // Calculate volume (only for strength exercises), including drop sets
       final volume = log.isCardio
           ? 0
-          : sets.fold<int>(0, (sum, s) => sum + (s.weight * s.reps).round());
+          : sets.fold<int>(0, (sum, s) => sum + s.totalVolume.round());
 
       // Determine completed sets count
       final completedSets = log.isCardio ? cardioSets.length : sets.length;
@@ -1044,13 +1049,25 @@ class CompletedSet {
   final int reps;
   final double? rpe;
   final String setType;
+  final List<CompletedDropSet> dropSets;
 
   CompletedSet({
     required this.weight,
     required this.reps,
     this.rpe,
     this.setType = 'working',
+    this.dropSets = const [],
   });
+
+  /// Total volume including drop sets.
+  double get totalVolume {
+    final mainVol = weight * reps;
+    final dropVol = dropSets.fold<double>(
+      0,
+      (sum, d) => sum + (d.isCompleted ? d.weight * d.reps : 0),
+    );
+    return mainVol + dropVol;
+  }
 
   factory CompletedSet.fromJson(Map<String, dynamic> json) {
     return CompletedSet(
@@ -1058,6 +1075,10 @@ class CompletedSet {
       reps: json['reps'] as int,
       rpe: (json['rpe'] as num?)?.toDouble(),
       setType: json['setType'] as String? ?? 'working',
+      dropSets: (json['dropSets'] as List<dynamic>?)
+              ?.map((d) => CompletedDropSet.fromJson(d as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 
@@ -1066,6 +1087,34 @@ class CompletedSet {
     'reps': reps,
     'rpe': rpe,
     'setType': setType,
+    if (dropSets.isNotEmpty) 'dropSets': dropSets.map((d) => d.toJson()).toList(),
+  };
+}
+
+/// A completed drop set sub-entry.
+class CompletedDropSet {
+  final double weight;
+  final int reps;
+  final bool isCompleted;
+
+  CompletedDropSet({
+    required this.weight,
+    required this.reps,
+    this.isCompleted = false,
+  });
+
+  factory CompletedDropSet.fromJson(Map<String, dynamic> json) {
+    return CompletedDropSet(
+      weight: (json['weight'] as num).toDouble(),
+      reps: json['reps'] as int? ?? 0,
+      isCompleted: json['isCompleted'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'weight': weight,
+    'reps': reps,
+    'isCompleted': isCompleted,
   };
 }
 

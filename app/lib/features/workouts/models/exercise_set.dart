@@ -136,11 +136,30 @@ class ExerciseSet with _$ExerciseSet {
     /// Band resistance level (only set when weightType is band)
     String? bandResistance,
 
+    /// Drop set sub-entries (auto-generated when setType is dropset)
+    @Default([]) List<DropSetEntry> dropSets,
+
   }) = _ExerciseSet;
 
   /// Creates a set from JSON.
   factory ExerciseSet.fromJson(Map<String, dynamic> json) =>
       _$ExerciseSetFromJson(json);
+}
+
+/// A single drop set sub-entry within a drop set.
+@freezed
+class DropSetEntry with _$DropSetEntry {
+  const factory DropSetEntry({
+    /// Weight for this drop
+    required double weight,
+    /// Reps achieved for this drop (0 if not yet completed)
+    @Default(0) int reps,
+    /// Whether this drop has been completed
+    @Default(false) bool isCompleted,
+  }) = _DropSetEntry;
+
+  factory DropSetEntry.fromJson(Map<String, dynamic> json) =>
+      _$DropSetEntryFromJson(json);
 }
 
 /// Extension methods for ExerciseSet.
@@ -156,8 +175,15 @@ extension ExerciseSetExtensions on ExerciseSet {
     return weight * (1 + reps / 30);
   }
 
-  /// Returns the total volume for this set (weight * reps).
-  double get volume => weight * reps;
+  /// Returns the total volume for this set (weight * reps) including drop sets.
+  double get volume {
+    final mainVolume = weight * reps;
+    final dropVolume = dropSets.fold<double>(
+      0,
+      (sum, d) => sum + (d.isCompleted ? d.weight * d.reps : 0),
+    );
+    return mainVolume + dropVolume;
+  }
 
   /// Returns true if this is a warmup set.
   bool get isWarmup => setType == SetType.warmup;

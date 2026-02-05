@@ -2,7 +2,7 @@
 
 > **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `.claude/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web --release` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
 
-**STATUS**: IN PROGRESS — 0/7 phases complete
+**STATUS**: IN PROGRESS — 2/7 phases complete
 
 ## Overview
 
@@ -10,8 +10,8 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 
 ## Phase Checklist
 
-- [ ] **Phase 1** — Bug Fixes & Quick Wins
-- [ ] **Phase 2** — Drop Set Auto-Generated Sub-Rows
+- [x] **Phase 1** — Bug Fixes & Quick Wins
+- [x] **Phase 2** — Drop Set Auto-Generated Sub-Rows
 - [ ] **Phase 3** — Exercise Settings Expandable Section
 - [ ] **Phase 4** — Program & Template Improvements
 - [ ] **Phase 5** — AI Preferences & Per-Exercise Rep Overrides
@@ -132,23 +132,23 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 - `app/lib/features/workouts/providers/current_workout_provider.dart` — manage drop set state
 
 **Tasks**:
-- [ ] Extend `ExerciseSet` model: add `List<DropSetEntry>? dropSets` field where `DropSetEntry` has `weight`, `reps`, `isCompleted` fields
-- [ ] When user selects `SetType.dropset` on a set, auto-generate 3 drop sub-rows:
+- [x] Extend `ExerciseSet` model: add `List<DropSetEntry>? dropSets` field where `DropSetEntry` has `weight`, `reps`, `isCompleted` fields
+- [x] When user selects `SetType.dropset` on a set, auto-generate 3 drop sub-rows:
   - Drop 1: weight × 0.8 (20% reduction), empty reps
   - Drop 2: weight × 0.6 (40% reduction), empty reps
   - Drop 3: weight × 0.5 (50% reduction), empty reps
-- [ ] In `SetInputRow`, when `setType == SetType.dropset`, render the auto-generated sub-rows BELOW the main set row:
+- [x] In `SetInputRow`, when `setType == SetType.dropset`, render the auto-generated sub-rows BELOW the main set row:
   - Each sub-row should be indented (left margin or visual connector line)
   - Each sub-row has: drop number label, weight field (pre-filled but editable), reps field, complete checkbox
   - Add/remove drop row buttons (+ and × icons)
-- [ ] In `current_workout_provider.dart`, add methods:
+- [x] In `current_workout_provider.dart`, add methods:
   - `addDropSet(exerciseIndex, setIndex)` — add another drop row
   - `removeDropSet(exerciseIndex, setIndex, dropIndex)` — remove a drop row
   - `updateDropSet(exerciseIndex, setIndex, dropIndex, weight, reps)` — update drop data
   - `completeDropSet(exerciseIndex, setIndex, dropIndex)` — mark drop as done
-- [ ] When the main set's weight changes, recalculate drop weights proportionally
-- [ ] Include drop set data in workout history when saving
-- [ ] Ensure drop set volume is counted in total workout volume
+- [x] When the main set's weight changes, recalculate drop weights proportionally
+- [x] Include drop set data in workout history when saving
+- [x] Ensure drop set volume is counted in total workout volume
 
 **Commit**: `feat(app): add drop set auto-generated sub-rows with adjustable weight reduction`
 
