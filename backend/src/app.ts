@@ -123,16 +123,35 @@ const createApp = (): Application => {
 
   // Serve Flutter web build as a PWA from the /public directory
   const publicPath = path.join(__dirname, '..', 'public');
-  app.use(express.static(publicPath));
+  const indexPath = path.join(publicPath, 'index.html');
+  const fs = require('fs');
+  const hasFlutterBuild = fs.existsSync(indexPath);
 
-  // SPA fallback: serve index.html for any non-API route (client-side routing)
-  app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    // Don't intercept API routes
-    if (req.path.startsWith('/api/') || req.path === '/health') {
-      return next();
-    }
-    res.sendFile(path.join(publicPath, 'index.html'));
-  });
+  if (hasFlutterBuild) {
+    app.use(express.static(publicPath));
+
+    // SPA fallback: serve index.html for any non-API route (client-side routing)
+    app.get('*', (req: Request, res: Response, next: NextFunction) => {
+      // Don't intercept API routes
+      if (req.path.startsWith('/api/') || req.path === '/health') {
+        return next();
+      }
+      res.sendFile(indexPath);
+    });
+  } else {
+    // No Flutter build present - return JSON for root and unknown routes
+    app.get('/', (_req: Request, res: Response) => {
+      res.json({
+        success: true,
+        data: {
+          name: 'LiftIQ API',
+          version: process.env.npm_package_version || '1.0.0',
+          docs: '/api/v1',
+          health: '/health',
+        },
+      });
+    });
+  }
 
   // ============================================================================
   // ERROR HANDLING
