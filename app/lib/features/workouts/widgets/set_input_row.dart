@@ -528,7 +528,7 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
   Widget _buildCompleteButton(ThemeData theme, ColorScheme colors) {
     return SizedBox(
       width: 48,
-      height: 44,
+      height: 48,
       child: ElevatedButton(
         onPressed: _canComplete ? _completeSet : null,
         style: ElevatedButton.styleFrom(

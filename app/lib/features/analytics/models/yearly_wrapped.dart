@@ -389,12 +389,12 @@ class TopExercise with _$TopExercise {
 
 /// Extension methods for TopExercise.
 extension TopExerciseExtensions on TopExercise {
-  /// Returns formatted volume.
+  /// Returns formatted volume (without unit — caller adds from user settings).
   String get formattedVolume {
     if (totalVolume >= 1000) {
-      return '${(totalVolume / 1000).toStringAsFixed(1)}k kg';
+      return '${(totalVolume / 1000).toStringAsFixed(1)}k';
     }
-    return '$totalVolume kg';
+    return '$totalVolume';
   }
 
   /// Returns rank medal emoji.

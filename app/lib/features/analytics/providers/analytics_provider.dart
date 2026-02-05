@@ -176,20 +176,17 @@ class WeeklyStats {
     required this.prsAchieved,
   });
 
-  /// Formats the volume for display with units (e.g., "12.5k kg").
-  /// Issue #7: Now includes "kg" unit for clarity
+  /// Formats the volume for display (without unit — caller adds from user settings).
   String get formattedVolume {
     if (totalVolume >= 1000) {
-      // Show as "12.5k kg" for values >= 1000
       final kValue = (totalVolume / 1000).toStringAsFixed(1);
       // Remove trailing .0 for cleaner display
       final cleanValue = kValue.endsWith('.0')
           ? kValue.substring(0, kValue.length - 2)
           : kValue;
-      return '${cleanValue}k kg';
+      return '${cleanValue}k';
     }
-    // Show as "900 kg" for values under 1000
-    return '$totalVolume kg';
+    return '$totalVolume';
   }
 }
 

@@ -273,15 +273,16 @@ class _WeekNavigator extends ConsumerWidget {
 }
 
 /// Summary section showing key metrics.
-class _SummarySection extends StatelessWidget {
+class _SummarySection extends ConsumerWidget {
   final WeeklyReport report;
 
   const _SummarySection({required this.report});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final summary = report.summary;
     final colors = Theme.of(context).colorScheme;
+    final weightUnitStr = ref.watch(userSettingsProvider).weightUnitString;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -295,7 +296,7 @@ class _SummarySection extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
@@ -383,7 +384,7 @@ class _SummarySection extends StatelessWidget {
             children: [
               _SummaryStat(
                 icon: Icons.scale,
-                value: summary.formattedVolume,
+                value: '${summary.formattedVolume} $weightUnitStr',
                 label: 'Volume',
               ),
               _SummaryStat(
@@ -581,7 +582,7 @@ class _WorkoutsSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...report.workouts.map((workout) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
+                margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: workout.hadPR
@@ -910,7 +911,7 @@ class _InsightsSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...sorted.map((insight) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
+                margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -1005,7 +1006,7 @@ class _GoalsSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...report.goalsProgress.map((goal) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
+                margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(

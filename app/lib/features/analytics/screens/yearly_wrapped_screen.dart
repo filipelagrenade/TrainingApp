@@ -16,6 +16,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/yearly_wrapped.dart';
 import '../providers/yearly_wrapped_provider.dart';
+import '../../settings/models/user_settings.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// Screen showing the yearly training wrapped.
 class YearlyWrappedScreen extends ConsumerStatefulWidget {
@@ -613,13 +615,14 @@ class _PersonalitySlide extends StatelessWidget {
 }
 
 /// Top exercise slide.
-class _TopExerciseSlide extends StatelessWidget {
+class _TopExerciseSlide extends ConsumerWidget {
   final TopExercise exercise;
 
   const _TopExerciseSlide({required this.exercise});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final weightUnitStr = ref.watch(userSettingsProvider).weightUnitString;
     return _SlideContainer(
       gradientColors: exercise.rank == 1
           ? [Colors.amber.shade800, Colors.orange.shade600]
@@ -656,9 +659,9 @@ class _TopExerciseSlide extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _MiniStat(value: '${exercise.totalSets}', label: 'Sets'),
-              _MiniStat(value: exercise.formattedVolume, label: 'Volume'),
+              _MiniStat(value: '${exercise.formattedVolume} $weightUnitStr', label: 'Volume'),
               _MiniStat(
-                value: '${exercise.best1RM.round()}kg',
+                value: '${exercise.best1RM.round()} $weightUnitStr',
                 label: 'Best 1RM',
               ),
             ],

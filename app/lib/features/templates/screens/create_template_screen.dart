@@ -235,62 +235,73 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
       );
     }).toList();
 
-    // Handle saving to a program
-    if (widget.isProgramWorkoutEdit && widget.programId != null && widget.programDayNumber != null) {
-      final updatedTemplate = (_existingTemplate ?? WorkoutTemplate(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: _nameController.text.trim(),
-        exercises: [],
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      )).copyWith(
-        name: _nameController.text.trim(),
-        exercises: templateExercises,
-        updatedAt: DateTime.now(),
-      );
-
-      await ref.read(userProgramsProvider.notifier).updateTemplateInProgram(
-        widget.programId!,
-        widget.programDayNumber!,
-        updatedTemplate,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Workout "${_nameController.text}" updated!')),
+    try {
+      // Handle saving to a program
+      if (widget.isProgramWorkoutEdit && widget.programId != null && widget.programDayNumber != null) {
+        final updatedTemplate = (_existingTemplate ?? WorkoutTemplate(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: _nameController.text.trim(),
+          exercises: [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        )).copyWith(
+          name: _nameController.text.trim(),
+          exercises: templateExercises,
+          updatedAt: DateTime.now(),
         );
-        context.pop();
-      }
-      return;
-    }
 
-    if (widget.isEditMode && _existingTemplate != null) {
-      // Update existing template
-      final updatedTemplate = _existingTemplate!.copyWith(
-        name: _nameController.text.trim(),
-        exercises: templateExercises,
-        updatedAt: DateTime.now(),
-      );
-      await ref.read(templateActionsProvider.notifier).updateTemplate(updatedTemplate);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Template "${_nameController.text}" updated!')),
+        await ref.read(userProgramsProvider.notifier).updateTemplateInProgram(
+          widget.programId!,
+          widget.programDayNumber!,
+          updatedTemplate,
         );
-        context.pop();
-      }
-    } else {
-      // Create new template
-      await ref.read(templateActionsProvider.notifier).createTemplate(
-            name: _nameController.text.trim(),
-            exercises: templateExercises,
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Workout "${_nameController.text}" updated!')),
           );
+          context.pop();
+        }
+        return;
+      }
 
+      if (widget.isEditMode && _existingTemplate != null) {
+        // Update existing template
+        final updatedTemplate = _existingTemplate!.copyWith(
+          name: _nameController.text.trim(),
+          exercises: templateExercises,
+          updatedAt: DateTime.now(),
+        );
+        await ref.read(templateActionsProvider.notifier).updateTemplate(updatedTemplate);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Template "${_nameController.text}" updated!')),
+          );
+          context.pop();
+        }
+      } else {
+        // Create new template
+        await ref.read(templateActionsProvider.notifier).createTemplate(
+              name: _nameController.text.trim(),
+              exercises: templateExercises,
+            );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Template "${_nameController.text}" created!')),
+          );
+          context.pop();
+        }
+      }
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Template "${_nameController.text}" created!')),
+          SnackBar(
+            content: Text('Failed to save template: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
-        context.pop();
       }
     }
   }

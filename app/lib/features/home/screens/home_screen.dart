@@ -220,9 +220,9 @@ class _DashboardTab extends ConsumerWidget {
               const _BrowseProgramsPrompt(),
               // Weekly report card with real data (replaces old "This Week" block)
               const WeeklyReportCard(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               const DeloadSuggestionCard(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               const StreakCard(),
               const SizedBox(height: 16),
               // Recent workouts section
@@ -242,7 +242,7 @@ class _DashboardTab extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               // Recent workouts from workout history
               _RecentWorkoutsList(),
               const SizedBox(height: 16),
@@ -262,7 +262,7 @@ class _DashboardTab extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               // Template cards from actual data
               _TemplatesList(),
               const SizedBox(height: 80), // Space for FAB
@@ -303,7 +303,7 @@ class _WeeklySummaryCard extends ConsumerWidget {
                     icon: Icons.fitness_center,
                   ),
                   _StatItem(
-                    label: 'Volume',  // "kg" now included in stats.formattedVolume (Issue #7)
+                    label: 'Volume',
                     value: stats.formattedVolume,
                     icon: Icons.scale,
                   ),
@@ -416,7 +416,7 @@ class _TemplateCard extends StatelessWidget {
       margin: const EdgeInsets.only(right: 12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 140,
           padding: const EdgeInsets.all(16),
@@ -459,7 +459,7 @@ class _AddTemplateCard extends StatelessWidget {
       margin: const EdgeInsets.only(right: 12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 140,
           padding: const EdgeInsets.all(16),
@@ -879,7 +879,7 @@ class _RecentWorkoutsList extends ConsumerWidget {
     return Column(
       children: recentWorkouts.map((workout) {
         return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: context.colors.primaryContainer,
@@ -999,7 +999,7 @@ class _RecentWorkoutsLoading extends StatelessWidget {
     return Column(
       children: List.generate(2, (index) {
         return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: context.colors.surfaceContainerHighest,

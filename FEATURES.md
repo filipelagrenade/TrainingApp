@@ -380,6 +380,57 @@ Phase 4: Optional/Advanced
 
 ---
 
+## Overnight Round 3 - UX Fixes, Drop Sets & Feature Improvements (7 Phases)
+- **Status**: Complete
+- **Date**: 2026-02-05
+- **Handover**: `.claude/handover.md`
+
+**What was built:**
+
+Phase 1: Bug Fixes & Quick Wins
+- Fixed weekly score algorithm (current-week-only instead of 4-week rolling)
+- Fixed PR popup unit handling (respects user's kg/lbs preference)
+- Fixed PRs not showing in weekly report
+- Fixed Start Mesocycle card layout (proper Card+Column layout)
+- Added Switch Exercise UI button in active workout
+- Added Smith Machine to Equipment enum
+- Added Per-Side weight type with ×2 volume calculation
+
+Phase 2: Drop Set Auto-Generated Sub-Rows
+- Auto-generates 3 drop sub-rows at 80%/60%/50% weight reduction
+- Add/remove drop rows, per-drop completion tracking
+- Drop set volume counted in totals
+
+Phase 3: Exercise Settings Expandable Section
+- New `exercise_settings_panel.dart` with cable attachment, unilateral toggle, weight type, RPE toggle
+- Gear icon with badge indicator for active settings
+- Animated expand/collapse
+
+Phase 4: Program & Template Improvements
+- Duplicate Day in program creator
+- Auto-save program templates to template library
+- Multi-select exercise picker with chip bar
+
+Phase 5: AI Preferences & Per-Exercise Rep Overrides
+- AI generation preferences in settings (include sets/reps, preferred counts)
+- Per-exercise rep range overrides (strength/hypertrophy/endurance presets)
+
+Phase 6: Mesocycle-Program Full Integration
+- Assign programs to mesocycles
+- Auto-generate weekly templates with volume/intensity multipliers
+- Workout-for-day resolution with deload support
+
+Phase 7: UX Review & Polish
+- Card spacing consistency (standardized 12px within, 16px between)
+- Border radius consistency (all cards use 12px)
+- Elevation consistency audit
+- Removed hardcoded "kg" units — all volume/weight displays use user's unit preference
+- Programs tab empty state
+- Touch target audit (48×48 minimum for all interactive elements)
+- Error feedback: try-catch with snackbar on save operations
+
+---
+
 ## In Progress
 
 *No features currently in progress.*
@@ -405,4 +456,4 @@ Based on the development plan, the next features to implement are:
 
 ---
 
-*Last Updated: 2026-01-27 (Overnight Round 2 - Full Feature Completion)*
+*Last Updated: 2026-02-05 (Overnight Round 3 - UX Fixes, Drop Sets & Feature Improvements)*

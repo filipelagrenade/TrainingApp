@@ -535,6 +535,15 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
           context.pop();
         }
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save program: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);

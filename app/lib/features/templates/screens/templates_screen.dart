@@ -159,6 +159,43 @@ class _ProgramsTab extends ConsumerWidget {
 
     return programsAsync.when(
       data: (programs) {
+        if (programs.isEmpty) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _CreateProgramButton(
+                onPressed: () => context.push('/programs/create'),
+              ),
+              const SizedBox(height: 32),
+              Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.calendar_month_outlined,
+                      size: 64,
+                      color: colors.onSurfaceVariant.withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No Programs Yet',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create a training program to organize\nyour workouts into a structured plan.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           // +1 for the Create Program button at the top

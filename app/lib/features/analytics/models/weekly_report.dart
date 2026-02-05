@@ -197,12 +197,12 @@ extension WeeklySummaryExtensions on WeeklySummary {
     return '${mins}m';
   }
 
-  /// Returns formatted volume.
+  /// Returns formatted volume (without unit — caller adds unit from user settings).
   String get formattedVolume {
     if (totalVolume >= 1000) {
-      return '${(totalVolume / 1000).toStringAsFixed(1)}k kg';
+      return '${(totalVolume / 1000).toStringAsFixed(1)}k';
     }
-    return '$totalVolume kg';
+    return '$totalVolume';
   }
 
   /// Returns formatted average duration.
@@ -380,12 +380,12 @@ class MuscleGroupStats with _$MuscleGroupStats {
 
 /// Extension methods for MuscleGroupStats.
 extension MuscleGroupStatsExtensions on MuscleGroupStats {
-  /// Returns formatted volume.
+  /// Returns formatted volume (without unit — caller adds unit from user settings).
   String get formattedVolume {
     if (totalVolume >= 1000) {
-      return '${(totalVolume / 1000).toStringAsFixed(1)}k kg';
+      return '${(totalVolume / 1000).toStringAsFixed(1)}k';
     }
-    return '$totalVolume kg';
+    return '$totalVolume';
   }
 
   /// Returns true if sets are at or above recommendation.
@@ -629,8 +629,8 @@ class InsightGenerators {
 
   static String _formatVolume(int volume) {
     if (volume >= 1000) {
-      return '${(volume / 1000).toStringAsFixed(1)}k kg';
+      return '${(volume / 1000).toStringAsFixed(1)}k';
     }
-    return '$volume kg';
+    return '$volume';
   }
 }

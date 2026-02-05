@@ -185,16 +185,17 @@ class ExerciseSettingsPanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 InkWell(
                   onTap: () => onRepRangeChanged(null),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(20),
                   child: Container(
-                    padding: const EdgeInsets.all(2),
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: colors.primary.withOpacity(0.2),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.close,
-                      size: 14,
+                      size: 16,
                       color: colors.primary,
                     ),
                   ),
@@ -217,7 +218,7 @@ class ExerciseSettingsPanel extends StatelessWidget {
                     ? colors.onPrimaryContainer
                     : colors.onSurface,
               ),
-              visualDensity: VisualDensity.compact,
+              visualDensity: VisualDensity.comfortable,
               onSelected: (_) => onRepRangeChanged(null),
             ),
             // Preset chips
@@ -230,7 +231,7 @@ class ExerciseSettingsPanel extends StatelessWidget {
                 labelStyle: theme.textTheme.labelSmall?.copyWith(
                   color: isSelected ? colors.onPrimaryContainer : colors.onSurface,
                 ),
-                visualDensity: VisualDensity.compact,
+                visualDensity: VisualDensity.comfortable,
                 onSelected: (_) {
                   if (isSelected) {
                     // Deselect → back to default
@@ -261,8 +262,8 @@ class ExerciseSettingsPanel extends StatelessWidget {
 
   Widget _buildCableAttachmentChips(ThemeData theme, ColorScheme colors) {
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: 8,
+      runSpacing: 8,
       children: CableAttachment.values.map((attachment) {
         final isSelected = cableAttachment == attachment;
         return ChoiceChip(
@@ -271,7 +272,7 @@ class ExerciseSettingsPanel extends StatelessWidget {
           labelStyle: theme.textTheme.labelSmall?.copyWith(
             color: isSelected ? colors.onPrimaryContainer : colors.onSurface,
           ),
-          visualDensity: VisualDensity.compact,
+          visualDensity: VisualDensity.comfortable,
           onSelected: (_) {
             onCableAttachmentChanged(isSelected ? null : attachment);
           },
@@ -289,8 +290,8 @@ class ExerciseSettingsPanel extends StatelessWidget {
     ];
 
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: 8,
+      runSpacing: 8,
       children: types.map((entry) {
         final (type, label, icon) = entry;
         final isSelected = weightType == type;
@@ -301,7 +302,7 @@ class ExerciseSettingsPanel extends StatelessWidget {
           labelStyle: theme.textTheme.labelSmall?.copyWith(
             color: isSelected ? colors.onPrimaryContainer : colors.onSurface,
           ),
-          visualDensity: VisualDensity.compact,
+          visualDensity: VisualDensity.comfortable,
           onSelected: (_) => onWeightTypeChanged(type),
         );
       }).toList(),

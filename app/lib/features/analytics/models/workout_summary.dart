@@ -75,12 +75,12 @@ extension WorkoutSummaryExtensions on WorkoutSummary {
     return '${mins}m';
   }
 
-  /// Returns formatted volume string.
+  /// Returns formatted volume string (without unit — caller adds from user settings).
   String get formattedVolume {
     if (totalVolume >= 1000) {
-      return '${(totalVolume / 1000).toStringAsFixed(1)}k kg';
+      return '${(totalVolume / 1000).toStringAsFixed(1)}k';
     }
-    return '$totalVolume kg';
+    return '$totalVolume';
   }
 
   /// Returns how long ago this workout was.

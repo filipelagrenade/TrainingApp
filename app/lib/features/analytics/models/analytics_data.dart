@@ -54,12 +54,12 @@ class MuscleVolumeData with _$MuscleVolumeData {
 
 /// Extension for MuscleVolumeData.
 extension MuscleVolumeDataExtensions on MuscleVolumeData {
-  /// Returns formatted volume string.
+  /// Returns formatted volume string (without unit — caller adds from user settings).
   String get formattedVolume {
     if (totalVolume >= 1000) {
-      return '${(totalVolume / 1000).toStringAsFixed(1)}k kg';
+      return '${(totalVolume / 1000).toStringAsFixed(1)}k';
     }
-    return '$totalVolume kg';
+    return '$totalVolume';
   }
 }
 
@@ -205,12 +205,12 @@ class MostTrainedMuscle with _$MostTrainedMuscle {
 
 /// Extension for ProgressSummary.
 extension ProgressSummaryExtensions on ProgressSummary {
-  /// Returns formatted volume.
+  /// Returns formatted volume (without unit — caller adds from user settings).
   String get formattedVolume {
     if (totalVolume >= 1000) {
-      return '${(totalVolume / 1000).toStringAsFixed(1)}k kg';
+      return '${(totalVolume / 1000).toStringAsFixed(1)}k';
     }
-    return '$totalVolume kg';
+    return '$totalVolume';
   }
 
   /// Returns formatted duration.

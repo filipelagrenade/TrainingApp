@@ -16,6 +16,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/weekly_report.dart';
 import '../providers/weekly_report_provider.dart';
+import '../../settings/models/user_settings.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// A card showing a preview of the weekly progress report.
 class WeeklyReportCard extends ConsumerWidget {
@@ -125,6 +127,7 @@ class WeeklyReportCard extends ConsumerWidget {
 
     final report = reportState.currentReport!;
     final summary = report.summary;
+    final weightUnitStr = ref.watch(userSettingsProvider).weightUnitString;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -214,7 +217,7 @@ class WeeklyReportCard extends ConsumerWidget {
                       ),
                       _MiniStat(
                         icon: Icons.scale,
-                        value: summary.formattedVolume,
+                        value: '${summary.formattedVolume} $weightUnitStr',
                         label: 'Volume',
                       ),
                       _MiniStat(

@@ -814,7 +814,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
       children: MesocycleGoal.values.map((goal) {
         final isSelected = _selectedGoal == goal;
         return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 12),
           color: isSelected ? theme.colorScheme.primaryContainer : null,
           child: ListTile(
             leading: Icon(
@@ -888,7 +888,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
       children: PeriodizationType.values.map((type) {
         final isSelected = _periodizationType == type;
         return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 12),
           color: isSelected ? theme.colorScheme.primaryContainer : null,
           child: ListTile(
             leading: Icon(
@@ -933,7 +933,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
 
         // No program option
         Card(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 12),
           color: _selectedProgram == null ? colors.primaryContainer : null,
           child: ListTile(
             leading: Icon(
@@ -988,7 +988,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
           ...programs.map((program) {
             final isSelected = _selectedProgram?.id == program.id;
             return Card(
-              margin: const EdgeInsets.only(bottom: 8),
+              margin: const EdgeInsets.only(bottom: 12),
               color: isSelected ? colors.primaryContainer : null,
               child: ListTile(
                 leading: Icon(

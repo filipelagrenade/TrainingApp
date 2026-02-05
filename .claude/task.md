@@ -2,7 +2,7 @@
 
 > **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `.claude/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web --release` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
 
-**STATUS**: IN PROGRESS — 3/7 phases complete
+**STATUS**: COMPLETE — 7/7 phases complete
 
 ## Overview
 
@@ -13,10 +13,10 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 - [x] **Phase 1** — Bug Fixes & Quick Wins
 - [x] **Phase 2** — Drop Set Auto-Generated Sub-Rows
 - [x] **Phase 3** — Exercise Settings Expandable Section
-- [ ] **Phase 4** — Program & Template Improvements
-- [ ] **Phase 5** — AI Preferences & Per-Exercise Rep Overrides
-- [ ] **Phase 6** — Mesocycle-Program Full Integration
-- [ ] **Phase 7** — UX Review & Polish
+- [x] **Phase 4** — Program & Template Improvements
+- [x] **Phase 5** — AI Preferences & Per-Exercise Rep Overrides
+- [x] **Phase 6** — Mesocycle-Program Full Integration
+- [x] **Phase 7** — UX Review & Polish
 
 ---
 
@@ -205,10 +205,10 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 **File**: `app/lib/features/programs/screens/create_program_screen.dart`
 
 **Tasks**:
-- [ ] Add a "Duplicate" action to each day card in the program creator (icon button or popup menu alongside the existing delete button)
-- [ ] When tapped, deep-copy the template at that index (new ID, same exercises/sets/reps) and append it to the `_templates` list
-- [ ] Increment the day number display (D1, D2... DN+1)
-- [ ] If duplicating would exceed `daysPerWeek`, show a snackbar: "Increase days per week to add more days"
+- [x] Add a "Duplicate" action to each day card in the program creator (icon button or popup menu alongside the existing delete button)
+- [x] When tapped, deep-copy the template at that index (new ID, same exercises/sets/reps) and append it to the `_templates` list
+- [x] Increment the day number display (D1, D2... DN+1)
+- [x] If duplicating would exceed `daysPerWeek`, show a snackbar: "Increase days per week to add more days"
 
 ### 4B: Auto-Save Program Templates to Library
 
@@ -217,29 +217,29 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 - `app/lib/features/templates/providers/templates_provider.dart`
 
 **Tasks**:
-- [ ] When a program is saved (create or update), iterate through its templates
-- [ ] For each template, check if it already exists in the user's template library (by ID)
-- [ ] If not, save a copy to the template library via `templatesProvider.notifier.addTemplate()`
-- [ ] Set `programId` and `programName` on the saved template so the user knows where it came from
-- [ ] This means templates created inline during program creation automatically appear in the user's "My Templates" for reuse
+- [x] When a program is saved (create or update), iterate through its templates
+- [x] For each template, check if it already exists in the user's template library (by ID)
+- [x] If not, save a copy to the template library via `templatesProvider.notifier.addTemplate()`
+- [x] Set `programId` and `programName` on the saved template so the user knows where it came from
+- [x] This means templates created inline during program creation automatically appear in the user's "My Templates" for reuse
 
 ### 4C: Multi-Select Exercise Picker
 
 **File**: `app/lib/features/workouts/widgets/exercise_picker_modal.dart`
 
 **Tasks**:
-- [ ] Add a toggle at the top of the exercise picker: "Single select" / "Multi-select" (default: single for backward compatibility)
-- [ ] In multi-select mode:
+- [x] Add a toggle at the top of the exercise picker: "Single select" / "Multi-select" (default: single for backward compatibility)
+- [x] In multi-select mode:
   - Tapping an exercise adds it to a selection list (shown as a chip bar at the bottom of the modal)
   - Tapping a selected exercise removes it from the selection
   - Show selected count badge
   - "Add X Exercises" button at the bottom to confirm and close modal
-- [ ] Change the return type: `Future<List<Exercise>>` instead of `Future<Exercise?>`
-- [ ] Update all callers of `showExercisePicker()`:
+- [x] Change the return type: `Future<List<Exercise>>` instead of `Future<Exercise?>`
+- [x] Update all callers of `showExercisePicker()`:
   - `create_template_screen.dart` — add all selected exercises
   - `active_workout_screen.dart` — add all selected exercises to current workout
   - Any other callers — search for `showExercisePicker` usage
-- [ ] Keep single-select as default behavior so existing UX isn't disrupted
+- [x] Keep single-select as default behavior so existing UX isn't disrupted
 
 **Commit**: `feat(app): add duplicate day, auto-save templates to library, multi-select exercise picker`
 
@@ -257,19 +257,19 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 - `app/lib/shared/services/ai_generation_service.dart`
 
 **Tasks**:
-- [ ] Add to `UserSettings` model:
+- [x] Add to `UserSettings` model:
   - `bool includeSetsInGeneration` (default: true)
   - `bool includeRepsInGeneration` (default: true)
   - `int? preferredSetCount` (nullable, e.g., 3 or 4)
   - `int? preferredRepRangeMin` (nullable, e.g., 8)
   - `int? preferredRepRangeMax` (nullable, e.g., 12)
-- [ ] Run code generation (`dart run build_runner build`) if using Freezed
-- [ ] Add an "AI Generation" section to the settings screen with:
+- [x] Run code generation (`dart run build_runner build`) if using Freezed
+- [x] Add an "AI Generation" section to the settings screen with:
   - Toggle: "Include sets in generated workouts"
   - Toggle: "Include reps in generated workouts"
   - Number input: "Preferred set count" (only shown if include sets is on, can be left blank for AI default)
   - Number inputs: "Preferred rep range" min-max (only shown if include reps is on)
-- [ ] In `ai_generation_service.dart`, read these settings and modify the AI system prompt:
+- [x] In `ai_generation_service.dart`, read these settings and modify the AI system prompt:
   - If `includeSetsInGeneration` is false, instruct AI to omit the Sets column
   - If `includeRepsInGeneration` is false, instruct AI to omit the Reps column
   - If `preferredSetCount` is set, include: "Use {N} sets per exercise"
@@ -283,19 +283,19 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 - `app/lib/features/workouts/screens/active_workout_screen.dart`
 
 **Tasks**:
-- [ ] Create a persistence model for per-exercise rep overrides. Add to SharedPreferences:
+- [x] Create a persistence model for per-exercise rep overrides. Add to SharedPreferences:
   - Key: `exercise_rep_overrides_{userId}`
   - Value: `Map<String, {repFloor: int, repCeiling: int}>` keyed by exerciseId
-- [ ] In the active workout screen, add a way to set rep ceiling override per exercise:
+- [x] In the active workout screen, add a way to set rep ceiling override per exercise:
   - Add "Set Rep Range" option to the exercise card menu (or in the new expandable settings panel from Phase 3)
   - Opens a small dialog/bottom sheet with two number inputs: "Rep Floor" and "Rep Ceiling"
   - Pre-fill with current defaults from training goal
   - Save to the per-exercise override storage (globally, not per-workout)
-- [ ] In `weight_recommendation_service.dart`:
+- [x] In `weight_recommendation_service.dart`:
   - Before using goal-based rep ranges, check if the exercise has a per-exercise override
   - If override exists, use those values instead of the goal defaults
   - This affects both the rep targets in recommendations and the progression phase detection
-- [ ] Show a visual indicator on the exercise card when a custom rep range is active (e.g., small badge showing "6-8" if overridden)
+- [x] Show a visual indicator on the exercise card when a custom rep range is active (e.g., small badge showing "6-8" if overridden)
 
 **Commit**: `feat(app): add AI generation preferences and per-exercise rep ceiling overrides`
 
@@ -313,26 +313,26 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 - Create: `app/lib/features/periodization/services/mesocycle_program_service.dart`
 
 **Tasks**:
-- [ ] Add to `Mesocycle` model:
+- [x] Add to `Mesocycle` model:
   - `String? assignedProgramId` — reference to a training program
   - `String? assignedProgramName` — denormalized display name
-- [ ] Create `mesocycle_program_service.dart` with:
+- [x] Create `mesocycle_program_service.dart` with:
   - `generateWeeklyTemplates(program, mesocycleWeek)` — takes a base program and a `MesocycleWeek`, returns modified templates where:
     - Sets count = `round(baseTemplate.defaultSets * week.volumeMultiplier)` (minimum 1)
     - Suggested weight adjusted by `week.intensityMultiplier`
     - If `week.rirTarget` is set, pass it to the weight recommendation service
     - Deload weeks (volumeMultiplier ~0.5) reduce sets and weight accordingly
   - `getWorkoutForDay(mesocycle, dayNumber)` — resolves which program template to use for a given day in the mesocycle, applying the current week's multipliers
-- [ ] Add "Assign Program" UI to mesocycle creation/editing:
+- [x] Add "Assign Program" UI to mesocycle creation/editing:
   - On the create/edit mesocycle screen, add an optional "Training Program" picker
   - Show list of user's programs (from `userProgramsProvider`)
   - When a program is selected, display its template names as the weekly schedule
   - Allow unassigning (set to null)
-- [ ] When starting a workout from a mesocycle with an assigned program:
+- [x] When starting a workout from a mesocycle with an assigned program:
   - Use `getWorkoutForDay()` to get the modified template for today
   - Pre-populate the workout with adjusted sets/reps/weight targets
   - Show a badge: "Week X of Mesocycle — [Accumulation/Deload/etc.]"
-- [ ] On the periodization screen, when viewing an active mesocycle with a program:
+- [x] On the periodization screen, when viewing an active mesocycle with a program:
   - Show the program name
   - Show today's scheduled workout template name
   - Show current week's multipliers (volume %, intensity %)
@@ -348,14 +348,14 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 **Known issues from codebase analysis**:
 
 **Tasks**:
-- [ ] **Card spacing consistency**: Audit all cards across the app. Standardize spacing to `SizedBox(height: 12)` between items within cards, `SizedBox(height: 16)` between cards. Focus on: home_screen.dart, periodization_screen.dart, weekly_report_screen.dart
-- [ ] **Elevation consistency**: Ensure all standard cards use default Card elevation. Only active/highlighted cards (current week, resume workout) should have elevated elevation (2-4)
-- [ ] **Border radius**: Verify all cards use `BorderRadius.circular(12)` consistently. Check for any mismatched values (some ListTiles use 16)
-- [ ] **Weekly report unit consistency**: In `weekly_report_screen.dart`, all volume and weight displays currently hardcode "kg" — use `userSettings.weightUnitString` everywhere
-- [ ] **Empty states**: Check that all list screens (templates, programs, workouts, exercises) have proper empty state illustrations/messages when no data exists
-- [ ] **Loading states**: Verify all async operations show loading indicators (especially AI generation, which can take 2-5 seconds)
-- [ ] **Touch targets**: Audit that all interactive elements meet minimum 48×48 touch targets (especially the set type chips, weight type selector, and RPE toggle)
-- [ ] **Error feedback**: Ensure failed operations show snackbar or dialog with clear error message (not silent failures)
+- [x] **Card spacing consistency**: Audit all cards across the app. Standardize spacing to `SizedBox(height: 12)` between items within cards, `SizedBox(height: 16)` between cards. Focus on: home_screen.dart, periodization_screen.dart, weekly_report_screen.dart
+- [x] **Elevation consistency**: Ensure all standard cards use default Card elevation. Only active/highlighted cards (current week, resume workout) should have elevated elevation (2-4)
+- [x] **Border radius**: Verify all cards use `BorderRadius.circular(12)` consistently. Check for any mismatched values (some ListTiles use 16)
+- [x] **Weekly report unit consistency**: In `weekly_report_screen.dart`, all volume and weight displays currently hardcode "kg" — use `userSettings.weightUnitString` everywhere
+- [x] **Empty states**: Check that all list screens (templates, programs, workouts, exercises) have proper empty state illustrations/messages when no data exists
+- [x] **Loading states**: Verify all async operations show loading indicators (especially AI generation, which can take 2-5 seconds)
+- [x] **Touch targets**: Audit that all interactive elements meet minimum 48×48 touch targets (especially the set type chips, weight type selector, and RPE toggle)
+- [x] **Error feedback**: Ensure failed operations show snackbar or dialog with clear error message (not silent failures)
 
 **Commit**: `fix(app): UX polish — consistent spacing, elevation, borders, unit display, empty/loading states`
 
