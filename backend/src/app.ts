@@ -126,6 +126,7 @@ const createApp = (): Application => {
   const indexPath = path.join(publicPath, 'index.html');
   const fs = require('fs');
   const hasFlutterBuild = fs.existsSync(indexPath);
+  logger.info({ publicPath, indexPath, hasFlutterBuild, __dirname }, 'Flutter web build check');
 
   if (hasFlutterBuild) {
     app.use(express.static(publicPath));

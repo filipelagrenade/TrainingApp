@@ -49,6 +49,9 @@ COPY --from=backend-build /app/dist ./dist
 # Copy Flutter web build
 COPY --from=flutter-build /app/app/build/web ./public/
 
+# Verify Flutter build was copied
+RUN ls -la ./public/index.html
+
 EXPOSE 8080
 
 CMD ["node", "dist/index.js"]
