@@ -3,7 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile",
-    "watchPatterns": ["backend/**", "app/lib/**", "app/pubspec.*"]
+    "watchPatterns": ["backend/**", "app/**", "Dockerfile"]
   },
   "deploy": {
     "startCommand": "npx prisma migrate deploy && node dist/index.js",
