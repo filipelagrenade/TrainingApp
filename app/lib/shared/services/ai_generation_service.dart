@@ -41,22 +41,62 @@ class AIGenerationService {
     List<String> favorites = const [],
     List<String> dislikes = const [],
     ProgressionPhilosophy? progressionPhilosophy,
+    TrainingPreferences? trainingPrefs,
   }) {
+    // Determine which columns to include based on preferences
+    final includeSets = trainingPrefs?.includeSetsInGeneration ?? true;
+    final includeReps = trainingPrefs?.includeRepsInGeneration ?? true;
+
+    // Build the header row
+    final headerParts = <String>['Exercise'];
+    if (includeSets) headerParts.add('Sets');
+    if (includeReps) headerParts.add('Reps');
+    headerParts.add('Rest');
+
+    final headerRow = '| ${headerParts.join(' | ')} |';
+    final dividerRow = '|${headerParts.map((_) => '------').join('|')}|';
+
+    // Build example row
+    final exampleParts = <String>['Exercise Name'];
+    if (includeSets) exampleParts.add('3');
+    if (includeReps) exampleParts.add('8-10');
+    exampleParts.add('90s');
+    final exampleRow = '| ${exampleParts.join(' | ')} |';
+
     final buffer = StringBuffer('''
 You are a professional strength coach creating workout templates for a fitness app.
 
 Generate a workout template based on the user's description. Output ONLY in this exact markdown format:
 
 ## [Template Name]
-| Exercise | Sets | Reps | Rest |
-|----------|------|------|------|
-| Exercise Name | 3 | 8-10 | 90s |
-| Another Exercise | 4 | 6-8 | 120s |
+$headerRow
+$dividerRow
+$exampleRow
 
 RULES:
 - Include 4-8 exercises
 - Start with compound movements, then isolation exercises
-- Use realistic sets (2-5), reps (5-20), and rest times (30s-180s)
+''');
+
+    // Add set count preference if specified
+    if (includeSets) {
+      if (trainingPrefs?.preferredSetCount != null) {
+        buffer.writeln('- Use ${trainingPrefs!.preferredSetCount} sets per exercise');
+      } else {
+        buffer.writeln('- Use realistic sets (2-5)');
+      }
+    }
+
+    // Add rep range preference if specified
+    if (includeReps) {
+      if (trainingPrefs?.preferredRepRangeMin != null && trainingPrefs?.preferredRepRangeMax != null) {
+        buffer.writeln('- Use rep range ${trainingPrefs!.preferredRepRangeMin}-${trainingPrefs!.preferredRepRangeMax}');
+      } else {
+        buffer.writeln('- Use realistic reps (5-20)');
+      }
+    }
+
+    buffer.writeln('''- Use rest times (30s-180s)
 - Rest format: use "s" for seconds (e.g., "90s", "120s")
 - Use common exercise names (e.g., "Bench Press", "Barbell Row", "Lat Pulldown")
 - DO NOT include any text before or after the template
@@ -132,7 +172,28 @@ Design for BLOCK PERIODIZATION:
     List<String> favorites = const [],
     List<String> dislikes = const [],
     ProgressionPhilosophy? progressionPhilosophy,
+    TrainingPreferences? trainingPrefs,
   }) {
+    // Determine which columns to include based on preferences
+    final includeSets = trainingPrefs?.includeSetsInGeneration ?? true;
+    final includeReps = trainingPrefs?.includeRepsInGeneration ?? true;
+
+    // Build the header row
+    final headerParts = <String>['Exercise'];
+    if (includeSets) headerParts.add('Sets');
+    if (includeReps) headerParts.add('Reps');
+    headerParts.add('Rest');
+
+    final headerRow = '| ${headerParts.join(' | ')} |';
+    final dividerRow = '|${headerParts.map((_) => '------').join('|')}|';
+
+    // Build example row
+    final exampleParts = <String>['Exercise Name'];
+    if (includeSets) exampleParts.add('3');
+    if (includeReps) exampleParts.add('8-10');
+    exampleParts.add('90s');
+    final exampleRow = '| ${exampleParts.join(' | ')} |';
+
     final buffer = StringBuffer('''
 You are a professional strength coach creating a training program for a fitness app.
 
@@ -142,14 +203,13 @@ Generate a training program based on the user's description. Output ONLY in this
 **Duration:** X weeks | **Days:** X/week | **Goal:** X | **Difficulty:** X
 
 ## Day 1: [Day Name]
-| Exercise | Sets | Reps | Rest |
-|----------|------|------|------|
-| Exercise Name | 3 | 8-10 | 90s |
-| Another Exercise | 4 | 6-8 | 120s |
+$headerRow
+$dividerRow
+$exampleRow
 
 ## Day 2: [Day Name]
-| Exercise | Sets | Reps | Rest |
-|----------|------|------|------|
+$headerRow
+$dividerRow
 ...
 
 [Continue for all days]
@@ -158,7 +218,27 @@ RULES:
 - Create workout days equal to the days/week specified
 - Each day should have 4-8 exercises
 - Start each day with compound movements, then isolation
-- Use realistic sets (2-5), reps (5-20), and rest times (30s-180s)
+''');
+
+    // Add set count preference if specified
+    if (includeSets) {
+      if (trainingPrefs?.preferredSetCount != null) {
+        buffer.writeln('- Use ${trainingPrefs!.preferredSetCount} sets per exercise');
+      } else {
+        buffer.writeln('- Use realistic sets (2-5)');
+      }
+    }
+
+    // Add rep range preference if specified
+    if (includeReps) {
+      if (trainingPrefs?.preferredRepRangeMin != null && trainingPrefs?.preferredRepRangeMax != null) {
+        buffer.writeln('- Use rep range ${trainingPrefs!.preferredRepRangeMin}-${trainingPrefs!.preferredRepRangeMax}');
+      } else {
+        buffer.writeln('- Use realistic reps (5-20)');
+      }
+    }
+
+    buffer.writeln('''- Use rest times (30s-180s)
 - Difficulty must be one of: Beginner, Intermediate, Advanced
 - Goal must be one of: Strength, Hypertrophy, General Fitness, Powerlifting
 - Rest format: use "s" for seconds
@@ -204,6 +284,7 @@ RULES:
   /// [favorites] - List of exercise names the user prefers (will be prioritized)
   /// [dislikes] - List of exercise names the user dislikes (will be excluded)
   /// [progressionPhilosophy] - The progression philosophy to use for recommendations
+  /// [trainingPrefs] - User's training preferences for AI generation options
   ///
   /// Example:
   /// ```dart
@@ -222,6 +303,7 @@ RULES:
     List<String> favorites = const [],
     List<String> dislikes = const [],
     ProgressionPhilosophy? progressionPhilosophy,
+    TrainingPreferences? trainingPrefs,
   }) async {
     debugPrint('AIGenerationService: Generating template for "$description"');
     debugPrint('AIGenerationService: Favorites: $favorites, Dislikes: $dislikes');
@@ -238,6 +320,7 @@ RULES:
         favorites: favorites,
         dislikes: dislikes,
         progressionPhilosophy: progressionPhilosophy,
+        trainingPrefs: trainingPrefs,
       );
 
       final response = await _groqService.chatWithSystemPrompt(
@@ -277,6 +360,7 @@ RULES:
   /// [favorites] - List of exercise names the user prefers (will be prioritized)
   /// [dislikes] - List of exercise names the user dislikes (will be excluded)
   /// [progressionPhilosophy] - The progression philosophy to use for recommendations
+  /// [trainingPrefs] - User's training preferences for AI generation options
   ///
   /// Example:
   /// ```dart
@@ -292,6 +376,7 @@ RULES:
     List<String> favorites = const [],
     List<String> dislikes = const [],
     ProgressionPhilosophy? progressionPhilosophy,
+    TrainingPreferences? trainingPrefs,
   }) async {
     debugPrint('AIGenerationService: Generating program for "$description"');
     debugPrint('AIGenerationService: Favorites: $favorites, Dislikes: $dislikes');
@@ -308,6 +393,7 @@ RULES:
         favorites: favorites,
         dislikes: dislikes,
         progressionPhilosophy: progressionPhilosophy,
+        trainingPrefs: trainingPrefs,
       );
 
       // Use a larger model for program generation since it requires more output tokens

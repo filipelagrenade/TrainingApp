@@ -91,6 +91,18 @@ class SettingsScreen extends ConsumerWidget {
 
           const Divider(),
 
+          // AI Generation Section
+          _SectionHeader(title: 'AI Generation'),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome),
+            title: const Text('AI Generation Preferences'),
+            subtitle: Text(_getAIGenSummary(settings.trainingPreferences)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showAIGenerationSettings(context, ref, settings.trainingPreferences),
+          ),
+
+          const Divider(),
+
           // Notifications Section
           _SectionHeader(title: 'Notifications'),
           ListTile(
@@ -481,6 +493,36 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+
+  String _getAIGenSummary(TrainingPreferences prefs) {
+    final parts = <String>[];
+    if (!prefs.includeSetsInGeneration) {
+      parts.add('No sets');
+    } else if (prefs.preferredSetCount != null) {
+      parts.add('${prefs.preferredSetCount} sets');
+    }
+    if (!prefs.includeRepsInGeneration) {
+      parts.add('No reps');
+    } else if (prefs.preferredRepRangeMin != null && prefs.preferredRepRangeMax != null) {
+      parts.add('${prefs.preferredRepRangeMin}-${prefs.preferredRepRangeMax} reps');
+    }
+    if (parts.isEmpty) {
+      return 'AI decides sets & reps';
+    }
+    return parts.join(', ');
+  }
+
+  void _showAIGenerationSettings(
+    BuildContext context,
+    WidgetRef ref,
+    TrainingPreferences prefs,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _AIGenerationSettingsSheet(prefs: prefs),
+    );
+  }
 }
 
 /// Section header widget.
@@ -722,6 +764,285 @@ class _PrivacySettingsSheet extends ConsumerWidget {
               value: settings.appearInSearch,
               onChanged: (value) => ref.read(userSettingsProvider.notifier)
                   .togglePrivacy('appearInSearch', value),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// AI Generation settings bottom sheet.
+class _AIGenerationSettingsSheet extends ConsumerStatefulWidget {
+  final TrainingPreferences prefs;
+
+  const _AIGenerationSettingsSheet({required this.prefs});
+
+  @override
+  ConsumerState<_AIGenerationSettingsSheet> createState() =>
+      _AIGenerationSettingsSheetState();
+}
+
+class _AIGenerationSettingsSheetState
+    extends ConsumerState<_AIGenerationSettingsSheet> {
+  late bool _includeSets;
+  late bool _includeReps;
+  late int? _preferredSetCount;
+  late int? _preferredRepMin;
+  late int? _preferredRepMax;
+
+  @override
+  void initState() {
+    super.initState();
+    _includeSets = widget.prefs.includeSetsInGeneration;
+    _includeReps = widget.prefs.includeRepsInGeneration;
+    _preferredSetCount = widget.prefs.preferredSetCount;
+    _preferredRepMin = widget.prefs.preferredRepRangeMin;
+    _preferredRepMax = widget.prefs.preferredRepRangeMax;
+  }
+
+  void _saveSettings() {
+    final currentSettings = ref.read(userSettingsProvider);
+    final updatedPrefs = currentSettings.trainingPreferences.copyWith(
+      includeSetsInGeneration: _includeSets,
+      includeRepsInGeneration: _includeReps,
+      preferredSetCount: _preferredSetCount,
+      preferredRepRangeMin: _preferredRepMin,
+      preferredRepRangeMax: _preferredRepMax,
+    );
+    ref.read(userSettingsProvider.notifier).setTrainingPreferences(updatedPrefs);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: ListView(
+          controller: scrollController,
+          children: [
+            Text(
+              'AI Generation Preferences',
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Control how AI generates workout templates and programs for you.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Include Sets Toggle
+            SwitchListTile(
+              title: const Text('Include Sets'),
+              subtitle: const Text('AI will specify number of sets per exercise'),
+              value: _includeSets,
+              onChanged: (value) {
+                setState(() {
+                  _includeSets = value;
+                  if (!value) _preferredSetCount = null;
+                });
+                _saveSettings();
+              },
+            ),
+
+            // Preferred Set Count (only if sets included)
+            if (_includeSets)
+              ListTile(
+                title: const Text('Preferred Set Count'),
+                subtitle: Text(
+                  _preferredSetCount != null
+                      ? '$_preferredSetCount sets per exercise'
+                      : 'Let AI decide',
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_preferredSetCount != null)
+                      IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() => _preferredSetCount = null);
+                          _saveSettings();
+                        },
+                        tooltip: 'Let AI decide',
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.remove),
+                      onPressed: _preferredSetCount != null && _preferredSetCount! > 1
+                          ? () {
+                              setState(() => _preferredSetCount = _preferredSetCount! - 1);
+                              _saveSettings();
+                            }
+                          : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: () {
+                        setState(() {
+                          _preferredSetCount = (_preferredSetCount ?? 3) + 1;
+                          if (_preferredSetCount! > 6) _preferredSetCount = 6;
+                        });
+                        _saveSettings();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+            const Divider(),
+
+            // Include Reps Toggle
+            SwitchListTile(
+              title: const Text('Include Reps'),
+              subtitle: const Text('AI will specify rep ranges per exercise'),
+              value: _includeReps,
+              onChanged: (value) {
+                setState(() {
+                  _includeReps = value;
+                  if (!value) {
+                    _preferredRepMin = null;
+                    _preferredRepMax = null;
+                  }
+                });
+                _saveSettings();
+              },
+            ),
+
+            // Preferred Rep Range (only if reps included)
+            if (_includeReps) ...[
+              ListTile(
+                title: const Text('Preferred Rep Range'),
+                subtitle: Text(
+                  _preferredRepMin != null && _preferredRepMax != null
+                      ? '$_preferredRepMin-$_preferredRepMax reps'
+                      : 'Let AI decide',
+                ),
+                trailing: _preferredRepMin != null
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _preferredRepMin = null;
+                            _preferredRepMax = null;
+                          });
+                          _saveSettings();
+                        },
+                        tooltip: 'Let AI decide',
+                      )
+                    : null,
+              ),
+              if (_preferredRepMin == null || _preferredRepMax == null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      ActionChip(
+                        label: const Text('3-5 (Strength)'),
+                        onPressed: () {
+                          setState(() {
+                            _preferredRepMin = 3;
+                            _preferredRepMax = 5;
+                          });
+                          _saveSettings();
+                        },
+                      ),
+                      ActionChip(
+                        label: const Text('8-12 (Hypertrophy)'),
+                        onPressed: () {
+                          setState(() {
+                            _preferredRepMin = 8;
+                            _preferredRepMax = 12;
+                          });
+                          _saveSettings();
+                        },
+                      ),
+                      ActionChip(
+                        label: const Text('12-15 (Endurance)'),
+                        onPressed: () {
+                          setState(() {
+                            _preferredRepMin = 12;
+                            _preferredRepMax = 15;
+                          });
+                          _saveSettings();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              if (_preferredRepMin != null && _preferredRepMax != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Min: $_preferredRepMin'),
+                            Slider(
+                              value: _preferredRepMin!.toDouble(),
+                              min: 1,
+                              max: 20,
+                              divisions: 19,
+                              onChanged: (value) {
+                                setState(() {
+                                  _preferredRepMin = value.round();
+                                  if (_preferredRepMax! < _preferredRepMin!) {
+                                    _preferredRepMax = _preferredRepMin;
+                                  }
+                                });
+                                _saveSettings();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Max: $_preferredRepMax'),
+                            Slider(
+                              value: _preferredRepMax!.toDouble(),
+                              min: 1,
+                              max: 25,
+                              divisions: 24,
+                              onChanged: (value) {
+                                setState(() {
+                                  _preferredRepMax = value.round();
+                                  if (_preferredRepMin! > _preferredRepMax!) {
+                                    _preferredRepMin = _preferredRepMax;
+                                  }
+                                });
+                                _saveSettings();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+
+            const SizedBox(height: 24),
+            Text(
+              'Note: These preferences apply when generating templates or programs with AI. '
+              'You can always edit the generated content afterward.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

@@ -39,6 +39,7 @@ import '../../features/workouts/models/weight_recommendation.dart';
 import '../../features/workouts/models/exercise_progression_state.dart';
 import '../../features/workouts/models/rep_range.dart';
 import '../../core/config/app_config.dart';
+import 'exercise_rep_override_service.dart';
 import 'groq_service.dart';
 import 'workout_history_service.dart';
 
@@ -53,12 +54,15 @@ import 'workout_history_service.dart';
 class WeightRecommendationService {
   final GroqService _groqService;
   final WorkoutHistoryService _historyService;
+  final ExerciseRepOverrideService? _repOverrideService;
 
   WeightRecommendationService({
     required GroqService groqService,
     required WorkoutHistoryService historyService,
+    ExerciseRepOverrideService? repOverrideService,
   })  : _groqService = groqService,
-        _historyService = historyService;
+        _historyService = historyService,
+        _repOverrideService = repOverrideService;
 
   /// Generates recommendations for a workout template.
   ///
@@ -462,7 +466,7 @@ Important:
         recommendations[exerciseId] = ExerciseRecommendation(
           exerciseId: exerciseId,
           exerciseName: exerciseName,
-          sets: _generateDefaultSets(exerciseName, userSettings),
+          sets: _generateDefaultSets(exerciseName, userSettings, exerciseId: exerciseId),
           confidence: RecommendationConfidence.low,
           source: RecommendationSource.templateDefault,
           reasoning: 'No previous data - starting weights suggested',
@@ -493,7 +497,7 @@ Important:
       return ExerciseRecommendation(
         exerciseId: exerciseId,
         exerciseName: exerciseName,
-        sets: _generateDefaultSets(exerciseName, userSettings),
+        sets: _generateDefaultSets(exerciseName, userSettings, exerciseId: exerciseId),
         confidence: RecommendationConfidence.low,
         source: RecommendationSource.algorithm,
         reasoning: 'No sets in previous session',
@@ -501,8 +505,8 @@ Important:
       );
     }
 
-    // Get rep range for this user's goal
-    final repRange = _getRepRangeForGoal(userSettings);
+    // Get rep range for this exercise (may have custom override)
+    final repRange = _getRepRangeForGoal(userSettings, exerciseId: exerciseId);
 
     // Get weight increment based on exercise type
     final isUpperBody = _isUpperBodyExercise(exerciseName);
@@ -734,7 +738,7 @@ Important:
     final fallbackWeight = progressionState.lastProgressedWeight ??
         _roundToNearest(lastWeight * 0.95, 0.5);
 
-    final repRange = _getRepRangeForGoal(userSettings);
+    final repRange = _getRepRangeForGoal(userSettings, exerciseId: exerciseId);
     final targetReps = repRange.midpoint; // Aim for middle of range
 
     return ExerciseRecommendation(
@@ -792,8 +796,24 @@ Important:
   // HELPER METHODS
   // ==========================================================================
 
-  /// Gets the rep range based on user's training goal.
-  RepRange _getRepRangeForGoal(UserSettings userSettings) {
+  /// Gets the rep range based on user's training goal, with optional exercise override.
+  ///
+  /// Priority:
+  /// 1. Exercise-specific override (from rep override service)
+  /// 2. User's goal-based rep range with preference adjustment
+  RepRange _getRepRangeForGoal(
+    UserSettings userSettings, {
+    String? exerciseId,
+  }) {
+    // Check for exercise-specific override first
+    if (exerciseId != null && _repOverrideService != null) {
+      final override = _repOverrideService.getOverride(exerciseId);
+      if (override != null) {
+        debugPrint('WeightRecommendationService: Using custom rep range for $exerciseId: ${override.compactString}');
+        return override;
+      }
+    }
+
     final goal = userSettings.trainingGoal;
     final preference = userSettings.repRangePreference;
     final sessionsRequired = userSettings.sessionsAtCeilingRequired;
@@ -840,11 +860,12 @@ Important:
   /// Generates default starting sets for an exercise with no history.
   List<SetRecommendation> _generateDefaultSets(
     String exerciseName,
-    UserSettings userSettings,
-  ) {
+    UserSettings userSettings, {
+    String? exerciseId,
+  }) {
     final isUpperBody = _isUpperBodyExercise(exerciseName);
     final defaultWeight = isUpperBody ? 20.0 : 40.0;
-    final repRange = _getRepRangeForGoal(userSettings);
+    final repRange = _getRepRangeForGoal(userSettings, exerciseId: exerciseId);
 
     return _generateSets(
       weight: defaultWeight,
@@ -976,9 +997,21 @@ Important:
 // ============================================================================
 
 /// Provider for the weight recommendation service.
+///
+/// Optionally includes the exercise rep override service if available.
 final weightRecommendationServiceProvider = Provider<WeightRecommendationService>((ref) {
+  // Try to get the rep override service if it's ready (may be null if not yet initialized)
+  ExerciseRepOverrideService? repOverrideService;
+  try {
+    final asyncService = ref.watch(initializedExerciseRepOverrideServiceProvider);
+    repOverrideService = asyncService.valueOrNull;
+  } catch (e) {
+    // Service not ready yet, proceed without it
+  }
+
   return WeightRecommendationService(
     groqService: GroqService(),
     historyService: ref.watch(workoutHistoryServiceProvider),
+    repOverrideService: repOverrideService,
   );
 });

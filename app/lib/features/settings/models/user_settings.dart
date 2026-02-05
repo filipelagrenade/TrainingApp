@@ -274,6 +274,25 @@ class TrainingPreferences with _$TrainingPreferences {
 
     /// Whether to show confidence indicators on suggestions
     @Default(true) bool showConfidenceIndicator,
+
+    // =========================================================================
+    // AI GENERATION PREFERENCES
+    // =========================================================================
+
+    /// Whether AI-generated templates should include sets
+    @Default(true) bool includeSetsInGeneration,
+
+    /// Whether AI-generated templates should include reps
+    @Default(true) bool includeRepsInGeneration,
+
+    /// Preferred set count for AI generation (null = let AI decide)
+    int? preferredSetCount,
+
+    /// Preferred minimum reps for AI generation (null = let AI decide)
+    int? preferredRepRangeMin,
+
+    /// Preferred maximum reps for AI generation (null = let AI decide)
+    int? preferredRepRangeMax,
   }) = _TrainingPreferences;
 
   factory TrainingPreferences.fromJson(Map<String, dynamic> json) =>

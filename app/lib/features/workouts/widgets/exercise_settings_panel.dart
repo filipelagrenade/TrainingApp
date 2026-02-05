@@ -1,18 +1,21 @@
 /// LiftIQ - Exercise Settings Panel
 ///
 /// Expandable settings section for each exercise card.
-/// Groups cable attachment, unilateral toggle, weight type, and RPE controls.
+/// Groups cable attachment, unilateral toggle, weight type, RPE controls,
+/// and per-exercise rep range overrides.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../models/exercise_log.dart';
+import '../models/rep_range.dart';
 import '../models/weight_input.dart';
 
 /// Expandable panel for per-exercise settings.
 ///
 /// Shows below the exercise header when the gear icon is tapped.
-/// Includes cable attachment, unilateral toggle, weight type, and RPE toggle.
+/// Includes cable attachment, unilateral toggle, weight type, RPE toggle,
+/// and custom rep range override.
 class ExerciseSettingsPanel extends StatelessWidget {
   /// Whether this exercise uses cable equipment.
   final bool isCableExercise;
@@ -29,6 +32,9 @@ class ExerciseSettingsPanel extends StatelessWidget {
   /// Whether RPE tracking is enabled.
   final bool rpeEnabled;
 
+  /// Custom rep range override for this exercise (null = use goal default).
+  final RepRange? customRepRange;
+
   /// Called when cable attachment changes.
   final ValueChanged<CableAttachment?> onCableAttachmentChanged;
 
@@ -41,6 +47,9 @@ class ExerciseSettingsPanel extends StatelessWidget {
   /// Called when RPE toggle changes.
   final ValueChanged<bool> onRpeToggled;
 
+  /// Called when rep range override changes (null to clear).
+  final ValueChanged<RepRange?> onRepRangeChanged;
+
   const ExerciseSettingsPanel({
     super.key,
     required this.isCableExercise,
@@ -48,10 +57,12 @@ class ExerciseSettingsPanel extends StatelessWidget {
     required this.isUnilateral,
     required this.weightType,
     required this.rpeEnabled,
+    this.customRepRange,
     required this.onCableAttachmentChanged,
     required this.onUnilateralToggled,
     required this.onWeightTypeChanged,
     required this.onRpeToggled,
+    required this.onRepRangeChanged,
   });
 
   @override
@@ -112,8 +123,139 @@ class ExerciseSettingsPanel extends StatelessWidget {
               ),
             ],
           ),
+
+          const SizedBox(height: 12),
+
+          // Rep Range Override
+          _SectionLabel(label: 'Rep Range Override', theme: theme),
+          const SizedBox(height: 6),
+          _buildRepRangeSection(theme, colors),
         ],
       ),
+    );
+  }
+
+  Widget _buildRepRangeSection(ThemeData theme, ColorScheme colors) {
+    // Preset options for quick selection
+    final presets = [
+      (RepRangePreset.strength, 'Strength', '3-5'),
+      (RepRangePreset.hypertrophy, 'Hypertrophy', '8-12'),
+      (RepRangePreset.endurance, 'Endurance', '15-20'),
+    ];
+
+    // Determine which preset is currently selected (if any)
+    RepRangePreset? selectedPreset;
+    if (customRepRange != null) {
+      if (customRepRange!.floor == 3 && customRepRange!.ceiling == 5) {
+        selectedPreset = RepRangePreset.strength;
+      } else if (customRepRange!.floor == 8 && customRepRange!.ceiling == 12) {
+        selectedPreset = RepRangePreset.hypertrophy;
+      } else if (customRepRange!.floor == 15 && customRepRange!.ceiling == 20) {
+        selectedPreset = RepRangePreset.endurance;
+      } else {
+        selectedPreset = RepRangePreset.custom;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Current override display with clear button
+        if (customRepRange != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: colors.primaryContainer.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.primary.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.repeat, size: 16, color: colors.primary),
+                const SizedBox(width: 6),
+                Text(
+                  customRepRange!.displayString,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => onRepRangeChanged(null),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      color: colors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Preset chips + custom
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            // Default (no override) chip
+            ChoiceChip(
+              label: const Text('Default'),
+              selected: customRepRange == null,
+              labelStyle: theme.textTheme.labelSmall?.copyWith(
+                color: customRepRange == null
+                    ? colors.onPrimaryContainer
+                    : colors.onSurface,
+              ),
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => onRepRangeChanged(null),
+            ),
+            // Preset chips
+            ...presets.map((entry) {
+              final (preset, label, range) = entry;
+              final isSelected = selectedPreset == preset;
+              return ChoiceChip(
+                label: Text('$label ($range)'),
+                selected: isSelected,
+                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                  color: isSelected ? colors.onPrimaryContainer : colors.onSurface,
+                ),
+                visualDensity: VisualDensity.compact,
+                onSelected: (_) {
+                  if (isSelected) {
+                    // Deselect → back to default
+                    onRepRangeChanged(null);
+                  } else {
+                    onRepRangeChanged(preset.defaultRange);
+                  }
+                },
+              );
+            }),
+          ],
+        ),
+
+        // Help text
+        const SizedBox(height: 6),
+        Text(
+          customRepRange == null
+              ? 'Using goal-based rep range'
+              : 'Overrides the default rep range for this exercise',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant.withOpacity(0.7),
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 
@@ -254,9 +396,11 @@ bool hasActiveSettings({
   required bool isUnilateral,
   required WeightInputType weightType,
   required bool rpeEnabled,
+  RepRange? customRepRange,
 }) {
   return cableAttachment != null ||
       isUnilateral ||
       weightType != WeightInputType.absolute ||
-      rpeEnabled;
+      rpeEnabled ||
+      customRepRange != null;
 }

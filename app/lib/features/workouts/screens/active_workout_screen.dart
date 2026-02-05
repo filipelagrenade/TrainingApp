@@ -47,6 +47,8 @@ import '../../settings/models/user_settings.dart';
 import '../../music/widgets/music_mini_player.dart';
 import '../providers/weight_recommendation_provider.dart';
 import '../models/weight_recommendation.dart';
+import '../models/rep_range.dart';
+import '../../../shared/services/exercise_rep_override_service.dart';
 
 /// The main active workout screen.
 ///
@@ -694,9 +696,44 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   bool _settingsExpanded = false;
   WeightInputType _weightType = WeightInputType.absolute;
   bool _rpeEnabled = false;
+  RepRange? _customRepRange;
 
   ExerciseLog get exerciseLog => widget.exerciseLog;
   int get exerciseIndex => widget.exerciseIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load the saved rep override if any
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadRepOverride();
+    });
+  }
+
+  Future<void> _loadRepOverride() async {
+    try {
+      final service = await ref.read(initializedExerciseRepOverrideServiceProvider.future);
+      final override = service.getOverride(exerciseLog.exerciseId);
+      if (override != null && mounted) {
+        setState(() => _customRepRange = override);
+      }
+    } catch (e) {
+      // Ignore errors on load
+    }
+  }
+
+  Future<void> _saveRepOverride(RepRange? repRange) async {
+    try {
+      final service = await ref.read(initializedExerciseRepOverrideServiceProvider.future);
+      if (repRange != null) {
+        await service.setOverride(exerciseLog.exerciseId, repRange);
+      } else {
+        await service.removeOverride(exerciseLog.exerciseId);
+      }
+    } catch (e) {
+      // Ignore errors on save
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -750,6 +787,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                       isUnilateral: exerciseLog.isUnilateral,
                       weightType: _weightType,
                       rpeEnabled: _rpeEnabled,
+                      customRepRange: _customRepRange,
                       onCableAttachmentChanged: (attachment) {
                         ref.read(currentWorkoutProvider.notifier).updateCableAttachment(
                               exerciseIndex: exerciseIndex,
@@ -764,6 +802,10 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                       },
                       onRpeToggled: (enabled) {
                         setState(() => _rpeEnabled = enabled);
+                      },
+                      onRepRangeChanged: (range) {
+                        setState(() => _customRepRange = range);
+                        _saveRepOverride(range);
                       },
                     ),
                   )
@@ -1060,6 +1102,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 isUnilateral: exerciseLog.isUnilateral,
                 weightType: _weightType,
                 rpeEnabled: _rpeEnabled,
+                customRepRange: _customRepRange,
               ))
                 Positioned(
                   right: 8,
