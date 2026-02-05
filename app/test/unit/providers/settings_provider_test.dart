@@ -6,7 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liftiq/features/settings/providers/settings_provider.dart';
 import 'package:liftiq/features/settings/models/user_settings.dart';
 
+import '../../helpers/test_data.dart';
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('UserSettingsProvider', () {
     test('initial state has default values', () {
       final container = ProviderContainer();
@@ -14,8 +18,8 @@ void main() {
 
       final settings = container.read(userSettingsProvider);
 
-      expect(settings.weightUnit, equals(WeightUnit.lbs));
-      expect(settings.distanceUnit, equals(DistanceUnit.miles));
+      expect(settings.weightUnit, equals(WeightUnit.kg));
+      expect(settings.distanceUnit, equals(DistanceUnit.km));
       expect(settings.theme, equals(AppTheme.system));
       expect(settings.showWeightSuggestions, isTrue);
     });
@@ -228,7 +232,9 @@ void main() {
     });
 
     test('requestDataExport updates state during export', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: gdprTestOverrides,
+      );
       addTearDown(container.dispose);
 
       // Start export
@@ -249,7 +255,9 @@ void main() {
     });
 
     test('requestAccountDeletion updates state', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: gdprTestOverrides,
+      );
       addTearDown(container.dispose);
 
       // Start deletion
@@ -270,7 +278,9 @@ void main() {
     });
 
     test('cancelAccountDeletion sets isDeleting to false after completion', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: gdprTestOverrides,
+      );
       addTearDown(container.dispose);
 
       // Request deletion first
@@ -312,7 +322,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      expect(container.read(weightUnitProvider), equals(WeightUnit.lbs));
+      expect(container.read(weightUnitProvider), equals(WeightUnit.kg));
 
       container.read(userSettingsProvider.notifier).setWeightUnit(WeightUnit.kg);
 

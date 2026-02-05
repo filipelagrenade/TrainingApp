@@ -6,10 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liftiq/features/exercises/providers/exercise_provider.dart';
 import 'package:liftiq/features/exercises/models/exercise.dart';
 
+import '../../helpers/test_data.dart';
+
 void main() {
   group('ExerciseListProvider', () {
     test('returns list of exercises', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: exerciseTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final exercises = await container.read(exerciseListProvider.future);
@@ -19,7 +23,9 @@ void main() {
     });
 
     test('exercises have required fields', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: exerciseTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final exercises = await container.read(exerciseListProvider.future);
@@ -115,7 +121,9 @@ void main() {
 
   group('ExercisesByMuscleProvider', () {
     test('returns exercises for muscle group', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: exerciseTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final exercises = await container
@@ -133,7 +141,9 @@ void main() {
 
   group('ExercisesByEquipmentProvider', () {
     test('returns exercises for equipment type', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: exerciseTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final exercises = await container
@@ -149,8 +159,16 @@ void main() {
 
   group('ExerciseDetailProvider', () {
     test('returns exercise by id', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: exerciseTestOverrides,
+      );
       addTearDown(container.dispose);
+
+      // Keep a listener alive to prevent autoDispose during async load
+      final sub = container.listen(
+        exerciseDetailProvider('bench-press'),
+        (_, __) {},
+      );
 
       final exercise =
           await container.read(exerciseDetailProvider('bench-press').future);
@@ -158,16 +176,28 @@ void main() {
       expect(exercise, isNotNull);
       expect(exercise!.id, equals('bench-press'));
       expect(exercise.name, equals('Barbell Bench Press'));
+
+      sub.close();
     });
 
     test('returns null for unknown id', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: exerciseTestOverrides,
+      );
       addTearDown(container.dispose);
+
+      // Keep a listener alive to prevent autoDispose during async load
+      final sub = container.listen(
+        exerciseDetailProvider('unknown-id'),
+        (_, __) {},
+      );
 
       final exercise =
           await container.read(exerciseDetailProvider('unknown-id').future);
 
       expect(exercise, isNull);
+
+      sub.close();
     });
   });
 }

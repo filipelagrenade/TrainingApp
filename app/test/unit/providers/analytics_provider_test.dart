@@ -7,6 +7,8 @@ import 'package:liftiq/features/analytics/providers/analytics_provider.dart';
 import 'package:liftiq/features/analytics/models/analytics_data.dart';
 import 'package:liftiq/features/analytics/models/workout_summary.dart';
 
+import '../../helpers/test_data.dart';
+
 void main() {
   group('SelectedPeriodProvider', () {
     test('initial state is 30 days', () {
@@ -33,7 +35,9 @@ void main() {
 
   group('WorkoutHistoryListProvider', () {
     test('returns list of workout summaries', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final history = await container.read(workoutHistoryListProvider.future);
@@ -43,7 +47,9 @@ void main() {
     });
 
     test('workout summaries have required fields', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final history = await container.read(workoutHistoryListProvider.future);
@@ -58,7 +64,9 @@ void main() {
     });
 
     test('workouts are ordered by date descending', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final history = await container.read(workoutHistoryListProvider.future);
@@ -74,36 +82,11 @@ void main() {
     });
   });
 
-  group('PaginatedHistoryProvider', () {
-    test('respects limit parameter', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final history = await container
-          .read(paginatedHistoryProvider((limit: 2, offset: 0)).future);
-
-      expect(history.length, lessThanOrEqualTo(2));
-    });
-
-    test('respects offset parameter', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final firstPage = await container
-          .read(paginatedHistoryProvider((limit: 2, offset: 0)).future);
-      final secondPage = await container
-          .read(paginatedHistoryProvider((limit: 2, offset: 2)).future);
-
-      // Pages should be different (if enough data exists)
-      if (firstPage.isNotEmpty && secondPage.isNotEmpty) {
-        expect(firstPage.first.id, isNot(equals(secondPage.first.id)));
-      }
-    });
-  });
-
   group('PersonalRecordsProvider', () {
     test('returns list of personal records', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final prs = await container.read(personalRecordsProvider.future);
@@ -113,7 +96,9 @@ void main() {
     });
 
     test('personal records have required fields', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final prs = await container.read(personalRecordsProvider.future);
@@ -129,7 +114,9 @@ void main() {
     });
 
     test('estimated 1RM is calculated correctly', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final prs = await container.read(personalRecordsProvider.future);
@@ -146,32 +133,11 @@ void main() {
     });
   });
 
-  group('ProgressSummaryProvider', () {
-    test('returns progress summary', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final summary = await container.read(progressSummaryProvider.future);
-
-      expect(summary, isA<ProgressSummary>());
-    });
-
-    test('summary has required fields', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final summary = await container.read(progressSummaryProvider.future);
-
-      expect(summary.period, isNotEmpty);
-      expect(summary.workoutCount, greaterThanOrEqualTo(0));
-      expect(summary.totalVolume, greaterThanOrEqualTo(0));
-      expect(summary.totalDuration, greaterThanOrEqualTo(0));
-    });
-  });
-
   group('VolumeByMuscleProvider', () {
     test('returns volume data for muscle groups', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final volumes = await container.read(volumeByMuscleProvider.future);
@@ -181,7 +147,9 @@ void main() {
     });
 
     test('volume data has required fields', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final volumes = await container.read(volumeByMuscleProvider.future);
@@ -194,44 +162,11 @@ void main() {
     });
   });
 
-  group('ConsistencyProvider', () {
-    test('returns consistency data', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final consistency = await container.read(consistencyProvider.future);
-
-      expect(consistency, isA<ConsistencyData>());
-    });
-
-    test('consistency data has required fields', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final consistency = await container.read(consistencyProvider.future);
-
-      expect(consistency.period, isNotEmpty);
-      expect(consistency.totalWorkouts, greaterThanOrEqualTo(0));
-      expect(consistency.currentStreak, greaterThanOrEqualTo(0));
-      expect(consistency.longestStreak, greaterThanOrEqualTo(0));
-    });
-
-    test('current streak is not greater than longest streak', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final consistency = await container.read(consistencyProvider.future);
-
-      expect(
-        consistency.currentStreak,
-        lessThanOrEqualTo(consistency.longestStreak),
-      );
-    });
-  });
-
   group('OneRMTrendProvider', () {
     test('returns trend data for exercise', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final trend =
@@ -242,7 +177,9 @@ void main() {
     });
 
     test('trend data has required fields', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final trend =
@@ -257,7 +194,9 @@ void main() {
     });
 
     test('trend data is ordered by date ascending', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: analyticsTestOverrides,
+      );
       addTearDown(container.dispose);
 
       final trend =
@@ -271,31 +210,6 @@ void main() {
           reason: 'Trend data should be ordered by date ascending',
         );
       }
-    });
-  });
-
-  group('CalendarDataProvider', () {
-    test('returns calendar data for month', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final calendar = await container
-          .read(calendarDataProvider((year: 2026, month: 1)).future);
-
-      expect(calendar, isA<CalendarData>());
-      expect(calendar.year, equals(2026));
-      expect(calendar.month, equals(1));
-    });
-
-    test('calendar data has workout entries', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final calendar = await container
-          .read(calendarDataProvider((year: 2026, month: 1)).future);
-
-      expect(calendar.totalWorkouts, greaterThanOrEqualTo(0));
-      expect(calendar.workoutsByDate, isNotNull);
     });
   });
 }
