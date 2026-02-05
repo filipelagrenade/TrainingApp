@@ -11,21 +11,14 @@
  * - AI-powered coaching via Groq
  */
 
-// Early diagnostic - prints before any module loading
-console.log('[BOOT] index.ts loading...');
-
 import dotenv from 'dotenv';
 
 // Load environment variables before importing other modules
 dotenv.config();
-console.log('[BOOT] dotenv loaded, NODE_ENV=' + process.env.NODE_ENV);
 
 import { app } from './app';
-console.log('[BOOT] app imported');
 import { logger } from './utils/logger';
-console.log('[BOOT] logger imported');
 import { prisma } from './utils/prisma';
-console.log('[BOOT] prisma imported');
 
 /**
  * The port the server will listen on.

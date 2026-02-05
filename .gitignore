@@ -55,8 +55,8 @@ prisma/*.db-journal
 *.iml
 
 # Flutter/Dart generated files
-*.g.dart
-*.freezed.dart
+# NOTE: *.g.dart and *.freezed.dart are committed to avoid running
+# build_runner in Docker (which causes build timeouts on Railway)
 *.mocks.dart
 lib/generated_plugin_registrant.dart
 

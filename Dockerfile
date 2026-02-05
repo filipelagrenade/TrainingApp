@@ -9,7 +9,6 @@ COPY app/ ./app/
 
 WORKDIR /app/app
 RUN flutter pub get
-RUN dart run build_runner build --delete-conflicting-outputs
 RUN flutter build web --release
 
 # =============================================================================
@@ -46,9 +45,6 @@ RUN npx prisma generate
 
 # Copy compiled JS from build stage
 COPY --from=backend-build /app/dist ./dist
-
-# Copy boot.js diagnostic wrapper (plain JS, not compiled by tsc)
-COPY backend/src/boot.js ./dist/boot.js
 
 # Copy Flutter web build
 COPY --from=flutter-build /app/app/build/web ./public/

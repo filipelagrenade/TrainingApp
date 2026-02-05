@@ -6,7 +6,7 @@
     "watchPatterns": ["backend/**", "app/lib/**", "app/pubspec.*"]
   },
   "deploy": {
-    "startCommand": "npx prisma migrate deploy && node dist/boot.js",
+    "startCommand": "npx prisma migrate deploy && node dist/index.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
