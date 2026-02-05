@@ -9,6 +9,7 @@ COPY app/ ./app/
 
 WORKDIR /app/app
 RUN flutter pub get
+RUN dart run build_runner build --delete-conflicting-outputs
 RUN flutter build web --release
 
 # =============================================================================
