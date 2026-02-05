@@ -1,7 +1,10 @@
 **/node_modules
 **/dist
-**/build
 **/.dart_tool
+# Exclude all build dirs EXCEPT the Flutter web build output
+backend/build
+web/build
+!app/build/web
 **/.packages
 **/coverage
 **/.env

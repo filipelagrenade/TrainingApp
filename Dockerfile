@@ -1,18 +1,5 @@
 # =============================================================================
-# Stage 1: Build Flutter web app
-# =============================================================================
-FROM ghcr.io/cirruslabs/flutter:stable AS flutter-build
-
-WORKDIR /app
-
-COPY app/ ./app/
-
-WORKDIR /app/app
-RUN flutter pub get
-RUN flutter build web --release
-
-# =============================================================================
-# Stage 2: Build Node.js backend (needs devDependencies for tsc)
+# Stage 1: Build Node.js backend (needs devDependencies for tsc)
 # =============================================================================
 FROM node:20-slim AS backend-build
 
@@ -28,7 +15,7 @@ RUN npx prisma generate
 RUN npx tsc
 
 # =============================================================================
-# Stage 3: Production runtime
+# Stage 2: Production runtime
 # =============================================================================
 FROM node:20-slim
 
@@ -46,8 +33,8 @@ RUN npx prisma generate
 # Copy compiled JS from build stage
 COPY --from=backend-build /app/dist ./dist
 
-# Copy Flutter web build
-COPY --from=flutter-build /app/app/build/web ./public/
+# Copy pre-built Flutter web app (built locally before `railway up`)
+COPY app/build/web ./public/
 
 # Verify Flutter build was copied
 RUN ls -la ./public/index.html
