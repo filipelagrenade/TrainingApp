@@ -136,3 +136,8 @@ firebase-admin*.json
 
 # Claude temp files
 tmpclaude-*
+.claude/.prompt-iter*.tmp
+
+# Windows reserved device names (can be created by tools accidentally)
+nul
+NUL

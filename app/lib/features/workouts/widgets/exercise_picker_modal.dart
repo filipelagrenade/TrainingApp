@@ -2,6 +2,7 @@
 ///
 /// A modal bottom sheet for selecting exercises to add to a workout.
 /// Features search, filtering by muscle group, and quick selection.
+/// Supports both single-select (default) and multi-select modes.
 library;
 
 import 'package:flutter/material.dart';
@@ -12,19 +13,43 @@ import '../../exercises/providers/exercise_provider.dart';
 import '../../exercises/screens/create_exercise_screen.dart';
 
 /// Shows the exercise picker modal and returns the selected exercise.
+///
+/// For single-select mode (default behavior for backward compatibility).
 Future<Exercise?> showExercisePicker(BuildContext context) {
   return showModalBottomSheet<Exercise>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
-    builder: (context) => const ExercisePickerModal(),
+    builder: (context) => const ExercisePickerModal(multiSelect: false),
   );
 }
 
+/// Shows the exercise picker modal in multi-select mode.
+///
+/// Returns a list of selected exercises, or empty list if cancelled.
+Future<List<Exercise>> showExercisePickerMulti(BuildContext context) async {
+  final result = await showModalBottomSheet<List<Exercise>>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    builder: (context) => const ExercisePickerModal(multiSelect: true),
+  );
+  return result ?? [];
+}
+
 /// Modal for picking an exercise to add to workout.
+///
+/// Supports both single-select and multi-select modes.
+/// In single-select mode (default), tapping an exercise immediately returns it.
+/// In multi-select mode, exercises are added to a selection list and
+/// confirmed with an "Add" button.
 class ExercisePickerModal extends ConsumerStatefulWidget {
-  const ExercisePickerModal({super.key});
+  /// Whether to enable multi-select mode.
+  final bool multiSelect;
+
+  const ExercisePickerModal({super.key, this.multiSelect = false});
 
   @override
   ConsumerState<ExercisePickerModal> createState() => _ExercisePickerModalState();
@@ -33,6 +58,10 @@ class ExercisePickerModal extends ConsumerStatefulWidget {
 class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
   final _searchController = TextEditingController();
   MuscleGroup? _selectedMuscleGroup;
+
+  /// Selected exercises in multi-select mode.
+  final Set<String> _selectedExerciseIds = {};
+  final List<Exercise> _selectedExercises = [];
 
   @override
   void dispose() {
@@ -149,6 +178,10 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
 
             const SizedBox(height: 8),
 
+            // Selected exercises bar (multi-select mode only)
+            if (widget.multiSelect && _selectedExercises.isNotEmpty)
+              _buildSelectedExercisesBar(colors, theme),
+
             // Exercise list
             Expanded(
               child: exercisesAsync.when(
@@ -181,13 +214,20 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
 
                   return ListView.builder(
                     controller: scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      // Add bottom padding for the confirm button in multi-select mode
+                      bottom: widget.multiSelect && _selectedExercises.isNotEmpty ? 80 : 16,
+                    ),
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final exercise = filtered[index];
+                      final isSelected = _selectedExerciseIds.contains(exercise.id);
                       return _ExerciseTile(
                         exercise: exercise,
-                        onTap: () => Navigator.of(context).pop(exercise),
+                        isSelected: widget.multiSelect ? isSelected : null,
+                        onTap: () => _handleExerciseTap(exercise),
                       );
                     },
                   );
@@ -211,9 +251,104 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
                 ),
               ),
             ),
+
+            // Confirm button (multi-select mode only)
+            if (widget.multiSelect && _selectedExercises.isNotEmpty)
+              _buildConfirmButton(colors, theme),
           ],
         );
       },
+    );
+  }
+
+  /// Handles tapping on an exercise tile.
+  void _handleExerciseTap(Exercise exercise) {
+    if (widget.multiSelect) {
+      // Toggle selection
+      setState(() {
+        if (_selectedExerciseIds.contains(exercise.id)) {
+          _selectedExerciseIds.remove(exercise.id);
+          _selectedExercises.removeWhere((e) => e.id == exercise.id);
+        } else {
+          _selectedExerciseIds.add(exercise.id);
+          _selectedExercises.add(exercise);
+        }
+      });
+    } else {
+      // Single select - immediately return the exercise
+      Navigator.of(context).pop(exercise);
+    }
+  }
+
+  /// Builds the selected exercises chip bar shown in multi-select mode.
+  Widget _buildSelectedExercisesBar(ColorScheme colors, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(color: colors.outline.withOpacity(0.2)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_selectedExercises.length} selected',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: _selectedExercises.map((exercise) {
+              return Chip(
+                label: Text(
+                  exercise.name,
+                  style: theme.textTheme.labelSmall,
+                ),
+                deleteIcon: const Icon(Icons.close, size: 16),
+                onDeleted: () {
+                  setState(() {
+                    _selectedExerciseIds.remove(exercise.id);
+                    _selectedExercises.removeWhere((e) => e.id == exercise.id);
+                  });
+                },
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds the confirm button for multi-select mode.
+  Widget _buildConfirmButton(ColorScheme colors, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(
+          top: BorderSide(color: colors.outline.withOpacity(0.2)),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop(_selectedExercises);
+          },
+          icon: const Icon(Icons.add),
+          label: Text('Add ${_selectedExercises.length} Exercise${_selectedExercises.length == 1 ? '' : 's'}'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+          ),
+        ),
+      ),
     );
   }
 
@@ -296,31 +431,37 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
 class _ExerciseTile extends StatelessWidget {
   final Exercise exercise;
   final VoidCallback onTap;
+  /// Whether this exercise is selected (for multi-select mode).
+  /// Null means single-select mode (show add icon).
+  final bool? isSelected;
 
   const _ExerciseTile({
     required this.exercise,
     required this.onTap,
+    this.isSelected,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final selected = isSelected ?? false;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
+      color: selected ? colors.primaryContainer.withOpacity(0.5) : null,
       child: ListTile(
         onTap: onTap,
         leading: Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: colors.primaryContainer,
+            color: selected ? colors.primary : colors.primaryContainer,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
-            _getEquipmentIcon(exercise.equipment),
-            color: colors.onPrimaryContainer,
+            selected ? Icons.check : _getEquipmentIcon(exercise.equipment),
+            color: selected ? colors.onPrimary : colors.onPrimaryContainer,
           ),
         ),
         title: Text(
@@ -333,10 +474,15 @@ class _ExerciseTile extends StatelessWidget {
             color: colors.onSurfaceVariant,
           ),
         ),
-        trailing: Icon(
-          Icons.add_circle_outline,
-          color: colors.primary,
-        ),
+        trailing: isSelected != null
+            ? Icon(
+                selected ? Icons.check_circle : Icons.circle_outlined,
+                color: selected ? colors.primary : colors.outline,
+              )
+            : Icon(
+                Icons.add_circle_outline,
+                color: colors.primary,
+              ),
       ),
     );
   }

@@ -296,15 +296,18 @@ class _CreateTemplateScreenState extends ConsumerState<CreateTemplateScreen> {
   }
 
   Future<void> _showAddExercise() async {
-    final exercise = await showExercisePicker(context);
-    if (exercise == null) return;
+    // Use multi-select to add multiple exercises at once
+    final exercises = await showExercisePickerMulti(context);
+    if (exercises.isEmpty) return;
 
     setState(() {
-      _exercises.add(_TemplateExercise(
-        id: exercise.id,
-        name: exercise.name,
-        sets: 3,
-      ));
+      for (final exercise in exercises) {
+        _exercises.add(_TemplateExercise(
+          id: exercise.id,
+          name: exercise.name,
+          sets: 3,
+        ));
+      }
     });
   }
 

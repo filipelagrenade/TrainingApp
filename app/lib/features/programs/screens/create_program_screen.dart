@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 import '../../templates/models/training_program.dart';
 import '../../templates/models/workout_template.dart';
 import '../providers/user_programs_provider.dart';
+import '../../templates/providers/templates_provider.dart';
 import '../widgets/template_picker_modal.dart';
 import '../widgets/ai_program_dialog.dart';
 
@@ -358,6 +359,7 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
           index: index,
           template: template,
           onDelete: () => _deleteTemplate(index),
+          onDuplicate: () => _duplicateTemplate(index),
         );
       },
     );
@@ -428,6 +430,42 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
     });
   }
 
+  /// Duplicates a template at the given index.
+  void _duplicateTemplate(int index) {
+    if (_templates.length >= _daysPerWeek) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Increase days per week to add more days')),
+      );
+      return;
+    }
+    final original = _templates[index];
+    final duplicate = original.copyWith(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: '${original.name} (Copy)',
+    );
+    setState(() {
+      _templates.add(duplicate);
+    });
+  }
+
+  /// Auto-saves program templates to the user's template library.
+  Future<void> _autoSaveTemplatesToLibrary(String programName) async {
+    final templatesNotifier = ref.read(userTemplatesProvider.notifier);
+    final existingTemplates = ref.read(userTemplatesProvider);
+    final existingIds = existingTemplates.map((t) => t.id).toSet();
+
+    for (final template in _templates) {
+      // Skip if already in library (by ID)
+      if (template.id != null && existingIds.contains(template.id)) continue;
+
+      final libraryTemplate = template.copyWith(
+        id: template.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        programName: programName,
+      );
+      await templatesNotifier.addTemplate(libraryTemplate);
+    }
+  }
+
   /// Checks if the program can be saved.
   bool _canSave() {
     return _nameController.text.trim().isNotEmpty && _templates.isNotEmpty;
@@ -461,6 +499,9 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
 
         await ref.read(userProgramsProvider.notifier).updateProgram(updatedProgram);
 
+        // Auto-save templates to library
+        await _autoSaveTemplatesToLibrary(updatedProgram.name);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Program "${updatedProgram.name}" updated!')),
@@ -483,6 +524,9 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
         );
 
         await ref.read(userProgramsProvider.notifier).addProgram(program);
+
+        // Auto-save templates to library
+        await _autoSaveTemplatesToLibrary(program.name);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -523,12 +567,14 @@ class _TemplateListItem extends StatelessWidget {
   final int index;
   final WorkoutTemplate template;
   final VoidCallback onDelete;
+  final VoidCallback onDuplicate;
 
   const _TemplateListItem({
     super.key,
     required this.index,
     required this.template,
     required this.onDelete,
+    required this.onDuplicate,
   });
 
   @override
@@ -564,6 +610,11 @@ class _TemplateListItem extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              icon: const Icon(Icons.copy, size: 20),
+              onPressed: onDuplicate,
+              tooltip: 'Duplicate Day',
+            ),
             IconButton(
               icon: Icon(Icons.delete_outline, color: colors.error),
               onPressed: onDelete,

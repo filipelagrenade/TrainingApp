@@ -414,27 +414,32 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
     HapticFeedback.mediumImpact();
   }
 
-  /// Show dialog to add an exercise.
+  /// Show dialog to add an exercise (supports multi-select).
   Future<void> _addExercise(BuildContext context) async {
-    // Show exercise picker modal
-    final exercise = await showExercisePicker(context);
+    // Show exercise picker modal in multi-select mode
+    final exercises = await showExercisePickerMulti(context);
 
-    if (exercise == null) return; // User cancelled
+    if (exercises.isEmpty) return; // User cancelled or selected nothing
 
-    // Add the selected exercise to the workout
-    ref.read(currentWorkoutProvider.notifier).addExercise(
-          exerciseId: exercise.id,
-          exerciseName: exercise.name,
-          primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
-          equipment: [exercise.equipment.name],
-          formCues: exercise.instructions?.split('\n') ?? [],
-        );
+    // Add all selected exercises to the workout
+    for (final exercise in exercises) {
+      ref.read(currentWorkoutProvider.notifier).addExercise(
+            exerciseId: exercise.id,
+            exerciseName: exercise.name,
+            primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
+            equipment: [exercise.equipment.name],
+            formCues: exercise.instructions?.split('\n') ?? [],
+          );
+    }
     HapticFeedback.lightImpact();
 
     if (context.mounted) {
+      final message = exercises.length == 1
+          ? '${exercises.first.name} added'
+          : '${exercises.length} exercises added';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${exercise.name} added'),
+          content: Text(message),
           duration: const Duration(seconds: 1),
         ),
       );

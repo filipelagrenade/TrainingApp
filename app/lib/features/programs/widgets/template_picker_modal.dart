@@ -441,20 +441,22 @@ class _TemplatePickerModalState extends ConsumerState<_TemplatePickerModal> {
     );
   }
 
-  /// Shows the exercise picker.
+  /// Shows the exercise picker (supports multi-select).
   Future<void> _showAddExercise() async {
-    final exercise = await showExercisePicker(context);
-    if (exercise == null) return;
+    final exercises = await showExercisePickerMulti(context);
+    if (exercises.isEmpty) return;
 
     setState(() {
-      _exercises.add(_InlineExercise(
-        id: exercise.id,
-        name: exercise.name,
-        // Convert MuscleGroup enum to String
-        primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
-        sets: 3,
-        targetReps: '8-10',
-      ));
+      for (final exercise in exercises) {
+        _exercises.add(_InlineExercise(
+          id: exercise.id,
+          name: exercise.name,
+          // Convert MuscleGroup enum to String
+          primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
+          sets: 3,
+          targetReps: '8-10',
+        ));
+      }
     });
   }
 

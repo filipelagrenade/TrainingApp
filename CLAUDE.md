@@ -26,15 +26,19 @@
 - Commit after each feature with proper messages
 - Create handover documents as you go (don't wait until the end)
 
-### At Context Limit (~15%)
-1. Complete current task if close to done, otherwise save state
-2. Create/update handover document with:
-   - What was completed
+### At Context Limit (~20%)
+1. Run `/sitrep` to generate a structured situation report
+2. Complete current task if close to done, otherwise save state
+3. Create/update handover document at `.claude/handover.md` with:
+   - STATUS: CONTINUE or STATUS: COMPLETE
+   - What was completed (with file paths)
    - What's in progress
-   - Exact next steps
+   - Files modified this session
+   - Exact next steps (ordered)
    - Any blockers or decisions made
-3. Commit all changes
-4. Provide the user with the next agent prompt
+   - Critical context the next session must know
+4. Commit all changes
+5. Say "HANDOVER_COMPLETE" and stop working
 
 ---
 
@@ -70,8 +74,6 @@ LiftIQ is a workout tracking application with AI-powered progressive overload co
 ├── FEATURES.md               # Completed features list
 ├── README.md                 # Project documentation
 ├── .gitignore               # Git ignore rules
-├── .prettierrc              # Prettier configuration
-├── .eslintrc.js             # ESLint configuration
 │
 ├── backend/                  # Node.js + TypeScript API
 │   ├── CLAUDE.md            # Backend-specific rules
