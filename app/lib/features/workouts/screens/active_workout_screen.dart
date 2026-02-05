@@ -34,6 +34,7 @@ import '../providers/rest_timer_provider.dart';
 import '../widgets/set_input_row.dart';
 import '../widgets/swipeable_set_row.dart';
 import '../widgets/drop_set_row.dart';
+import '../widgets/exercise_settings_panel.dart';
 import '../widgets/rest_timer_display.dart';
 import '../widgets/exercise_picker_modal.dart';
 import '../widgets/pr_celebration.dart';
@@ -670,7 +671,7 @@ class _WorkoutDurationText extends ConsumerWidget {
 }
 
 /// Card displaying a single exercise with its sets.
-class _ExerciseCard extends ConsumerWidget {
+class _ExerciseCard extends ConsumerStatefulWidget {
   final ExerciseLog exerciseLog;
   final int exerciseIndex;
 
@@ -681,7 +682,19 @@ class _ExerciseCard extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ExerciseCard> createState() => _ExerciseCardState();
+}
+
+class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
+  bool _settingsExpanded = false;
+  WeightInputType _weightType = WeightInputType.absolute;
+  bool _rpeEnabled = false;
+
+  ExerciseLog get exerciseLog => widget.exerciseLog;
+  int get exerciseIndex => widget.exerciseIndex;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final swipeEnabled = ref.watch(userSettingsProvider).swipeToComplete;
@@ -717,10 +730,43 @@ class _ExerciseCard extends ConsumerWidget {
             ),
 
           // Exercise header
-          _buildHeader(context, ref, theme, colors),
+          _buildHeader(context, theme, colors),
+
+          // Settings panel (expandable)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: _settingsExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ExerciseSettingsPanel(
+                      isCableExercise: exerciseLog.usesCableEquipment,
+                      cableAttachment: exerciseLog.cableAttachment,
+                      isUnilateral: exerciseLog.isUnilateral,
+                      weightType: _weightType,
+                      rpeEnabled: _rpeEnabled,
+                      onCableAttachmentChanged: (attachment) {
+                        ref.read(currentWorkoutProvider.notifier).updateCableAttachment(
+                              exerciseIndex: exerciseIndex,
+                              attachment: attachment,
+                            );
+                      },
+                      onUnilateralToggled: () {
+                        ref.read(currentWorkoutProvider.notifier).toggleUnilateral(exerciseIndex);
+                      },
+                      onWeightTypeChanged: (type) {
+                        setState(() => _weightType = type);
+                      },
+                      onRpeToggled: (enabled) {
+                        setState(() => _rpeEnabled = enabled);
+                      },
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
 
           // AI recommendation chip (if available)
-          _buildRecommendationBanner(ref, theme, colors),
+          _buildRecommendationBanner(theme, colors),
 
           // Sets list - completed sets can be swiped to delete
           ...exerciseLog.sets.asMap().entries.expand((entry) {
@@ -742,7 +788,6 @@ class _ExerciseCard extends ConsumerWidget {
                 onEdit: () {
                   _showEditSetDialog(
                     context,
-                    ref,
                     exerciseIndex,
                     entry.key,
                     entry.value,
@@ -835,7 +880,7 @@ class _ExerciseCard extends ConsumerWidget {
               unit: unitString,
               swipeEnabled: swipeEnabled,
               onSwipeComplete: () {
-                _logSetAndHandleSuperset(ref, null, null);
+                _logSetAndHandleSuperset(null, null);
               },
               onComplete: ({
                 required weight,
@@ -845,7 +890,7 @@ class _ExerciseCard extends ConsumerWidget {
                 weightType,
                 bandResistance,
               }) {
-                _logSetAndHandleSuperset(ref, weight, reps, rpe: rpe, setType: setType, weightType: weightType, bandResistance: bandResistance);
+                _logSetAndHandleSuperset(weight, reps, rpe: rpe, setType: setType, weightType: weightType, bandResistance: bandResistance);
               },
             ),
           ),
@@ -856,7 +901,6 @@ class _ExerciseCard extends ConsumerWidget {
 
   /// Log a set and handle superset transitions if applicable.
   void _logSetAndHandleSuperset(
-    WidgetRef ref,
     double? weight,
     int? reps, {
     double? rpe,
@@ -906,7 +950,7 @@ class _ExerciseCard extends ConsumerWidget {
     }
   }
 
-  Widget _buildRecommendationBanner(WidgetRef ref, ThemeData theme, ColorScheme colors) {
+  Widget _buildRecommendationBanner(ThemeData theme, ColorScheme colors) {
     final recommendation = ref.watch(exerciseRecommendationProvider(exerciseLog.exerciseId));
     if (recommendation == null || recommendation.sets.isEmpty) {
       return const SizedBox.shrink();
@@ -962,7 +1006,6 @@ class _ExerciseCard extends ConsumerWidget {
 
   Widget _buildHeader(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     ColorScheme colors,
   ) {
@@ -992,93 +1035,103 @@ class _ExerciseCard extends ConsumerWidget {
           color: exerciseLog.isUnilateral ? colors.primary : colors.onSurfaceVariant,
         ),
       ),
-      trailing: PopupMenuButton(
-        icon: const Icon(Icons.more_vert),
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'notes',
-            child: ListTile(
-              leading: Icon(Icons.note_add),
-              title: Text('Add Notes'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'history',
-            child: ListTile(
-              leading: Icon(Icons.history),
-              title: Text('View History'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          if (exerciseLog.usesCableEquipment)
-            const PopupMenuItem(
-              value: 'attachment',
-              child: ListTile(
-                leading: Icon(Icons.link),
-                title: Text('Cable Attachment'),
-                contentPadding: EdgeInsets.zero,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Gear icon for settings panel
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(
+                  _settingsExpanded ? Icons.settings : Icons.settings_outlined,
+                  color: _settingsExpanded ? colors.primary : null,
+                ),
+                onPressed: () => setState(() => _settingsExpanded = !_settingsExpanded),
+                tooltip: 'Exercise Settings',
               ),
-            ),
-          PopupMenuItem(
-            value: 'unilateral',
-            child: ListTile(
-              leading: Icon(
-                Icons.back_hand_outlined,
-                color: exerciseLog.isUnilateral ? Theme.of(context).colorScheme.primary : null,
+              // Active settings badge
+              if (hasActiveSettings(
+                cableAttachment: exerciseLog.cableAttachment,
+                isUnilateral: exerciseLog.isUnilateral,
+                weightType: _weightType,
+                rpeEnabled: _rpeEnabled,
+              ))
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          PopupMenuButton(
+            icon: const Icon(Icons.more_vert),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'notes',
+                child: ListTile(
+                  leading: Icon(Icons.note_add),
+                  title: Text('Add Notes'),
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
-              title: Text(exerciseLog.isUnilateral ? 'Set Bilateral' : 'Set Unilateral'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'switch',
-            child: ListTile(
-              leading: Icon(Icons.swap_horiz),
-              title: Text('Switch Exercise'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'remove',
-            child: ListTile(
-              leading: Icon(Icons.delete_outline),
-              title: Text('Remove Exercise'),
-              contentPadding: EdgeInsets.zero,
-            ),
+              const PopupMenuItem(
+                value: 'history',
+                child: ListTile(
+                  leading: Icon(Icons.history),
+                  title: Text('View History'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'switch',
+                child: ListTile(
+                  leading: Icon(Icons.swap_horiz),
+                  title: Text('Switch Exercise'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'remove',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline),
+                  title: Text('Remove Exercise'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              switch (value) {
+                case 'notes':
+                  _showNotesDialog(context, exerciseIndex, exerciseLog);
+                  break;
+                case 'history':
+                  _showExerciseHistory(context, exerciseLog);
+                  break;
+                case 'switch':
+                  _showSwitchExercise(context, exerciseIndex);
+                  break;
+                case 'remove':
+                  ref.read(currentWorkoutProvider.notifier).removeExercise(
+                        exerciseIndex,
+                      );
+                  break;
+              }
+            },
           ),
         ],
-        onSelected: (value) {
-          switch (value) {
-            case 'notes':
-              _showNotesDialog(context, ref, exerciseIndex, exerciseLog);
-              break;
-            case 'history':
-              _showExerciseHistory(context, ref, exerciseLog);
-              break;
-            case 'attachment':
-              _showCableAttachmentPicker(context, ref, exerciseIndex, exerciseLog);
-              break;
-            case 'unilateral':
-              _toggleUnilateral(ref, exerciseIndex, exerciseLog);
-              break;
-            case 'switch':
-              _showSwitchExercise(context, ref, exerciseIndex);
-              break;
-            case 'remove':
-              ref.read(currentWorkoutProvider.notifier).removeExercise(
-                    exerciseIndex,
-                  );
-              break;
-          }
-        },
       ),
     );
   }
 
   void _showCableAttachmentPicker(
     BuildContext context,
-    WidgetRef ref,
     int exerciseIndex,
     ExerciseLog exerciseLog,
   ) {
@@ -1107,13 +1160,12 @@ class _ExerciseCard extends ConsumerWidget {
     );
   }
 
-  void _toggleUnilateral(WidgetRef ref, int exerciseIndex, ExerciseLog exerciseLog) {
+  void _toggleUnilateral(int exerciseIndex, ExerciseLog exerciseLog) {
     ref.read(currentWorkoutProvider.notifier).toggleUnilateral(exerciseIndex);
   }
 
   void _showExerciseHistory(
     BuildContext context,
-    WidgetRef ref,
     ExerciseLog exerciseLog,
   ) {
     showModalBottomSheet(
@@ -1134,7 +1186,6 @@ class _ExerciseCard extends ConsumerWidget {
 
   void _showSwitchExercise(
     BuildContext context,
-    WidgetRef ref,
     int exerciseIndex,
   ) async {
     final exercise = await showModalBottomSheet<Exercise>(
@@ -1158,7 +1209,6 @@ class _ExerciseCard extends ConsumerWidget {
 
   void _showEditSetDialog(
     BuildContext context,
-    WidgetRef ref,
     int exerciseIndex,
     int setIndex,
     ExerciseSet set,
@@ -1222,7 +1272,6 @@ class _ExerciseCard extends ConsumerWidget {
 
   void _showNotesDialog(
     BuildContext context,
-    WidgetRef ref,
     int exerciseIndex,
     ExerciseLog exerciseLog,
   ) {

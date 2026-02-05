@@ -2,7 +2,7 @@
 
 > **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `.claude/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web --release` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
 
-**STATUS**: IN PROGRESS — 2/7 phases complete
+**STATUS**: IN PROGRESS — 3/7 phases complete
 
 ## Overview
 
@@ -12,7 +12,7 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 
 - [x] **Phase 1** — Bug Fixes & Quick Wins
 - [x] **Phase 2** — Drop Set Auto-Generated Sub-Rows
-- [ ] **Phase 3** — Exercise Settings Expandable Section
+- [x] **Phase 3** — Exercise Settings Expandable Section
 - [ ] **Phase 4** — Program & Template Improvements
 - [ ] **Phase 5** — AI Preferences & Per-Exercise Rep Overrides
 - [ ] **Phase 6** — Mesocycle-Program Full Integration
@@ -170,27 +170,27 @@ Fix bugs from live user testing, add missing UI for existing features, improve e
 - Create: `app/lib/features/workouts/widgets/exercise_settings_panel.dart` — new expandable panel
 
 **Tasks**:
-- [ ] Create `exercise_settings_panel.dart` — a collapsible panel widget that appears below the exercise header and above the sets list:
+- [x] Create `exercise_settings_panel.dart` — a collapsible panel widget that appears below the exercise header and above the sets list:
   - Trigger: gear/settings icon button on the exercise card header (clearly labeled or with tooltip)
   - When expanded, shows a labeled section with clear setting groups
-- [ ] **Cable Attachment Selector** (only show for cable exercises, check `Equipment.cable`):
+- [x] **Cable Attachment Selector** (only show for cable exercises, check `Equipment.cable`):
   - Row of selectable chips/toggles for: Rope, D-Handle, V-Bar, Wide Bar, Close Grip Bar, Straight Bar, EZ Bar, Ankle Strap, Stirrup
   - Selected attachment highlighted with accent color
   - Call `currentWorkoutProvider.notifier.updateCableAttachment(exerciseIndex, attachment)` on selection
-- [ ] **Unilateral Toggle**:
+- [x] **Unilateral Toggle**:
   - Labeled switch/toggle: "Unilateral (single side)"
   - Call `currentWorkoutProvider.notifier.toggleUnilateral(exerciseIndex)` on toggle
   - When active, show indicator on exercise card header
-- [ ] **Weight Type Selector** (move from set_input_row into this panel):
+- [x] **Weight Type Selector** (move from set_input_row into this panel):
   - Clear labeled buttons: Absolute, Plates, Band, Bodyweight, Per Side
   - Each with an icon and text label
   - Applies to all sets in this exercise
-- [ ] **RPE Toggle** (move from set_input_row toggle):
+- [x] **RPE Toggle** (move from set_input_row toggle):
   - Labeled switch: "Track RPE"
   - When enabled, RPE slider appears on each set input row (keep existing slider UI)
   - When disabled, hide RPE from set rows
-- [ ] The gear icon should show a small dot/badge when any non-default settings are active (cable attachment selected, unilateral on, RPE tracking on, non-absolute weight type)
-- [ ] Ensure the panel animates open/close smoothly (`AnimatedCrossFade` or `AnimatedSize`)
+- [x] The gear icon should show a small dot/badge when any non-default settings are active (cable attachment selected, unilateral on, RPE tracking on, non-absolute weight type)
+- [x] Ensure the panel animates open/close smoothly (`AnimatedCrossFade` or `AnimatedSize`)
 
 **Commit**: `feat(app): add expandable exercise settings panel with cable attachment, unilateral, RPE, weight type`
 
