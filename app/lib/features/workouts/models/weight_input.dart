@@ -23,6 +23,8 @@ enum WeightInputType {
   band,
   /// Bodyweight (with optional additional weight)
   bodyweight,
+  /// Per-side weight (total weight = entered weight × 2)
+  perSide,
 }
 
 /// Resistance band colors and their typical resistance ranges.
@@ -134,6 +136,12 @@ sealed class WeightInput with _$WeightInput {
     @Default(0.0) double additionalWeight,
   }) = WeightBodyweight;
 
+  /// Per-side weight (total weight = entered weight × 2).
+  const factory WeightInput.perSide({
+    required double weightPerSide,
+    @Default('kg') String unit,
+  }) = WeightPerSide;
+
   factory WeightInput.fromJson(Map<String, dynamic> json) =>
       _$WeightInputFromJson(json);
 }
@@ -146,6 +154,7 @@ extension WeightInputExtensions on WeightInput {
         WeightPlates() => WeightInputType.plates,
         WeightBand() => WeightInputType.band,
         WeightBodyweight() => WeightInputType.bodyweight,
+        WeightPerSide() => WeightInputType.perSide,
       };
 
   /// Converts to an approximate absolute weight in kg.
@@ -163,6 +172,7 @@ extension WeightInputExtensions on WeightInput {
         WeightBand(resistance: final r, quantity: final q) =>
           _bandMidWeight(r) * q,
         WeightBodyweight(additionalWeight: final w) => w,
+        WeightPerSide(weightPerSide: final w) => w * 2,
       };
 
   /// Returns a display string for the weight.
@@ -181,6 +191,8 @@ extension WeightInputExtensions on WeightInput {
           q > 1 ? '${r.label} x$q' : r.label,
         WeightBodyweight(additionalWeight: final w) =>
           w > 0 ? 'BW + ${w.toStringAsFixed(w % 1 == 0 ? 0 : 1)}' : 'Bodyweight',
+        WeightPerSide(weightPerSide: final w, unit: final u) =>
+          '${w.toStringAsFixed(w % 1 == 0 ? 0 : 1)} $u ×2',
       };
 
   /// Approximate middle weight for a band resistance level (in kg).

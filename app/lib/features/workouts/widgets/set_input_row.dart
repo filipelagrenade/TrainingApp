@@ -208,6 +208,22 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
                       ? _buildBandSelector(theme, colors)
                       : _buildWeightInput(theme, colors),
                 ),
+                // Per-side indicator badge
+                if (_weightType == WeightInputType.perSide)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '×2',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 const SizedBox(width: 4),
               ] else ...[
                 Padding(
@@ -397,6 +413,7 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       WeightInputType.bodyweight => Icons.accessibility_new,
       WeightInputType.band => Icons.power_input,
       WeightInputType.plates => Icons.fitness_center,
+      WeightInputType.perSide => Icons.compare_arrows,
     };
 
     return InkWell(
@@ -421,20 +438,25 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final type in [WeightInputType.absolute, WeightInputType.bodyweight, WeightInputType.band])
+          for (final type in [WeightInputType.absolute, WeightInputType.perSide, WeightInputType.bodyweight, WeightInputType.band])
             ListTile(
               leading: Icon(switch (type) {
                 WeightInputType.absolute => Icons.fitness_center,
                 WeightInputType.bodyweight => Icons.accessibility_new,
                 WeightInputType.band => Icons.power_input,
                 WeightInputType.plates => Icons.fitness_center,
+                WeightInputType.perSide => Icons.compare_arrows,
               }),
               title: Text(switch (type) {
                 WeightInputType.absolute => 'Weight',
                 WeightInputType.bodyweight => 'Bodyweight',
                 WeightInputType.band => 'Band',
                 WeightInputType.plates => 'Plates',
+                WeightInputType.perSide => 'Per Side',
               }),
+              subtitle: type == WeightInputType.perSide
+                  ? const Text('Total = entered weight × 2')
+                  : null,
               selected: _weightType == type,
               onTap: () {
                 setState(() => _weightType = type);
@@ -581,6 +603,10 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
     final reps = int.tryParse(_repsController.text);
     if (reps == null || reps <= 0) return false;
     if (_weightType == WeightInputType.bodyweight || _weightType == WeightInputType.band) return true;
+    if (_weightType == WeightInputType.perSide) {
+      final weight = double.tryParse(_weightController.text);
+      return weight != null && weight >= 0;
+    }
     final weight = double.tryParse(_weightController.text);
     return weight != null && weight >= 0;
   }
@@ -595,6 +621,9 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       weight = 0;
     } else if (_weightType == WeightInputType.band) {
       weight = _bandResistance.equivalentWeight;
+    } else if (_weightType == WeightInputType.perSide) {
+      // Per-side: store the total weight (per-side × 2) for volume calculations
+      weight = (double.tryParse(_weightController.text) ?? 0) * 2;
     } else {
       weight = double.tryParse(_weightController.text) ?? 0;
     }

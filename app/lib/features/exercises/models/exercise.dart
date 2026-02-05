@@ -84,6 +84,8 @@ enum Equipment {
   cable,
   @JsonValue('machine')
   machine,
+  @JsonValue('smithMachine')
+  smithMachine,
   @JsonValue('bodyweight')
   bodyweight,
   @JsonValue('kettlebell')
@@ -230,6 +232,8 @@ extension ExerciseExtensions on Exercise {
         return 'Cable';
       case Equipment.machine:
         return 'Machine';
+      case Equipment.smithMachine:
+        return 'Smith Machine';
       case Equipment.bodyweight:
         return 'Bodyweight';
       case Equipment.kettlebell:

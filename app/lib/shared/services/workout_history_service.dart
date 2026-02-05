@@ -102,11 +102,15 @@ class WorkoutHistoryService {
       return;
     }
 
-    final completed = CompletedWorkout.fromSession(session);
-    _workouts.insert(0, completed); // Add to beginning (most recent first)
+    var completed = CompletedWorkout.fromSession(session);
 
-    // Check for new PRs
-    _updatePersonalRecords(completed);
+    // Check for new PRs and update the count on the workout
+    final prCount = _updatePersonalRecords(completed);
+    if (prCount > 0) {
+      completed = completed.copyWith(prsAchieved: prCount);
+    }
+
+    _workouts.insert(0, completed); // Add to beginning (most recent first)
 
     await _persist();
     debugPrint('WorkoutHistoryService: Saved workout ${completed.id}');
@@ -607,7 +611,9 @@ class WorkoutHistoryService {
     }).toList();
   }
 
-  void _updatePersonalRecords(CompletedWorkout workout) {
+  /// Checks for new personal records and returns the count of PRs achieved.
+  int _updatePersonalRecords(CompletedWorkout workout) {
+    int prCount = 0;
     for (final exercise in workout.exercises) {
       // Calculate estimated 1RM for best set
       double bestEstimated1RM = 0;
@@ -637,9 +643,11 @@ class WorkoutHistoryService {
             sessionId: workout.id,
             isAllTime: true,
           );
+          prCount++;
         }
       }
     }
+    return prCount;
   }
 
   Future<void> _persist() async {
@@ -819,6 +827,26 @@ class CompletedWorkout {
     this.notes,
     this.rating,
   });
+
+  /// Creates a copy with updated values.
+  CompletedWorkout copyWith({int? prsAchieved}) {
+    return CompletedWorkout(
+      id: id,
+      userId: userId,
+      templateId: templateId,
+      templateName: templateName,
+      startedAt: startedAt,
+      completedAt: completedAt,
+      durationMinutes: durationMinutes,
+      totalVolume: totalVolume,
+      totalSets: totalSets,
+      prsAchieved: prsAchieved ?? this.prsAchieved,
+      muscleGroups: muscleGroups,
+      exercises: exercises,
+      notes: notes,
+      rating: rating,
+    );
+  }
 
   factory CompletedWorkout.fromSession(WorkoutSession session) {
     final exercises = session.exerciseLogs.map((log) {

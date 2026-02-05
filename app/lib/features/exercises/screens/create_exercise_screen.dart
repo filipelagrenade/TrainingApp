@@ -328,6 +328,8 @@ class _CreateExerciseScreenState extends ConsumerState<CreateExerciseScreen> {
         return 'Cable';
       case Equipment.machine:
         return 'Machine';
+      case Equipment.smithMachine:
+        return 'Smith Machine';
       case Equipment.bodyweight:
         return 'Bodyweight';
       case Equipment.kettlebell:

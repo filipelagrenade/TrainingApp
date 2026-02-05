@@ -329,46 +329,107 @@ class PeriodizationScreen extends ConsumerWidget {
     ColorScheme colors,
     Mesocycle mesocycle,
   ) {
+    final statusColor = _getStatusColor(mesocycle.status, colors);
+    final isActive = mesocycle.status == MesocycleStatus.active;
+    final isPlanned = mesocycle.status == MesocycleStatus.planned;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: _getStatusColor(mesocycle.status, colors).withValues(alpha: 0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Icon(
-              _getStatusIcon(mesocycle.status),
-              color: _getStatusColor(mesocycle.status, colors),
-              size: 20,
-            ),
-          ),
-        ),
-        title: Text(
-          mesocycle.name,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          '${mesocycle.totalWeeks} weeks • ${mesocycle.goal.displayName} • ${mesocycle.status.displayName}',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colors.onSurfaceVariant,
-          ),
-        ),
-        trailing: mesocycle.status == MesocycleStatus.planned
-            ? FilledButton.tonal(
-                onPressed: () => _startMesocycle(context, ref, mesocycle),
-                child: const Text('Start'),
-              )
-            : IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () => _showMesocycleDetails(context, mesocycle),
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      elevation: isActive ? 2 : 0,
+      color: isActive ? statusColor : null,
+      child: InkWell(
+        onTap: () => _showMesocycleDetails(context, mesocycle),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header row with icon and status label
+              Row(
+                children: [
+                  Icon(
+                    _getStatusIcon(mesocycle.status),
+                    color: isActive
+                        ? Colors.white.withOpacity(0.8)
+                        : statusColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    mesocycle.status.displayName,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: isActive
+                          ? Colors.white.withOpacity(0.8)
+                          : statusColor,
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 8),
+              // Mesocycle name
+              Text(
+                mesocycle.name,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: isActive ? Colors.white : null,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              // Stats row
+              Text(
+                '${mesocycle.totalWeeks} weeks  •  ${mesocycle.goal.displayName}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isActive
+                      ? Colors.white.withOpacity(0.9)
+                      : colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Action button - full width
+              SizedBox(
+                width: double.infinity,
+                child: isPlanned
+                    ? FilledButton.icon(
+                        onPressed: () => _startMesocycle(context, ref, mesocycle),
+                        style: isActive
+                            ? FilledButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: statusColor,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              )
+                            : FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Start Mesocycle'),
+                      )
+                    : isActive
+                        ? FilledButton.icon(
+                            onPressed: () => _showMesocycleDetails(context, mesocycle),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: statusColor,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            icon: const Icon(Icons.visibility),
+                            label: const Text('View Details'),
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: () => _showMesocycleDetails(context, mesocycle),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            icon: const Icon(Icons.visibility),
+                            label: const Text('View Details'),
+                          ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

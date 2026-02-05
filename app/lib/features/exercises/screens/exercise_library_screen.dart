@@ -335,6 +335,8 @@ class ExerciseLibraryScreen extends ConsumerWidget {
         return 'Cable';
       case Equipment.machine:
         return 'Machine';
+      case Equipment.smithMachine:
+        return 'Smith Machine';
       case Equipment.bodyweight:
         return 'Bodyweight';
       case Equipment.kettlebell:
@@ -482,6 +484,8 @@ class _ExerciseCard extends StatelessWidget {
         return Icons.cable;
       case Equipment.machine:
         return Icons.settings;
+      case Equipment.smithMachine:
+        return Icons.view_column;
       case Equipment.bodyweight:
         return Icons.person;
       case Equipment.kettlebell:

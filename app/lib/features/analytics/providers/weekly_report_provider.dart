@@ -17,6 +17,8 @@ import '../models/weekly_report.dart';
 import '../../../shared/services/workout_history_service.dart';
 import '../../programs/providers/active_program_provider.dart';
 import '../../programs/models/active_program.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../settings/models/user_settings.dart';
 
 // ============================================================================
 // STATE
@@ -337,29 +339,18 @@ class WeeklyReportNotifier extends Notifier<WeeklyReportState> {
       if (program.daysPerWeek > 0) targetPerWeek = program.daysPerWeek;
     }
 
-    // Rolling 4-week consistency: count workouts over 4 weeks ending at this week
-    final fourWeeksAgo = weekStart.subtract(const Duration(days: 21)); // 3 prior weeks + this week
-    final fourWeekWorkouts = service.workouts.where((w) {
-      return !w.completedAt.isBefore(fourWeeksAgo) &&
-          w.completedAt.isBefore(weekEnd.add(const Duration(days: 1)));
-    }).toList();
-    final targetOver4Weeks = targetPerWeek * 4;
-    final consistencyScore = targetOver4Weeks > 0
-        ? ((fourWeekWorkouts.length / targetOver4Weeks) * 100)
+    // Current-week-only adherence: count workouts this week vs target
+    final consistencyScore = targetPerWeek > 0
+        ? ((weekWorkouts.length / targetPerWeek) * 100)
             .clamp(0, 100)
             .round()
         : 0;
 
-    // Trend: compare current 4-week block vs previous 4-week block
-    final prev4WeeksStart = fourWeeksAgo.subtract(const Duration(days: 28));
-    final prev4WeekWorkouts = service.workouts.where((w) {
-      return !w.completedAt.isBefore(prev4WeeksStart) &&
-          w.completedAt.isBefore(fourWeeksAgo);
-    }).length;
-    final prevConsistency = targetOver4Weeks > 0
-        ? (prev4WeekWorkouts / targetOver4Weeks * 100).clamp(0, 100)
+    // Trend: compare current week adherence vs previous week
+    final prevWeekConsistency = targetPerWeek > 0
+        ? (prevWeekWorkouts.length / targetPerWeek * 100).clamp(0, 100)
         : 0.0;
-    final consistencyTrend = consistencyScore - prevConsistency;
+    final consistencyTrend = consistencyScore - prevWeekConsistency;
 
     // Volume comparison
     final prevVolume = prevWeekWorkouts.fold<int>(0, (s, w) => s + w.totalVolume);
@@ -425,19 +416,19 @@ class WeeklyReportNotifier extends Notifier<WeeklyReportState> {
       ));
     }
 
-    // Rolling consistency trend insight
+    // Weekly consistency trend insight
     if (consistencyTrend > 5) {
       insights.add(WeeklyInsight(
         type: InsightType.achievement,
         title: 'Consistency improving!',
-        description: 'Your 4-week adherence is trending up. Grade: ${_consistencyGrade(consistencyScore)}.',
+        description: 'You trained more this week than last. Grade: ${_consistencyGrade(consistencyScore)}.',
         priority: 3,
       ));
     } else if (consistencyTrend < -5) {
       insights.add(WeeklyInsight(
         type: InsightType.warning,
         title: 'Consistency declining',
-        description: 'Your 4-week adherence dropped. Current grade: ${_consistencyGrade(consistencyScore)}. Try to hit $targetPerWeek sessions this week.',
+        description: 'Fewer workouts this week. Current grade: ${_consistencyGrade(consistencyScore)}. Target: $targetPerWeek sessions/week.',
         priority: 4,
       ));
     }
@@ -454,7 +445,9 @@ class WeeklyReportNotifier extends Notifier<WeeklyReportState> {
           final est = set.weight * (1 + set.reps / 30);
           if (est > bestEst1RM) {
             bestEst1RM = est;
-            bestLift = '${exercise.exerciseName} - ${set.weight}kg × ${set.reps}';
+            final userSettings = ref.read(userSettingsProvider);
+            final unitStr = userSettings.weightUnitString;
+            bestLift = '${exercise.exerciseName} - ${set.weight}$unitStr × ${set.reps}';
           }
         }
       }

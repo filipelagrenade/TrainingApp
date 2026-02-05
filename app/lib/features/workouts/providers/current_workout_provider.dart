@@ -37,6 +37,7 @@ import '../../analytics/providers/weekly_report_provider.dart';
 import '../../analytics/providers/streak_provider.dart';
 import '../../programs/providers/active_program_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../settings/models/user_settings.dart';
 import './weight_recommendation_provider.dart';
 import './rest_timer_provider.dart';
 import './progression_state_provider.dart';
@@ -1185,12 +1186,14 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       // If this is better than anything in the session, check history
       // For now, mark as PR if it exceeds session max
       if (previousMax != null && estimated1RM > previousMax) {
-        // Emit PR event for celebration
+        // Emit PR event for celebration with user's preferred unit
+        final weightUnitStr = ref.read(userSettingsProvider).weightUnitString;
         _prEventController.add(PRData(
           exerciseName: exerciseId,
           newWeight: weight,
           previousWeight: previousMax,
           reps: reps,
+          unit: weightUnitStr,
         ));
         return (isPR: true, previousMax: previousMax);
       }

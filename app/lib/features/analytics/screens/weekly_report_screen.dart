@@ -20,6 +20,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/weekly_report.dart';
 import '../providers/weekly_report_provider.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../settings/models/user_settings.dart';
 
 /// Screen showing the full weekly progress report.
 class WeeklyReportScreen extends ConsumerWidget {
@@ -664,14 +666,15 @@ class _WorkoutsSection extends StatelessWidget {
 }
 
 /// PRs section showing personal records achieved.
-class _PRsSection extends StatelessWidget {
+class _PRsSection extends ConsumerWidget {
   final WeeklyReport report;
 
   const _PRsSection({required this.report});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
+    final weightUnitStr = ref.watch(userSettingsProvider).weightUnitString;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -727,7 +730,7 @@ class _PRsSection extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            '${pr.formattedLift} · Est. 1RM: ${pr.estimated1RM.toStringAsFixed(1)}kg',
+                            '${pr.weight.toStringAsFixed(1)} $weightUnitStr × ${pr.reps} reps · Est. 1RM: ${pr.estimated1RM.toStringAsFixed(1)} $weightUnitStr',
                             style: context.textTheme.bodySmall?.copyWith(
                               color: colors.onSurfaceVariant,
                             ),
@@ -735,7 +738,7 @@ class _PRsSection extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (pr.improvementText != null)
+                    if (pr.previousBest != null && pr.estimated1RM - pr.previousBest! > 0)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -746,7 +749,7 @@ class _PRsSection extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          pr.improvementText!,
+                          '+${(pr.estimated1RM - pr.previousBest!).toStringAsFixed(1)} $weightUnitStr',
                           style: const TextStyle(
                             color: Colors.green,
                             fontWeight: FontWeight.bold,

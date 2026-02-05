@@ -351,6 +351,8 @@ class _ExerciseTile extends StatelessWidget {
         return Icons.cable;
       case Equipment.machine:
         return Icons.precision_manufacturing;
+      case Equipment.smithMachine:
+        return Icons.view_column;
       case Equipment.bodyweight:
         return Icons.accessibility_new;
       case Equipment.kettlebell:

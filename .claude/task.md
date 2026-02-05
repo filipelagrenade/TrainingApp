@@ -1,278 +1,411 @@
-# Overnight Autonomous Run — PostgreSQL Sync Implementation
+# Overnight Autonomous Run — UX Fixes, Drop Sets & Feature Improvements
 
-> **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `.claude/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
+> **Instructions for each iteration**: Read `CLAUDE.md` at project root, read the latest handover in `.claude/`, then execute the next unchecked phase below. After completing a phase, run `flutter build web --release` in `app/`, copy `app/build/web/*` to `backend/public/`, git commit, create a handover doc, and check off the phase.
 
-**STATUS**: COMPLETE — 6/6 phases complete
+**STATUS**: IN PROGRESS — 0/7 phases complete
 
 ## Overview
 
-Implement real-time bi-directional sync between Flutter local storage and backend PostgreSQL. Local storage remains source of truth for current session (offline-first), with background sync to PostgreSQL on every data change. Use last-write-wins conflict resolution based on `lastModifiedAt` timestamps.
-
-**Data to Sync**: Workouts, templates, measurements, progression states, settings, mesocycles, achievements, personal records.
+Fix bugs from live user testing, add missing UI for existing features, improve exercise settings UX, and integrate mesocycles with programs. All work is in the Flutter app (`app/`) unless otherwise noted.
 
 ## Phase Checklist
 
-> **Tick off each phase as you complete it. The overnight runner MUST update this checklist after each phase.**
-
-- [x] **Phase 1** — Backend Sync Infrastructure
-- [x] **Phase 2** — Flutter Sync Models & Queue
-- [x] **Phase 3** — Flutter Sync Service
-- [x] **Phase 4** — Integrate Sync into Existing Services
-- [x] **Phase 5** — App Lifecycle & Background Sync
-- [x] **Phase 6** — Testing & Verification
+- [ ] **Phase 1** — Bug Fixes & Quick Wins
+- [ ] **Phase 2** — Drop Set Auto-Generated Sub-Rows
+- [ ] **Phase 3** — Exercise Settings Expandable Section
+- [ ] **Phase 4** — Program & Template Improvements
+- [ ] **Phase 5** — AI Preferences & Per-Exercise Rep Overrides
+- [ ] **Phase 6** — Mesocycle-Program Full Integration
+- [ ] **Phase 7** — UX Review & Polish
 
 ---
 
-## Phase 1: Backend Sync Infrastructure
+## Phase 1: Bug Fixes & Quick Wins
 
-**Goal**: Create backend sync endpoints and add sync metadata to Prisma schema.
+**Goal**: Fix 5 bugs and add 2 enum values. These are independent tasks — do them in order.
 
-**Files to modify/create**:
-- `backend/prisma/schema.prisma` — add sync fields
-- `backend/src/services/sync.service.ts` — create new
-- `backend/src/routes/sync.routes.ts` — create new
-- `backend/src/routes/index.ts` — mount sync routes
+### 1A: Fix Weekly Score Algorithm
+
+**Problem**: User gets an F grade despite daily workouts and PRs. The current algorithm uses a rolling 4-week window which penalizes new users or anyone who started a program recently.
+
+**File**: `app/lib/features/analytics/providers/weekly_report_provider.dart` (lines ~340-351, ~502-509)
+
+**Current logic**: Rolling 4-week consistency = `(fourWeekWorkouts.length / (targetPerWeek * 4)) * 100`
+
+**Change to**: Current-week-only adherence = `(thisWeekWorkouts.length / targetPerWeek) * 100`
 
 **Tasks**:
-- [ ] Update Prisma schema — add to WorkoutSession, WorkoutTemplate, BodyMeasurement, Mesocycle, MesocycleWeek:
-  ```prisma
-  lastModifiedAt DateTime @updatedAt
-  clientId       String?
-  ```
-- [ ] Run `npx prisma migrate dev --name add_sync_fields`
-- [ ] Create `backend/src/services/sync.service.ts`:
-  - `processChanges(userId, changes[])` — apply batch changes with last-write-wins
-  - `getChangesSince(userId, timestamp)` — get all changes since timestamp
-  - `resolveConflict(local, remote)` — compare lastModifiedAt, newer wins
-- [ ] Create `backend/src/routes/sync.routes.ts`:
-  - `POST /api/v1/sync/push` — receive batch of changes from client, return success/failed
-  - `GET /api/v1/sync/pull?since=<timestamp>` — return changes since timestamp with serverTime
-- [ ] Mount routes in `backend/src/routes/index.ts`
-- [ ] Test endpoints manually with curl (create test user, push a workout, pull it back)
-- [ ] `cd backend && npm run build` succeeds
+- [x] In `weekly_report_provider.dart`, find the `consistencyScore` calculation (~line 340-351)
+- [x] Replace the 4-week rolling logic with current-week-only: count workouts between `weekStart` and `weekEnd`, divide by `targetPerWeek`
+- [x] Keep the grade mapping thresholds (A=90%, B=75%, C=60%, D=40%, F=<40%) at lines ~502-509
+- [x] If no active program, default target should be 3 workouts/week (verify this is still the case)
+- [x] Test: user with 5 workouts and a 5-day program should get A grade, not F
 
-**Commit**: `feat(backend): add sync endpoints with last-write-wins conflict resolution`
+### 1B: Fix PR Popup Unit Handling
+
+**Problem**: PR celebration popup shows improvement in pounds regardless of user's weight unit preference.
+
+**Files**:
+- `app/lib/features/workouts/widgets/pr_celebration.dart` — the popup widget
+- `app/lib/shared/services/workout_history_service.dart` (lines ~610-643) — where PRs are detected and `PRData` is created
+- `app/lib/features/settings/models/user_settings.dart` — has `WeightUnit` enum and `convertWeight()` extension
+
+**Tasks**:
+- [x] In `workout_history_service.dart`, find where `PRData` is constructed after PR detection
+- [x] Ensure the `unit` parameter uses the user's `weightUnit` setting (`'kg'` or `'lbs'`), not a hardcoded `'lbs'`
+- [x] If weights are stored internally as kg, apply `convertWeight()` when populating `PRData.newWeight` and `PRData.previousWeight` for display
+- [x] In `pr_celebration.dart`, verify the improvement text (`+X.X kg/lbs`) uses the unit from `PRData.unit`
+- [x] Also fix the weekly report PR section: in `app/lib/features/analytics/screens/weekly_report_screen.dart` (lines ~667-763), the PR display hardcodes "kg" — use user's `weightUnitString` instead
+
+### 1C: Fix PRs Not Showing in Weekly Report
+
+**Problem**: User says PRs don't show in the weekly report despite achieving them.
+
+**File**: `app/lib/features/analytics/providers/weekly_report_provider.dart`
+
+**Tasks**:
+- [x] Trace how PRs are collected for the weekly report — find where the report's `personalRecords` list is populated
+- [x] Check if the PR data from `workout_history_service.dart` is being correctly filtered by the report's date range (`weekStart` to `weekEnd`)
+- [x] Verify PRs are being detected when `saveWorkout()` is called (check the Epley formula comparison at lines ~610-643)
+- [x] Check if the issue is a timing problem — PRs detected during workout save but not persisted in a way the weekly report can query them
+- [x] Fix the data flow so PRs appear in the report. If PRs are stored separately (not just in workout data), ensure they're being saved with timestamps that fall within the report's week range
+
+### 1D: Fix Start Mesocycle Card Layout
+
+**Problem**: The "Start Mesocycle" card on the periodization screen has all text crammed in one column (same bug pattern as the old resume workout card).
+
+**Files**:
+- `app/lib/features/periodization/screens/periodization_screen.dart` (lines ~325-374) — the broken card
+- `app/lib/features/home/screens/home_screen.dart` (lines ~765-851) — the resume workout card (reference pattern)
+
+**Tasks**:
+- [x] Replace the `ListTile`-based mesocycle card with a `Card` + `Column` layout matching the resume workout card pattern
+- [x] Layout should be: gradient/colored card background → name (bold, large) → stats row (weeks, goal, type separated by bullets) → action button (full-width "Start" or "Continue")
+- [x] Ensure text wraps properly on small screens — no single-line overflow
+- [x] Apply the same card to all mesocycle statuses (planned, active, completed) with appropriate action buttons
+
+### 1E: Add Switch Exercise UI
+
+**Problem**: `switchExercise()` method exists in `current_workout_provider.dart` (lines ~711-797) but there's no UI button to trigger it.
+
+**File**: `app/lib/features/workouts/screens/active_workout_screen.dart` — the `_ExerciseCard` widget
+
+**Tasks**:
+- [x] Add a "Switch Exercise" option to each exercise card in the active workout — already existed via popup menu (three-dot icon)
+- [x] When tapped, open the exercise picker modal (`showExercisePicker()`) — already implemented
+- [x] On selection, call `currentWorkoutProvider.notifier.switchExercise(exerciseIndex, newExercise)` — already implemented
+- [x] The existing method clears sets and generates new weight recommendations — verified end-to-end
+
+### 1F: Add Smith Machine to Equipment
+
+**File**: `app/lib/features/exercises/models/exercise.dart` — `Equipment` enum
+
+**Tasks**:
+- [x] Add `smithMachine` to the `Equipment` enum (after `machine`, before `bodyweight`)
+- [x] Add display string: `case Equipment.smithMachine: return 'Smith Machine';`
+- [x] Add an icon mapping if one exists for equipment types
+- [x] Run `dart run build_runner build` if using Freezed/code generation for this enum
+- [x] Verify the exercise library and exercise picker show the new equipment type
+
+### 1G: Add Per-Side Weight Type
+
+**File**: `app/lib/features/workouts/models/weight_input.dart` — `WeightInputType` enum
+
+**Tasks**:
+- [x] Add `perSide` to the `WeightInputType` enum
+- [x] Add display string/label: `'Per Side'`
+- [x] In the weight type selector UI (`app/lib/features/workouts/widgets/set_input_row.dart`, lines ~394-464), add `perSide` option with appropriate icon
+- [x] For volume calculations: when `perSide` is selected, the total weight = entered weight × 2. Ensure this is handled wherever volume is computed (check `workout_history_service.dart` and any volume aggregation logic)
+- [x] Display indicator on the set row showing "per side" when active (e.g., small "×2" badge next to weight)
+
+**Commit**: `fix(app): fix weekly score, PR units, switch exercise, mesocycle card + add smith machine and per-side weight`
 
 ---
 
-## Phase 2: Flutter Sync Models & Queue
+## Phase 2: Drop Set Auto-Generated Sub-Rows
 
-**Goal**: Create sync queue model and service for offline-first queuing of changes.
-
-**Files to create**:
-- `app/lib/shared/models/sync_queue_item.dart`
-- `app/lib/shared/services/sync_queue_service.dart`
+**Goal**: When a user selects "Drop Set" as the set type, auto-generate sub-rows below the main set at reduced weight.
 
 **Files to modify**:
-- `app/pubspec.yaml` — add connectivity_plus
+- `app/lib/features/workouts/models/exercise_set.dart` — extend set model for drop set data
+- `app/lib/features/workouts/widgets/set_input_row.dart` — render drop sub-rows
+- `app/lib/features/workouts/providers/current_workout_provider.dart` — manage drop set state
 
 **Tasks**:
-- [ ] Add to `pubspec.yaml`:
-  ```yaml
-  connectivity_plus: ^6.0.0
-  ```
-- [ ] Run `flutter pub get`
-- [ ] Create `app/lib/shared/models/sync_queue_item.dart`:
-  ```dart
-  enum SyncEntityType { workout, template, measurement, progression, settings, mesocycle, achievement }
-  enum SyncAction { create, update, delete }
+- [ ] Extend `ExerciseSet` model: add `List<DropSetEntry>? dropSets` field where `DropSetEntry` has `weight`, `reps`, `isCompleted` fields
+- [ ] When user selects `SetType.dropset` on a set, auto-generate 3 drop sub-rows:
+  - Drop 1: weight × 0.8 (20% reduction), empty reps
+  - Drop 2: weight × 0.6 (40% reduction), empty reps
+  - Drop 3: weight × 0.5 (50% reduction), empty reps
+- [ ] In `SetInputRow`, when `setType == SetType.dropset`, render the auto-generated sub-rows BELOW the main set row:
+  - Each sub-row should be indented (left margin or visual connector line)
+  - Each sub-row has: drop number label, weight field (pre-filled but editable), reps field, complete checkbox
+  - Add/remove drop row buttons (+ and × icons)
+- [ ] In `current_workout_provider.dart`, add methods:
+  - `addDropSet(exerciseIndex, setIndex)` — add another drop row
+  - `removeDropSet(exerciseIndex, setIndex, dropIndex)` — remove a drop row
+  - `updateDropSet(exerciseIndex, setIndex, dropIndex, weight, reps)` — update drop data
+  - `completeDropSet(exerciseIndex, setIndex, dropIndex)` — mark drop as done
+- [ ] When the main set's weight changes, recalculate drop weights proportionally
+- [ ] Include drop set data in workout history when saving
+- [ ] Ensure drop set volume is counted in total workout volume
 
-  class SyncQueueItem {
-    final String id;
-    final SyncEntityType entityType;
-    final SyncAction action;
-    final String entityId;
-    final Map<String, dynamic> data;
-    final DateTime createdAt;
-    final int retryCount;
-    // JSON serialization methods
-  }
-  ```
-- [ ] Create `app/lib/shared/services/sync_queue_service.dart`:
-  - `addToQueue(item)` — add change to queue, persist to SharedPreferences
-  - `getQueuedItems()` — get all pending items
-  - `removeFromQueue(id)` — remove after successful sync
-  - `incrementRetryCount(id)` — track failed attempts (max 5 retries)
-  - `clearQueue()` — remove all items
-  - Use user-scoped storage keys from `UserStorageKeys`
-- [ ] `flutter build web` succeeds
-
-**Commit**: `feat(sync): add sync queue model and service for offline-first changes`
+**Commit**: `feat(app): add drop set auto-generated sub-rows with adjustable weight reduction`
 
 ---
 
-## Phase 3: Flutter Sync Service
+## Phase 3: Exercise Settings Expandable Section
 
-**Goal**: Create main sync orchestration service and connectivity monitoring.
+**Goal**: Redesign cable attachment, unilateral, RPE, and weight type controls as an expandable settings section on each exercise card. Make them more discoverable and intuitive.
 
-**Files to create**:
-- `app/lib/shared/services/connectivity_service.dart`
-- `app/lib/shared/services/sync_service.dart`
-- `app/lib/providers/sync_provider.dart`
-
-**Tasks**:
-- [ ] Create `app/lib/shared/services/connectivity_service.dart`:
-  - Use `connectivity_plus` package
-  - Expose `Stream<bool> onConnectivityChanged`
-  - `Future<bool> isOnline()` method
-  - Auto-trigger callback when connection restored
-- [ ] Create `app/lib/shared/services/sync_service.dart`:
-  - Constructor takes: ApiClient, SyncQueueService, ConnectivityService
-  - `pushChanges()` — send queued items to `POST /api/v1/sync/push`, remove successful items from queue
-  - `pullChanges()` — fetch from `GET /api/v1/sync/pull?since=<lastSync>`, apply to local storage
-  - `syncAll()` — push then pull
-  - `getLastSyncTimestamp()` / `setLastSyncTimestamp()` — persist in SharedPreferences
-  - Retry logic with exponential backoff (1s, 2s, 4s, 8s, 16s)
-  - Listen to connectivity changes, auto-sync when online
-- [ ] Create `app/lib/providers/sync_provider.dart`:
-  - `syncStatusProvider` — enum: idle, syncing, error, offline
-  - `pendingChangesCountProvider` — count of queued items
-  - `lastSyncTimeProvider` — DateTime of last successful sync
-  - `syncServiceProvider` — singleton instance
-- [ ] `flutter build web` succeeds
-
-**Commit**: `feat(sync): add sync service with connectivity monitoring and auto-sync`
-
----
-
-## Phase 4: Integrate Sync into Existing Services
-
-**Goal**: Hook sync queue into all data mutation points across the app.
+**Current state**:
+- Cable attachment: model exists in `exercise_log.dart` (`CableAttachment` enum with 9 options including `ankleStrap`) but NO UI
+- Unilateral toggle: model field exists (`isUnilateral` on `ExerciseLog`) but NO UI
+- RPE: has full UI in `set_input_row.dart` (slider) but it's a small toggle that's easy to miss
+- Weight type: has full UI (chip selector) but users report it doesn't look like a button
 
 **Files to modify**:
-- `app/lib/shared/services/workout_history_service.dart`
+- `app/lib/features/workouts/screens/active_workout_screen.dart` — `_ExerciseCard` widget
+- `app/lib/features/workouts/widgets/set_input_row.dart` — integrate with new section
+- Create: `app/lib/features/workouts/widgets/exercise_settings_panel.dart` — new expandable panel
+
+**Tasks**:
+- [ ] Create `exercise_settings_panel.dart` — a collapsible panel widget that appears below the exercise header and above the sets list:
+  - Trigger: gear/settings icon button on the exercise card header (clearly labeled or with tooltip)
+  - When expanded, shows a labeled section with clear setting groups
+- [ ] **Cable Attachment Selector** (only show for cable exercises, check `Equipment.cable`):
+  - Row of selectable chips/toggles for: Rope, D-Handle, V-Bar, Wide Bar, Close Grip Bar, Straight Bar, EZ Bar, Ankle Strap, Stirrup
+  - Selected attachment highlighted with accent color
+  - Call `currentWorkoutProvider.notifier.updateCableAttachment(exerciseIndex, attachment)` on selection
+- [ ] **Unilateral Toggle**:
+  - Labeled switch/toggle: "Unilateral (single side)"
+  - Call `currentWorkoutProvider.notifier.toggleUnilateral(exerciseIndex)` on toggle
+  - When active, show indicator on exercise card header
+- [ ] **Weight Type Selector** (move from set_input_row into this panel):
+  - Clear labeled buttons: Absolute, Plates, Band, Bodyweight, Per Side
+  - Each with an icon and text label
+  - Applies to all sets in this exercise
+- [ ] **RPE Toggle** (move from set_input_row toggle):
+  - Labeled switch: "Track RPE"
+  - When enabled, RPE slider appears on each set input row (keep existing slider UI)
+  - When disabled, hide RPE from set rows
+- [ ] The gear icon should show a small dot/badge when any non-default settings are active (cable attachment selected, unilateral on, RPE tracking on, non-absolute weight type)
+- [ ] Ensure the panel animates open/close smoothly (`AnimatedCrossFade` or `AnimatedSize`)
+
+**Commit**: `feat(app): add expandable exercise settings panel with cable attachment, unilateral, RPE, weight type`
+
+---
+
+## Phase 4: Program & Template Improvements
+
+**Goal**: Add duplicate day functionality, auto-save templates to library, and multi-select exercise picker.
+
+### 4A: Duplicate Day in Program Creator
+
+**File**: `app/lib/features/programs/screens/create_program_screen.dart`
+
+**Tasks**:
+- [ ] Add a "Duplicate" action to each day card in the program creator (icon button or popup menu alongside the existing delete button)
+- [ ] When tapped, deep-copy the template at that index (new ID, same exercises/sets/reps) and append it to the `_templates` list
+- [ ] Increment the day number display (D1, D2... DN+1)
+- [ ] If duplicating would exceed `daysPerWeek`, show a snackbar: "Increase days per week to add more days"
+
+### 4B: Auto-Save Program Templates to Library
+
+**Files**:
+- `app/lib/features/programs/providers/user_programs_provider.dart`
 - `app/lib/features/templates/providers/templates_provider.dart`
-- `app/lib/shared/services/progression_state_service.dart`
-- `app/lib/features/periodization/providers/periodization_provider.dart`
-- `app/lib/features/settings/providers/settings_provider.dart`
-- `app/lib/features/measurements/` (if exists)
 
 **Tasks**:
-- [ ] Modify `WorkoutHistoryService`:
-  - Inject `SyncQueueService` via provider
-  - After `saveWorkout()` → `syncQueue.addToQueue(SyncQueueItem(entityType: workout, action: create, ...))`
-  - After `deleteWorkout()` → queue delete action
-  - Add `applyRemoteChanges(List<Change>)` method for incoming sync data
-- [ ] Modify `UserTemplatesNotifier` in templates_provider.dart:
-  - After `addTemplate()` → queue create
-  - After `updateTemplate()` → queue update
-  - After `deleteTemplate()` → queue delete
-- [ ] Modify `ProgressionStateService`:
-  - After `saveState()` → queue update
-  - Add method to apply remote progression states
-- [ ] Modify `MesocyclesNotifier` in periodization_provider.dart:
-  - After `createMesocycle()` → queue create
-  - After `startMesocycle()`, `advanceWeek()`, `abandonMesocycle()` → queue update
-- [ ] Modify settings provider (if exists) or create sync hook for user settings
-- [ ] `flutter build web` succeeds
+- [ ] When a program is saved (create or update), iterate through its templates
+- [ ] For each template, check if it already exists in the user's template library (by ID)
+- [ ] If not, save a copy to the template library via `templatesProvider.notifier.addTemplate()`
+- [ ] Set `programId` and `programName` on the saved template so the user knows where it came from
+- [ ] This means templates created inline during program creation automatically appear in the user's "My Templates" for reuse
 
-**Commit**: `feat(sync): integrate sync queue into all data mutation services`
+### 4C: Multi-Select Exercise Picker
+
+**File**: `app/lib/features/workouts/widgets/exercise_picker_modal.dart`
+
+**Tasks**:
+- [ ] Add a toggle at the top of the exercise picker: "Single select" / "Multi-select" (default: single for backward compatibility)
+- [ ] In multi-select mode:
+  - Tapping an exercise adds it to a selection list (shown as a chip bar at the bottom of the modal)
+  - Tapping a selected exercise removes it from the selection
+  - Show selected count badge
+  - "Add X Exercises" button at the bottom to confirm and close modal
+- [ ] Change the return type: `Future<List<Exercise>>` instead of `Future<Exercise?>`
+- [ ] Update all callers of `showExercisePicker()`:
+  - `create_template_screen.dart` — add all selected exercises
+  - `active_workout_screen.dart` — add all selected exercises to current workout
+  - Any other callers — search for `showExercisePicker` usage
+- [ ] Keep single-select as default behavior so existing UX isn't disrupted
+
+**Commit**: `feat(app): add duplicate day, auto-save templates to library, multi-select exercise picker`
 
 ---
 
-## Phase 5: App Lifecycle & Background Sync
+## Phase 5: AI Preferences & Per-Exercise Rep Overrides
 
-**Goal**: Trigger sync on app lifecycle events and add UI indicators.
+**Goal**: Add user settings for AI generation preferences and allow per-exercise rep ceiling overrides.
+
+### 5A: AI Generation Preferences in Settings
+
+**Files**:
+- `app/lib/features/settings/models/user_settings.dart`
+- `app/lib/features/settings/screens/settings_screen.dart`
+- `app/lib/shared/services/ai_generation_service.dart`
+
+**Tasks**:
+- [ ] Add to `UserSettings` model:
+  - `bool includeSetsInGeneration` (default: true)
+  - `bool includeRepsInGeneration` (default: true)
+  - `int? preferredSetCount` (nullable, e.g., 3 or 4)
+  - `int? preferredRepRangeMin` (nullable, e.g., 8)
+  - `int? preferredRepRangeMax` (nullable, e.g., 12)
+- [ ] Run code generation (`dart run build_runner build`) if using Freezed
+- [ ] Add an "AI Generation" section to the settings screen with:
+  - Toggle: "Include sets in generated workouts"
+  - Toggle: "Include reps in generated workouts"
+  - Number input: "Preferred set count" (only shown if include sets is on, can be left blank for AI default)
+  - Number inputs: "Preferred rep range" min-max (only shown if include reps is on)
+- [ ] In `ai_generation_service.dart`, read these settings and modify the AI system prompt:
+  - If `includeSetsInGeneration` is false, instruct AI to omit the Sets column
+  - If `includeRepsInGeneration` is false, instruct AI to omit the Reps column
+  - If `preferredSetCount` is set, include: "Use {N} sets per exercise"
+  - If rep range is set, include: "Use rep range {min}-{max}"
+
+### 5B: Per-Exercise Rep Ceiling Overrides
+
+**Files**:
+- `app/lib/features/workouts/models/exercise_log.dart` or create a new model
+- `app/lib/shared/services/weight_recommendation_service.dart`
+- `app/lib/features/workouts/screens/active_workout_screen.dart`
+
+**Tasks**:
+- [ ] Create a persistence model for per-exercise rep overrides. Add to SharedPreferences:
+  - Key: `exercise_rep_overrides_{userId}`
+  - Value: `Map<String, {repFloor: int, repCeiling: int}>` keyed by exerciseId
+- [ ] In the active workout screen, add a way to set rep ceiling override per exercise:
+  - Add "Set Rep Range" option to the exercise card menu (or in the new expandable settings panel from Phase 3)
+  - Opens a small dialog/bottom sheet with two number inputs: "Rep Floor" and "Rep Ceiling"
+  - Pre-fill with current defaults from training goal
+  - Save to the per-exercise override storage (globally, not per-workout)
+- [ ] In `weight_recommendation_service.dart`:
+  - Before using goal-based rep ranges, check if the exercise has a per-exercise override
+  - If override exists, use those values instead of the goal defaults
+  - This affects both the rep targets in recommendations and the progression phase detection
+- [ ] Show a visual indicator on the exercise card when a custom rep range is active (e.g., small badge showing "6-8" if overridden)
+
+**Commit**: `feat(app): add AI generation preferences and per-exercise rep ceiling overrides`
+
+---
+
+## Phase 6: Mesocycle-Program Full Integration
+
+**Goal**: Allow users to assign an existing program to a mesocycle. The mesocycle's weekly volume/intensity multipliers auto-generate modified workout templates.
 
 **Files to modify**:
-- `app/lib/main.dart` or `app/lib/app.dart`
-- `app/lib/features/settings/screens/settings_screen.dart`
-- Create `app/lib/shared/widgets/sync_status_indicator.dart`
+- `app/lib/features/periodization/models/mesocycle.dart`
+- `app/lib/features/periodization/screens/periodization_screen.dart`
+- `app/lib/features/periodization/providers/periodization_provider.dart`
+- `app/lib/features/templates/models/training_program.dart`
+- Create: `app/lib/features/periodization/services/mesocycle_program_service.dart`
 
 **Tasks**:
-- [ ] Add `WidgetsBindingObserver` to main app widget:
-  - On `resumed` (app foreground) → trigger `syncService.syncAll()`
-  - On `paused` (app background) → trigger `syncService.pushChanges()` if queue not empty
-- [ ] Create `SyncStatusIndicator` widget:
-  - Small icon showing: cloud-check (synced), cloud-sync (syncing), cloud-off (offline), cloud-alert (error)
-  - Show pending count badge when items queued
-  - Tap to trigger manual sync
-- [ ] Add `SyncStatusIndicator` to app bar (home screen or global)
-- [ ] Add sync section to settings screen:
-  - Last sync time display
-  - Manual "Sync Now" button
-  - Pending changes count
-  - "Clear sync queue" option (with confirmation)
-- [ ] `flutter build web` succeeds
+- [ ] Add to `Mesocycle` model:
+  - `String? assignedProgramId` — reference to a training program
+  - `String? assignedProgramName` — denormalized display name
+- [ ] Create `mesocycle_program_service.dart` with:
+  - `generateWeeklyTemplates(program, mesocycleWeek)` — takes a base program and a `MesocycleWeek`, returns modified templates where:
+    - Sets count = `round(baseTemplate.defaultSets * week.volumeMultiplier)` (minimum 1)
+    - Suggested weight adjusted by `week.intensityMultiplier`
+    - If `week.rirTarget` is set, pass it to the weight recommendation service
+    - Deload weeks (volumeMultiplier ~0.5) reduce sets and weight accordingly
+  - `getWorkoutForDay(mesocycle, dayNumber)` — resolves which program template to use for a given day in the mesocycle, applying the current week's multipliers
+- [ ] Add "Assign Program" UI to mesocycle creation/editing:
+  - On the create/edit mesocycle screen, add an optional "Training Program" picker
+  - Show list of user's programs (from `userProgramsProvider`)
+  - When a program is selected, display its template names as the weekly schedule
+  - Allow unassigning (set to null)
+- [ ] When starting a workout from a mesocycle with an assigned program:
+  - Use `getWorkoutForDay()` to get the modified template for today
+  - Pre-populate the workout with adjusted sets/reps/weight targets
+  - Show a badge: "Week X of Mesocycle — [Accumulation/Deload/etc.]"
+- [ ] On the periodization screen, when viewing an active mesocycle with a program:
+  - Show the program name
+  - Show today's scheduled workout template name
+  - Show current week's multipliers (volume %, intensity %)
 
-**Commit**: `feat(sync): add app lifecycle sync triggers and UI status indicator`
+**Commit**: `feat(app): integrate mesocycles with programs for auto-adjusted weekly templates`
 
 ---
 
-## Phase 6: Testing & Verification
+## Phase 7: UX Review & Polish
 
-**Goal**: Verify sync works end-to-end in various scenarios.
+**Goal**: Review the app for UX friction and fix issues found during exploration.
+
+**Known issues from codebase analysis**:
 
 **Tasks**:
-- [ ] Test offline queue:
-  - Enable airplane mode (or disconnect network)
-  - Complete a workout
-  - Check SharedPreferences for queued item
-  - Reconnect network
-  - Verify sync triggers automatically and queue empties
-  - Verify workout appears in database (check via Prisma Studio or API)
-- [ ] Test pull sync:
-  - Insert a workout directly in PostgreSQL via Prisma Studio
-  - Pull on app
-  - Verify workout appears in local workout history
-- [ ] Test conflict resolution:
-  - Create template locally
-  - Sync to server
-  - Modify template on server (change name, update lastModifiedAt)
-  - Modify same template locally with older timestamp
-  - Sync
-  - Verify server version wins (newer timestamp)
-- [ ] Test app lifecycle:
-  - Start workout, log some sets
-  - Background app
-  - Check logs for push attempt
-  - Resume app
-  - Check logs for full sync
-- [ ] Build and deploy:
-  - `cd app && flutter build web --release`
-  - `rm -rf ../backend/public/* && cp -r build/web/* ../backend/public/`
-  - Test on Railway deployment
-- [ ] `flutter build web` succeeds
+- [ ] **Card spacing consistency**: Audit all cards across the app. Standardize spacing to `SizedBox(height: 12)` between items within cards, `SizedBox(height: 16)` between cards. Focus on: home_screen.dart, periodization_screen.dart, weekly_report_screen.dart
+- [ ] **Elevation consistency**: Ensure all standard cards use default Card elevation. Only active/highlighted cards (current week, resume workout) should have elevated elevation (2-4)
+- [ ] **Border radius**: Verify all cards use `BorderRadius.circular(12)` consistently. Check for any mismatched values (some ListTiles use 16)
+- [ ] **Weekly report unit consistency**: In `weekly_report_screen.dart`, all volume and weight displays currently hardcode "kg" — use `userSettings.weightUnitString` everywhere
+- [ ] **Empty states**: Check that all list screens (templates, programs, workouts, exercises) have proper empty state illustrations/messages when no data exists
+- [ ] **Loading states**: Verify all async operations show loading indicators (especially AI generation, which can take 2-5 seconds)
+- [ ] **Touch targets**: Audit that all interactive elements meet minimum 48×48 touch targets (especially the set type chips, weight type selector, and RPE toggle)
+- [ ] **Error feedback**: Ensure failed operations show snackbar or dialog with clear error message (not silent failures)
 
-**Commit**: `test(sync): verify sync functionality across all scenarios`
+**Commit**: `fix(app): UX polish — consistent spacing, elevation, borders, unit display, empty/loading states`
 
 ---
 
 ## Post-Completion
 
-After all 6 phases:
-1. Run full `flutter build web` and copy to `backend/public/`
-2. Create final handover at `.claude/handover.md`
-3. Update `FEATURES.md` with sync feature documentation
-4. Final commit: `feat: PostgreSQL sync implementation complete`
-5. Push to remote: `git push`
+After all 7 phases:
+1. Run full `cd app && flutter build web --release`
+2. Copy build: `rm -rf backend/public/* && cp -r app/build/web/* backend/public/`
+3. Run `cd app && flutter test` — fix any failures
+4. Create final handover at `.claude/handover.md`
+5. Update `FEATURES.md` with all completed features
+6. Final commit: `feat: UX fixes, drop sets, exercise settings, program-mesocycle integration`
+7. Push to remote: `git push`
 
 ---
 
 ## Key Files Reference
 
-**Backend (new)**:
-| File | Purpose |
-|------|---------|
-| `backend/src/services/sync.service.ts` | Sync business logic, conflict resolution |
-| `backend/src/routes/sync.routes.ts` | POST /sync/push, GET /sync/pull endpoints |
-
-**Flutter (new)**:
-| File | Purpose |
-|------|---------|
-| `app/lib/shared/models/sync_queue_item.dart` | Queue item model with enums |
-| `app/lib/shared/services/sync_queue_service.dart` | Local queue persistence |
-| `app/lib/shared/services/sync_service.dart` | Sync orchestration |
-| `app/lib/shared/services/connectivity_service.dart` | Network monitoring |
-| `app/lib/providers/sync_provider.dart` | Riverpod providers for sync state |
-| `app/lib/shared/widgets/sync_status_indicator.dart` | UI indicator widget |
-
-**Modified**:
+**Models (modify)**:
 | File | Change |
 |------|--------|
-| `backend/prisma/schema.prisma` | Add lastModifiedAt, clientId fields |
-| `app/pubspec.yaml` | Add connectivity_plus |
-| `app/lib/shared/services/workout_history_service.dart` | Queue sync on mutations |
-| `app/lib/features/templates/providers/templates_provider.dart` | Queue sync on mutations |
-| `app/lib/shared/services/progression_state_service.dart` | Queue sync on mutations |
-| `app/lib/features/periodization/providers/periodization_provider.dart` | Queue sync on mutations |
+| `app/lib/features/workouts/models/exercise_set.dart` | Add dropSets field |
+| `app/lib/features/workouts/models/weight_input.dart` | Add perSide enum value |
+| `app/lib/features/exercises/models/exercise.dart` | Add smithMachine enum value |
+| `app/lib/features/settings/models/user_settings.dart` | Add AI gen prefs, keep rep range prefs |
+| `app/lib/features/periodization/models/mesocycle.dart` | Add assignedProgramId |
+| `app/lib/features/workouts/models/exercise_log.dart` | Cable attachment already exists, unilateral exists |
+
+**Providers (modify)**:
+| File | Change |
+|------|--------|
+| `app/lib/features/workouts/providers/current_workout_provider.dart` | Drop set methods, switch exercise UI hookup |
+| `app/lib/features/analytics/providers/weekly_report_provider.dart` | Fix score algorithm, fix PR display |
+| `app/lib/features/periodization/providers/periodization_provider.dart` | Program assignment |
+| `app/lib/features/programs/providers/user_programs_provider.dart` | Auto-save templates |
+
+**Screens/Widgets (modify)**:
+| File | Change |
+|------|--------|
+| `app/lib/features/workouts/screens/active_workout_screen.dart` | Switch exercise button, settings panel |
+| `app/lib/features/workouts/widgets/set_input_row.dart` | Drop set sub-rows, move settings to panel |
+| `app/lib/features/workouts/widgets/exercise_picker_modal.dart` | Multi-select mode |
+| `app/lib/features/periodization/screens/periodization_screen.dart` | Fix card layout, program assignment |
+| `app/lib/features/programs/screens/create_program_screen.dart` | Duplicate day button |
+| `app/lib/features/settings/screens/settings_screen.dart` | AI generation preferences |
+
+**New Files**:
+| File | Purpose |
+|------|---------|
+| `app/lib/features/workouts/widgets/exercise_settings_panel.dart` | Expandable settings (cable, unilateral, RPE, weight type) |
+| `app/lib/features/periodization/services/mesocycle_program_service.dart` | Program-mesocycle integration logic |
