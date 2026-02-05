@@ -18,14 +18,13 @@ FROM node:20-slim AS backend-build
 
 WORKDIR /app
 
-COPY backend/package.json backend/package-lock.json ./
+# Copy entire backend directory at once
+COPY backend/ ./
+
 RUN npm ci
 
-COPY backend/prisma ./prisma
 RUN npx prisma generate
 
-COPY backend/tsconfig.json ./
-COPY backend/src ./src
 RUN npx tsc
 
 # =============================================================================
@@ -37,6 +36,7 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 
 WORKDIR /app
 
+# Copy entire backend for package.json + prisma schema
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev
 
