@@ -132,6 +132,8 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
       createdAt: now,
       updatedAt: now,
       weeks: weeks,
+      assignedProgramId: config.assignedProgramId,
+      assignedProgramName: config.assignedProgramName,
     );
 
     state = AsyncValue.data([...state.valueOrNull ?? [], mesocycle]);

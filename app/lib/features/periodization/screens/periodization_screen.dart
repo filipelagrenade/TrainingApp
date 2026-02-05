@@ -8,8 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../programs/providers/user_programs_provider.dart';
+import '../../templates/models/training_program.dart';
 import '../models/mesocycle.dart';
 import '../providers/periodization_provider.dart';
+import '../services/mesocycle_program_service.dart';
 import '../widgets/week_card.dart';
 
 /// Main periodization planning screen.
@@ -259,6 +262,48 @@ class PeriodizationScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 20),
+
+            // Assigned program info
+            if (mesocycle.hasAssignedProgram) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.tertiaryContainer.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colors.tertiary.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.fitness_center,
+                      color: colors.tertiary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Program: ${mesocycle.assignedProgramName}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (mesocycle.currentWeekData != null)
+                            Text(
+                              '${(mesocycle.currentWeekData!.volumeMultiplier * 100).round()}% volume · ${(mesocycle.currentWeekData!.intensityMultiplier * 100).round()}% intensity',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             // Current week info
             if (mesocycle.currentWeekData != null) ...[
@@ -683,6 +728,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
   int _totalWeeks = 6;
   PeriodizationType _periodizationType = PeriodizationType.linear;
   DateTime _startDate = DateTime.now();
+  TrainingProgram? _selectedProgram;
 
   @override
   void dispose() {
@@ -710,7 +756,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
           children: [
             // Progress indicator
             Row(
-              children: List.generate(5, (i) {
+              children: List.generate(6, (i) {
                 return Expanded(
                   child: Container(
                     height: 4,
@@ -727,7 +773,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Step ${_currentStep + 1} of 5',
+              'Step ${_currentStep + 1} of 6',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -745,7 +791,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
             ),
             if (_currentStep > 0) const SizedBox(height: 8),
             Text(
-              const ['Select Goal', 'Duration', 'Periodization Type', 'Details', 'Review'][_currentStep],
+              const ['Select Goal', 'Duration', 'Periodization Type', 'Assign Program', 'Details', 'Review'][_currentStep],
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -754,8 +800,9 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
             if (_currentStep == 0) _buildGoalStep(theme),
             if (_currentStep == 1) _buildDurationStep(theme),
             if (_currentStep == 2) _buildPeriodizationStep(theme),
-            if (_currentStep == 3) _buildDetailsStep(theme),
-            if (_currentStep == 4) _buildReviewStep(theme),
+            if (_currentStep == 3) _buildProgramStep(theme),
+            if (_currentStep == 4) _buildDetailsStep(theme),
+            if (_currentStep == 5) _buildReviewStep(theme),
           ],
         ),
       ),
@@ -868,6 +915,129 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
     );
   }
 
+  Widget _buildProgramStep(ThemeData theme) {
+    final programs = ref.watch(userProgramsProvider);
+    final colors = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Optionally assign a training program to this mesocycle. '
+          'The program\'s workouts will be automatically adjusted based on each week\'s volume and intensity settings.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // No program option
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          color: _selectedProgram == null ? colors.primaryContainer : null,
+          child: ListTile(
+            leading: Icon(
+              _selectedProgram == null ? Icons.check_circle : Icons.circle_outlined,
+              color: _selectedProgram == null ? colors.primary : null,
+            ),
+            title: Text(
+              'No Program',
+              style: TextStyle(
+                fontWeight: _selectedProgram == null ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            subtitle: const Text('Create mesocycle without linking to a program'),
+            onTap: () {
+              setState(() => _selectedProgram = null);
+            },
+          ),
+        ),
+
+        if (programs.isEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: colors.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No programs created yet. You can create programs in the Programs section.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          const SizedBox(height: 8),
+          Text(
+            'Your Programs',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...programs.map((program) {
+            final isSelected = _selectedProgram?.id == program.id;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              color: isSelected ? colors.primaryContainer : null,
+              child: ListTile(
+                leading: Icon(
+                  isSelected ? Icons.check_circle : Icons.circle_outlined,
+                  color: isSelected ? colors.primary : null,
+                ),
+                title: Text(
+                  program.name,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                subtitle: Text(
+                  '${program.templates.length} workouts · ${program.daysPerWeek} days/week',
+                ),
+                trailing: isSelected
+                    ? Chip(
+                        label: Text(
+                          '${program.templates.length} templates',
+                          style: theme.textTheme.labelSmall,
+                        ),
+                        backgroundColor: colors.primary.withOpacity(0.1),
+                      )
+                    : null,
+                onTap: () {
+                  setState(() => _selectedProgram = program);
+                },
+              ),
+            );
+          }),
+        ],
+
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _onStepContinue,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Continue'),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDetailsStep(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -929,6 +1099,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
 
   Widget _buildReviewStep(ThemeData theme) {
     final endDate = _startDate.add(Duration(days: _totalWeeks * 7));
+    final colors = theme.colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -946,6 +1117,54 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
         _buildReviewRow('Type', _periodizationType.displayName),
         _buildReviewRow('Start', '${_startDate.day}/${_startDate.month}/${_startDate.year}'),
         _buildReviewRow('End', '${endDate.day}/${endDate.month}/${endDate.year}'),
+        _buildReviewRow('Program', _selectedProgram?.name ?? 'None'),
+
+        // Show program templates preview if assigned
+        if (_selectedProgram != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.tertiaryContainer.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.tertiary.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.fitness_center, size: 18, color: colors.tertiary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Program Templates',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: colors.tertiary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ...(_selectedProgram!.templates.take(4).map((t) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        '• ${t.name}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ))),
+                if (_selectedProgram!.templates.length > 4)
+                  Text(
+                    '+ ${_selectedProgram!.templates.length - 4} more',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -977,7 +1196,7 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
   }
 
   void _onStepContinue() {
-    if (_currentStep == 4) {
+    if (_currentStep == 5) {
       // Create the mesocycle
       _createMesocycle();
     } else {
@@ -1003,14 +1222,17 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
       totalWeeks: _totalWeeks,
       periodizationType: _periodizationType,
       goal: _selectedGoal,
+      assignedProgramId: _selectedProgram?.id,
+      assignedProgramName: _selectedProgram?.name,
     );
 
     await ref.read(mesocyclesProvider.notifier).createMesocycle(config);
 
     if (mounted) {
       Navigator.of(context).pop();
+      final programSuffix = _selectedProgram != null ? ' with ${_selectedProgram!.name}' : '';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Mesocycle "$name" created!')),
+        SnackBar(content: Text('Mesocycle "$name" created$programSuffix!')),
       );
     }
   }

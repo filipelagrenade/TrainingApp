@@ -284,6 +284,14 @@ class Mesocycle with _$Mesocycle {
 
     /// The weeks within this mesocycle.
     @Default([]) List<MesocycleWeek> weeks,
+
+    /// ID of the assigned training program (optional).
+    /// When set, this mesocycle follows the program's templates with
+    /// weekly adjustments based on volume/intensity multipliers.
+    String? assignedProgramId,
+
+    /// Denormalized name of the assigned program for display.
+    String? assignedProgramName,
   }) = _Mesocycle;
 
   factory Mesocycle.fromJson(Map<String, dynamic> json) =>
@@ -326,6 +334,9 @@ extension MesocycleExtension on Mesocycle {
     if (totalWeeks == 0) return 0;
     return totalWeeks - currentWeek + 1;
   }
+
+  /// Whether this mesocycle has an assigned training program.
+  bool get hasAssignedProgram => assignedProgramId != null;
 }
 
 /// Configuration for creating a new mesocycle.
@@ -349,6 +360,12 @@ class MesocycleConfig with _$MesocycleConfig {
 
     /// Training goal.
     required MesocycleGoal goal,
+
+    /// Optional program ID to assign to this mesocycle.
+    String? assignedProgramId,
+
+    /// Optional program name to assign (denormalized).
+    String? assignedProgramName,
   }) = _MesocycleConfig;
 
   factory MesocycleConfig.fromJson(Map<String, dynamic> json) =>
