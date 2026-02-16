@@ -185,33 +185,59 @@ class SyncService {
     change: SyncChangeItem
   ): Promise<SyncChangeResult> {
     const changeTime = new Date(change.lastModifiedAt);
+    let result: SyncChangeResult;
 
     switch (change.entityType) {
       case 'workout':
-        return this.processWorkoutChange(userId, change, changeTime);
+        result = await this.processWorkoutChange(userId, change, changeTime);
+        break;
       case 'template':
-        return this.processTemplateChange(userId, change, changeTime);
+        result = await this.processTemplateChange(userId, change, changeTime);
+        break;
       case 'measurement':
-        return this.processMeasurementChange(userId, change, changeTime);
+        result = await this.processMeasurementChange(userId, change, changeTime);
+        break;
       case 'mesocycle':
-        return this.processMesocycleChange(userId, change, changeTime);
+        result = await this.processMesocycleChange(userId, change, changeTime);
+        break;
       case 'mesocycleWeek':
-        return this.processMesocycleWeekChange(userId, change, changeTime);
+        result = await this.processMesocycleWeekChange(userId, change, changeTime);
+        break;
       case 'settings':
-        return this.processSettingsChange(userId, change, changeTime);
+        result = await this.processSettingsChange(userId, change, changeTime);
+        break;
       case 'exercise':
-        return this.processExerciseChange(userId, change, changeTime);
+        result = await this.processExerciseChange(userId, change, changeTime);
+        break;
+      case 'program':
+        result = await this.processProgramChange(userId, change, changeTime);
+        break;
       case 'achievement':
       case 'progression':
-      case 'program':
       case 'chatHistory':
-        // These entity types are accepted but not yet stored in PostgreSQL.
-        // Return success so the client clears them from its queue.
-        logger.info({ entityType: change.entityType, entityId: change.entityId, userId }, 'Sync accepted (no-op entity type)');
-        return { id: change.id, success: true, serverTimestamp: new Date().toISOString() };
+        // These entity types are stored only in sync mirror storage.
+        result = { id: change.id, success: true, serverTimestamp: new Date().toISOString() };
+        break;
       default:
         throw new ValidationError(`Unknown entity type: ${change.entityType}`);
     }
+
+    // Persist a full-fidelity mirror payload for ALL entity types so clients
+    // can fully restore from server even when relational models are partial.
+    if (change.action === 'delete') {
+      await this.deleteSyncedEntity(userId, change.entityType, change.entityId);
+    } else {
+      await this.upsertSyncedEntity(
+        userId,
+        change.entityType,
+        change.entityId,
+        (change.data ?? result.entity ?? {}) as Record<string, unknown>,
+        change.clientId,
+        changeTime
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -760,6 +786,87 @@ class SyncService {
     }
   }
 
+  /**
+   * Processes a user program change.
+   *
+   * Program payloads are stored as JSON snapshots for reliable
+   * offline-first restore across devices and browser cache clears.
+   */
+  private async processProgramChange(
+    userId: string,
+    change: SyncChangeItem,
+    changeTime: Date
+  ): Promise<SyncChangeResult> {
+    if (change.action === 'delete') {
+      await prisma.syncedProgram.deleteMany({
+        where: {
+          userId,
+          externalId: change.entityId,
+        },
+      });
+
+      logger.info({ programId: change.entityId, userId }, 'Program deleted via sync');
+      return { id: change.id, success: true, serverTimestamp: new Date().toISOString() };
+    }
+
+    const existing = await prisma.syncedProgram.findUnique({
+      where: {
+        userId_externalId: {
+          userId,
+          externalId: change.entityId,
+        },
+      },
+    });
+
+    const payload = (change.data ?? {}) as Prisma.JsonObject;
+
+    if (existing) {
+      if (existing.lastModifiedAt > changeTime) {
+        return {
+          id: change.id,
+          success: true,
+          entity: existing.data as unknown as Record<string, unknown>,
+          serverTimestamp: existing.lastModifiedAt.toISOString(),
+        };
+      }
+
+      const updated = await prisma.syncedProgram.update({
+        where: { id: existing.id },
+        data: {
+          data: payload,
+          clientId: change.clientId,
+          lastModifiedAt: changeTime,
+        },
+      });
+
+      logger.info({ programId: change.entityId, userId }, 'Program updated via sync');
+      return {
+        id: change.id,
+        success: true,
+        entity: updated.data as unknown as Record<string, unknown>,
+        serverTimestamp: updated.lastModifiedAt.toISOString(),
+      };
+    }
+
+    const created = await prisma.syncedProgram.create({
+      data: {
+        userId,
+        externalId: change.entityId,
+        data: payload,
+        clientId: change.clientId,
+        lastModifiedAt: changeTime,
+      },
+    });
+
+    logger.info({ programId: change.entityId, userId }, 'Program created via sync');
+    return {
+      id: change.id,
+      success: true,
+      entity: created.data as unknown as Record<string, unknown>,
+      serverTimestamp: created.lastModifiedAt.toISOString(),
+    };
+  }
+
   // ==========================================================================
   // PULL METHODS
   // ==========================================================================
@@ -779,7 +886,7 @@ class SyncService {
     const changes: SyncPullResult['changes'] = [];
 
     // Fetch all modified entities since the timestamp
-    const [workouts, templates, measurements, mesocycles, mesocycleWeeks, exercises] =
+    const [workouts, templates, measurements, mesocycles, mesocycleWeeks, exercises, programs, syncedEntities] =
       await Promise.all([
         prisma.workoutSession.findMany({
           where: {
@@ -816,6 +923,18 @@ class SyncService {
             createdBy: userId,
             isCustom: true,
             updatedAt: { gt: sinceDate },
+          },
+        }),
+        prisma.syncedProgram.findMany({
+          where: {
+            userId,
+            lastModifiedAt: { gt: sinceDate },
+          },
+        }),
+        prisma.syncedEntity.findMany({
+          where: {
+            userId,
+            lastModifiedAt: { gt: sinceDate },
           },
         }),
       ]);
@@ -881,15 +1000,101 @@ class SyncService {
       });
     }
 
+    for (const program of programs) {
+      changes.push({
+        entityType: 'program',
+        entityId: program.externalId,
+        action: 'update',
+        data: program.data as unknown as Record<string, unknown>,
+        lastModifiedAt: program.lastModifiedAt.toISOString(),
+      });
+    }
+
+    // SyncedEntity is the source of truth for full payload restore.
+    // It overrides sparse relational pull payloads when both exist.
+    for (const entity of syncedEntities) {
+      changes.push({
+        entityType: entity.entityType as SyncEntityType,
+        entityId: entity.externalId,
+        action: 'update',
+        data: entity.data as unknown as Record<string, unknown>,
+        lastModifiedAt: entity.lastModifiedAt.toISOString(),
+      });
+    }
+
+    const deduped = new Map<string, SyncPullResult['changes'][number]>();
+    for (const change of changes) {
+      const key = `${change.entityType}:${change.entityId}`;
+      const existing = deduped.get(key);
+      if (!existing) {
+        deduped.set(key, change);
+        continue;
+      }
+
+      const existingTs = new Date(existing.lastModifiedAt).getTime();
+      const nextTs = new Date(change.lastModifiedAt).getTime();
+      if (nextTs >= existingTs) {
+        deduped.set(key, change);
+      }
+    }
+
+    const finalChanges = Array.from(deduped.values());
+
     logger.info(
-      { userId, since, changeCount: changes.length },
+      { userId, since, changeCount: finalChanges.length },
       'Pull sync: returning changes'
     );
 
     return {
-      changes,
+      changes: finalChanges,
       serverTime: new Date().toISOString(),
     };
+  }
+
+  private async upsertSyncedEntity(
+    userId: string,
+    entityType: SyncEntityType,
+    externalId: string,
+    data: Record<string, unknown>,
+    clientId: string | undefined,
+    lastModifiedAt: Date
+  ): Promise<void> {
+    await prisma.syncedEntity.upsert({
+      where: {
+        userId_entityType_externalId: {
+          userId,
+          entityType,
+          externalId,
+        },
+      },
+      create: {
+        userId,
+        entityType,
+        externalId,
+        data: data as Prisma.JsonObject,
+        clientId,
+        lastModifiedAt,
+      },
+      update: {
+        data: data as Prisma.JsonObject,
+        clientId,
+        lastModifiedAt,
+      },
+    });
+  }
+
+  private async deleteSyncedEntity(
+    userId: string,
+    entityType: SyncEntityType,
+    externalId: string
+  ): Promise<void> {
+    await prisma.syncedEntity.deleteMany({
+      where: {
+        userId,
+        entityType,
+        externalId,
+      },
+    });
   }
 
   // ==========================================================================

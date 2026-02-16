@@ -75,9 +75,9 @@ class HydrationService {
       debugPrint('HydrationService: Hydration complete - '
           '$successCount/${results.length} endpoints succeeded');
 
-      // Set last sync timestamp so future syncs are incremental
-      final lastSyncKey = SyncStorageKeys.lastSyncTimestamp(_userId);
-      await prefs.setString(lastSyncKey, DateTime.now().toUtc().toIso8601String());
+      // Do not set last-sync here. A full sync pass must run immediately
+      // after hydration so entities not covered by hydrate endpoints are
+      // still restored from the server.
     } catch (e) {
       debugPrint('HydrationService: Hydration failed: $e');
     }
@@ -130,6 +130,9 @@ class HydrationService {
       UserStorageKeys.customTemplates(_userId): SyncEntityType.template,
       UserStorageKeys.measurements(_userId): SyncEntityType.measurement,
       UserStorageKeys.customExercises(_userId): SyncEntityType.exercise,
+      UserStorageKeys.customPrograms(_userId): SyncEntityType.program,
+      UserStorageKeys.achievements(_userId): SyncEntityType.achievement,
+      UserStorageKeys.aiChatHistory(_userId): SyncEntityType.chatHistory,
     };
 
     for (final entry in keyTypeMap.entries) {
@@ -161,6 +164,30 @@ class HydrationService {
         }
       } catch (e) {
         debugPrint('HydrationService: Error reading ${entry.key}: $e');
+      }
+    }
+
+    // Push progression states (stored as per-exercise keys).
+    final progressionIds = prefs.getStringList(
+      UserStorageKeys.progressionStateIds(_userId),
+    );
+    if (progressionIds != null) {
+      for (final exerciseId in progressionIds) {
+        final progressionKey = 'progression_state_${_userId}_$exerciseId';
+        final progressionJson = prefs.getString(progressionKey);
+        if (progressionJson == null || progressionJson.isEmpty) continue;
+        try {
+          final progressionData = jsonDecode(progressionJson) as Map<String, dynamic>;
+          await queueService.addToQueue(SyncQueueItem(
+            entityType: SyncEntityType.progression,
+            action: SyncAction.update,
+            entityId: exerciseId,
+            data: progressionData,
+          ));
+          totalQueued++;
+        } catch (e) {
+          debugPrint('HydrationService: Error reading progression $exerciseId: $e');
+        }
       }
     }
 

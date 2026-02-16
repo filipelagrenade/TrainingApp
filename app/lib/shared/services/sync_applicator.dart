@@ -32,6 +32,11 @@ class SyncApplicator {
     try {
       final storageKey = _storageKeyForEntityType(change.entityType);
       if (storageKey == null) {
+        if (change.entityType == SyncEntityType.progression) {
+          final prefs = await SharedPreferences.getInstance();
+          await _applyProgressionChange(prefs, change);
+          return true;
+        }
         debugPrint('SyncApplicator: No storage key for ${change.entityType.apiName}');
         return false;
       }
@@ -39,9 +44,23 @@ class SyncApplicator {
       final prefs = await SharedPreferences.getInstance();
 
       if (change.action == SyncAction.delete) {
+        if (change.entityType == SyncEntityType.settings) {
+          await prefs.remove(storageKey);
+          return true;
+        }
         await _deleteFromList(prefs, storageKey, change.entityId);
       } else {
-        await _upsertInList(prefs, storageKey, change.entityId, change.data);
+        if (change.entityType == SyncEntityType.settings) {
+          await prefs.setString(storageKey, jsonEncode(change.data));
+          return true;
+        }
+        await _upsertInList(
+          prefs,
+          storageKey,
+          change.entityId,
+          change.data,
+          mergeWithExisting: change.entityType == SyncEntityType.workout,
+        );
       }
 
       return true;
@@ -90,7 +109,9 @@ class SyncApplicator {
     SharedPreferences prefs,
     String key,
     String entityId,
-    Map<String, dynamic> data,
+    Map<String, dynamic> data, {
+    bool mergeWithExisting = false,
+    }
   ) async {
     final list = _readList(prefs, key);
 
@@ -99,8 +120,20 @@ class SyncApplicator {
       (item) => item['id'] == entityId,
     );
 
-    // Ensure the data has an id field
-    final entityData = Map<String, dynamic>.from(data);
+    // Ensure the data has an id field.
+    // For sparse server payloads, optionally merge into existing entity so
+    // we don't lose richer local fields.
+    final entityData = <String, dynamic>{};
+    if (mergeWithExisting && existingIndex >= 0) {
+      entityData.addAll(list[existingIndex]);
+      for (final entry in data.entries) {
+        if (entry.value != null) {
+          entityData[entry.key] = entry.value;
+        }
+      }
+    } else {
+      entityData.addAll(data);
+    }
     entityData['id'] = entityId;
 
     if (existingIndex >= 0) {
@@ -111,6 +144,29 @@ class SyncApplicator {
 
     await _writeList(prefs, key, list);
     debugPrint('SyncApplicator: Upserted $entityId in $key');
+  }
+
+  /// Applies progression state sync for per-exercise progression keys.
+  Future<void> _applyProgressionChange(
+    SharedPreferences prefs,
+    SyncPullChange change,
+  ) async {
+    final idsKey = UserStorageKeys.progressionStateIds(userId);
+    final progressionKey = 'progression_state_${userId}_${change.entityId}';
+    final currentIds = prefs.getStringList(idsKey) ?? <String>[];
+
+    if (change.action == SyncAction.delete) {
+      await prefs.remove(progressionKey);
+      currentIds.removeWhere((id) => id == change.entityId);
+      await prefs.setStringList(idsKey, currentIds);
+      return;
+    }
+
+    await prefs.setString(progressionKey, jsonEncode(change.data));
+    if (!currentIds.contains(change.entityId)) {
+      currentIds.add(change.entityId);
+      await prefs.setStringList(idsKey, currentIds);
+    }
   }
 
   /// Deletes an entity from a JSON list stored at [key].

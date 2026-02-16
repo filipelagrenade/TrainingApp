@@ -235,9 +235,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
 
       // Get the actual current exercise index from state
       final currentState = state;
-      final exerciseIndex = currentState is ActiveWorkout
-          ? currentState.currentExerciseIndex
-          : 0;
+      final exerciseIndex =
+          currentState is ActiveWorkout ? currentState.currentExerciseIndex : 0;
 
       // Use the actual current exercise, not just the last one
       final currentExercise = workout.exerciseLogs.isNotEmpty
@@ -357,7 +356,9 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     _updateWorkoutNotification(workout);
 
     // Generate weight recommendations if we have template data
-    if (templateId != null && templateExercises != null && templateExercises.isNotEmpty) {
+    if (templateId != null &&
+        templateExercises != null &&
+        templateExercises.isNotEmpty) {
       _generateRecommendations(
         templateId: templateId,
         templateName: templateName ?? 'Workout',
@@ -378,14 +379,17 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     int? programWeek,
   }) async {
     try {
-      await ref.read(workoutRecommendationsProvider.notifier).generateForTemplate(
-        templateId: templateId,
-        templateName: templateName,
-        exercises: exercises,
-        programWeek: programWeek,
-      );
+      await ref
+          .read(workoutRecommendationsProvider.notifier)
+          .generateForTemplate(
+            templateId: templateId,
+            templateName: templateName,
+            exercises: exercises,
+            programWeek: programWeek,
+          );
     } catch (e) {
-      debugPrint('CurrentWorkoutNotifier: Error generating recommendations: $e');
+      debugPrint(
+          'CurrentWorkoutNotifier: Error generating recommendations: $e');
       // Don't fail the workout start if recommendations fail
     }
   }
@@ -396,9 +400,9 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   void _generateExerciseRecommendation(String exerciseId, String exerciseName) {
     // Fire and forget - don't block UI
     ref.read(workoutRecommendationsProvider.notifier).generateForExercise(
-      exerciseId: exerciseId,
-      exerciseName: exerciseName,
-    );
+          exerciseId: exerciseId,
+          exerciseName: exerciseName,
+        );
   }
 
   /// Manually triggers recommendation generation for the current workout.
@@ -412,7 +416,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
 
     final workout = currentState.workout;
     if (workout.templateId == null) {
-      debugPrint('CurrentWorkoutNotifier: Cannot generate recommendations without template');
+      debugPrint(
+          'CurrentWorkoutNotifier: Cannot generate recommendations without template');
       return;
     }
 
@@ -485,12 +490,13 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
             'Week ${completedWorkout.programWeek}, Day ${completedWorkout.programDay}',
           );
           await ref.read(activeProgramProvider.notifier).recordCompletedWorkout(
-            workoutId: completedWorkout.id ?? '',
-            week: completedWorkout.programWeek!,
-            day: completedWorkout.programDay!,
-          );
+                workoutId: completedWorkout.id ?? '',
+                week: completedWorkout.programWeek!,
+                day: completedWorkout.programDay!,
+              );
         } catch (e) {
-          debugPrint('CurrentWorkoutNotifier: Program progress update failed: $e');
+          debugPrint(
+              'CurrentWorkoutNotifier: Program progress update failed: $e');
         }
       }
 
@@ -509,7 +515,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       try {
         await _clearPersistedWorkout();
       } catch (e) {
-        debugPrint('CurrentWorkoutNotifier: Clear persisted workout failed: $e');
+        debugPrint(
+            'CurrentWorkoutNotifier: Clear persisted workout failed: $e');
       }
 
       // Stop rest timer and clear its notification
@@ -624,9 +631,10 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     final updatedWorkout = currentState.workout.addExercise(exerciseLog);
 
     // Track modification if this is a template-based workout AND exercise was added by user (not from template)
-    final updatedModifications = currentState.workout.templateId != null && !fromTemplate
-        ? currentState.modifications.addExercise(exerciseName)
-        : currentState.modifications;
+    final updatedModifications =
+        currentState.workout.templateId != null && !fromTemplate
+            ? currentState.modifications.addExercise(exerciseName)
+            : currentState.modifications;
 
     state = currentState.copyWith(
       workout: updatedWorkout,
@@ -697,10 +705,10 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     if (newIndex < 0) newIndex = 0;
 
     // Track modification if this is a template-based workout
-    final updatedModifications = currentState.workout.templateId != null &&
-            exerciseName != null
-        ? currentState.modifications.removeExercise(exerciseName)
-        : currentState.modifications;
+    final updatedModifications =
+        currentState.workout.templateId != null && exerciseName != null
+            ? currentState.modifications.removeExercise(exerciseName)
+            : currentState.modifications;
 
     state = currentState.copyWith(
       workout: updatedWorkout,
@@ -943,6 +951,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     int? reps,
     double? rpe,
     SetType? setType,
+    WeightInputType? weightType,
+    BandResistance? bandResistance,
   }) {
     final currentState = state;
     if (currentState is! ActiveWorkout) return;
@@ -965,7 +975,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     List<DropSetEntry> dropSets = existingSet.dropSets;
 
     // Auto-generate drops when switching TO dropset type
-    if (newSetType == SetType.dropset && existingSet.setType != SetType.dropset) {
+    if (newSetType == SetType.dropset &&
+        existingSet.setType != SetType.dropset) {
       dropSets = [
         DropSetEntry(weight: _roundWeight(newWeight * 0.8)),
         DropSetEntry(weight: _roundWeight(newWeight * 0.6)),
@@ -973,7 +984,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       ];
     }
     // Clear drops when switching AWAY from dropset type
-    else if (newSetType != SetType.dropset && existingSet.setType == SetType.dropset) {
+    else if (newSetType != SetType.dropset &&
+        existingSet.setType == SetType.dropset) {
       dropSets = [];
     }
     // Recalculate drops proportionally when main weight changes
@@ -996,6 +1008,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       reps: reps ?? existingSet.reps,
       rpe: rpe ?? existingSet.rpe,
       setType: newSetType,
+      weightType: weightType ?? existingSet.weightType,
+      bandResistance: bandResistance?.name ?? existingSet.bandResistance,
       dropSets: dropSets,
     );
 
@@ -1071,7 +1085,10 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
         : mainSet.weight;
     final newDropWeight = _roundWeight(lastDropWeight * 0.8);
 
-    final updatedDrops = [...mainSet.dropSets, DropSetEntry(weight: newDropWeight)];
+    final updatedDrops = [
+      ...mainSet.dropSets,
+      DropSetEntry(weight: newDropWeight)
+    ];
     final updatedSet = mainSet.copyWith(dropSets: updatedDrops);
     final updatedExercise = exercise.updateSet(setIndex, updatedSet);
     final updatedWorkout = currentState.workout.updateExercise(
@@ -1339,7 +1356,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   /// For each exercise, we analyze the session performance and update
   /// the phase state machine (building → readyToProgress → justProgressed, etc.)
   Future<void> _updateProgressionStates(WorkoutSession workout) async {
-    final progressionNotifier = ref.read(progressionStateNotifierProvider.notifier);
+    final progressionNotifier =
+        ref.read(progressionStateNotifierProvider.notifier);
 
     for (final exerciseLog in workout.exerciseLogs) {
       // Skip cardio exercises - they don't use progression tracking
@@ -1393,9 +1411,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
   /// The save operation runs in the background to avoid blocking the UI.
   void _persistWorkout(WorkoutSession workout) {
     final currentState = state;
-    final exerciseIndex = currentState is ActiveWorkout
-        ? currentState.currentExerciseIndex
-        : 0;
+    final exerciseIndex =
+        currentState is ActiveWorkout ? currentState.currentExerciseIndex : 0;
 
     // Save asynchronously to avoid blocking UI
     _persistenceService.saveActiveWorkout(

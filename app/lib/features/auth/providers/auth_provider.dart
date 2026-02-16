@@ -289,6 +289,8 @@ final currentUserIdProvider = Provider<String?>((ref) {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
   final Ref _ref;
+  final Set<String> _postLoginSyncInFlight = <String>{};
+  static const int _maxPostLoginSyncAttempts = 4;
 
   AuthNotifier(this._authService, this._ref) : super(const Unauthenticated()) {
     _init();
@@ -299,8 +301,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _authService.authStateChanges.listen((user) {
       if (user != null) {
         state = Authenticated(user);
+        _hydrateAfterLogin(user.uid);
       } else {
         state = const Unauthenticated();
+        _postLoginSyncInFlight.clear();
       }
     });
 
@@ -308,6 +312,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final currentUser = _authService.currentUser;
     if (currentUser != null) {
       state = Authenticated(currentUser);
+      _hydrateAfterLogin(currentUser.uid);
     }
   }
 
@@ -367,23 +372,51 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Hydrates local storage from backend after login.
   Future<void> _hydrateAfterLogin(String userId) async {
+    if (_postLoginSyncInFlight.contains(userId)) {
+      return;
+    }
+    _postLoginSyncInFlight.add(userId);
+
     try {
       final alreadyHydrated = await HydrationService.hasBeenHydrated(userId);
-      if (!alreadyHydrated) {
-        debugPrint('AuthNotifier: First login on this device, hydrating...');
-        final hydrationService = _ref.read(hydrationServiceProvider);
-        await hydrationService.hydrateAll();
+      final syncService = _ref.read(syncServiceProvider);
+      final hydrationService = _ref.read(hydrationServiceProvider);
 
-        // Bump sync version so providers re-read
-        _ref.read(syncVersionProvider.notifier).state++;
-      } else {
-        // Already hydrated, just do a normal sync
-        debugPrint('AuthNotifier: Already hydrated, running incremental sync');
-        final syncService = _ref.read(syncServiceProvider);
-        syncService.syncAll();
+      var didHydrate = false;
+      for (var attempt = 1; attempt <= _maxPostLoginSyncAttempts; attempt++) {
+        if (!alreadyHydrated && !didHydrate) {
+          debugPrint(
+            'AuthNotifier: First login on this device, hydrating '
+            '(attempt $attempt/$_maxPostLoginSyncAttempts)',
+          );
+          await hydrationService.hydrateAll();
+          didHydrate = true;
+        } else {
+          debugPrint(
+            'AuthNotifier: Running post-login sync '
+            '(attempt $attempt/$_maxPostLoginSyncAttempts)',
+          );
+        }
+
+        final synced = await syncService.syncAll();
+        if (synced) {
+          // Bump sync version so providers re-read from storage.
+          _ref.read(syncVersionProvider.notifier).state++;
+          return;
+        }
+
+        if (attempt < _maxPostLoginSyncAttempts) {
+          await Future.delayed(Duration(milliseconds: 400 * attempt));
+        }
       }
+
+      debugPrint(
+        'AuthNotifier: Post-login sync failed after $_maxPostLoginSyncAttempts attempts',
+      );
     } catch (e) {
       debugPrint('AuthNotifier: Post-login hydration/sync error: $e');
+    } finally {
+      _postLoginSyncInFlight.remove(userId);
     }
   }
 

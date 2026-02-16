@@ -70,9 +70,20 @@ class WorkoutHistoryService {
       final workoutsJson = prefs.getString(_storageKey);
       if (workoutsJson != null) {
         final decoded = jsonDecode(workoutsJson) as List<dynamic>;
-        _workouts = decoded
-            .map((w) => CompletedWorkout.fromJson(w as Map<String, dynamic>))
-            .toList();
+        final parsed = <CompletedWorkout>[];
+        for (final item in decoded) {
+          if (item is! Map) continue;
+          try {
+            parsed.add(
+              CompletedWorkout.fromJson(Map<String, dynamic>.from(item)),
+            );
+          } catch (e) {
+            debugPrint(
+              'WorkoutHistoryService: Skipping invalid workout payload: $e',
+            );
+          }
+        }
+        _workouts = parsed;
       }
 
       // Load PRs
@@ -925,21 +936,75 @@ class CompletedWorkout {
   }
 
   factory CompletedWorkout.fromJson(Map<String, dynamic> json) {
+    DateTime _parseDate(dynamic value, {DateTime? fallback}) {
+      if (value is String && value.isNotEmpty) {
+        return DateTime.tryParse(value) ?? fallback ?? DateTime.now();
+      }
+      return fallback ?? DateTime.now();
+    }
+
+    int _toInt(dynamic value, {int fallback = 0}) {
+      if (value is int) return value;
+      if (value is num) return value.round();
+      return fallback;
+    }
+
+    final rawExercises = (json['exercises'] as List?) ?? const [];
+    final parsedExercises = <CompletedExercise>[];
+    for (var i = 0; i < rawExercises.length; i++) {
+      final raw = rawExercises[i];
+      if (raw is! Map) continue;
+      try {
+        parsedExercises.add(
+          CompletedExercise.fromJson(Map<String, dynamic>.from(raw)),
+        );
+      } catch (_) {
+        // Fallback for lightweight backend summary payloads.
+        final name = (raw['exerciseName'] ?? raw['name'] ?? 'Exercise') as String;
+        final muscles = ((raw['primaryMuscles'] ?? raw['muscles']) as List?)
+                ?.whereType<String>()
+                .toList() ??
+            const <String>[];
+        parsedExercises.add(
+          CompletedExercise(
+            exerciseId: (raw['exerciseId'] ?? 'unknown-$i') as String,
+            exerciseName: name,
+            primaryMuscles: muscles,
+            completedSets: _toInt(raw['completedSets'], fallback: 0),
+            volume: _toInt(raw['volume'], fallback: 0),
+            sets: const [],
+          ),
+        );
+      }
+    }
+
+    final startedAt = _parseDate(json['startedAt']);
+    final completedAt = _parseDate(json['completedAt'], fallback: startedAt);
+    final durationMinutes = _toInt(
+      json['durationMinutes'] ?? ((json['durationSeconds'] as num?)?.toDouble() ?? 0) / 60,
+      fallback: 0,
+    );
+    final muscleGroups = (json['muscleGroups'] as List?)
+            ?.whereType<String>()
+            .toList() ??
+        parsedExercises
+            .expand((e) => e.primaryMuscles)
+            .toSet()
+            .toList();
+
     return CompletedWorkout(
       id: json['id'] as String,
-      userId: json['userId'] as String,
+      userId: (json['userId'] as String?) ?? offlineModeUserId,
       templateId: json['templateId'] as String?,
       templateName: json['templateName'] as String?,
-      startedAt: DateTime.parse(json['startedAt'] as String),
-      completedAt: DateTime.parse(json['completedAt'] as String),
-      durationMinutes: json['durationMinutes'] as int,
-      totalVolume: json['totalVolume'] as int,
-      totalSets: json['totalSets'] as int,
-      prsAchieved: json['prsAchieved'] as int,
-      muscleGroups: (json['muscleGroups'] as List).cast<String>(),
-      exercises: (json['exercises'] as List)
-          .map((e) => CompletedExercise.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      startedAt: startedAt,
+      completedAt: completedAt,
+      durationMinutes: durationMinutes,
+      totalVolume: _toInt(json['totalVolume'], fallback: 0),
+      totalSets: _toInt(json['totalSets'] ?? json['setCount'], fallback: 0),
+      prsAchieved: _toInt(json['prsAchieved'] ?? json['prCount'], fallback: 0),
+      muscleGroups: muscleGroups,
+      exercises: parsedExercises,
       notes: json['notes'] as String?,
       rating: json['rating'] as int?,
     );
@@ -1007,22 +1072,58 @@ class CompletedExercise {
   });
 
   factory CompletedExercise.fromJson(Map<String, dynamic> json) {
+    int _toInt(dynamic value, {int fallback = 0}) {
+      if (value is int) return value;
+      if (value is num) return value.round();
+      return fallback;
+    }
+
+    final setsRaw = (json['sets'] as List?) ?? const [];
+    final parsedSets = <CompletedSet>[];
+    for (final setRaw in setsRaw) {
+      if (setRaw is! Map) continue;
+      try {
+        parsedSets.add(
+          CompletedSet.fromJson(Map<String, dynamic>.from(setRaw)),
+        );
+      } catch (_) {
+        // Ignore malformed set payloads.
+      }
+    }
+
+    final cardioSetsRaw = (json['cardioSets'] as List?) ?? const [];
+    final parsedCardioSets = <CompletedCardioSet>[];
+    for (final cardioRaw in cardioSetsRaw) {
+      if (cardioRaw is! Map) continue;
+      try {
+        parsedCardioSets.add(
+          CompletedCardioSet.fromJson(Map<String, dynamic>.from(cardioRaw)),
+        );
+      } catch (_) {
+        // Ignore malformed cardio payloads.
+      }
+    }
+
+    final primaryMuscles = (json['primaryMuscles'] as List?)
+            ?.whereType<String>()
+            .toList() ??
+        (json['muscles'] as List?)?.whereType<String>().toList() ??
+        const <String>[];
+
     return CompletedExercise(
-      exerciseId: json['exerciseId'] as String,
-      exerciseName: json['exerciseName'] as String,
-      primaryMuscles: (json['primaryMuscles'] as List).cast<String>(),
+      exerciseId: (json['exerciseId'] ?? json['id'] ?? 'unknown') as String,
+      exerciseName: (json['exerciseName'] ?? json['name'] ?? 'Exercise') as String,
+      primaryMuscles: primaryMuscles,
       equipment: (json['equipment'] as List?)?.cast<String>() ?? [],
-      completedSets: json['completedSets'] as int,
-      volume: json['volume'] as int,
-      sets: (json['sets'] as List)
-          .map((s) => CompletedSet.fromJson(s as Map<String, dynamic>))
-          .toList(),
+      completedSets: _toInt(
+        json['completedSets'] ?? json['setCount'] ?? parsedSets.length,
+      ),
+      volume: _toInt(json['volume'], fallback: 0),
+      sets: parsedSets,
       isCardio: json['isCardio'] as bool? ?? false,
       usesIncline: json['usesIncline'] as bool? ?? false,
       usesResistance: json['usesResistance'] as bool? ?? false,
-      cardioSets: (json['cardioSets'] as List?)
-          ?.map((s) => CompletedCardioSet.fromJson(s as Map<String, dynamic>))
-          .toList() ?? [],
+      cardioSets: parsedCardioSets,
       cableAttachment: json['cableAttachment'] as String?,
     );
   }

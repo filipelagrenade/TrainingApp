@@ -28,7 +28,6 @@ import 'features/settings/models/user_settings.dart';
 import 'features/workouts/providers/current_workout_provider.dart';
 import 'firebase_options.dart';
 import 'core/services/user_storage_keys.dart';
-import 'shared/services/hydration_service.dart';
 import 'shared/services/notification_service.dart';
 import 'shared/services/sync_service.dart';
 import 'shared/services/sync_queue_service.dart';
@@ -173,17 +172,17 @@ class LiftIQApp extends ConsumerStatefulWidget {
   ConsumerState<LiftIQApp> createState() => _LiftIQAppState();
 }
 
-class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserver {
+class _LiftIQAppState extends ConsumerState<LiftIQApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(this);
 
-    // Load any persisted workout on startup, then hydrate/sync
+    // Load any persisted workout on startup
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPersistedWorkout();
-      _hydrateOrSync();
     });
   }
 
@@ -195,7 +194,8 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
 
   /// Load any persisted workout from previous session.
   Future<void> _loadPersistedWorkout() async {
-    final restored = await ref.read(currentWorkoutProvider.notifier).loadPersistedWorkout();
+    final restored =
+        await ref.read(currentWorkoutProvider.notifier).loadPersistedWorkout();
     if (restored) {
       debugPrint('LiftIQApp: Restored persisted workout');
     }
@@ -230,6 +230,11 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
   /// are synced before the app is potentially killed.
   Future<void> _pushSyncChanges() async {
     try {
+      final userId = ref.read(currentUserStorageIdProvider);
+      if (userId == offlineModeUserId) {
+        return;
+      }
+
       final queueService = ref.read(syncQueueServiceProvider);
       if (queueService.hasPendingChanges) {
         final syncService = ref.read(syncServiceProvider);
@@ -241,43 +246,17 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
     }
   }
 
-  /// Hydrates data if this is a fresh install/new device, otherwise syncs.
-  ///
-  /// On first launch with an existing auth session, fetches all data from
-  /// backend. On subsequent launches, does an incremental sync.
-  Future<void> _hydrateOrSync() async {
-    try {
-      final userId = ref.read(currentUserStorageIdProvider);
-
-      // Skip hydration for offline mode
-      if (userId == offlineModeUserId) {
-        return;
-      }
-
-      final alreadyHydrated = await HydrationService.hasBeenHydrated(userId);
-
-      if (!alreadyHydrated) {
-        debugPrint('LiftIQApp: First launch for user, hydrating from server');
-        final hydrationService = ref.read(hydrationServiceProvider);
-        await hydrationService.hydrateAll();
-
-        // Notify providers to re-read
-        ref.read(syncVersionProvider.notifier).state++;
-      } else {
-        // Normal incremental sync
-        _triggerSync();
-      }
-    } catch (e) {
-      debugPrint('LiftIQApp: Error during hydrate/sync: $e');
-    }
-  }
-
   /// Triggers a full sync when the app is resumed.
   ///
   /// This ensures any changes made on other devices are pulled
   /// and local changes are pushed.
   Future<void> _triggerSync() async {
     try {
+      final userId = ref.read(currentUserStorageIdProvider);
+      if (userId == offlineModeUserId) {
+        return;
+      }
+
       final syncService = ref.read(syncServiceProvider);
       await syncService.syncAll();
       debugPrint('LiftIQApp: Full sync completed on resume');
@@ -318,7 +297,8 @@ class _LiftIQAppState extends ConsumerState<LiftIQApp> with WidgetsBindingObserv
       builder: (context, child) {
         // Prevent system text scaling from breaking layouts
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+          data:
+              MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
           child: child ?? const SizedBox.shrink(),
         );
       },

@@ -17,6 +17,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/models/sync_queue_item.dart';
+import '../../../shared/services/sync_queue_service.dart';
 import '../../templates/models/training_program.dart';
 import '../../templates/models/workout_template.dart';
 
@@ -46,11 +48,14 @@ import '../../templates/models/workout_template.dart';
 class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
   /// The user ID this notifier is scoped to.
   final String _userId;
+  final SyncQueueService? _syncQueueService;
 
   /// Gets the storage key for this user's programs.
   String get _storageKey => UserStorageKeys.customPrograms(_userId);
 
-  UserProgramsNotifier(this._userId) : super([]) {
+  UserProgramsNotifier(this._userId, {SyncQueueService? syncQueueService})
+      : _syncQueueService = syncQueueService,
+        super([]) {
     _loadPrograms();
   }
 
@@ -98,6 +103,7 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
     );
     state = [...state, newProgram];
     await _savePrograms();
+    await _queueProgramSync(newProgram, SyncAction.create);
     debugPrint('UserProgramsNotifier: Added program "${newProgram.name}"');
     return newProgram;
   }
@@ -110,6 +116,7 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
     final updated = program.copyWith(updatedAt: DateTime.now());
     state = state.map((p) => p.id == program.id ? updated : p).toList();
     await _savePrograms();
+    await _queueProgramSync(updated, SyncAction.update);
     debugPrint('UserProgramsNotifier: Updated program "${program.name}"');
   }
 
@@ -118,6 +125,7 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
     final programToDelete = state.where((p) => p.id == programId).firstOrNull;
     state = state.where((p) => p.id != programId).toList();
     await _savePrograms();
+    await _queueProgramDeleteSync(programId);
     debugPrint(
       'UserProgramsNotifier: Deleted program "${programToDelete?.name ?? programId}"',
     );
@@ -244,6 +252,46 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
       'UserProgramsNotifier: Updated template at day $dayNumber in program $programId',
     );
   }
+
+  /// Queues a program create/update change for sync.
+  Future<void> _queueProgramSync(TrainingProgram program, SyncAction action) async {
+    final syncQueueService = _syncQueueService;
+    final programId = program.id;
+    if (syncQueueService == null || programId == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.program,
+        action: action,
+        entityId: programId,
+        data: program.toJson(),
+        lastModifiedAt: DateTime.now(),
+      );
+      await syncQueueService.addToQueue(item);
+      debugPrint('UserProgramsNotifier: Queued program $programId for sync');
+    } catch (e) {
+      debugPrint('UserProgramsNotifier: Error queuing program for sync: $e');
+    }
+  }
+
+  /// Queues a program deletion for sync.
+  Future<void> _queueProgramDeleteSync(String programId) async {
+    final syncQueueService = _syncQueueService;
+    if (syncQueueService == null) return;
+
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.program,
+        action: SyncAction.delete,
+        entityId: programId,
+        lastModifiedAt: DateTime.now(),
+      );
+      await syncQueueService.addToQueue(item);
+      debugPrint('UserProgramsNotifier: Queued program $programId for deletion sync');
+    } catch (e) {
+      debugPrint('UserProgramsNotifier: Error queuing program deletion for sync: $e');
+    }
+  }
 }
 
 // ============================================================================
@@ -258,7 +306,8 @@ final userProgramsProvider =
     StateNotifierProvider<UserProgramsNotifier, List<TrainingProgram>>(
   (ref) {
     final userId = ref.watch(currentUserStorageIdProvider);
-    return UserProgramsNotifier(userId);
+    final syncQueueService = ref.watch(syncQueueServiceProvider);
+    return UserProgramsNotifier(userId, syncQueueService: syncQueueService);
   },
 );
 

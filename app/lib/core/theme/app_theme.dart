@@ -413,19 +413,19 @@ abstract final class ThemeConfigs {
 
   /// Gets the config for a given theme.
   static ThemeConfig forTheme(LiftIQTheme theme) => switch (theme) {
-    LiftIQTheme.midnightSurge => midnightSurge,
-    LiftIQTheme.warmLift => warmLift,
-    LiftIQTheme.ironBrutalist => ironBrutalist,
-    LiftIQTheme.neonGym => neonGym,
-    LiftIQTheme.cleanSlate => cleanSlate,
-    LiftIQTheme.shadcnDark => shadcnDark,
-    LiftIQTheme.midnightBlue => midnightBlue,
-    LiftIQTheme.forest => forest,
-    LiftIQTheme.sunset => sunset,
-    LiftIQTheme.monochrome => monochrome,
-    LiftIQTheme.ocean => ocean,
-    LiftIQTheme.roseGold => roseGold,
-  };
+        LiftIQTheme.midnightSurge => midnightSurge,
+        LiftIQTheme.warmLift => warmLift,
+        LiftIQTheme.ironBrutalist => ironBrutalist,
+        LiftIQTheme.neonGym => neonGym,
+        LiftIQTheme.cleanSlate => cleanSlate,
+        LiftIQTheme.shadcnDark => shadcnDark,
+        LiftIQTheme.midnightBlue => midnightBlue,
+        LiftIQTheme.forest => forest,
+        LiftIQTheme.sunset => sunset,
+        LiftIQTheme.monochrome => monochrome,
+        LiftIQTheme.ocean => ocean,
+        LiftIQTheme.roseGold => roseGold,
+      };
 }
 
 // ============================================================================
@@ -445,67 +445,109 @@ abstract final class ThemeConfigs {
 abstract final class AppTheme {
   /// Gets the [ThemeData] for the specified theme.
   static ThemeData forTheme(LiftIQTheme theme) => switch (theme) {
-    LiftIQTheme.midnightSurge => midnightSurge,
-    LiftIQTheme.warmLift => warmLift,
-    LiftIQTheme.ironBrutalist => ironBrutalist,
-    LiftIQTheme.neonGym => neonGym,
-    LiftIQTheme.cleanSlate => cleanSlate,
-    LiftIQTheme.shadcnDark => shadcnDark,
-    LiftIQTheme.midnightBlue => _buildNewTheme(
-      brightness: Brightness.dark,
-      config: ThemeConfigs.midnightBlue,
-      bg: MidnightBlueColors.background, surf: MidnightBlueColors.surface, surfCont: MidnightBlueColors.surfaceContainer,
-      prim: MidnightBlueColors.primary, onPrim: MidnightBlueColors.onPrimary,
-      sec: MidnightBlueColors.secondary, onSec: MidnightBlueColors.onSecondary,
-      txtPrim: MidnightBlueColors.textPrimary, txtSec: MidnightBlueColors.textSecondary,
-      outl: MidnightBlueColors.outline, err: MidnightBlueColors.error, succ: MidnightBlueColors.success,
-    ),
-    LiftIQTheme.forest => _buildNewTheme(
-      brightness: Brightness.dark,
-      config: ThemeConfigs.forest,
-      bg: ForestColors.background, surf: ForestColors.surface, surfCont: ForestColors.surfaceContainer,
-      prim: ForestColors.primary, onPrim: ForestColors.onPrimary,
-      sec: ForestColors.secondary, onSec: ForestColors.onSecondary,
-      txtPrim: ForestColors.textPrimary, txtSec: ForestColors.textSecondary,
-      outl: ForestColors.outline, err: ForestColors.error, succ: ForestColors.success,
-    ),
-    LiftIQTheme.sunset => _buildNewTheme(
-      brightness: Brightness.light,
-      config: ThemeConfigs.sunset,
-      bg: SunsetColors.background, surf: SunsetColors.surface, surfCont: SunsetColors.surfaceContainer,
-      prim: SunsetColors.primary, onPrim: SunsetColors.onPrimary,
-      sec: SunsetColors.secondary, onSec: SunsetColors.onSecondary,
-      txtPrim: SunsetColors.textPrimary, txtSec: SunsetColors.textSecondary,
-      outl: SunsetColors.outline, err: SunsetColors.error, succ: SunsetColors.success,
-    ),
-    LiftIQTheme.monochrome => _buildNewTheme(
-      brightness: Brightness.light,
-      config: ThemeConfigs.monochrome,
-      bg: MonochromeColors.background, surf: MonochromeColors.surface, surfCont: MonochromeColors.surfaceContainer,
-      prim: MonochromeColors.primary, onPrim: MonochromeColors.onPrimary,
-      sec: MonochromeColors.secondary, onSec: MonochromeColors.onSecondary,
-      txtPrim: MonochromeColors.textPrimary, txtSec: MonochromeColors.textSecondary,
-      outl: MonochromeColors.outline, err: MonochromeColors.error, succ: MonochromeColors.success,
-    ),
-    LiftIQTheme.ocean => _buildNewTheme(
-      brightness: Brightness.dark,
-      config: ThemeConfigs.ocean,
-      bg: OceanColors.background, surf: OceanColors.surface, surfCont: OceanColors.surfaceContainer,
-      prim: OceanColors.primary, onPrim: OceanColors.onPrimary,
-      sec: OceanColors.secondary, onSec: OceanColors.onSecondary,
-      txtPrim: OceanColors.textPrimary, txtSec: OceanColors.textSecondary,
-      outl: OceanColors.outline, err: OceanColors.error, succ: OceanColors.success,
-    ),
-    LiftIQTheme.roseGold => _buildNewTheme(
-      brightness: Brightness.light,
-      config: ThemeConfigs.roseGold,
-      bg: RoseGoldColors.background, surf: RoseGoldColors.surface, surfCont: RoseGoldColors.surfaceContainer,
-      prim: RoseGoldColors.primary, onPrim: RoseGoldColors.onPrimary,
-      sec: RoseGoldColors.secondary, onSec: RoseGoldColors.onSecondary,
-      txtPrim: RoseGoldColors.textPrimary, txtSec: RoseGoldColors.textSecondary,
-      outl: RoseGoldColors.outline, err: RoseGoldColors.error, succ: RoseGoldColors.success,
-    ),
-  };
+        LiftIQTheme.midnightSurge => midnightSurge,
+        LiftIQTheme.warmLift => warmLift,
+        LiftIQTheme.ironBrutalist => ironBrutalist,
+        LiftIQTheme.neonGym => neonGym,
+        LiftIQTheme.cleanSlate => cleanSlate,
+        LiftIQTheme.shadcnDark => shadcnDark,
+        LiftIQTheme.midnightBlue => _buildNewTheme(
+            brightness: Brightness.dark,
+            config: ThemeConfigs.midnightBlue,
+            bg: MidnightBlueColors.background,
+            surf: MidnightBlueColors.surface,
+            surfCont: MidnightBlueColors.surfaceContainer,
+            prim: MidnightBlueColors.primary,
+            onPrim: MidnightBlueColors.onPrimary,
+            sec: MidnightBlueColors.secondary,
+            onSec: MidnightBlueColors.onSecondary,
+            txtPrim: MidnightBlueColors.textPrimary,
+            txtSec: MidnightBlueColors.textSecondary,
+            outl: MidnightBlueColors.outline,
+            err: MidnightBlueColors.error,
+            succ: MidnightBlueColors.success,
+          ),
+        LiftIQTheme.forest => _buildNewTheme(
+            brightness: Brightness.dark,
+            config: ThemeConfigs.forest,
+            bg: ForestColors.background,
+            surf: ForestColors.surface,
+            surfCont: ForestColors.surfaceContainer,
+            prim: ForestColors.primary,
+            onPrim: ForestColors.onPrimary,
+            sec: ForestColors.secondary,
+            onSec: ForestColors.onSecondary,
+            txtPrim: ForestColors.textPrimary,
+            txtSec: ForestColors.textSecondary,
+            outl: ForestColors.outline,
+            err: ForestColors.error,
+            succ: ForestColors.success,
+          ),
+        LiftIQTheme.sunset => _buildNewTheme(
+            brightness: Brightness.light,
+            config: ThemeConfigs.sunset,
+            bg: SunsetColors.background,
+            surf: SunsetColors.surface,
+            surfCont: SunsetColors.surfaceContainer,
+            prim: SunsetColors.primary,
+            onPrim: SunsetColors.onPrimary,
+            sec: SunsetColors.secondary,
+            onSec: SunsetColors.onSecondary,
+            txtPrim: SunsetColors.textPrimary,
+            txtSec: SunsetColors.textSecondary,
+            outl: SunsetColors.outline,
+            err: SunsetColors.error,
+            succ: SunsetColors.success,
+          ),
+        LiftIQTheme.monochrome => _buildNewTheme(
+            brightness: Brightness.light,
+            config: ThemeConfigs.monochrome,
+            bg: MonochromeColors.background,
+            surf: MonochromeColors.surface,
+            surfCont: MonochromeColors.surfaceContainer,
+            prim: MonochromeColors.primary,
+            onPrim: MonochromeColors.onPrimary,
+            sec: MonochromeColors.secondary,
+            onSec: MonochromeColors.onSecondary,
+            txtPrim: MonochromeColors.textPrimary,
+            txtSec: MonochromeColors.textSecondary,
+            outl: MonochromeColors.outline,
+            err: MonochromeColors.error,
+            succ: MonochromeColors.success,
+          ),
+        LiftIQTheme.ocean => _buildNewTheme(
+            brightness: Brightness.dark,
+            config: ThemeConfigs.ocean,
+            bg: OceanColors.background,
+            surf: OceanColors.surface,
+            surfCont: OceanColors.surfaceContainer,
+            prim: OceanColors.primary,
+            onPrim: OceanColors.onPrimary,
+            sec: OceanColors.secondary,
+            onSec: OceanColors.onSecondary,
+            txtPrim: OceanColors.textPrimary,
+            txtSec: OceanColors.textSecondary,
+            outl: OceanColors.outline,
+            err: OceanColors.error,
+            succ: OceanColors.success,
+          ),
+        LiftIQTheme.roseGold => _buildNewTheme(
+            brightness: Brightness.light,
+            config: ThemeConfigs.roseGold,
+            bg: RoseGoldColors.background,
+            surf: RoseGoldColors.surface,
+            surfCont: RoseGoldColors.surfaceContainer,
+            prim: RoseGoldColors.primary,
+            onPrim: RoseGoldColors.onPrimary,
+            sec: RoseGoldColors.secondary,
+            onSec: RoseGoldColors.onSecondary,
+            txtPrim: RoseGoldColors.textPrimary,
+            txtSec: RoseGoldColors.textSecondary,
+            outl: RoseGoldColors.outline,
+            err: RoseGoldColors.error,
+            succ: RoseGoldColors.success,
+          ),
+      };
 
   /// Legacy light theme (maps to Clean Slate).
   static ThemeData get light => cleanSlate;
@@ -727,18 +769,29 @@ abstract final class AppTheme {
   static ThemeData _buildNewTheme({
     required Brightness brightness,
     required ThemeConfig config,
-    required Color bg, required Color surf, required Color surfCont,
-    required Color prim, required Color onPrim,
-    required Color sec, required Color onSec,
-    required Color txtPrim, required Color txtSec,
-    required Color outl, required Color err, required Color succ,
+    required Color bg,
+    required Color surf,
+    required Color surfCont,
+    required Color prim,
+    required Color onPrim,
+    required Color sec,
+    required Color onSec,
+    required Color txtPrim,
+    required Color txtSec,
+    required Color outl,
+    required Color err,
+    required Color succ,
   }) {
     final colorScheme = ColorScheme(
       brightness: brightness,
-      primary: prim, onPrimary: onPrim,
-      secondary: sec, onSecondary: onSec,
-      error: err, onError: Colors.white,
-      surface: surf, onSurface: txtPrim,
+      primary: prim,
+      onPrimary: onPrim,
+      secondary: sec,
+      onSecondary: onSec,
+      error: err,
+      onError: Colors.white,
+      surface: surf,
+      onSurface: txtPrim,
       surfaceContainerHighest: surfCont,
       outline: outl,
       outlineVariant: outl.withValues(alpha: 0.5),
@@ -771,6 +824,9 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       brightness: colorScheme.brightness,
       scaffoldBackgroundColor: backgroundColor,
+      canvasColor: colorScheme.surface,
+      visualDensity: VisualDensity.standard,
+      splashFactory: InkSparkle.splashFactory,
 
       // Typography
       textTheme: textTheme,
@@ -780,7 +836,9 @@ abstract final class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: config.cardElevation,
+        toolbarHeight: 62,
         backgroundColor: backgroundColor,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
         titleTextStyle: textTheme.titleLarge?.copyWith(
           fontWeight: config.headingWeight,
@@ -790,6 +848,8 @@ abstract final class AppTheme {
       // Cards
       cardTheme: CardThemeData(
         elevation: config.cardElevation,
+        clipBehavior: Clip.antiAlias,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(config.cardBorderRadius),
           side: config.borderWidth > 0
@@ -870,7 +930,8 @@ abstract final class AppTheme {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(config.borderRadius),
           borderSide: config.borderWidth > 0
-              ? BorderSide(color: colorScheme.outline, width: config.borderWidth)
+              ? BorderSide(
+                  color: colorScheme.outline, width: config.borderWidth)
               : BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
@@ -905,6 +966,7 @@ abstract final class AppTheme {
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
         elevation: config.buttonElevation + 4,
+        extendedTextStyle: textTheme.labelLarge,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(config.buttonBorderRadius + 4),
         ),
@@ -921,9 +983,22 @@ abstract final class AppTheme {
 
       // Navigation Bar (Material 3)
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: colorScheme.surface.withValues(alpha: 0.88),
         indicatorColor: colorScheme.primary.withValues(alpha: 0.2),
         elevation: config.cardElevation,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return textTheme.labelSmall?.copyWith(
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            size: selected ? 24 : 22,
+            color: selected ? colorScheme.primary : textSecondary,
+          );
+        }),
       ),
 
       // Snackbar
@@ -952,6 +1027,9 @@ abstract final class AppTheme {
 
       // Chip
       chipTheme: ChipThemeData(
+        selectedColor: colorScheme.primary.withValues(alpha: 0.16),
+        secondarySelectedColor: colorScheme.primary.withValues(alpha: 0.16),
+        labelStyle: textTheme.labelMedium,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(config.borderRadius),
           side: BorderSide(
@@ -1015,6 +1093,34 @@ abstract final class AppTheme {
         unselectedLabelColor: textSecondary,
         indicatorColor: colorScheme.primary,
         dividerColor: colorScheme.outline.withValues(alpha: 0.3),
+      ),
+
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.primary;
+            }
+            return colorScheme.surfaceContainerHighest.withValues(alpha: 0.4);
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.onPrimary;
+            }
+            return colorScheme.onSurface;
+          }),
+          side: WidgetStateProperty.all(
+            BorderSide(
+              color: colorScheme.outline.withValues(alpha: 0.55),
+              width: config.borderWidth.clamp(0.8, 1.2),
+            ),
+          ),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(config.buttonBorderRadius),
+            ),
+          ),
+        ),
       ),
 
       // Extensions for custom theme data
@@ -1159,7 +1265,8 @@ class LiftIQThemeExtension extends ThemeExtension<LiftIQThemeExtension> {
   }
 
   @override
-  LiftIQThemeExtension lerp(ThemeExtension<LiftIQThemeExtension>? other, double t) {
+  LiftIQThemeExtension lerp(
+      ThemeExtension<LiftIQThemeExtension>? other, double t) {
     if (other is! LiftIQThemeExtension) {
       return this;
     }

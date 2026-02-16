@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/exercise_set.dart';
+import '../models/weight_input.dart';
 import 'set_input_row.dart';
 
 /// Callback when a set is swiped to complete.
@@ -81,6 +82,15 @@ class SwipeableSetRow extends ConsumerStatefulWidget {
   /// Weight increment for +/- buttons.
   final double weightIncrement;
 
+  /// Default weight input mode for this exercise row.
+  final WeightInputType defaultWeightType;
+
+  /// Default set type for this exercise row.
+  final SetType defaultSetType;
+
+  /// Whether RPE controls are shown.
+  final bool rpeEnabled;
+
   /// Whether swipe gestures are enabled.
   final bool swipeEnabled;
 
@@ -108,6 +118,9 @@ class SwipeableSetRow extends ConsumerStatefulWidget {
     this.onEdit,
     this.unit = 'kg',
     this.weightIncrement = 2.5,
+    this.defaultWeightType = WeightInputType.absolute,
+    this.defaultSetType = SetType.working,
+    this.rpeEnabled = true,
     this.swipeEnabled = true,
     this.onSwipeComplete,
     this.onSwipeDelete,
@@ -298,8 +311,8 @@ class _SwipeableSetRowState extends ConsumerState<SwipeableSetRow>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Set'),
-        content:
-            Text('Art thou certain thou wishest to delete set ${widget.setNumber}?'),
+        content: Text(
+            'Art thou certain thou wishest to delete set ${widget.setNumber}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -334,6 +347,9 @@ class _SwipeableSetRowState extends ConsumerState<SwipeableSetRow>
       onEdit: widget.onEdit,
       unit: widget.unit,
       weightIncrement: widget.weightIncrement,
+      defaultWeightType: widget.defaultWeightType,
+      defaultSetType: widget.defaultSetType,
+      rpeEnabled: widget.rpeEnabled,
     );
   }
 }

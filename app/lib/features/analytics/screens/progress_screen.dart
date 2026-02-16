@@ -6,8 +6,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/analytics_provider.dart';
+
 import '../models/analytics_data.dart';
+import '../providers/analytics_provider.dart';
 
 /// Progress screen displaying user analytics and stats.
 class ProgressScreen extends ConsumerWidget {
@@ -15,8 +16,6 @@ class ProgressScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final summaryAsync = ref.watch(progressSummaryProvider);
     final prsAsync = ref.watch(personalRecordsProvider);
     final volumeAsync = ref.watch(volumeByMuscleProvider);
@@ -37,81 +36,88 @@ class ProgressScreen extends ConsumerWidget {
           ref.invalidate(personalRecordsProvider);
           ref.invalidate(volumeByMuscleProvider);
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Quick access tools
-              _ProgressToolsSection(),
-              const SizedBox(height: 24),
-
-              // Time period selector
-              _TimePeriodSelector(),
-              const SizedBox(height: 24),
-
-              // Summary cards
-              summaryAsync.when(
-                data: (summary) => _SummarySection(summary: summary),
-                loading: () => const _SummaryLoadingState(),
-                error: (e, _) => _ErrorCard(message: e.toString()),
-              ),
-              const SizedBox(height: 24),
-
-              // Personal Records
-              Text(
-                'Personal Records',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              prsAsync.when(
-                data: (prs) => prs.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'Complete workouts to see your personal records here.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 980),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionCard(
+                    title: 'Overview',
+                    subtitle: 'Track your trend and progression quality.',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _TimePeriodSelector(),
+                        const SizedBox(height: 14),
+                        summaryAsync.when(
+                          data: (summary) => _SummarySection(summary: summary),
+                          loading: () => const _SummaryLoadingState(),
+                          error: (e, _) => _ErrorCard(message: e.toString()),
                         ),
-                      )
-                    : Column(
-                        children: prs.take(4).map((pr) => _PRCard(pr: pr)).toList(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const _SectionCard(
+                    title: 'Tools',
+                    subtitle: 'Open advanced planning and analysis views.',
+                    child: _ProgressToolsSection(),
+                  ),
+                  const SizedBox(height: 14),
+                  _SectionCard(
+                    title: 'Personal Records',
+                    subtitle: 'Recent top lifts and estimated strength.',
+                    child: prsAsync.when(
+                      data: (prs) => prs.isEmpty
+                          ? const _EmptyPanel(
+                              icon: Icons.emoji_events_outlined,
+                              message:
+                                  'Complete workouts to see personal records here.',
+                            )
+                          : Column(
+                              children: prs
+                                  .take(5)
+                                  .map((pr) => _PRCard(pr: pr))
+                                  .toList(),
+                            ),
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(child: CircularProgressIndicator()),
                       ),
-                loading: () => const CircularProgressIndicator(),
-                error: (e, _) => _ErrorCard(message: e.toString()),
-              ),
-              const SizedBox(height: 24),
-
-              // Volume by muscle group
-              Text(
-                'Volume by Muscle',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              volumeAsync.when(
-                data: (volumes) => volumes.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'Train different muscle groups to see your volume distribution.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      )
-                    : Column(
-                        children: volumes.map((v) => _VolumeBar(data: v)).toList(),
+                      error: (e, _) => _ErrorCard(message: e.toString()),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _SectionCard(
+                    title: 'Volume by Muscle',
+                    subtitle: 'Set distribution across trained groups.',
+                    child: volumeAsync.when(
+                      data: (volumes) => volumes.isEmpty
+                          ? const _EmptyPanel(
+                              icon: Icons.stacked_bar_chart_rounded,
+                              message:
+                                  'Train more muscle groups to see your volume split.',
+                            )
+                          : Column(
+                              children: volumes
+                                  .map((v) => _VolumeBar(data: v))
+                                  .toList(),
+                            ),
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(child: CircularProgressIndicator()),
                       ),
-                loading: () => const CircularProgressIndicator(),
-                error: (e, _) => _ErrorCard(message: e.toString()),
+                      error: (e, _) => _ErrorCard(message: e.toString()),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -120,26 +126,27 @@ class ProgressScreen extends ConsumerWidget {
 }
 
 class _TimePeriodSelector extends ConsumerWidget {
+  const _TimePeriodSelector();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedPeriodProvider);
-
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: Row(
-        children: TimePeriod.values.map((period) {
-          final isSelected = period == selected;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(period.displayName),
-              selected: isSelected,
-              onSelected: (_) {
-                ref.read(selectedPeriodProvider.notifier).state = period;
-              },
-            ),
-          );
-        }).toList(),
+      child: SegmentedButton<TimePeriod>(
+        segments: TimePeriod.values
+            .map(
+              (period) => ButtonSegment<TimePeriod>(
+                value: period,
+                label: Text(period.displayName),
+              ),
+            )
+            .toList(),
+        selected: {selected},
+        showSelectedIcon: false,
+        onSelectionChanged: (value) {
+          ref.read(selectedPeriodProvider.notifier).state = value.first;
+        },
       ),
     );
   }
@@ -152,8 +159,6 @@ class _SummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Column(
       children: [
         Row(
@@ -162,41 +167,39 @@ class _SummarySection extends StatelessWidget {
               child: _StatCard(
                 icon: Icons.fitness_center,
                 label: 'Workouts',
-                value: summary.workoutCount.toString(),
+                value: '${summary.workoutCount}',
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
                 icon: Icons.timer,
                 label: 'Total Time',
-                value: '${(summary.totalDuration / 60).toStringAsFixed(0)}h',
+                value: summary.formattedDuration,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
               child: _StatCard(
                 icon: Icons.emoji_events,
                 label: 'PRs',
-                value: summary.prsAchieved.toString(),
+                value: '${summary.prsAchieved}',
                 valueColor: Colors.amber,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
                 icon: Icons.trending_up,
                 label: 'Volume',
-                value: '${(summary.totalVolume / 1000).toStringAsFixed(0)}k',
-                subtitle: summary.volumeChange > 0
-                    ? '+${summary.volumeChange}%'
-                    : '${summary.volumeChange}%',
+                value: summary.formattedVolume,
+                subtitle: summary.volumeChangeText,
                 subtitleColor:
-                    summary.volumeChange > 0 ? Colors.green : Colors.red,
+                    summary.volumeIncreased ? Colors.green : Colors.redAccent,
               ),
             ),
           ],
@@ -229,19 +232,25 @@ class _StatCard extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: colors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
+                Icon(icon, size: 19, color: colors.primary),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -250,22 +259,29 @@ class _StatCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  value,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: valueColor,
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: valueColor,
+                      ),
+                      maxLines: 1,
+                    ),
                   ),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       subtitle!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: subtitleColor,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -285,19 +301,19 @@ class _SummaryLoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: [
+      children: const [
         Row(
           children: [
             Expanded(child: _LoadingCard()),
-            const SizedBox(width: 12),
+            SizedBox(width: 10),
             Expanded(child: _LoadingCard()),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 10),
         Row(
           children: [
             Expanded(child: _LoadingCard()),
-            const SizedBox(width: 12),
+            SizedBox(width: 10),
             Expanded(child: _LoadingCard()),
           ],
         ),
@@ -307,12 +323,14 @@ class _SummaryLoadingState extends StatelessWidget {
 }
 
 class _LoadingCard extends StatelessWidget {
+  const _LoadingCard();
+
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Container(
+      margin: EdgeInsets.zero,
+      child: SizedBox(
         height: 100,
-        padding: const EdgeInsets.all(16),
         child: const Center(child: CircularProgressIndicator()),
       ),
     );
@@ -331,41 +349,66 @@ class _PRCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.emoji_events, color: Colors.amber),
-        ),
-        title: Text(
-          pr.exerciseName,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          '${pr.weight}kg x ${pr.reps} reps',
-          style: theme.textTheme.bodySmall,
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
           children: [
-            Text(
-              '${pr.estimated1RM.toStringAsFixed(1)}kg',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colors.primary,
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.emoji_events, color: Colors.amber),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pr.exerciseName,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${pr.weight.toStringAsFixed(1)}kg x ${pr.reps} reps',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
-            Text(
-              'Est. 1RM',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 96,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${pr.estimated1RM.toStringAsFixed(1)}kg',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: colors.primary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'Est. 1RM',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -384,43 +427,141 @@ class _VolumeBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-
-    // Max sets for normalization
     const maxSets = 40.0;
     final progress = (data.totalSets / maxSets).clamp(0.0, 1.0);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.outline.withValues(alpha: 0.25)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                data.muscleGroup,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      data.muscleGroup,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${data.totalSets} sets',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                '${data.totalSets} sets',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: colors.surfaceContainerHighest,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: colors.surfaceContainerHighest,
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  const _SectionCard({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyPanel extends StatelessWidget {
+  final IconData icon;
+  final String message;
+
+  const _EmptyPanel({
+    required this.icon,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(icon, color: colors.onSurfaceVariant),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -438,18 +579,21 @@ class _ErrorCard extends StatelessWidget {
 
     return Card(
       color: colors.errorContainer,
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(Icons.error, color: colors.error),
-            const SizedBox(width: 12),
+            Icon(Icons.error_outline, color: colors.error),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 message,
-                style: theme.textTheme.bodyMedium?.copyWith(
+                style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onErrorContainer,
                 ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -461,61 +605,44 @@ class _ErrorCard extends StatelessWidget {
 
 /// Section with quick navigation tiles for progress-related features.
 class _ProgressToolsSection extends StatelessWidget {
+  const _ProgressToolsSection();
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Tools',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 680;
+        return GridView.count(
+          crossAxisCount: isWide ? 4 : 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: isWide ? 1.7 : 1.55,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            Expanded(
-              child: _ToolTile(
-                icon: Icons.auto_awesome,
-                label: 'Year in Review',
-                onTap: () => context.push('/yearly-wrapped'),
-              ),
+            _ToolTile(
+              icon: Icons.auto_awesome,
+              label: 'Year in Review',
+              onTap: () => context.push('/yearly-wrapped'),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ToolTile(
-                icon: Icons.straighten,
-                label: 'Measurements',
-                onTap: () => context.push('/measurements'),
-              ),
+            _ToolTile(
+              icon: Icons.straighten,
+              label: 'Measurements',
+              onTap: () => context.push('/measurements'),
+            ),
+            _ToolTile(
+              icon: Icons.event_note,
+              label: 'Periodization',
+              onTap: () => context.push('/periodization'),
+            ),
+            _ToolTile(
+              icon: Icons.calendar_month,
+              label: 'Calendar',
+              onTap: () => context.push('/calendar'),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _ToolTile(
-                icon: Icons.event_note,
-                label: 'Periodization',
-                onTap: () => context.push('/periodization'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ToolTile(
-                icon: Icons.calendar_month,
-                label: 'Calendar',
-                onTap: () => context.push('/calendar'),
-              ),
-            ),
-          ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -538,27 +665,31 @@ class _ToolTile extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Card(
+      margin: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-          child: Row(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 24, color: colors.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              Icon(icon, size: 22, color: colors.primary),
+              const Spacer(),
+              Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: colors.onSurfaceVariant,
+              const SizedBox(height: 2),
+              Text(
+                'Open',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
               ),
             ],
           ),

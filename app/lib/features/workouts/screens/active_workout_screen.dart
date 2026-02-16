@@ -31,10 +31,8 @@ import '../models/weight_input.dart';
 import '../models/workout_session.dart';
 import '../providers/current_workout_provider.dart';
 import '../providers/rest_timer_provider.dart';
-import '../widgets/set_input_row.dart';
 import '../widgets/swipeable_set_row.dart';
 import '../widgets/drop_set_row.dart';
-import '../widgets/exercise_settings_panel.dart';
 import '../widgets/rest_timer_display.dart';
 import '../widgets/exercise_picker_modal.dart';
 import '../widgets/pr_celebration.dart';
@@ -59,7 +57,8 @@ class ActiveWorkoutScreen extends ConsumerStatefulWidget {
   const ActiveWorkoutScreen({super.key});
 
   @override
-  ConsumerState<ActiveWorkoutScreen> createState() => _ActiveWorkoutScreenState();
+  ConsumerState<ActiveWorkoutScreen> createState() =>
+      _ActiveWorkoutScreenState();
 }
 
 class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
@@ -78,7 +77,8 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
       prEventProvider,
       (previous, next) {
         next.whenData((prData) {
-          final showCelebration = ref.read(userSettingsProvider).showPRCelebration;
+          final showCelebration =
+              ref.read(userSettingsProvider).showPRCelebration;
           if (showCelebration && mounted) {
             showPRCelebration(context, prData);
           }
@@ -215,7 +215,8 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
   }
 
   /// Build the floating action button (shows menu when workout has exercises).
-  Widget _buildFloatingActionButton(BuildContext context, WorkoutSession workout) {
+  Widget _buildFloatingActionButton(
+      BuildContext context, WorkoutSession workout) {
     // If no exercises, just show add exercise button
     if (workout.exerciseLogs.length < 2) {
       return FloatingActionButton.extended(
@@ -494,7 +495,8 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
   }
 
   /// Show superset creator sheet.
-  Future<void> _createSuperset(BuildContext context, WorkoutSession workout) async {
+  Future<void> _createSuperset(
+      BuildContext context, WorkoutSession workout) async {
     final config = await showSupersetCreatorSheet(
       context,
       availableExercises: workout.exerciseLogs,
@@ -504,12 +506,12 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
 
     // Create the superset
     final supersetId = ref.read(supersetProvider.notifier).createSuperset(
-      exerciseIds: config.exerciseIds,
-      type: config.type,
-      restBetweenExercisesSeconds: config.restBetweenExercisesSeconds,
-      restAfterRoundSeconds: config.restAfterRoundSeconds,
-      totalRounds: config.totalRounds,
-    );
+          exerciseIds: config.exerciseIds,
+          type: config.type,
+          restBetweenExercisesSeconds: config.restBetweenExercisesSeconds,
+          restAfterRoundSeconds: config.restAfterRoundSeconds,
+          totalRounds: config.totalRounds,
+        );
 
     // Start the superset
     ref.read(supersetProvider.notifier).startSuperset(supersetId);
@@ -566,7 +568,8 @@ class _WorkoutFABState extends State<_WorkoutFAB>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: colors.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
@@ -596,7 +599,8 @@ class _WorkoutFABState extends State<_WorkoutFAB>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: colors.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
@@ -693,10 +697,9 @@ class _ExerciseCard extends ConsumerStatefulWidget {
 }
 
 class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
-  bool _settingsExpanded = false;
   WeightInputType _weightType = WeightInputType.absolute;
-  bool _rpeEnabled = false;
   RepRange? _customRepRange;
+  SetType _setType = SetType.working;
 
   ExerciseLog get exerciseLog => widget.exerciseLog;
   int get exerciseIndex => widget.exerciseIndex;
@@ -704,6 +707,14 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   @override
   void initState() {
     super.initState();
+    final lastSet = exerciseLog.sets.lastOrNull;
+    if (lastSet != null) {
+      _weightType = lastSet.weightType ?? WeightInputType.absolute;
+      if (lastSet.setType != SetType.working) {
+        _setType = lastSet.setType;
+      }
+    }
+
     // Load the saved rep override if any
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadRepOverride();
@@ -712,7 +723,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
   Future<void> _loadRepOverride() async {
     try {
-      final service = await ref.read(initializedExerciseRepOverrideServiceProvider.future);
+      final service =
+          await ref.read(initializedExerciseRepOverrideServiceProvider.future);
       final override = service.getOverride(exerciseLog.exerciseId);
       if (override != null && mounted) {
         setState(() => _customRepRange = override);
@@ -724,7 +736,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
   Future<void> _saveRepOverride(RepRange? repRange) async {
     try {
-      final service = await ref.read(initializedExerciseRepOverrideServiceProvider.future);
+      final service =
+          await ref.read(initializedExerciseRepOverrideServiceProvider.future);
       if (repRange != null) {
         await service.setOverride(exerciseLog.exerciseId, repRange);
       } else {
@@ -744,7 +757,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     final unitString = weightUnit == WeightUnit.kg ? 'kg' : 'lbs';
 
     // Check if this exercise is part of a superset
-    final superset = ref.watch(supersetForExerciseProvider(exerciseLog.exerciseId));
+    final superset =
+        ref.watch(supersetForExerciseProvider(exerciseLog.exerciseId));
     final isInSuperset = superset != null;
     final isCurrentSupersetExercise = superset != null &&
         superset.currentExerciseId == exerciseLog.exerciseId &&
@@ -764,7 +778,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: SupersetExerciseBanner(
-                position: superset.exerciseIds.indexOf(exerciseLog.exerciseId) + 1,
+                position:
+                    superset.exerciseIds.indexOf(exerciseLog.exerciseId) + 1,
                 total: superset.exerciseIds.length,
                 type: superset.type,
                 isCurrent: isCurrentSupersetExercise,
@@ -774,43 +789,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           // Exercise header
           _buildHeader(context, theme, colors),
 
-          // Settings panel (expandable)
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-            child: _settingsExpanded
-                ? Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ExerciseSettingsPanel(
-                      isCableExercise: exerciseLog.usesCableEquipment,
-                      cableAttachment: exerciseLog.cableAttachment,
-                      isUnilateral: exerciseLog.isUnilateral,
-                      weightType: _weightType,
-                      rpeEnabled: _rpeEnabled,
-                      customRepRange: _customRepRange,
-                      onCableAttachmentChanged: (attachment) {
-                        ref.read(currentWorkoutProvider.notifier).updateCableAttachment(
-                              exerciseIndex: exerciseIndex,
-                              attachment: attachment,
-                            );
-                      },
-                      onUnilateralToggled: () {
-                        ref.read(currentWorkoutProvider.notifier).toggleUnilateral(exerciseIndex);
-                      },
-                      onWeightTypeChanged: (type) {
-                        setState(() => _weightType = type);
-                      },
-                      onRpeToggled: (enabled) {
-                        setState(() => _rpeEnabled = enabled);
-                      },
-                      onRepRangeChanged: (range) {
-                        setState(() => _customRepRange = range);
-                        _saveRepOverride(range);
-                      },
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
+          // Quick controls (always visible; avoids cluttered dropdown UX)
+          _buildQuickControls(theme, colors),
 
           // AI recommendation chip (if available)
           _buildRecommendationBanner(theme, colors),
@@ -824,6 +804,9 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 isCompleted: true,
                 completedSet: entry.value,
                 unit: unitString,
+                defaultWeightType: _weightType,
+                defaultSetType: _setType,
+                rpeEnabled: true,
                 swipeEnabled: swipeEnabled,
                 onSwipeDelete: () {
                   // Remove the set
@@ -857,6 +840,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                         reps: reps,
                         rpe: rpe,
                         setType: setType,
+                        weightType: weightType,
+                        bandResistance: bandResistance,
                       );
                 },
               ),
@@ -925,6 +910,9 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               previousWeight: exerciseLog.sets.lastOrNull?.weight,
               previousReps: exerciseLog.sets.lastOrNull?.reps,
               unit: unitString,
+              defaultWeightType: _weightType,
+              defaultSetType: _setType,
+              rpeEnabled: true,
               swipeEnabled: swipeEnabled,
               onSwipeComplete: () {
                 _logSetAndHandleSuperset(null, null);
@@ -937,7 +925,11 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 weightType,
                 bandResistance,
               }) {
-                _logSetAndHandleSuperset(weight, reps, rpe: rpe, setType: setType, weightType: weightType, bandResistance: bandResistance);
+                _logSetAndHandleSuperset(weight, reps,
+                    rpe: rpe,
+                    setType: setType,
+                    weightType: weightType,
+                    bandResistance: bandResistance);
               },
             ),
           ),
@@ -974,13 +966,16 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
     // Check if this exercise is part of an active superset
     final supersetState = ref.read(supersetProvider);
-    final superset = supersetState.getSupersetForExercise(exerciseLog.exerciseId);
+    final superset =
+        supersetState.getSupersetForExercise(exerciseLog.exerciseId);
 
     if (superset != null &&
         superset.status == SupersetStatus.active &&
         superset.currentExerciseId == exerciseLog.exerciseId) {
       // Record the completed set in the superset
-      ref.read(supersetProvider.notifier).recordCompletedSet(exerciseLog.exerciseId);
+      ref
+          .read(supersetProvider.notifier)
+          .recordCompletedSet(exerciseLog.exerciseId);
 
       // Advance to next exercise in superset (this will also handle rest timer)
       ref.read(supersetProvider.notifier).advanceToNextExercise();
@@ -989,31 +984,92 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       final restTimer = ref.read(restTimerProvider);
       if (restTimer.autoStart) {
         ref.read(restTimerProvider.notifier).start(
-          exerciseName: exerciseLog.exerciseName,
-          setType: setType,
-          rpe: rpe,
-        );
+              exerciseName: exerciseLog.exerciseName,
+              setType: setType,
+              rpe: rpe,
+            );
       }
     }
   }
 
   Widget _buildRecommendationBanner(ThemeData theme, ColorScheme colors) {
-    final recommendation = ref.watch(exerciseRecommendationProvider(exerciseLog.exerciseId));
-    if (recommendation == null || recommendation.sets.isEmpty) {
+    final recommendation =
+        ref.watch(exerciseRecommendationProvider(exerciseLog.exerciseId));
+    final completedSets =
+        exerciseLog.sets.where((set) => set.reps > 0).toList();
+
+    if ((recommendation == null || recommendation.sets.isEmpty) &&
+        completedSets.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final firstSet = recommendation.firstSet!;
-    final unitStr = ref.watch(weightUnitProvider) == WeightUnit.kg ? 'kg' : 'lbs';
-    final confidenceIcon = switch (recommendation.confidence) {
+    final unitStr =
+        ref.watch(weightUnitProvider) == WeightUnit.kg ? 'kg' : 'lbs';
+    final baseSet = recommendation?.firstSet;
+    final targetRepRange = _customRepRange ??
+        RepRange(
+          floor: ((baseSet?.reps ?? 8) - 2).clamp(1, 30),
+          ceiling: ((baseSet?.reps ?? 8) + 2).clamp(1, 30),
+        );
+
+    double suggestedWeight =
+        baseSet?.weight ?? (completedSets.lastOrNull?.weight ?? 0);
+    int suggestedReps = baseSet?.reps ?? targetRepRange.ceiling;
+    String feedback = recommendation?.phaseFeedback ??
+        'Based on your latest workout performance.';
+    RecommendationConfidence confidence =
+        recommendation?.confidence ?? RecommendationConfidence.medium;
+
+    final lastSet = completedSets.lastOrNull;
+    if (lastSet != null) {
+      suggestedWeight = lastSet.weight;
+      suggestedReps = targetRepRange.ceiling;
+
+      final lastRpe = lastSet.rpe;
+      final exceededTopRange = lastSet.reps >= targetRepRange.ceiling + 1;
+      final belowTargetRange = lastSet.reps < targetRepRange.floor;
+      final tooHard = lastRpe != null && lastRpe >= 9.5;
+
+      if (lastSet.weightType != WeightInputType.bodyweight &&
+          lastSet.weightType != WeightInputType.band) {
+        if (exceededTopRange && (lastRpe == null || lastRpe <= 8.5)) {
+          suggestedWeight = (lastSet.weight + 2.5).clamp(0, 1000).toDouble();
+          feedback =
+              'You overshot target reps last set. Add weight for the next set.';
+        } else if (belowTargetRange || tooHard) {
+          suggestedWeight = (lastSet.weight - 2.5).clamp(0, 1000).toDouble();
+          suggestedReps = targetRepRange.floor;
+          feedback =
+              'Last set was too hard. Reduce load and stay in the target range.';
+        } else {
+          suggestedReps = targetRepRange.ceiling;
+          feedback =
+              'Keep the same load and aim for the top of your target rep range.';
+        }
+      } else {
+        feedback =
+            'Keep weight mode the same and focus on hitting your target reps.';
+      }
+      confidence = RecommendationConfidence.high;
+    }
+
+    final confidenceIcon = switch (confidence) {
       RecommendationConfidence.high => Icons.verified,
       RecommendationConfidence.medium => Icons.check_circle_outline,
       RecommendationConfidence.low => Icons.help_outline,
     };
-    final confidenceColor = switch (recommendation.confidence) {
+    final confidenceColor = switch (confidence) {
       RecommendationConfidence.high => Colors.green,
       RecommendationConfidence.medium => Colors.amber,
       RecommendationConfidence.low => Colors.grey,
+    };
+
+    final suggestionText = switch (_weightType) {
+      WeightInputType.bodyweight => 'BW x $suggestedReps',
+      WeightInputType.band =>
+        '${completedSets.lastOrNull?.bandResistance ?? "Band"} x $suggestedReps',
+      _ =>
+        '${suggestedWeight.toStringAsFixed(suggestedWeight % 1 == 0 ? 0 : 1)} $unitStr x $suggestedReps',
     };
 
     return Padding(
@@ -1026,7 +1082,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               Icon(Icons.auto_awesome, size: 14, color: colors.primary),
               const SizedBox(width: 4),
               Text(
-                '${recommendation.isProgression ? "↑ " : ""}Suggested: ${firstSet.toDisplayString(unit: unitStr)}',
+                '${(recommendation?.isProgression ?? false) ? "+ " : ""}Next set: $suggestionText',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.primary,
                   fontWeight: FontWeight.w600,
@@ -1036,16 +1092,15 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               Icon(confidenceIcon, size: 14, color: confidenceColor),
             ],
           ),
-          if (recommendation.phaseFeedback != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                recommendation.phaseFeedback!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              feedback,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.onSurfaceVariant,
               ),
             ),
+          ),
         ],
       ),
     );
@@ -1074,106 +1129,191 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       subtitle: Text(
         [
           if (exerciseLog.isUnilateral) 'Unilateral',
-          if (exerciseLog.cableAttachment != null) exerciseLog.cableAttachment!.label,
+          if (exerciseLog.cableAttachment != null)
+            exerciseLog.cableAttachment!.label,
           if (exerciseLog.primaryMuscles.isNotEmpty)
-            exerciseLog.primaryMuscles.map((m) => muscleGroupDisplayName(m)).join(', '),
-        ].join(' · '),
+            exerciseLog.primaryMuscles
+                .map((m) => muscleGroupDisplayName(m))
+                .join(', '),
+        ].join(' - '),
         style: theme.textTheme.bodySmall?.copyWith(
-          color: exerciseLog.isUnilateral ? colors.primary : colors.onSurfaceVariant,
+          color: exerciseLog.isUnilateral
+              ? colors.primary
+              : colors.onSurfaceVariant,
         ),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Gear icon for settings panel
-          Stack(
-            children: [
-              IconButton(
-                icon: Icon(
-                  _settingsExpanded ? Icons.settings : Icons.settings_outlined,
-                  color: _settingsExpanded ? colors.primary : null,
-                ),
-                onPressed: () => setState(() => _settingsExpanded = !_settingsExpanded),
-                tooltip: 'Exercise Settings',
-              ),
-              // Active settings badge
-              if (hasActiveSettings(
-                cableAttachment: exerciseLog.cableAttachment,
-                isUnilateral: exerciseLog.isUnilateral,
-                weightType: _weightType,
-                rpeEnabled: _rpeEnabled,
-                customRepRange: _customRepRange,
-              ))
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
+      trailing: PopupMenuButton(
+        icon: const Icon(Icons.more_vert),
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'notes',
+            child: ListTile(
+              leading: Icon(Icons.note_add),
+              title: Text('Add Notes'),
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
-          PopupMenuButton(
-            icon: const Icon(Icons.more_vert),
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'notes',
-                child: ListTile(
-                  leading: Icon(Icons.note_add),
-                  title: Text('Add Notes'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'history',
-                child: ListTile(
-                  leading: Icon(Icons.history),
-                  title: Text('View History'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'switch',
-                child: ListTile(
-                  leading: Icon(Icons.swap_horiz),
-                  title: Text('Switch Exercise'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'remove',
-                child: ListTile(
-                  leading: Icon(Icons.delete_outline),
-                  title: Text('Remove Exercise'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-            onSelected: (value) {
-              switch (value) {
-                case 'notes':
-                  _showNotesDialog(context, exerciseIndex, exerciseLog);
-                  break;
-                case 'history':
-                  _showExerciseHistory(context, exerciseLog);
-                  break;
-                case 'switch':
-                  _showSwitchExercise(context, exerciseIndex);
-                  break;
-                case 'remove':
-                  ref.read(currentWorkoutProvider.notifier).removeExercise(
-                        exerciseIndex,
-                      );
-                  break;
-              }
-            },
+          const PopupMenuItem(
+            value: 'history',
+            child: ListTile(
+              leading: Icon(Icons.history),
+              title: Text('View History'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'switch',
+            child: ListTile(
+              leading: Icon(Icons.swap_horiz),
+              title: Text('Switch Exercise'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'remove',
+            child: ListTile(
+              leading: Icon(Icons.delete_outline),
+              title: Text('Remove Exercise'),
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
         ],
+        onSelected: (value) {
+          switch (value) {
+            case 'notes':
+              _showNotesDialog(context, exerciseIndex, exerciseLog);
+              break;
+            case 'history':
+              _showExerciseHistory(context, exerciseLog);
+              break;
+            case 'switch':
+              _showSwitchExercise(context, exerciseIndex);
+              break;
+            case 'remove':
+              ref.read(currentWorkoutProvider.notifier).removeExercise(
+                    exerciseIndex,
+                  );
+              break;
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildQuickControls(ThemeData theme, ColorScheme colors) {
+    final repLabel = _customRepRange == null
+        ? 'Rep Range: Default'
+        : 'Rep Range: ${_customRepRange!.floor}-${_customRepRange!.ceiling}';
+    final weightLabel = switch (_weightType) {
+      WeightInputType.absolute => 'Weight',
+      WeightInputType.perSide => 'Per Side',
+      WeightInputType.band => 'Band',
+      WeightInputType.bodyweight => 'Bodyweight',
+      WeightInputType.plates => 'Plates',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          FilterChip(
+            selected: exerciseLog.isUnilateral,
+            label: const Text('Unilateral'),
+            onSelected: (_) {
+              ref.read(currentWorkoutProvider.notifier).toggleUnilateral(
+                    exerciseIndex,
+                  );
+            },
+          ),
+          ActionChip(
+            label: Text(repLabel),
+            onPressed: () => _showRepRangePicker(context),
+          ),
+          ActionChip(
+            avatar: const Icon(Icons.tune, size: 16),
+            label: Text('Type: $weightLabel'),
+            onPressed: () => _showWeightTypePicker(context),
+          ),
+          ActionChip(
+            avatar: const Icon(Icons.category, size: 16),
+            label: Text('Set: ${_setType.label}'),
+            onPressed: () => _showSetTypePicker(context),
+          ),
+          if (exerciseLog.usesCableEquipment)
+            ActionChip(
+              label: Text(exerciseLog.cableAttachment?.label ?? 'Attachment'),
+              onPressed: () => _showCableAttachmentPicker(
+                  context, exerciseIndex, exerciseLog),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showWeightTypePicker(BuildContext context) {
+    final options = <WeightInputType>[
+      WeightInputType.absolute,
+      WeightInputType.perSide,
+      WeightInputType.band,
+      WeightInputType.bodyweight,
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in options)
+              ListTile(
+                title: Text(switch (option) {
+                  WeightInputType.absolute => 'Weight',
+                  WeightInputType.perSide => 'Per Side',
+                  WeightInputType.band => 'Band',
+                  WeightInputType.bodyweight => 'Bodyweight',
+                  WeightInputType.plates => 'Plates',
+                }),
+                selected: option == _weightType,
+                onTap: () {
+                  setState(() => _weightType = option);
+                  Navigator.pop(sheetContext);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSetTypePicker(BuildContext context) {
+    const options = <SetType>[
+      SetType.warmup,
+      SetType.working,
+      SetType.dropset,
+      SetType.failure,
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in options)
+              ListTile(
+                title: Text(option.label),
+                selected: option == _setType,
+                onTap: () {
+                  setState(() => _setType = option);
+                  Navigator.pop(sheetContext);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -1208,8 +1348,35 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     );
   }
 
-  void _toggleUnilateral(int exerciseIndex, ExerciseLog exerciseLog) {
-    ref.read(currentWorkoutProvider.notifier).toggleUnilateral(exerciseIndex);
+  void _showRepRangePicker(BuildContext context) {
+    final presets = [
+      (null, 'Default'),
+      (RepRangePreset.strength.defaultRange, 'Strength 3-5'),
+      (RepRangePreset.hypertrophy.defaultRange, 'Hypertrophy 8-12'),
+      (RepRangePreset.endurance.defaultRange, 'Endurance 15-20'),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final entry in presets)
+              ListTile(
+                title: Text(entry.$2),
+                selected: entry.$1 == _customRepRange,
+                onTap: () {
+                  setState(() => _customRepRange = entry.$1);
+                  _saveRepOverride(entry.$1);
+                  Navigator.pop(sheetContext);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showExerciseHistory(
@@ -1244,14 +1411,14 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
     if (exercise != null) {
       ref.read(currentWorkoutProvider.notifier).switchExercise(
-            exerciseIndex: exerciseIndex,
-            exerciseId: exercise.id,
-            exerciseName: exercise.name,
-            primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
-            secondaryMuscles: exercise.secondaryMuscles.map((m) => m.name).toList(),
-            equipment: <String>[exercise.equipment.name],
-            formCues: <String>[],
-          );
+        exerciseIndex: exerciseIndex,
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        primaryMuscles: exercise.primaryMuscles.map((m) => m.name).toList(),
+        secondaryMuscles: exercise.secondaryMuscles.map((m) => m.name).toList(),
+        equipment: <String>[exercise.equipment.name],
+        formCues: <String>[],
+      );
     }
   }
 
@@ -1274,7 +1441,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           children: [
             TextField(
               controller: weightController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: 'Weight ($unit)',
                 border: const OutlineInputBorder(),
@@ -1299,8 +1467,14 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           ),
           FilledButton(
             onPressed: () {
-              final weight = double.tryParse(weightController.text) ?? set.weight;
+              final weight =
+                  double.tryParse(weightController.text) ?? set.weight;
               final reps = int.tryParse(repsController.text) ?? set.reps;
+              final bandResistance = set.bandResistance == null
+                  ? null
+                  : BandResistance.values
+                      .where((value) => value.name == set.bandResistance)
+                      .firstOrNull;
               ref.read(currentWorkoutProvider.notifier).updateSet(
                     exerciseIndex: exerciseIndex,
                     setIndex: setIndex,
@@ -1308,6 +1482,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                     reps: reps,
                     rpe: set.rpe,
                     setType: set.setType,
+                    weightType: set.weightType,
+                    bandResistance: bandResistance,
                   );
               Navigator.pop(context);
             },

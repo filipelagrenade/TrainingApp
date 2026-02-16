@@ -18,7 +18,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/exercise_set.dart';
 import '../models/weight_input.dart';
-import 'plate_calculator.dart';
 
 /// Callback when a set is completed.
 typedef OnSetComplete = void Function({
@@ -86,6 +85,15 @@ class SetInputRow extends ConsumerStatefulWidget {
   /// Weight increment for +/- buttons
   final double weightIncrement;
 
+  /// Default weight type for this exercise.
+  final WeightInputType defaultWeightType;
+
+  /// Default set type selection for this exercise.
+  final SetType defaultSetType;
+
+  /// Whether the RPE slider should be shown.
+  final bool rpeEnabled;
+
   const SetInputRow({
     super.key,
     required this.setNumber,
@@ -98,6 +106,9 @@ class SetInputRow extends ConsumerStatefulWidget {
     this.onEdit,
     this.unit = 'kg',
     this.weightIncrement = 2.5,
+    this.defaultWeightType = WeightInputType.absolute,
+    this.defaultSetType = SetType.working,
+    this.rpeEnabled = true,
   });
 
   @override
@@ -108,7 +119,6 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
   late TextEditingController _weightController;
   late TextEditingController _repsController;
   SetType _setType = SetType.working;
-  bool _showRpeInput = false;
   double? _rpe;
   WeightInputType _weightType = WeightInputType.absolute;
   BandResistance _bandResistance = BandResistance.medium;
@@ -121,12 +131,9 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
 
   void _initializeControllers() {
     // Pre-fill from previous workout or completed data
-    final initialWeight = widget.completedSet?.weight ??
-        widget.previousWeight ??
-        0.0;
-    final initialReps = widget.completedSet?.reps ??
-        widget.previousReps ??
-        0;
+    final initialWeight =
+        widget.completedSet?.weight ?? widget.previousWeight ?? 0.0;
+    final initialReps = widget.completedSet?.reps ?? widget.previousReps ?? 0;
 
     _weightController = TextEditingController(
       text: initialWeight > 0 ? _formatWeight(initialWeight) : '',
@@ -135,9 +142,21 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       text: initialReps > 0 ? initialReps.toString() : '',
     );
 
+    _setType = widget.defaultSetType;
+    _weightType = widget.defaultWeightType;
+    _rpe = widget.rpeEnabled ? (widget.previousRpe ?? 7) : null;
+
     if (widget.completedSet != null) {
       _setType = widget.completedSet!.setType;
       _rpe = widget.completedSet!.rpe;
+      _weightType = widget.completedSet!.weightType ?? widget.defaultWeightType;
+      if (widget.completedSet!.bandResistance != null) {
+        _bandResistance = BandResistance.values
+                .where((value) =>
+                    value.name == widget.completedSet!.bandResistance)
+                .firstOrNull ??
+            BandResistance.medium;
+      }
     }
   }
 
@@ -151,6 +170,17 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       _repsController.text = widget.completedSet!.reps.toString();
       _setType = widget.completedSet!.setType;
       _rpe = widget.completedSet!.rpe;
+      _weightType = widget.completedSet!.weightType ?? widget.defaultWeightType;
+    } else if (widget.defaultSetType != oldWidget.defaultSetType ||
+        widget.defaultWeightType != oldWidget.defaultWeightType ||
+        widget.rpeEnabled != oldWidget.rpeEnabled) {
+      _setType = widget.defaultSetType;
+      _weightType = widget.defaultWeightType;
+      if (!widget.rpeEnabled) {
+        _rpe = null;
+      } else {
+        _rpe ??= widget.previousRpe ?? 7;
+      }
     }
   }
 
@@ -189,88 +219,47 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       ),
       child: Column(
         children: [
-          // Main input row
           Row(
             children: [
-              // Set number badge
               _buildSetNumberBadge(theme, colors),
               const SizedBox(width: 4),
-
-              // Weight type chip
-              _buildWeightTypeChip(theme, colors),
-              const SizedBox(width: 4),
-
-              // Weight input (hidden for bodyweight)
-              if (_weightType != WeightInputType.bodyweight) ...[
-                Expanded(
-                  flex: 4,
-                  child: _weightType == WeightInputType.band
-                      ? _buildBandSelector(theme, colors)
-                      : _buildWeightInput(theme, colors),
-                ),
-                // Per-side indicator badge
-                if (_weightType == WeightInputType.perSide)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colors.primaryContainer,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '×2',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colors.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+              Expanded(
+                flex: 4,
+                child: _weightType == WeightInputType.bodyweight
+                    ? Align(
+                        alignment: Alignment.center,
+                        child: Text(
+                          'BW',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                    : _weightType == WeightInputType.band
+                        ? _buildBandSelector(theme, colors)
+                        : _buildWeightInput(theme, colors),
+              ),
+              if (_weightType == WeightInputType.perSide) ...[
                 const SizedBox(width: 4),
-              ] else ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('BW', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  'x2',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
-
-              // Reps input
+              const SizedBox(width: 4),
               Expanded(
                 flex: 3,
                 child: _buildRepsInput(theme, colors),
               ),
               const SizedBox(width: 4),
-
-              // RPE toggle
-              InkWell(
-                onTap: () => setState(() => _showRpeInput = !_showRpeInput),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Text(
-                    'RPE',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: _showRpeInput ? colors.primary : colors.onSurfaceVariant,
-                      fontWeight: _showRpeInput ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Complete button
               _buildCompleteButton(theme, colors),
             ],
           ),
-
-          // Optional RPE input (expandable)
-          if (_showRpeInput) ...[
-            const SizedBox(height: 8),
-            _buildRpeInput(theme, colors),
-          ],
-
-          // Set type selector (for warmup/dropset)
-          if (_setType != SetType.working) ...[
-            const SizedBox(height: 4),
-            _buildSetTypeChip(theme, colors),
-          ],
+          const SizedBox(height: 8),
+          _buildRpeInput(theme, colors),
         ],
       ),
     );
@@ -406,85 +395,6 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
     );
   }
 
-  /// Weight type selector chip.
-  Widget _buildWeightTypeChip(ThemeData theme, ColorScheme colors) {
-    final icon = switch (_weightType) {
-      WeightInputType.absolute => Icons.fitness_center,
-      WeightInputType.bodyweight => Icons.accessibility_new,
-      WeightInputType.band => Icons.power_input,
-      WeightInputType.plates => Icons.fitness_center,
-      WeightInputType.perSide => Icons.compare_arrows,
-    };
-
-    return InkWell(
-      onTap: _showWeightTypePicker,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Icon(icon, size: 16),
-      ),
-    );
-  }
-
-  /// Shows picker for weight input type.
-  void _showWeightTypePicker() {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final type in [WeightInputType.absolute, WeightInputType.perSide, WeightInputType.bodyweight, WeightInputType.band])
-            ListTile(
-              leading: Icon(switch (type) {
-                WeightInputType.absolute => Icons.fitness_center,
-                WeightInputType.bodyweight => Icons.accessibility_new,
-                WeightInputType.band => Icons.power_input,
-                WeightInputType.plates => Icons.fitness_center,
-                WeightInputType.perSide => Icons.compare_arrows,
-              }),
-              title: Text(switch (type) {
-                WeightInputType.absolute => 'Weight',
-                WeightInputType.bodyweight => 'Bodyweight',
-                WeightInputType.band => 'Band',
-                WeightInputType.plates => 'Plates',
-                WeightInputType.perSide => 'Per Side',
-              }),
-              subtitle: type == WeightInputType.perSide
-                  ? const Text('Total = entered weight × 2')
-                  : null,
-              selected: _weightType == type,
-              onTap: () {
-                setState(() => _weightType = type);
-                Navigator.pop(ctx);
-              },
-            ),
-          ListTile(
-            leading: const Icon(Icons.calculate),
-            title: const Text('Plate Calculator'),
-            subtitle: const Text('See plate breakdown for current weight'),
-            onTap: () {
-              Navigator.pop(ctx);
-              final weight = double.tryParse(_weightController.text) ?? 0;
-              // Show calculator even with 0 — it will display "bar only"
-              showPlateCalculator(
-                context,
-                targetWeight: weight,
-                barWeight: widget.unit == 'kg' ? 20 : 45,
-                unit: widget.unit,
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
   /// Band resistance selector.
   Widget _buildBandSelector(ThemeData theme, ColorScheme colors) {
     return InkWell(
@@ -518,7 +428,8 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
         child: Text(
           _bandResistance.label,
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+          style:
+              theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ),
     );
@@ -574,35 +485,12 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
     );
   }
 
-  /// Set type chip (for warmup/dropset).
-  Widget _buildSetTypeChip(ThemeData theme, ColorScheme colors) {
-    final label = switch (_setType) {
-      SetType.warmup => 'Warmup',
-      SetType.dropset => 'Drop Set',
-      SetType.failure => 'To Failure',
-      SetType.working => 'Working',
-      SetType.amrap => 'AMRAP',
-      SetType.cluster => 'Cluster',
-      SetType.superset => 'Superset',
-    };
-
-    return Chip(
-      label: Text(label),
-      labelStyle: theme.textTheme.labelSmall,
-      backgroundColor: colors.secondaryContainer,
-      visualDensity: VisualDensity.compact,
-      deleteIcon: const Icon(Icons.close, size: 16),
-      onDeleted: () {
-        setState(() => _setType = SetType.working);
-      },
-    );
-  }
-
   /// Whether the set can be completed.
   bool get _canComplete {
     final reps = int.tryParse(_repsController.text);
     if (reps == null || reps <= 0) return false;
-    if (_weightType == WeightInputType.bodyweight || _weightType == WeightInputType.band) return true;
+    if (_weightType == WeightInputType.bodyweight ||
+        _weightType == WeightInputType.band) return true;
     if (_weightType == WeightInputType.perSide) {
       final weight = double.tryParse(_weightController.text);
       return weight != null && weight >= 0;
@@ -622,7 +510,7 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
     } else if (_weightType == WeightInputType.band) {
       weight = _bandResistance.equivalentWeight;
     } else if (_weightType == WeightInputType.perSide) {
-      // Per-side: store the total weight (per-side × 2) for volume calculations
+      // Per-side: store total weight (entered side x 2) for volume calculations.
       weight = (double.tryParse(_weightController.text) ?? 0) * 2;
     } else {
       weight = double.tryParse(_weightController.text) ?? 0;
@@ -636,33 +524,8 @@ class _SetInputRowState extends ConsumerState<SetInputRow> {
       rpe: _rpe,
       setType: _setType,
       weightType: _weightType,
-      bandResistance: _weightType == WeightInputType.band ? _bandResistance : null,
-    );
-  }
-}
-
-/// Button row for quick set type selection.
-class SetTypeSelector extends StatelessWidget {
-  final SetType selected;
-  final ValueChanged<SetType> onChanged;
-
-  const SetTypeSelector({
-    super.key,
-    required this.selected,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<SetType>(
-      segments: const [
-        ButtonSegment(value: SetType.warmup, label: Text('Warmup')),
-        ButtonSegment(value: SetType.working, label: Text('Working')),
-        ButtonSegment(value: SetType.dropset, label: Text('Drop')),
-        ButtonSegment(value: SetType.failure, label: Text('Failure')),
-      ],
-      selected: {selected},
-      onSelectionChanged: (value) => onChanged(value.first),
+      bandResistance:
+          _weightType == WeightInputType.band ? _bandResistance : null,
     );
   }
 }

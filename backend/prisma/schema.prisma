@@ -101,6 +101,8 @@ model User {
   bodyMeasurements  BodyMeasurement[]
   progressPhotos    ProgressPhoto[]
   mesocycles        Mesocycle[]
+  syncedPrograms    SyncedProgram[]
+  syncedEntities    SyncedEntity[]
 
   @@index([firebaseUid])
   @@index([email])
@@ -306,6 +308,46 @@ model Program {
   @@index([isBuiltIn])
   @@index([difficulty])
   @@index([goalType])
+}
+
+/// SyncedProgram stores user-created program payloads for offline sync.
+/// The client keeps full program JSON and syncs it as a single entity.
+model SyncedProgram {
+  id             String   @id @default(uuid())
+  userId         String
+  externalId     String
+  data           Json
+  clientId       String?
+  lastModifiedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
+  @@index([userId])
+  @@index([lastModifiedAt])
+}
+
+/// Generic sync mirror for full client payloads across all sync entity types.
+model SyncedEntity {
+  id             String   @id @default(uuid())
+  userId         String
+  entityType     String
+  externalId     String
+  data           Json
+  clientId       String?
+  lastModifiedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityType, externalId])
+  @@index([userId, entityType])
+  @@index([lastModifiedAt])
 }
 
 /// ProgressionRule defines how to progress weight for an exercise.

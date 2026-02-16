@@ -68,11 +68,40 @@ class WorkoutHistoryScreen extends ConsumerWidget {
       return _buildEmptyState(theme, colors);
     }
 
+    final totalVolume = workouts.fold<int>(
+      0,
+      (sum, workout) => sum + workout.totalVolume,
+    );
+    final totalPrs = workouts.fold<int>(
+      0,
+      (sum, workout) => sum + workout.prsAchieved,
+    );
+    final avgDuration = workouts
+            .where((w) => w.durationMinutes != null && w.durationMinutes! > 0)
+            .map((w) => w.durationMinutes!)
+            .fold<int>(0, (a, b) => a + b) ~/
+        workouts
+            .where((w) => w.durationMinutes != null && w.durationMinutes! > 0)
+            .length
+            .clamp(1, workouts.length);
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: workouts.length,
+      itemCount: workouts.length + 1,
       itemBuilder: (context, index) {
-        final workout = workouts[index];
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: _HistorySummaryCard(
+              workoutCount: workouts.length,
+              totalVolume: totalVolume,
+              totalPrs: totalPrs,
+              averageDuration: avgDuration,
+            ),
+          );
+        }
+
+        final workout = workouts[index - 1];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: _WorkoutHistoryCard(workout: workout),
@@ -193,7 +222,6 @@ class _WorkoutHistoryCard extends StatelessWidget {
             children: [
               // Header: Name and date
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Column(
@@ -204,6 +232,8 @@ class _WorkoutHistoryCard extends StatelessWidget {
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -211,36 +241,84 @@ class _WorkoutHistoryCard extends StatelessWidget {
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colors.onSurfaceVariant,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color:
+                          colors.surfaceContainerHighest.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      workout.timeAgo,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
 
-              // Stats row: Duration, Exercises, Sets
-              Row(
+              // Stats row
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  _buildStat(
+                  _buildStatPill(
                     icon: Icons.timer_outlined,
-                    value: '${workout.durationMinutes} min',
+                    value: '${workout.durationMinutes ?? 0} min',
                     colors: colors,
                   ),
-                  const SizedBox(width: 16),
-                  _buildStat(
+                  _buildStatPill(
                     icon: Icons.fitness_center,
                     value: '${workout.exerciseCount} exercises',
                     colors: colors,
                   ),
-                  const SizedBox(width: 16),
-                  _buildStat(
+                  _buildStatPill(
                     icon: Icons.format_list_numbered,
                     value: '${workout.totalSets} sets',
                     colors: colors,
                   ),
                 ],
               ),
+
+              if (workout.muscleGroups.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    ...workout.muscleGroups.take(3).map((muscle) {
+                      return Chip(
+                        label: Text(
+                          muscle,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        labelStyle: theme.textTheme.labelSmall,
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      );
+                    }),
+                    if (workout.muscleGroups.length > 3)
+                      Chip(
+                        label: Text('+${workout.muscleGroups.length - 3}'),
+                        labelStyle: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
 
               // PR badge if any PRs were hit
               if (workout.prsAchieved > 0) ...[
@@ -273,32 +351,30 @@ class _WorkoutHistoryCard extends StatelessWidget {
                 ),
               ],
 
-              // Muscle groups worked
-              if (workout.muscleGroups.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: workout.muscleGroups.take(4).map((muscle) {
-                    return Chip(
-                      label: Text(muscle),
-                      labelStyle: theme.textTheme.labelSmall,
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    );
-                  }).toList(),
-                ),
-              ],
-
               // Volume
-              const SizedBox(height: 8),
-              Text(
-                'Volume: ${(workout.totalVolume / 1000).toStringAsFixed(1)}k kg',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w500,
-                ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(
+                    Icons.stacked_bar_chart_rounded,
+                    size: 16,
+                    color: colors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Volume: ${workout.formattedVolume}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ],
               ),
             ],
           ),
@@ -307,41 +383,42 @@ class _WorkoutHistoryCard extends StatelessWidget {
     );
   }
 
-  /// Build a stat item with icon and value.
-  Widget _buildStat({
+  Widget _buildStatPill({
     required IconData icon,
     required String value,
     required ColorScheme colors,
   }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: colors.onSurfaceVariant,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: colors.outline.withValues(alpha: 0.35),
         ),
-        const SizedBox(width: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
             color: colors.onSurfaceVariant,
           ),
-        ),
-      ],
+          const SizedBox(width: 5),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
-  }
-
-  /// Format duration for display.
-  String _formatDuration(int? seconds) {
-    if (seconds == null || seconds == 0) return '--';
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
   }
 
   /// Format date for display.
@@ -356,12 +433,120 @@ class _WorkoutHistoryCard extends StatelessWidget {
     } else if (difference.inDays < 7) {
       return '${difference.inDays} days ago';
     } else {
-      // Format as "Jan 15, 2024"
       final months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
       ];
       return '${months[date.month - 1]} ${date.day}, ${date.year}';
     }
+  }
+}
+
+class _HistorySummaryCard extends StatelessWidget {
+  final int workoutCount;
+  final int totalVolume;
+  final int totalPrs;
+  final int averageDuration;
+
+  const _HistorySummaryCard({
+    required this.workoutCount,
+    required this.totalVolume,
+    required this.totalPrs,
+    required this.averageDuration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Wrap(
+          spacing: 14,
+          runSpacing: 10,
+          alignment: WrapAlignment.spaceBetween,
+          children: [
+            _SummaryKpi(
+              label: 'Workouts',
+              value: '$workoutCount',
+              icon: Icons.history_rounded,
+            ),
+            _SummaryKpi(
+              label: 'Volume',
+              value: '${(totalVolume / 1000).toStringAsFixed(1)}k',
+              icon: Icons.stacked_bar_chart_rounded,
+            ),
+            _SummaryKpi(
+              label: 'PRs',
+              value: '$totalPrs',
+              icon: Icons.emoji_events_outlined,
+            ),
+            _SummaryKpi(
+              label: 'Avg Time',
+              value: '${averageDuration}m',
+              icon: Icons.timer_outlined,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryKpi extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _SummaryKpi({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 120),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: colors.primary),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

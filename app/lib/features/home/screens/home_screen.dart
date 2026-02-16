@@ -44,54 +44,94 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = ref.watch(homeTabIndexProvider);
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final navContainerColor = colors.surface.withValues(alpha: 0.92);
+    final navBorderColor = colors.outline.withValues(alpha: 0.4);
 
-    return Scaffold(
-      body: IndexedStack(
-        index: currentIndex,
-        children: const [
-          _DashboardTab(),
-          WorkoutHistoryScreen(),
-          ExerciseLibraryScreen(),
-          ProgressScreen(),
-          SettingsScreen(),
-        ],
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors.surfaceContainerLowest,
+            colors.surface,
+            colors.surfaceContainerLow,
+          ],
+        ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: (index) {
-          ref.read(homeTabIndexProvider.notifier).state = index;
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBody: true,
+        body: IndexedStack(
+          index: currentIndex,
+          children: const [
+            _DashboardTab(),
+            WorkoutHistoryScreen(),
+            ExerciseLibraryScreen(),
+            ProgressScreen(),
+            SettingsScreen(),
+          ],
+        ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: navContainerColor,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: navBorderColor),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.shadow.withValues(alpha: 0.14),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: NavigationBar(
+                selectedIndex: currentIndex,
+                labelBehavior:
+                    NavigationDestinationLabelBehavior.onlyShowSelected,
+                onDestinationSelected: (index) {
+                  ref.read(homeTabIndexProvider.notifier).state = index;
+                },
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_outlined),
+                    selectedIcon: Icon(Icons.home),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.history_outlined),
+                    selectedIcon: Icon(Icons.history),
+                    label: 'History',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.fitness_center_outlined),
+                    selectedIcon: Icon(Icons.fitness_center),
+                    label: 'Exercises',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.show_chart_outlined),
+                    selectedIcon: Icon(Icons.show_chart),
+                    label: 'Progress',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                ],
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.fitness_center_outlined),
-            selectedIcon: Icon(Icons.fitness_center),
-            label: 'Exercises',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.show_chart_outlined),
-            selectedIcon: Icon(Icons.show_chart),
-            label: 'Progress',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        ),
+        floatingActionButton:
+            currentIndex == 0 ? _buildWorkoutFab(context, ref) : null,
       ),
-      floatingActionButton: currentIndex == 0
-          ? _buildWorkoutFab(context, ref)
-          : null,
     );
   }
 
@@ -173,40 +213,16 @@ class _DashboardTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return CustomScrollView(
       slivers: [
-        SliverAppBar.large(
-          title: const Text('LiftIQ'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.calendar_month_outlined),
-              tooltip: 'Workout Calendar',
-              onPressed: () {
-                context.push('/calendar');
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.emoji_events_outlined),
-              tooltip: 'Achievements',
-              onPressed: () {
-                context.go('/achievements');
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.smart_toy_outlined),
-              tooltip: 'AI Coach',
-              onPressed: () {
-                context.go('/ai-coach');
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.people_outline),
-              tooltip: 'Social',
-              onPressed: () {
-                context.go('/social');
-              },
-            ),
-          ],
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: _DashboardHero(colors: colors),
+          ),
         ),
         SliverPadding(
           padding: const EdgeInsets.all(16),
@@ -274,6 +290,131 @@ class _DashboardTab extends ConsumerWidget {
   }
 }
 
+class _DashboardHero extends StatelessWidget {
+  final ColorScheme colors;
+
+  const _DashboardHero({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final greeting = now.hour < 12
+        ? 'Good morning'
+        : now.hour < 17
+            ? 'Good afternoon'
+            : 'Good evening';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors.primary.withValues(alpha: 0.22),
+            colors.secondary.withValues(alpha: 0.16),
+            colors.surfaceContainerHighest.withValues(alpha: 0.72),
+          ],
+        ),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        greeting,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'LiftIQ',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surface.withValues(alpha: 0.7),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: colors.outline.withValues(alpha: 0.3)),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.calendar_month_outlined),
+                    tooltip: 'Workout Calendar',
+                    onPressed: () => context.push('/calendar'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: const [
+                _HeroActionChip(
+                  icon: Icons.emoji_events_outlined,
+                  label: 'Achievements',
+                  route: '/achievements',
+                ),
+                _HeroActionChip(
+                  icon: Icons.smart_toy_outlined,
+                  label: 'AI Coach',
+                  route: '/ai-coach',
+                ),
+                _HeroActionChip(
+                  icon: Icons.people_outline,
+                  label: 'Social',
+                  route: '/social',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String route;
+
+  const _HeroActionChip({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return ActionChip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+      onPressed: () => context.go(route),
+      backgroundColor: colors.surface.withValues(alpha: 0.72),
+      side: BorderSide(color: colors.outline.withValues(alpha: 0.32)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    );
+  }
+}
+
 /// Weekly summary card that displays real workout stats from the past 7 days.
 class _WeeklySummaryCard extends ConsumerWidget {
   const _WeeklySummaryCard();
@@ -317,7 +458,10 @@ class _WeeklySummaryCard extends ConsumerWidget {
               loading: () => const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _StatItem(label: 'Workouts', value: '-', icon: Icons.fitness_center),
+                  _StatItem(
+                      label: 'Workouts',
+                      value: '-',
+                      icon: Icons.fitness_center),
                   _StatItem(label: 'Volume', value: '-', icon: Icons.scale),
                   _StatItem(label: 'PRs', value: '-', icon: Icons.emoji_events),
                 ],
@@ -325,7 +469,10 @@ class _WeeklySummaryCard extends ConsumerWidget {
               error: (_, __) => const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _StatItem(label: 'Workouts', value: '0', icon: Icons.fitness_center),
+                  _StatItem(
+                      label: 'Workouts',
+                      value: '0',
+                      icon: Icons.fitness_center),
                   _StatItem(label: 'Volume', value: '0', icon: Icons.scale),
                   _StatItem(label: 'PRs', value: '0', icon: Icons.emoji_events),
                 ],
@@ -621,7 +768,7 @@ class _CurrentProgramCard extends ConsumerWidget {
                         program.isCompleted
                             ? 'Program Completed!'
                             : 'Week ${program.currentWeek} of ${program.totalWeeks} • Day ${program.currentDayInWeek}'
-                              '${program.isDeloadWeek(program.currentWeek) ? ' (Deload)' : ''}',
+                                '${program.isDeloadWeek(program.currentWeek) ? ' (Deload)' : ''}',
                         style: context.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w500,
                         ),
@@ -643,7 +790,8 @@ class _CurrentProgramCard extends ConsumerWidget {
                       value: program.completionPercentage,
                       minHeight: 8,
                       backgroundColor: context.colors.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation(context.colors.primary),
+                      valueColor:
+                          AlwaysStoppedAnimation(context.colors.primary),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -804,8 +952,8 @@ class _ResumeWorkoutCard extends ConsumerWidget {
                   Text(
                     'Workout in Progress',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: Colors.white.withOpacity(0.8),
-                    ),
+                          color: Colors.white.withOpacity(0.8),
+                        ),
                   ),
                 ],
               ),
@@ -814,9 +962,9 @@ class _ResumeWorkoutCard extends ConsumerWidget {
               Text(
                 workout.templateName ?? 'Quick Workout',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -825,8 +973,8 @@ class _ResumeWorkoutCard extends ConsumerWidget {
               Text(
                 '$durationText  •  ${workout.exerciseCount} exercises  •  ${workout.totalSets} sets',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.9),
-                ),
+                      color: Colors.white.withOpacity(0.9),
+                    ),
               ),
               const SizedBox(height: 12),
               // Resume button - full width
@@ -868,7 +1016,8 @@ class _RecentWorkoutsList extends ConsumerWidget {
     );
   }
 
-  Widget _buildWorkoutCards(BuildContext context, List<WorkoutSummary> workouts) {
+  Widget _buildWorkoutCards(
+      BuildContext context, List<WorkoutSummary> workouts) {
     if (workouts.isEmpty) {
       return _buildEmptyState(context);
     }
@@ -897,7 +1046,8 @@ class _RecentWorkoutsList extends ConsumerWidget {
               children: [
                 if (workout.prsAchieved > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     margin: const EdgeInsets.only(right: 8),
                     decoration: BoxDecoration(
                       color: context.colors.tertiaryContainer,
