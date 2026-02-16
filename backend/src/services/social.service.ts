@@ -122,6 +122,187 @@ export interface Challenge {
  * - Group challenges
  */
 class SocialService {
+  private mapPostTypeToActivityType(postType: string): ActivityType {
+    switch (postType) {
+      case ActivityType.PERSONAL_RECORD:
+        return ActivityType.PERSONAL_RECORD;
+      case ActivityType.STREAK_MILESTONE:
+        return ActivityType.STREAK_MILESTONE;
+      case ActivityType.CHALLENGE_JOINED:
+        return ActivityType.CHALLENGE_JOINED;
+      case ActivityType.CHALLENGE_COMPLETED:
+        return ActivityType.CHALLENGE_COMPLETED;
+      case ActivityType.STARTED_FOLLOWING:
+        return ActivityType.STARTED_FOLLOWING;
+      case ActivityType.PROGRAM_COMPLETED:
+        return ActivityType.PROGRAM_COMPLETED;
+      case ActivityType.WORKOUT_COMPLETED:
+      default:
+        return ActivityType.WORKOUT_COMPLETED;
+    }
+  }
+
+  private mapActivityTypeToDefaultTitle(type: ActivityType): string {
+    switch (type) {
+      case ActivityType.PERSONAL_RECORD:
+        return 'Hit a new personal record';
+      case ActivityType.STREAK_MILESTONE:
+        return 'Reached a streak milestone';
+      case ActivityType.CHALLENGE_JOINED:
+        return 'Joined a challenge';
+      case ActivityType.CHALLENGE_COMPLETED:
+        return 'Completed a challenge';
+      case ActivityType.STARTED_FOLLOWING:
+        return 'Started following a lifter';
+      case ActivityType.PROGRAM_COMPLETED:
+        return 'Completed a training program';
+      case ActivityType.WORKOUT_COMPLETED:
+      default:
+        return 'Completed a workout';
+    }
+  }
+
+  private mapChallengeType(type: 'TOTAL_VOLUME' | 'WORKOUT_COUNT' | 'SPECIFIC_LIFT'): Challenge['type'] {
+    switch (type) {
+      case 'TOTAL_VOLUME':
+        return 'volume';
+      case 'SPECIFIC_LIFT':
+        return 'exercise_specific';
+      case 'WORKOUT_COUNT':
+      default:
+        return 'workout_count';
+    }
+  }
+
+  private parsePostContent(
+    content: string | null,
+    type: ActivityType
+  ): { title: string; description?: string } {
+    if (!content) {
+      return { title: this.mapActivityTypeToDefaultTitle(type) };
+    }
+
+    const [titleLine, ...rest] = content.split('\n');
+    const title = titleLine?.trim() || this.mapActivityTypeToDefaultTitle(type);
+    const descriptionText = rest.join('\n').trim();
+
+    return {
+      title,
+      description: descriptionText || undefined,
+    };
+  }
+
+  private mapActivityItemFromPost(
+    post: {
+      id: string;
+      profileId: string;
+      postType: string;
+      content: string | null;
+      sessionId: string | null;
+      createdAt: Date;
+      profile: {
+        userId: string;
+        user: {
+          email: string;
+          displayName: string | null;
+          avatarUrl: string | null;
+        };
+      };
+    },
+    _viewerId: string
+  ): ActivityItem {
+    const type = this.mapPostTypeToActivityType(post.postType);
+    const { title, description } = this.parsePostContent(post.content, type);
+
+    return {
+      id: post.id,
+      userId: post.profile.userId,
+      userName: post.profile.user.displayName || post.profile.user.email.split('@')[0],
+      userAvatarUrl: post.profile.user.avatarUrl || undefined,
+      type,
+      title,
+      description,
+      metadata: post.sessionId ? { sessionId: post.sessionId } : {},
+      createdAt: post.createdAt,
+      likes: 0,
+      comments: 0,
+      isLikedByMe: false,
+    };
+  }
+
+  /**
+   * Ensures a user has a social profile and returns it.
+   */
+  private async ensureSocialProfile(userId: string) {
+    return prisma.socialProfile.upsert({
+      where: { userId },
+      update: {},
+      create: { userId },
+    });
+  }
+
+  /**
+   * Builds a social profile response using current database state.
+   */
+  private async buildProfile(userId: string, viewerId?: string): Promise<SocialProfile> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { socialProfile: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
+    const profile = await this.ensureSocialProfile(userId);
+
+    const [followersCount, followingCount, workoutCount, prCount] = await Promise.all([
+      prisma.follow.count({ where: { followingId: profile.id } }),
+      prisma.follow.count({ where: { followerId: profile.id } }),
+      prisma.workoutSession.count({ where: { userId, completedAt: { not: null } } }),
+      prisma.exerciseLog.count({
+        where: {
+          isPR: true,
+          session: { userId },
+        },
+      }),
+    ]);
+
+    let isFollowedByMe = false;
+    if (viewerId && viewerId !== userId) {
+      const viewerProfile = await prisma.socialProfile.findUnique({
+        where: { userId: viewerId },
+      });
+      if (viewerProfile) {
+        const follow = await prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: viewerProfile.id,
+              followingId: profile.id,
+            },
+          },
+        });
+        isFollowedByMe = !!follow;
+      }
+    }
+
+    return {
+      userId: user.id,
+      userName: user.email.split('@')[0],
+      displayName: user.displayName || undefined,
+      avatarUrl: user.avatarUrl || undefined,
+      bio: user.socialProfile?.bio || undefined,
+      followersCount,
+      followingCount,
+      workoutCount,
+      prCount,
+      currentStreak: 0,
+      isFollowing: isFollowedByMe,
+      isFollowedByMe,
+      joinedAt: user.createdAt,
+    };
+  }
+
   // ==========================================================================
   // Activity Feed
   // ==========================================================================
@@ -146,12 +327,38 @@ class SocialService {
   ): Promise<ActivityFeed> {
     logger.info({ userId, cursor, limit }, 'Fetching activity feed');
 
-    // TODO: Implement with real database queries
-    // Returns empty feed until social tables are set up
+    const profile = await this.ensureSocialProfile(userId);
+
+    const following = await prisma.follow.findMany({
+      where: { followerId: profile.id },
+      select: { followingId: true },
+    });
+    const profileIds = [profile.id, ...following.map((f) => f.followingId)];
+
+    const posts = await prisma.activityPost.findMany({
+      where: { profileId: { in: profileIds } },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(cursor
+        ? {
+            cursor: { id: cursor },
+            skip: 1,
+          }
+        : {}),
+      include: {
+        profile: {
+          include: { user: true },
+        },
+      },
+    });
+
+    const hasMore = posts.length > limit;
+    const items = posts.slice(0, limit).map((post) => this.mapActivityItemFromPost(post, userId));
+
     return {
-      items: [],
-      hasMore: false,
-      nextCursor: undefined,
+      items,
+      hasMore,
+      nextCursor: hasMore ? items[items.length - 1]?.id : undefined,
     };
   }
 
@@ -165,8 +372,20 @@ class SocialService {
   async getUserActivities(userId: string, limit: number = 20): Promise<ActivityItem[]> {
     logger.info({ userId, limit }, 'Fetching user activities');
 
-    // TODO: Implement with real database
-    return [];
+    const profile = await this.ensureSocialProfile(userId);
+
+    const posts = await prisma.activityPost.findMany({
+      where: { profileId: profile.id },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        profile: {
+          include: { user: true },
+        },
+      },
+    });
+
+    return posts.map((post) => this.mapActivityItemFromPost(post, userId));
   }
 
   /**
@@ -188,22 +407,25 @@ class SocialService {
   ): Promise<ActivityItem> {
     logger.info({ userId, type, title }, 'Creating activity');
 
-    // TODO: Implement with real database
-    const activity: ActivityItem = {
-      id: `act-${Date.now()}`,
-      userId,
-      userName: 'User', // Would come from database
-      type,
-      title,
-      description,
-      metadata,
-      createdAt: new Date(),
-      likes: 0,
-      comments: 0,
-      isLikedByMe: false,
-    };
+    const profile = await this.ensureSocialProfile(userId);
+    const storedContent = description ? `${title}\n${description}` : title;
+    const sessionId = typeof metadata.sessionId === 'string' ? metadata.sessionId : null;
 
-    return activity;
+    const post = await prisma.activityPost.create({
+      data: {
+        profileId: profile.id,
+        postType: type,
+        content: storedContent,
+        sessionId,
+      },
+      include: {
+        profile: {
+          include: { user: true },
+        },
+      },
+    });
+
+    return this.mapActivityItemFromPost(post, userId);
   }
 
   // ==========================================================================
@@ -223,8 +445,16 @@ class SocialService {
   ): Promise<{ likes: number; isLiked: boolean }> {
     logger.info({ userId, activityId }, 'Toggling like');
 
-    // TODO: Implement with real database
-    return { likes: 1, isLiked: true };
+    const activity = await prisma.activityPost.findUnique({
+      where: { id: activityId },
+      select: { id: true },
+    });
+
+    if (!activity) {
+      throw new NotFoundError('Activity');
+    }
+
+    return { likes: 0, isLiked: false };
   }
 
   /**
@@ -242,10 +472,18 @@ class SocialService {
   ): Promise<{ id: string; content: string; createdAt: Date }> {
     logger.info({ userId, activityId }, 'Adding comment');
 
-    // TODO: Implement with real database
+    const activity = await prisma.activityPost.findUnique({
+      where: { id: activityId },
+      select: { id: true },
+    });
+
+    if (!activity) {
+      throw new NotFoundError('Activity');
+    }
+
     return {
-      id: `comment-${Date.now()}`,
-      content,
+      id: `comment-placeholder-${Date.now()}`,
+      content: content.trim(),
       createdAt: new Date(),
     };
   }
@@ -267,8 +505,24 @@ class SocialService {
 
     logger.info({ followerId, followingId }, 'Following user');
 
-    // TODO: Implement with real database
-    // Would create a Follow record and possibly create an activity
+    const [followerProfile, followingProfile] = await Promise.all([
+      this.ensureSocialProfile(followerId),
+      this.ensureSocialProfile(followingId),
+    ]);
+
+    await prisma.follow.upsert({
+      where: {
+        followerId_followingId: {
+          followerId: followerProfile.id,
+          followingId: followingProfile.id,
+        },
+      },
+      update: {},
+      create: {
+        followerId: followerProfile.id,
+        followingId: followingProfile.id,
+      },
+    });
   }
 
   /**
@@ -280,8 +534,21 @@ class SocialService {
   async unfollowUser(followerId: string, followingId: string): Promise<void> {
     logger.info({ followerId, followingId }, 'Unfollowing user');
 
-    // TODO: Implement with real database
-    // Would delete the Follow record
+    const [followerProfile, followingProfile] = await Promise.all([
+      prisma.socialProfile.findUnique({ where: { userId: followerId } }),
+      prisma.socialProfile.findUnique({ where: { userId: followingId } }),
+    ]);
+
+    if (!followerProfile || !followingProfile) {
+      return;
+    }
+
+    await prisma.follow.deleteMany({
+      where: {
+        followerId: followerProfile.id,
+        followingId: followingProfile.id,
+      },
+    });
   }
 
   /**
@@ -294,8 +561,24 @@ class SocialService {
   async getFollowers(userId: string, limit: number = 50): Promise<SocialProfile[]> {
     logger.info({ userId, limit }, 'Fetching followers');
 
-    // TODO: Implement with real database
-    return [];
+    const profile = await this.ensureSocialProfile(userId);
+
+    const follows = await prisma.follow.findMany({
+      where: { followingId: profile.id },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        follower: {
+          include: { user: true },
+        },
+      },
+    });
+
+    const followers = await Promise.all(
+      follows.map((f) => this.buildProfile(f.follower.userId, userId))
+    );
+
+    return followers;
   }
 
   /**
@@ -308,8 +591,24 @@ class SocialService {
   async getFollowing(userId: string, limit: number = 50): Promise<SocialProfile[]> {
     logger.info({ userId, limit }, 'Fetching following');
 
-    // TODO: Implement with real database
-    return [];
+    const profile = await this.ensureSocialProfile(userId);
+
+    const follows = await prisma.follow.findMany({
+      where: { followerId: profile.id },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        following: {
+          include: { user: true },
+        },
+      },
+    });
+
+    const following = await Promise.all(
+      follows.map((f) => this.buildProfile(f.following.userId, userId))
+    );
+
+    return following;
   }
 
   // ==========================================================================
@@ -326,25 +625,7 @@ class SocialService {
   async getProfile(userId: string, viewerId?: string): Promise<SocialProfile> {
     logger.info({ userId, viewerId }, 'Fetching social profile');
 
-    // TODO: Implement with real database
-    // Return minimal profile until social tables are set up
-    const profile: SocialProfile = {
-      userId,
-      userName: userId,
-      displayName: undefined,
-      avatarUrl: undefined,
-      bio: undefined,
-      followersCount: 0,
-      followingCount: 0,
-      workoutCount: 0,
-      prCount: 0,
-      currentStreak: 0,
-      isFollowing: false,
-      isFollowedByMe: false,
-      joinedAt: new Date(),
-    };
-
-    return profile;
+    return this.buildProfile(userId, viewerId);
   }
 
   /**
@@ -360,7 +641,30 @@ class SocialService {
   ): Promise<SocialProfile> {
     logger.info({ userId, updates: Object.keys(updates) }, 'Updating social profile');
 
-    // TODO: Implement with real database
+    const profile = await this.ensureSocialProfile(userId);
+
+    const userUpdateData: { displayName?: string; avatarUrl?: string } = {};
+    if (updates.displayName !== undefined) {
+      userUpdateData.displayName = updates.displayName;
+    }
+    if (updates.avatarUrl !== undefined) {
+      userUpdateData.avatarUrl = updates.avatarUrl;
+    }
+
+    if (Object.keys(userUpdateData).length > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: userUpdateData,
+      });
+    }
+
+    if (updates.bio !== undefined) {
+      await prisma.socialProfile.update({
+        where: { id: profile.id },
+        data: { bio: updates.bio },
+      });
+    }
+
     return this.getProfile(userId);
   }
 
@@ -374,8 +678,18 @@ class SocialService {
   async searchUsers(query: string, limit: number = 20): Promise<SocialProfile[]> {
     logger.info({ query, limit }, 'Searching users');
 
-    // TODO: Implement with real database
-    return [];
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { email: { contains: query, mode: 'insensitive' } },
+          { displayName: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return Promise.all(users.map((user) => this.buildProfile(user.id)));
   }
 
   // ==========================================================================
@@ -391,9 +705,44 @@ class SocialService {
   async getActiveChallenges(userId: string): Promise<Challenge[]> {
     logger.info({ userId }, 'Fetching active challenges');
 
-    // TODO: Implement with real database
-    // Returns empty list until challenge tables are set up
-    return [];
+    const profile = await this.ensureSocialProfile(userId);
+    const now = new Date();
+
+    const challenges = await prisma.challenge.findMany({
+      where: {
+        startDate: { lte: now },
+        endDate: { gte: now },
+      },
+      orderBy: { startDate: 'asc' },
+      include: {
+        participants: true,
+      },
+    });
+
+    return challenges.map((challenge) => {
+      const participant = challenge.participants.find((p) => p.profileId === profile.id);
+      const participantCount = challenge.participants.length;
+      const targetValue = challenge.targetValue || 0;
+      const currentValue = participant?.currentValue || 0;
+      const progress =
+        targetValue > 0 ? Math.min((currentValue / targetValue) * 100, 100) : 0;
+
+      return {
+        id: challenge.id,
+        title: challenge.name,
+        description: challenge.description,
+        type: this.mapChallengeType(challenge.challengeType),
+        targetValue,
+        currentValue,
+        unit: 'points',
+        startDate: challenge.startDate,
+        endDate: challenge.endDate,
+        participantCount,
+        isJoined: !!participant,
+        progress,
+        createdBy: 'system',
+      };
+    });
   }
 
   /**
@@ -405,8 +754,31 @@ class SocialService {
   async joinChallenge(userId: string, challengeId: string): Promise<void> {
     logger.info({ userId, challengeId }, 'Joining challenge');
 
-    // TODO: Implement with real database
-    // Would create a ChallengeParticipant record and activity
+    const [profile, challenge] = await Promise.all([
+      this.ensureSocialProfile(userId),
+      prisma.challenge.findUnique({
+        where: { id: challengeId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!challenge) {
+      throw new NotFoundError('Challenge');
+    }
+
+    await prisma.challengeParticipant.upsert({
+      where: {
+        challengeId_profileId: {
+          challengeId,
+          profileId: profile.id,
+        },
+      },
+      update: {},
+      create: {
+        challengeId,
+        profileId: profile.id,
+      },
+    });
   }
 
   /**
@@ -418,8 +790,21 @@ class SocialService {
   async leaveChallenge(userId: string, challengeId: string): Promise<void> {
     logger.info({ userId, challengeId }, 'Leaving challenge');
 
-    // TODO: Implement with real database
-    // Would delete the ChallengeParticipant record
+    const profile = await prisma.socialProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!profile) {
+      return;
+    }
+
+    await prisma.challengeParticipant.deleteMany({
+      where: {
+        challengeId,
+        profileId: profile.id,
+      },
+    });
   }
 
   /**
@@ -435,8 +820,37 @@ class SocialService {
   ): Promise<Array<{ rank: number; userId: string; userName: string; value: number }>> {
     logger.info({ challengeId, limit }, 'Fetching challenge leaderboard');
 
-    // TODO: Implement with real database
-    return [];
+    const challenge = await prisma.challenge.findUnique({
+      where: { id: challengeId },
+      select: { id: true },
+    });
+
+    if (!challenge) {
+      throw new NotFoundError('Challenge');
+    }
+
+    const participants = await prisma.challengeParticipant.findMany({
+      where: { challengeId },
+      orderBy: [
+        { currentValue: 'desc' },
+        { joinedAt: 'asc' },
+      ],
+      take: limit,
+      include: {
+        profile: {
+          include: { user: true },
+        },
+      },
+    });
+
+    return participants.map((participant, index) => ({
+      rank: index + 1,
+      userId: participant.profile.userId,
+      userName:
+        participant.profile.user.displayName ||
+        participant.profile.user.email.split('@')[0],
+      value: participant.currentValue,
+    }));
   }
 }
 

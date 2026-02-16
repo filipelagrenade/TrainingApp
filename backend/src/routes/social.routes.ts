@@ -27,11 +27,13 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { socialService, ActivityType } from '../services/social.service';
+import { socialService } from '../services/social.service';
 import { successResponse } from '../utils/response';
 import { logger } from '../utils/logger';
+import { authMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
+router.use(authMiddleware);
 
 // ============================================================================
 // Validation Schemas
@@ -73,7 +75,7 @@ const SearchSchema = z.object({
  */
 router.get('/feed', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
     const { cursor, limit } = PaginationSchema.parse(req.query);
 
     logger.info({ userId, cursor, limit }, 'GET /feed');
@@ -113,7 +115,7 @@ router.get('/activities/:userId', async (req: Request, res: Response, next: Next
  */
 router.post('/activities/:id/like', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
     const { id: activityId } = req.params;
 
     logger.info({ userId, activityId }, 'POST /activities/:id/like');
@@ -133,7 +135,7 @@ router.post('/activities/:id/like', async (req: Request, res: Response, next: Ne
  */
 router.post('/activities/:id/comment', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
     const { id: activityId } = req.params;
     const { content } = CommentSchema.parse(req.body);
 
@@ -178,7 +180,7 @@ router.get('/profile/:userId', async (req: Request, res: Response, next: NextFun
  */
 router.put('/profile', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
     const updates = UpdateProfileSchema.parse(req.body);
 
     logger.info({ userId, updates: Object.keys(updates) }, 'PUT /profile');
@@ -221,7 +223,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
  */
 router.post('/follow/:userId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const followerId = req.user?.id || 'demo-user';
+    const followerId = req.user!.id;
     const { userId: followingId } = req.params;
 
     logger.info({ followerId, followingId }, 'POST /follow/:userId');
@@ -241,7 +243,7 @@ router.post('/follow/:userId', async (req: Request, res: Response, next: NextFun
  */
 router.delete('/follow/:userId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const followerId = req.user?.id || 'demo-user';
+    const followerId = req.user!.id;
     const { userId: followingId } = req.params;
 
     logger.info({ followerId, followingId }, 'DELETE /follow/:userId');
@@ -305,7 +307,7 @@ router.get('/following/:userId', async (req: Request, res: Response, next: NextF
  */
 router.get('/challenges', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
 
     logger.info({ userId }, 'GET /challenges');
 
@@ -324,7 +326,7 @@ router.get('/challenges', async (req: Request, res: Response, next: NextFunction
  */
 router.post('/challenges/:id/join', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
     const { id: challengeId } = req.params;
 
     logger.info({ userId, challengeId }, 'POST /challenges/:id/join');
@@ -344,7 +346,7 @@ router.post('/challenges/:id/join', async (req: Request, res: Response, next: Ne
  */
 router.delete('/challenges/:id/leave', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
     const { id: challengeId } = req.params;
 
     logger.info({ userId, challengeId }, 'DELETE /challenges/:id/leave');

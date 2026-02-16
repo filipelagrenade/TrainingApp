@@ -200,7 +200,7 @@ export class AnalyticsService {
         totalSets,
         totalVolume: Math.round(totalVolume),
         muscleGroups: Array.from(muscleGroups),
-        prsAchieved: 0, // TODO: Calculate from PR table
+        prsAchieved: session.exerciseLogs.filter((log) => log.isPR).length,
       };
     });
   }

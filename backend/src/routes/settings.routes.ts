@@ -15,12 +15,15 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { UnitType } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { successResponse } from '../utils/response';
 import { logger } from '../utils/logger';
 import { NotFoundError } from '../utils/errors';
+import { authMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
+router.use(authMiddleware);
 
 // ============================================================================
 // Validation Schemas
@@ -63,13 +66,21 @@ const UpdateSettingsSchema = z.object({
  */
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
 
     logger.info({ userId }, 'GET /settings');
 
-    // TODO: Get from database
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { socialProfile: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
     const settings = {
-      weightUnit: 'lbs',
+      weightUnit: user.unitPreference === UnitType.KG ? 'kg' : 'lbs',
       distanceUnit: 'miles',
       theme: 'system',
       restTimerDefaultSeconds: 90,
@@ -87,7 +98,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       notifySocial: true,
       notifyChallenges: true,
       notifyAITips: false,
-      publicProfile: true,
+      publicProfile: user.socialProfile?.isPublic ?? false,
       showWorkoutHistory: true,
       showPRs: true,
       showStreak: true,
@@ -107,14 +118,64 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
  */
 router.put('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
     const updates = UpdateSettingsSchema.parse(req.body);
 
     logger.info({ userId, updates: Object.keys(updates) }, 'PUT /settings');
 
-    // TODO: Update in database
+    const userUpdates: { unitPreference?: UnitType } = {};
+    if (updates.weightUnit) {
+      userUpdates.unitPreference = updates.weightUnit === 'kg' ? UnitType.KG : UnitType.LBS;
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: userUpdates,
+      });
+    }
+
+    if (typeof updates.publicProfile === 'boolean') {
+      await prisma.socialProfile.upsert({
+        where: { userId },
+        update: { isPublic: updates.publicProfile },
+        create: { userId, isPublic: updates.publicProfile },
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { socialProfile: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
     const settings = {
-      ...updates,
+      weightUnit: user.unitPreference === UnitType.KG ? 'kg' : 'lbs',
+      distanceUnit: updates.distanceUnit ?? 'miles',
+      theme: updates.theme ?? 'system',
+      restTimerDefaultSeconds: updates.restTimerDefaultSeconds ?? 90,
+      restTimerAutoStart: updates.restTimerAutoStart ?? true,
+      restTimerVibrate: updates.restTimerVibrate ?? true,
+      restTimerSound: updates.restTimerSound ?? true,
+      showWeightSuggestions: updates.showWeightSuggestions ?? true,
+      showFormCues: updates.showFormCues ?? true,
+      defaultSets: updates.defaultSets ?? 3,
+      hapticFeedback: updates.hapticFeedback ?? true,
+      notificationsEnabled: updates.notificationsEnabled ?? true,
+      notifyWorkoutReminders: updates.notifyWorkoutReminders ?? true,
+      notifyPRs: updates.notifyPRs ?? true,
+      notifyRestTimer: updates.notifyRestTimer ?? true,
+      notifySocial: updates.notifySocial ?? true,
+      notifyChallenges: updates.notifyChallenges ?? true,
+      notifyAITips: updates.notifyAITips ?? false,
+      publicProfile: user.socialProfile?.isPublic ?? false,
+      showWorkoutHistory: updates.showWorkoutHistory ?? true,
+      showPRs: updates.showPRs ?? true,
+      showStreak: updates.showStreak ?? true,
+      appearInSearch: updates.appearInSearch ?? true,
     };
 
     res.json(successResponse(settings));
@@ -135,19 +196,23 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
  */
 router.post('/gdpr/export', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
 
     logger.info({ userId }, 'POST /gdpr/export - Requesting data export');
 
-    // TODO: Create export job in database
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { dataExportRequested: new Date() },
+      select: { dataExportRequested: true },
+    });
+
     const exportRequest = {
       id: `export-${Date.now()}`,
       status: 'processing',
-      requestedAt: new Date().toISOString(),
+      requestedAt: user.dataExportRequested?.toISOString() ?? new Date().toISOString(),
       estimatedReadyAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
 
-    // TODO: Queue actual export job
     logger.info({ userId, exportId: exportRequest.id }, 'Data export job created');
 
     res.status(201).json(successResponse(exportRequest));
@@ -163,12 +228,25 @@ router.post('/gdpr/export', async (req: Request, res: Response, next: NextFuncti
  */
 router.get('/gdpr/export', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
 
     logger.info({ userId }, 'GET /gdpr/export - Checking export status');
 
-    // TODO: Get from database
-    const exportRequest = null; // No active request
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { dataExportRequested: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
+    const exportRequest = user.dataExportRequested
+      ? {
+          status: 'processing',
+          requestedAt: user.dataExportRequested.toISOString(),
+        }
+      : null;
 
     res.json(successResponse(exportRequest));
   } catch (error) {
@@ -184,16 +262,22 @@ router.get('/gdpr/export', async (req: Request, res: Response, next: NextFunctio
  */
 router.post('/gdpr/delete', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
 
     logger.info({ userId }, 'POST /gdpr/delete - Requesting account deletion');
 
-    // TODO: Create deletion request in database
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { deletionRequested: new Date() },
+      select: { deletionRequested: true },
+    });
+
+    const requestedAt = user.deletionRequested ?? new Date();
     const deletionRequest = {
       id: `delete-${Date.now()}`,
       status: 'pending',
-      requestedAt: new Date().toISOString(),
-      scheduledDeletionAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      requestedAt: requestedAt.toISOString(),
+      scheduledDeletionAt: new Date(requestedAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       canCancel: true,
     };
 
@@ -212,12 +296,29 @@ router.post('/gdpr/delete', async (req: Request, res: Response, next: NextFuncti
  */
 router.get('/gdpr/delete', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
 
     logger.info({ userId }, 'GET /gdpr/delete - Checking deletion status');
 
-    // TODO: Get from database
-    const deletionRequest = null; // No active request
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { deletionRequested: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
+    const deletionRequest = user.deletionRequested
+      ? {
+          status: 'pending',
+          requestedAt: user.deletionRequested.toISOString(),
+          scheduledDeletionAt: new Date(
+            user.deletionRequested.getTime() + 30 * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          canCancel: true,
+        }
+      : null;
 
     res.json(successResponse(deletionRequest));
   } catch (error) {
@@ -232,11 +333,15 @@ router.get('/gdpr/delete', async (req: Request, res: Response, next: NextFunctio
  */
 router.delete('/gdpr/delete', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.user?.id || 'demo-user';
+    const userId = req.user!.id;
 
     logger.info({ userId }, 'DELETE /gdpr/delete - Cancelling deletion request');
 
-    // TODO: Cancel deletion request in database
+    await prisma.user.update({
+      where: { id: userId },
+      data: { deletionRequested: null },
+    });
+
     logger.info({ userId }, 'Deletion request cancelled');
 
     res.json(successResponse({ cancelled: true }));

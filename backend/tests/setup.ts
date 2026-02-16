@@ -46,6 +46,7 @@ jest.mock('../src/utils/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     set: {
       findUnique: jest.fn(),
@@ -77,6 +78,33 @@ jest.mock('../src/utils/prisma', () => ({
     },
     auditLog: {
       create: jest.fn(),
+    },
+    socialProfile: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      upsert: jest.fn(),
+      update: jest.fn(),
+    },
+    follow: {
+      count: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    activityPost: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
+    challenge: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
+    challengeParticipant: {
+      findMany: jest.fn(),
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
     },
     $transaction: jest.fn((callback) => callback({
       workoutTemplate: {

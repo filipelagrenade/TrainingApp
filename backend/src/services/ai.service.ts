@@ -22,6 +22,7 @@
 
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/prisma';
+import { progressionService } from './progression.service';
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -351,47 +352,128 @@ export class AIService {
    */
   private async getUserContext(userId: string): Promise<UserContext> {
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          displayName: true,
-          unitPreference: true,
-        },
-      });
-
-      // Get recent workout data
-      const recentSessions = await prisma.workoutSession.findMany({
-        where: {
-          userId,
-          completedAt: { not: null },
-        },
-        include: {
-          exerciseLogs: {
+      const [user, recentSessions, totalWorkouts, latestSessionWithProgram, recentPRLogs] =
+        await Promise.all([
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              displayName: true,
+              unitPreference: true,
+            },
+          }),
+          prisma.workoutSession.findMany({
+            where: {
+              userId,
+              completedAt: { not: null },
+            },
+            include: {
+              exerciseLogs: {
+                include: {
+                  exercise: { select: { id: true, name: true } },
+                },
+              },
+            },
+            orderBy: { startedAt: 'desc' },
+            take: 10,
+          }),
+          prisma.workoutSession.count({
+            where: {
+              userId,
+              completedAt: { not: null },
+            },
+          }),
+          prisma.workoutSession.findFirst({
+            where: {
+              userId,
+              completedAt: { not: null },
+              template: {
+                programId: { not: null },
+              },
+            },
+            orderBy: { startedAt: 'desc' },
+            select: {
+              template: {
+                select: {
+                  program: {
+                    select: { name: true },
+                  },
+                },
+              },
+            },
+          }),
+          prisma.exerciseLog.findMany({
+            where: {
+              isPR: true,
+              session: {
+                userId,
+                completedAt: { not: null },
+              },
+            },
+            orderBy: {
+              session: {
+                startedAt: 'desc',
+              },
+            },
+            take: 5,
             include: {
               exercise: { select: { name: true } },
+              sets: {
+                where: { setType: 'WORKING' },
+                orderBy: [{ weight: 'desc' }, { reps: 'desc' }],
+                take: 1,
+              },
             },
-          },
-        },
-        orderBy: { startedAt: 'desc' },
-        take: 5,
-      });
+          }),
+        ]);
 
       const recentExercises = new Set<string>();
+      const recentExerciseIds = new Set<string>();
       recentSessions.forEach((s) => {
         s.exerciseLogs.forEach((l) => {
+          recentExerciseIds.add(l.exercise.id);
           recentExercises.add(l.exercise.name);
         });
       });
+      const workoutStreak = this.calculateWorkoutStreak(recentSessions.map((s) => s.startedAt));
+      const recentPRs = recentPRLogs
+        .map((log) => ({
+          exercise: log.exercise.name,
+          weight: log.sets[0]?.weight || 0,
+          reps: log.sets[0]?.reps || 0,
+        }))
+        .filter((pr) => pr.weight > 0 && pr.reps > 0);
+
+      const plateauCandidates = Array.from(recentExerciseIds).slice(0, 5);
+      const plateauResults = await Promise.all(
+        plateauCandidates.map(async (exerciseId) => {
+          try {
+            const plateau = await progressionService.detectPlateau(userId, exerciseId);
+            if (!plateau.isPlateaued) {
+              return null;
+            }
+            const exercise = await prisma.exercise.findUnique({
+              where: { id: exerciseId },
+              select: { name: true },
+            });
+            return exercise?.name || null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const plateauedExercises = plateauResults.filter(
+        (exercise): exercise is string => !!exercise
+      );
 
       return {
         displayName: user?.displayName || 'Athlete',
         unitPreference: (user?.unitPreference as 'KG' | 'LBS') || 'KG',
-        currentProgram: undefined, // TODO: Get from user's active program
+        currentProgram: latestSessionWithProgram?.template?.program?.name || undefined,
         recentExercises: Array.from(recentExercises).slice(0, 5),
-        recentPRs: [], // TODO: Get from PR tracking
-        plateauedExercises: [], // TODO: Get from plateau detection
-        workoutStreak: recentSessions.length > 0 ? 1 : 0, // Simplified
-        totalWorkouts: recentSessions.length,
+        recentPRs,
+        plateauedExercises,
+        workoutStreak,
+        totalWorkouts,
       };
     } catch (error) {
       logger.error({ error, userId }, 'Failed to get user context');
@@ -507,6 +589,44 @@ export class AIService {
     }
 
     return undefined;
+  }
+
+  private calculateWorkoutStreak(dates: Date[]): number {
+    if (dates.length === 0) {
+      return 0;
+    }
+
+    const normalizedDates = Array.from(
+      new Set(
+        dates.map((date) => {
+          const day = new Date(date);
+          day.setHours(0, 0, 0, 0);
+          return day.getTime();
+        })
+      )
+    ).sort((a, b) => b - a);
+
+    let streak = 0;
+    let expected = new Date();
+    expected.setHours(0, 0, 0, 0);
+
+    for (const workoutDayMs of normalizedDates) {
+      if (workoutDayMs === expected.getTime()) {
+        streak += 1;
+        expected = new Date(expected.getTime() - 24 * 60 * 60 * 1000);
+        continue;
+      }
+
+      if (streak === 0 && workoutDayMs === expected.getTime() - 24 * 60 * 60 * 1000) {
+        streak += 1;
+        expected = new Date(workoutDayMs - 24 * 60 * 60 * 1000);
+        continue;
+      }
+
+      break;
+    }
+
+    return streak;
   }
 }
 

@@ -91,12 +91,12 @@ pnpm dev
 
 ## Development
 
-See the CLAUDE.md files in each directory for development guidelines:
+See the AGENTS.md files in each directory for development guidelines:
 
-- [Root CLAUDE.md](./CLAUDE.md) - Project-wide rules and conventions
-- [Backend CLAUDE.md](./backend/CLAUDE.md) - Node.js/TypeScript patterns
-- [App CLAUDE.md](./app/CLAUDE.md) - Flutter development guidelines
-- [Web CLAUDE.md](./web/CLAUDE.md) - Next.js/React patterns
+- [Root AGENTS.md](./AGENTS.md) - Project-wide rules and XML output contract
+- [Backend AGENTS.md](./backend/AGENTS.md) - Node.js/TypeScript backend constraints
+- [App AGENTS.md](./app/AGENTS.md) - Flutter app constraints
+- [Web AGENTS.md](./web/AGENTS.md) - Next.js/web constraints
 
 ## Testing
 
@@ -123,7 +123,7 @@ pnpm test:e2e           # E2E tests
 
 ## Contributing
 
-1. Read the relevant CLAUDE.md file for the area you're working on
+1. Read the relevant AGENTS.md file for the area you're working on
 2. Follow the Feature Completion Protocol for all new features
 3. Ensure 90%+ test coverage
 4. Create feature documentation and handover documents

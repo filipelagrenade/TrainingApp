@@ -5,11 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liftiq/features/settings/providers/settings_provider.dart';
 import 'package:liftiq/features/settings/models/user_settings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/test_data.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
 
   group('UserSettingsProvider', () {
     test('initial state has default values', () {

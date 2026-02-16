@@ -14,8 +14,10 @@ import { progressionService } from '../services/progression.service';
 import * as deloadService from '../services/deload.service';
 import { successResponse } from '../utils/response';
 import { logger } from '../utils/logger';
+import { authMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
+router.use(authMiddleware);
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -81,7 +83,7 @@ const Calculate1RMSchema = z.object({
  */
 router.get('/suggest/:exerciseId', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id'; // TODO: Get from auth
+    const userId = req.user!.id;
 
     const { exerciseId } = req.params;
     const query = GetSuggestionSchema.parse({
@@ -122,7 +124,7 @@ router.get('/suggest/:exerciseId', async (req, res, next) => {
  */
 router.post('/suggest/batch', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
     const { exerciseIds } = BatchSuggestionsSchema.parse(req.body);
 
     const suggestions = await progressionService.getBatchSuggestions(userId, exerciseIds);
@@ -166,7 +168,7 @@ router.post('/suggest/batch', async (req, res, next) => {
  */
 router.get('/plateau/:exerciseId', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
     const { exerciseId } = req.params;
 
     const plateauInfo = await progressionService.detectPlateau(userId, exerciseId);
@@ -200,7 +202,7 @@ router.get('/plateau/:exerciseId', async (req, res, next) => {
  */
 router.get('/pr/:exerciseId', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
     const { exerciseId } = req.params;
 
     const [prWeight, estimated1RM] = await Promise.all([
@@ -274,7 +276,7 @@ router.post('/calculate-1rm', async (req, res, next) => {
  */
 router.get('/history/:exerciseId', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
     const { exerciseId } = req.params;
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
@@ -386,7 +388,7 @@ const ScheduleDeloadSchema = z.object({
  */
 router.get('/deload-check', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
 
     const recommendation = await deloadService.checkDeloadNeeded(userId);
 
@@ -424,7 +426,7 @@ router.get('/deload-check', async (req, res, next) => {
  */
 router.get('/deloads', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
 
     const deloads = await deloadService.getScheduledDeloads(userId);
 
@@ -443,7 +445,7 @@ router.get('/deloads', async (req, res, next) => {
  */
 router.get('/deload/current', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
 
     const currentDeload = await deloadService.getCurrentDeload(userId);
 
@@ -475,7 +477,7 @@ router.get('/deload/current', async (req, res, next) => {
  */
 router.get('/deload/adjustments', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
 
     const adjustments = await deloadService.getDeloadAdjustments(userId);
 
@@ -505,7 +507,7 @@ router.get('/deload/adjustments', async (req, res, next) => {
  */
 router.post('/schedule-deload', async (req, res, next) => {
   try {
-    const userId = req.user?.id ?? 'temp-user-id';
+    const userId = req.user!.id;
     const { startDate, deloadType, reason } = ScheduleDeloadSchema.parse(req.body);
 
     const deload = await deloadService.scheduleDeload(
@@ -583,3 +585,4 @@ router.delete('/deload/:id', async (req, res, next) => {
 });
 
 export default router;
+

@@ -1,2 +1,0 @@
-favourite exercises
-dislike exercises

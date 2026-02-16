@@ -33,10 +33,8 @@ RUN npx prisma generate
 # Copy compiled JS from build stage
 COPY --from=backend-build /app/dist ./dist
 
-# Copy pre-built Flutter web app (built locally before `railway up`)
-COPY app/build/web ./public/
-
-# Verify Flutter build was copied
+# Copy bundled Flutter web static assets
+COPY backend/public ./public/
 RUN ls -la ./public/index.html
 
 EXPOSE 8080

@@ -1,0 +1,1 @@
+LiftIQ is a workout tracking app with AI-assisted progressive overload coaching. Monorepo structure: backend (Node.js+TypeScript+Express+Prisma), web (Next.js App Router + shadcn/ui), app (Flutter + Riverpod + GoRouter + Isar). Primary docs/contracts live in AGENTS.md files at root and per-subdir. Output contract in root AGENTS.md requires XML response structure for agent logs.

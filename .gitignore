@@ -104,6 +104,8 @@ lib/generated_plugin_registrant.dart
 
 # Flutter web build output (served by backend)
 backend/public/
+!backend/public/
+!backend/public/**
 
 # Exceptions
 !.gitkeep

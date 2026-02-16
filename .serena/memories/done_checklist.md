@@ -1,0 +1,1 @@
+When finishing a task: run relevant tests for touched areas first, then lint/analyze where feasible; summarize files changed and behavior impact; mention anything not run and why. For feature completions in this repo, update docs/features and docs/handover and FEATURES.md per root AGENTS.md protocol.
