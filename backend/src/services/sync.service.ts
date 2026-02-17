@@ -551,22 +551,48 @@ class SyncService {
         serverTimestamp: updated.lastModifiedAt.toISOString(),
       };
     } else {
-      const created = await prisma.mesocycle.create({
-        data: {
-          id: change.entityId,
-          ...this.sanitizeMesocycleData(change.data || {}, userId),
-          clientId: change.clientId,
-        },
-      });
+      try {
+        const created = await prisma.mesocycle.create({
+          data: {
+            id: change.entityId,
+            ...this.sanitizeMesocycleData(change.data || {}, userId),
+            clientId: change.clientId,
+          },
+        });
 
-      logger.info({ mesocycleId: created.id, userId }, 'Mesocycle created via sync');
+        logger.info({ mesocycleId: created.id, userId }, 'Mesocycle created via sync');
 
-      return {
-        id: change.id,
-        success: true,
-        entity: created as unknown as Record<string, unknown>,
-        serverTimestamp: created.lastModifiedAt.toISOString(),
-      };
+        return {
+          id: change.id,
+          success: true,
+          entity: created as unknown as Record<string, unknown>,
+          serverTimestamp: created.lastModifiedAt.toISOString(),
+        };
+      } catch (error) {
+        // Idempotency guard for replayed client create changes.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          const duplicate = await prisma.mesocycle.findUnique({
+            where: { id: change.entityId },
+          });
+
+          if (duplicate && duplicate.userId === userId) {
+            logger.info(
+              { mesocycleId: change.entityId, userId },
+              'Mesocycle create replay detected; returning existing record'
+            );
+            return {
+              id: change.id,
+              success: true,
+              entity: duplicate as unknown as Record<string, unknown>,
+              serverTimestamp: duplicate.lastModifiedAt.toISOString(),
+            };
+          }
+        }
+        throw error;
+      }
     }
   }
 
@@ -649,23 +675,53 @@ class SyncService {
         throw new ValidationError('Cannot create mesocycle week for another user\'s mesocycle');
       }
 
-      const created = await prisma.mesocycleWeek.create({
-        data: {
-          id: change.entityId,
-          ...this.sanitizeMesocycleWeekData(data),
-          mesocycleId,
-          clientId: change.clientId,
-        },
-      });
+      try {
+        const created = await prisma.mesocycleWeek.create({
+          data: {
+            id: change.entityId,
+            ...this.sanitizeMesocycleWeekData(data),
+            mesocycleId,
+            clientId: change.clientId,
+          },
+        });
 
-      logger.info({ mesocycleWeekId: created.id, userId }, 'MesocycleWeek created via sync');
+        logger.info(
+          { mesocycleWeekId: created.id, userId },
+          'MesocycleWeek created via sync'
+        );
 
-      return {
-        id: change.id,
-        success: true,
-        entity: created as unknown as Record<string, unknown>,
-        serverTimestamp: created.lastModifiedAt.toISOString(),
-      };
+        return {
+          id: change.id,
+          success: true,
+          entity: created as unknown as Record<string, unknown>,
+          serverTimestamp: created.lastModifiedAt.toISOString(),
+        };
+      } catch (error) {
+        // Idempotency guard for replayed client create changes.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          const duplicate = await prisma.mesocycleWeek.findUnique({
+            where: { id: change.entityId },
+            include: { mesocycle: { select: { userId: true } } },
+          });
+
+          if (duplicate && duplicate.mesocycle.userId === userId) {
+            logger.info(
+              { mesocycleWeekId: change.entityId, userId },
+              'MesocycleWeek create replay detected; returning existing record'
+            );
+            return {
+              id: change.id,
+              success: true,
+              entity: duplicate as unknown as Record<string, unknown>,
+              serverTimestamp: duplicate.lastModifiedAt.toISOString(),
+            };
+          }
+        }
+        throw error;
+      }
     }
   }
 
