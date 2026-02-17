@@ -50,6 +50,9 @@ enum SyncEntityType {
   /// Training programs
   program,
 
+  /// Currently active program state
+  activeProgram,
+
   /// AI chat history
   chatHistory,
 }
@@ -79,6 +82,8 @@ extension SyncEntityTypeExtension on SyncEntityType {
         return 'exercise';
       case SyncEntityType.program:
         return 'program';
+      case SyncEntityType.activeProgram:
+        return 'activeProgram';
       case SyncEntityType.chatHistory:
         return 'chatHistory';
     }
@@ -107,6 +112,8 @@ extension SyncEntityTypeExtension on SyncEntityType {
         return SyncEntityType.exercise;
       case 'program':
         return SyncEntityType.program;
+      case 'activeProgram':
+        return SyncEntityType.activeProgram;
       case 'chatHistory':
         return SyncEntityType.chatHistory;
       default:
@@ -255,7 +262,8 @@ class SyncQueueItem {
   factory SyncQueueItem.fromJson(Map<String, dynamic> json) {
     return SyncQueueItem(
       id: json['id'] as String,
-      entityType: SyncEntityTypeExtension.fromApiName(json['entityType'] as String),
+      entityType:
+          SyncEntityTypeExtension.fromApiName(json['entityType'] as String),
       action: SyncActionExtension.fromApiName(json['action'] as String),
       entityId: json['entityId'] as String,
       data: json['data'] as Map<String, dynamic>?,
@@ -393,7 +401,8 @@ class SyncPullChange {
   /// Creates from API response JSON.
   factory SyncPullChange.fromJson(Map<String, dynamic> json) {
     return SyncPullChange(
-      entityType: SyncEntityTypeExtension.fromApiName(json['entityType'] as String),
+      entityType:
+          SyncEntityTypeExtension.fromApiName(json['entityType'] as String),
       entityId: json['entityId'] as String,
       action: SyncActionExtension.fromApiName(json['action'] as String),
       data: json['data'] as Map<String, dynamic>,

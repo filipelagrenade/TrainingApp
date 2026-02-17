@@ -42,6 +42,7 @@ export type SyncEntityType =
   | 'achievement'
   | 'progression'
   | 'program'
+  | 'activeProgram'
   | 'chatHistory';
 
 /**
@@ -212,6 +213,7 @@ class SyncService {
       case 'program':
         result = await this.processProgramChange(userId, change, changeTime);
         break;
+      case 'activeProgram':
       case 'achievement':
       case 'progression':
       case 'chatHistory':
@@ -292,9 +294,10 @@ class SyncService {
       }
 
       // Apply the update
+      const sanitizedData = await this.sanitizeWorkoutData(change.data || {}, userId);
       const updated = await prisma.workoutSession.update({
         where: { id: change.entityId },
-        data: this.sanitizeWorkoutData(change.data || {}, userId),
+        data: sanitizedData,
       });
 
       logger.info({ workoutId: change.entityId, userId }, 'Workout updated via sync');
@@ -307,10 +310,11 @@ class SyncService {
       };
     } else {
       // Create new
+      const sanitizedData = await this.sanitizeWorkoutData(change.data || {}, userId);
       const created = await prisma.workoutSession.create({
         data: {
           id: change.entityId,
-          ...this.sanitizeWorkoutData(change.data || {}, userId),
+          ...sanitizedData,
           clientId: change.clientId,
         },
       });
@@ -1105,10 +1109,10 @@ class SyncService {
    * Sanitizes workout data for database insertion.
    * Ensures only valid fields are passed and user ownership is enforced.
    */
-  private sanitizeWorkoutData(
+  private async sanitizeWorkoutData(
     data: Record<string, unknown>,
     userId: string
-  ): Prisma.WorkoutSessionCreateInput {
+  ): Promise<Prisma.WorkoutSessionCreateInput> {
     const input: Prisma.WorkoutSessionCreateInput = {
       user: { connect: { id: userId } },
       startedAt: data.startedAt ? new Date(data.startedAt as string) : new Date(),
@@ -1121,7 +1125,19 @@ class SyncService {
     // Connect template if provided
     const templateId = data.templateId as string | undefined;
     if (templateId) {
-      input.template = { connect: { id: templateId } };
+      const template = await prisma.workoutTemplate.findFirst({
+        where: { id: templateId, userId },
+        select: { id: true },
+      });
+
+      if (template) {
+        input.template = { connect: { id: templateId } };
+      } else {
+        logger.warn(
+          { userId, templateId },
+          'Sync workout payload referenced missing template; ignoring template link'
+        );
+      }
     }
 
     return input;

@@ -37,7 +37,7 @@ syncRoutes.use(authMiddleware);
  */
 const SyncChangeItemSchema = z.object({
   id: z.string(),
-  entityType: z.enum(['workout', 'template', 'measurement', 'mesocycle', 'mesocycleWeek', 'settings', 'exercise', 'achievement', 'progression', 'program', 'chatHistory']),
+  entityType: z.enum(['workout', 'template', 'measurement', 'mesocycle', 'mesocycleWeek', 'settings', 'exercise', 'achievement', 'progression', 'program', 'activeProgram', 'chatHistory']),
   action: z.enum(['create', 'update', 'delete']),
   entityId: z.string(),
   data: z.record(z.unknown()).optional(),

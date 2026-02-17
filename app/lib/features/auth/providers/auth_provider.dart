@@ -391,6 +391,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           );
           await hydrationService.hydrateAll();
           didHydrate = true;
+          // Hydration writes server data to local storage directly.
+          // Notify providers immediately so UI updates without a manual reload.
+          _ref.read(syncVersionProvider.notifier).state++;
         } else {
           debugPrint(
             'AuthNotifier: Running post-login sync '

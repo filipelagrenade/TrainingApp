@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/services/sync_service.dart';
 import '../../../shared/services/workout_history_service.dart';
 import '../models/achievement.dart';
 
@@ -103,6 +104,7 @@ final achievementsProvider =
 class AchievementsNotifier extends Notifier<AchievementsState> {
   @override
   AchievementsState build() {
+    ref.watch(syncVersionProvider);
     // Initialize with definitions and load user progress
     Future.microtask(_loadAchievements);
     return AchievementsState(
@@ -142,7 +144,8 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
 
       // Streak calculation
       final workoutDays = workouts
-          .map((w) => DateTime(w.completedAt.year, w.completedAt.month, w.completedAt.day))
+          .map((w) => DateTime(
+              w.completedAt.year, w.completedAt.month, w.completedAt.day))
           .toSet()
           .toList()
         ..sort();
@@ -188,15 +191,26 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
         } else if (def.id.startsWith('volume_')) {
           currentProgress = totalVolume;
         } else if (def.id.startsWith('bench_')) {
-          currentProgress = (exercisePRs['bench-press'] ?? exercisePRs['barbell_bench_press'] ?? 0).round();
+          currentProgress = (exercisePRs['bench-press'] ??
+                  exercisePRs['barbell_bench_press'] ??
+                  0)
+              .round();
         } else if (def.id.startsWith('squat_')) {
-          currentProgress = (exercisePRs['squat'] ?? exercisePRs['barbell_squat'] ?? 0).round();
+          currentProgress =
+              (exercisePRs['squat'] ?? exercisePRs['barbell_squat'] ?? 0)
+                  .round();
         } else if (def.id.startsWith('deadlift_')) {
-          currentProgress = (exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'] ?? 0).round();
+          currentProgress =
+              (exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'] ?? 0)
+                  .round();
         } else if (def.id.startsWith('total_')) {
-          final bench = exercisePRs['bench-press'] ?? exercisePRs['barbell_bench_press'] ?? 0;
-          final squat = exercisePRs['squat'] ?? exercisePRs['barbell_squat'] ?? 0;
-          final deadlift = exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'] ?? 0;
+          final bench = exercisePRs['bench-press'] ??
+              exercisePRs['barbell_bench_press'] ??
+              0;
+          final squat =
+              exercisePRs['squat'] ?? exercisePRs['barbell_squat'] ?? 0;
+          final deadlift =
+              exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'] ?? 0;
           currentProgress = (bench + squat + deadlift).round();
         }
 
@@ -288,7 +302,8 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
       // Check based on achievement type
       if (achievement.id.startsWith('streak_') && currentStreak != null) {
         newProgress = currentStreak;
-      } else if (achievement.id.startsWith('workouts_') && totalWorkouts != null) {
+      } else if (achievement.id.startsWith('workouts_') &&
+          totalWorkouts != null) {
         newProgress = totalWorkouts;
       } else if (achievement.id == 'first_workout' && totalWorkouts != null) {
         newProgress = totalWorkouts.clamp(0, 1);
@@ -301,13 +316,15 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
       } else if (exercisePRs != null) {
         // Check exercise-specific achievements
         if (achievement.id.startsWith('bench_')) {
-          final benchPR = exercisePRs['bench_press'] ?? exercisePRs['barbell_bench_press'];
+          final benchPR =
+              exercisePRs['bench_press'] ?? exercisePRs['barbell_bench_press'];
           if (benchPR != null) newProgress = benchPR.round();
         } else if (achievement.id.startsWith('squat_')) {
           final squatPR = exercisePRs['squat'] ?? exercisePRs['barbell_squat'];
           if (squatPR != null) newProgress = squatPR.round();
         } else if (achievement.id.startsWith('deadlift_')) {
-          final deadliftPR = exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'];
+          final deadliftPR =
+              exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'];
           if (deadliftPR != null) newProgress = deadliftPR.round();
         } else if (achievement.id.startsWith('total_')) {
           // Calculate SBD total
@@ -316,9 +333,8 @@ class AchievementsNotifier extends Notifier<AchievementsState> {
               0;
           final squat =
               exercisePRs['squat'] ?? exercisePRs['barbell_squat'] ?? 0;
-          final deadlift = exercisePRs['deadlift'] ??
-              exercisePRs['barbell_deadlift'] ??
-              0;
+          final deadlift =
+              exercisePRs['deadlift'] ?? exercisePRs['barbell_deadlift'] ?? 0;
           newProgress = (bench + squat + deadlift).round();
         }
       }
@@ -407,8 +423,7 @@ final lockedAchievementsProvider = Provider<List<Achievement>>((ref) {
 
 /// Provider for achievements by category.
 final achievementsByCategoryProvider =
-    Provider.family<List<Achievement>, AchievementCategory>(
-        (ref, category) {
+    Provider.family<List<Achievement>, AchievementCategory>((ref, category) {
   return ref
       .watch(achievementsProvider)
       .achievements

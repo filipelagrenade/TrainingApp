@@ -91,6 +91,9 @@ class UserStorageKeys {
   /// Storage key for custom programs.
   static String customPrograms(String userId) => 'custom_programs_$userId';
 
+  /// Storage key for active training program state.
+  static String activeProgram(String userId) => 'active_program_$userId';
+
   /// Storage key for AI chat history.
   static String aiChatHistory(String userId) => 'ai_chat_history_$userId';
 
@@ -108,6 +111,9 @@ class UserStorageKeys {
   /// Storage key for body measurements.
   static String measurements(String userId) => 'measurements_$userId';
 
+  /// Storage key for periodization mesocycles.
+  static String mesocycles(String userId) => 'mesocycles_$userId';
+
   /// Storage key for progression state exercise IDs list.
   static String progressionStateIds(String userId) =>
       'progression_state_${userId}_exercise_ids';
@@ -124,11 +130,13 @@ class UserStorageKeys {
         customExercises(userId),
         customTemplates(userId),
         customPrograms(userId),
+        activeProgram(userId),
         aiChatHistory(userId),
         exercisePreferences(userId),
         scheduledWorkouts(userId),
         achievements(userId),
         measurements(userId),
+        mesocycles(userId),
         progressionStateIds(userId),
         // Sync keys
         'sync_queue_$userId',

@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/user_storage_keys.dart';
 import '../../../shared/models/sync_queue_item.dart';
 import '../../../shared/services/sync_queue_service.dart';
+import '../../../shared/services/sync_service.dart';
 import '../../templates/models/training_program.dart';
 import '../../templates/models/workout_template.dart';
 
@@ -71,7 +72,8 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
             .map((p) => TrainingProgram.fromJson(p as Map<String, dynamic>))
             .toList();
         state = programs;
-        debugPrint('UserProgramsNotifier: Loaded ${programs.length} programs for user $_userId');
+        debugPrint(
+            'UserProgramsNotifier: Loaded ${programs.length} programs for user $_userId');
       }
     } on Exception catch (e) {
       debugPrint('UserProgramsNotifier: Error loading programs: $e');
@@ -84,7 +86,8 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = jsonEncode(state.map((p) => p.toJson()).toList());
       await prefs.setString(_storageKey, jsonString);
-      debugPrint('UserProgramsNotifier: Saved ${state.length} programs for user $_userId');
+      debugPrint(
+          'UserProgramsNotifier: Saved ${state.length} programs for user $_userId');
     } on Exception catch (e) {
       debugPrint('UserProgramsNotifier: Error saving programs: $e');
     }
@@ -254,7 +257,8 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
   }
 
   /// Queues a program create/update change for sync.
-  Future<void> _queueProgramSync(TrainingProgram program, SyncAction action) async {
+  Future<void> _queueProgramSync(
+      TrainingProgram program, SyncAction action) async {
     final syncQueueService = _syncQueueService;
     final programId = program.id;
     if (syncQueueService == null || programId == null) return;
@@ -287,9 +291,11 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
         lastModifiedAt: DateTime.now(),
       );
       await syncQueueService.addToQueue(item);
-      debugPrint('UserProgramsNotifier: Queued program $programId for deletion sync');
+      debugPrint(
+          'UserProgramsNotifier: Queued program $programId for deletion sync');
     } catch (e) {
-      debugPrint('UserProgramsNotifier: Error queuing program deletion for sync: $e');
+      debugPrint(
+          'UserProgramsNotifier: Error queuing program deletion for sync: $e');
     }
   }
 }
@@ -305,6 +311,7 @@ class UserProgramsNotifier extends StateNotifier<List<TrainingProgram>> {
 final userProgramsProvider =
     StateNotifierProvider<UserProgramsNotifier, List<TrainingProgram>>(
   (ref) {
+    ref.watch(syncVersionProvider);
     final userId = ref.watch(currentUserStorageIdProvider);
     final syncQueueService = ref.watch(syncQueueServiceProvider);
     return UserProgramsNotifier(userId, syncQueueService: syncQueueService);

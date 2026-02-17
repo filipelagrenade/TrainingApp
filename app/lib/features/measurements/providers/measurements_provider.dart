@@ -18,6 +18,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/models/sync_queue_item.dart';
+import '../../../shared/services/sync_queue_service.dart';
+import '../../../shared/services/sync_service.dart';
 import '../models/body_measurement.dart';
 
 part 'measurements_provider.g.dart';
@@ -27,14 +30,18 @@ const _uuid = Uuid();
 /// Provider for measurements state.
 @riverpod
 class MeasurementsNotifier extends _$MeasurementsNotifier {
+  late final String _userId;
+
   @override
   MeasurementsState build() {
+    _userId = ref.watch(currentUserStorageIdProvider);
+    ref.watch(syncVersionProvider);
     // Schedule async load after build completes
     Future.microtask(() => _loadMeasurements());
     return const MeasurementsState(isLoading: true);
   }
 
-  String get _measurementsKey => UserStorageKeys.measurements('local-offline-user');
+  String get _measurementsKey => UserStorageKeys.measurements(_userId);
   String get _photosKey => '${_measurementsKey}_photos';
 
   /// Loads all measurements from SharedPreferences.
@@ -50,7 +57,8 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
       if (measurementsJson != null) {
         final decoded = jsonDecode(measurementsJson) as List<dynamic>;
         measurementsList = decoded
-            .map((json) => BodyMeasurement.fromJson(json as Map<String, dynamic>))
+            .map((json) =>
+                BodyMeasurement.fromJson(json as Map<String, dynamic>))
             .toList();
         // Sort by date descending (most recent first)
         measurementsList.sort((a, b) => b.measuredAt.compareTo(a.measuredAt));
@@ -155,6 +163,7 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
       );
 
       await _persistMeasurements();
+      await _queueMeasurementSync(measurement, SyncAction.create);
       return measurement;
     } catch (e) {
       state = state.copyWith(error: 'Failed to create measurement: $e');
@@ -206,6 +215,7 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
       );
 
       await _persistMeasurements();
+      await _queueMeasurementSync(updated, SyncAction.update);
       return updated;
     } catch (e) {
       state = state.copyWith(error: 'Failed to update measurement: $e');
@@ -216,18 +226,17 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
   /// Deletes a measurement.
   Future<bool> deleteMeasurement(String id) async {
     try {
-      final updatedList =
-          state.measurements.where((m) => m.id != id).toList();
+      final updatedList = state.measurements.where((m) => m.id != id).toList();
       final trends = _calculateTrends(updatedList);
 
       state = state.copyWith(
         measurements: updatedList,
-        latestMeasurement:
-            updatedList.isNotEmpty ? updatedList.first : null,
+        latestMeasurement: updatedList.isNotEmpty ? updatedList.first : null,
         trends: trends,
       );
 
       await _persistMeasurements();
+      await _queueMeasurementDeleteSync(id);
       return true;
     } catch (e) {
       state = state.copyWith(error: 'Failed to delete measurement: $e');
@@ -384,6 +393,43 @@ class MeasurementsNotifier extends _$MeasurementsNotifier {
         return m.rightCalf;
       default:
         return null;
+    }
+  }
+
+  /// Queues a measurement create/update change for sync.
+  Future<void> _queueMeasurementSync(
+    BodyMeasurement measurement,
+    SyncAction action,
+  ) async {
+    try {
+      final syncQueueService = ref.read(syncQueueServiceProvider);
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.measurement,
+        action: action,
+        entityId: measurement.id,
+        data: measurement.toJson(),
+        lastModifiedAt: DateTime.now(),
+      );
+      await syncQueueService.addToQueue(item);
+    } catch (e) {
+      debugPrint('MeasurementsNotifier: Error queuing measurement sync: $e');
+    }
+  }
+
+  /// Queues a measurement deletion for sync.
+  Future<void> _queueMeasurementDeleteSync(String measurementId) async {
+    try {
+      final syncQueueService = ref.read(syncQueueServiceProvider);
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.measurement,
+        action: SyncAction.delete,
+        entityId: measurementId,
+        lastModifiedAt: DateTime.now(),
+      );
+      await syncQueueService.addToQueue(item);
+    } catch (e) {
+      debugPrint(
+          'MeasurementsNotifier: Error queuing measurement deletion: $e');
     }
   }
 }

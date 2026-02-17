@@ -37,20 +37,23 @@ class SyncApplicator {
           await _applyProgressionChange(prefs, change);
           return true;
         }
-        debugPrint('SyncApplicator: No storage key for ${change.entityType.apiName}');
+        debugPrint(
+            'SyncApplicator: No storage key for ${change.entityType.apiName}');
         return false;
       }
 
       final prefs = await SharedPreferences.getInstance();
 
       if (change.action == SyncAction.delete) {
-        if (change.entityType == SyncEntityType.settings) {
+        if (change.entityType == SyncEntityType.settings ||
+            change.entityType == SyncEntityType.activeProgram) {
           await prefs.remove(storageKey);
           return true;
         }
         await _deleteFromList(prefs, storageKey, change.entityId);
       } else {
-        if (change.entityType == SyncEntityType.settings) {
+        if (change.entityType == SyncEntityType.settings ||
+            change.entityType == SyncEntityType.activeProgram) {
           await prefs.setString(storageKey, jsonEncode(change.data));
           return true;
         }
@@ -83,7 +86,7 @@ class SyncApplicator {
       case SyncEntityType.settings:
         return UserStorageKeys.userSettings(userId);
       case SyncEntityType.mesocycle:
-        return UserStorageKeys.customPrograms(userId);
+        return UserStorageKeys.mesocycles(userId);
       case SyncEntityType.achievement:
         return UserStorageKeys.achievements(userId);
       case SyncEntityType.progression:
@@ -96,6 +99,8 @@ class SyncApplicator {
         return UserStorageKeys.customExercises(userId);
       case SyncEntityType.program:
         return UserStorageKeys.customPrograms(userId);
+      case SyncEntityType.activeProgram:
+        return UserStorageKeys.activeProgram(userId);
       case SyncEntityType.chatHistory:
         return UserStorageKeys.aiChatHistory(userId);
     }
@@ -111,8 +116,7 @@ class SyncApplicator {
     String entityId,
     Map<String, dynamic> data, {
     bool mergeWithExisting = false,
-    }
-  ) async {
+  }) async {
     final list = _readList(prefs, key);
 
     // Find existing index

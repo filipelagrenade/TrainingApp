@@ -17,6 +17,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/models/sync_queue_item.dart';
+import '../../../shared/services/sync_queue_service.dart';
+import '../../../shared/services/sync_service.dart';
 import '../models/active_program.dart';
 import '../../templates/models/training_program.dart';
 
@@ -24,8 +28,11 @@ import '../../templates/models/training_program.dart';
 // CONSTANTS
 // ============================================================================
 
-/// Key for storing active program in SharedPreferences.
-const String _activeProgramKey = 'active_program';
+/// Stable entity ID used to sync the single "current active program" object.
+const String _activeProgramEntityId = 'current';
+
+/// Legacy key kept for one-time migration from old non-user-scoped storage.
+const String _legacyActiveProgramKey = 'active_program';
 
 // ============================================================================
 // STATE
@@ -93,9 +100,16 @@ final activeProgramProvider =
 /// - Persistence to SharedPreferences
 class ActiveProgramNotifier extends Notifier<ActiveProgramState> {
   static const _uuid = Uuid();
+  late final String _userId;
+  late final SyncQueueService _syncQueueService;
+
+  String get _activeProgramKey => UserStorageKeys.activeProgram(_userId);
 
   @override
   ActiveProgramState build() {
+    _userId = ref.watch(currentUserStorageIdProvider);
+    _syncQueueService = ref.watch(syncQueueServiceProvider);
+    ref.watch(syncVersionProvider);
     // Load saved program on initialization
     _loadActiveProgram();
     return const ProgramLoading();
@@ -110,7 +124,18 @@ class ActiveProgramNotifier extends Notifier<ActiveProgramState> {
     debugPrint('ActiveProgramNotifier: Starting to load active program...');
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonString = prefs.getString(_activeProgramKey);
+      var jsonString = prefs.getString(_activeProgramKey);
+
+      // One-time migration from old non-user-scoped key.
+      if ((jsonString == null || jsonString.isEmpty) &&
+          prefs.containsKey(_legacyActiveProgramKey)) {
+        final legacyValue = prefs.getString(_legacyActiveProgramKey);
+        if (legacyValue != null && legacyValue.isNotEmpty) {
+          await prefs.setString(_activeProgramKey, legacyValue);
+          await prefs.remove(_legacyActiveProgramKey);
+          jsonString = legacyValue;
+        }
+      }
 
       debugPrint('ActiveProgramNotifier: Raw JSON from storage: $jsonString');
 
@@ -150,13 +175,49 @@ class ActiveProgramNotifier extends Notifier<ActiveProgramState> {
       if (program == null) {
         await prefs.remove(_activeProgramKey);
         debugPrint('ActiveProgramNotifier: Cleared active program');
+        await _queueActiveProgramDeleteSync();
       } else {
         final jsonString = jsonEncode(program.toJson());
         await prefs.setString(_activeProgramKey, jsonString);
-        debugPrint('ActiveProgramNotifier: Saved program "${program.programName}"');
+        debugPrint(
+            'ActiveProgramNotifier: Saved program "${program.programName}"');
+        await _queueActiveProgramSync(program);
       }
     } on Exception catch (e) {
       debugPrint('ActiveProgramNotifier: Error saving program: $e');
+    }
+  }
+
+  /// Queues active program upsert for cross-device sync.
+  Future<void> _queueActiveProgramSync(ActiveProgram program) async {
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.activeProgram,
+        action: SyncAction.update,
+        entityId: _activeProgramEntityId,
+        data: program.toJson(),
+        lastModifiedAt: DateTime.now(),
+      );
+      await _syncQueueService.addToQueue(item);
+    } catch (e) {
+      debugPrint(
+          'ActiveProgramNotifier: Error queuing active program sync: $e');
+    }
+  }
+
+  /// Queues active program deletion for cross-device sync.
+  Future<void> _queueActiveProgramDeleteSync() async {
+    try {
+      final item = SyncQueueItem(
+        entityType: SyncEntityType.activeProgram,
+        action: SyncAction.delete,
+        entityId: _activeProgramEntityId,
+        lastModifiedAt: DateTime.now(),
+      );
+      await _syncQueueService.addToQueue(item);
+    } catch (e) {
+      debugPrint(
+          'ActiveProgramNotifier: Error queuing active program delete sync: $e');
     }
   }
 

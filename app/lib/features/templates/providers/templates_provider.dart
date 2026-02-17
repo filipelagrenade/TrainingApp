@@ -16,6 +16,7 @@ import '../../../core/services/api_client.dart';
 import '../../../core/services/user_storage_keys.dart';
 import '../../../shared/models/sync_queue_item.dart';
 import '../../../shared/services/sync_queue_service.dart';
+import '../../../shared/services/sync_service.dart';
 import '../models/workout_template.dart';
 import '../models/training_program.dart';
 import '../../programs/providers/user_programs_provider.dart';
@@ -57,7 +58,8 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
             .map((t) => WorkoutTemplate.fromJson(t as Map<String, dynamic>))
             .toList();
         state = templates;
-        debugPrint('UserTemplatesNotifier: Loaded ${templates.length} templates for user $_userId');
+        debugPrint(
+            'UserTemplatesNotifier: Loaded ${templates.length} templates for user $_userId');
       }
     } on Exception catch (e) {
       debugPrint('UserTemplatesNotifier: Error loading templates: $e');
@@ -70,7 +72,8 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = jsonEncode(state.map((t) => t.toJson()).toList());
       await prefs.setString(_storageKey, jsonString);
-      debugPrint('UserTemplatesNotifier: Saved ${state.length} templates for user $_userId');
+      debugPrint(
+          'UserTemplatesNotifier: Saved ${state.length} templates for user $_userId');
     } on Exception catch (e) {
       debugPrint('UserTemplatesNotifier: Error saving templates: $e');
     }
@@ -113,7 +116,8 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
   }
 
   /// Queues a template change for sync.
-  Future<void> _queueTemplateSync(WorkoutTemplate template, SyncAction action) async {
+  Future<void> _queueTemplateSync(
+      WorkoutTemplate template, SyncAction action) async {
     if (_syncQueueService == null) return;
 
     try {
@@ -125,7 +129,8 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
         lastModifiedAt: DateTime.now(),
       );
       await _syncQueueService!.addToQueue(item);
-      debugPrint('UserTemplatesNotifier: Queued template ${template.id} for sync');
+      debugPrint(
+          'UserTemplatesNotifier: Queued template ${template.id} for sync');
     } catch (e) {
       debugPrint('UserTemplatesNotifier: Error queuing template for sync: $e');
     }
@@ -143,9 +148,11 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
         lastModifiedAt: DateTime.now(),
       );
       await _syncQueueService!.addToQueue(item);
-      debugPrint('UserTemplatesNotifier: Queued template $templateId for deletion sync');
+      debugPrint(
+          'UserTemplatesNotifier: Queued template $templateId for deletion sync');
     } catch (e) {
-      debugPrint('UserTemplatesNotifier: Error queuing template deletion for sync: $e');
+      debugPrint(
+          'UserTemplatesNotifier: Error queuing template deletion for sync: $e');
     }
   }
 
@@ -177,6 +184,7 @@ class UserTemplatesNotifier extends StateNotifier<List<WorkoutTemplate>> {
 final userTemplatesProvider =
     StateNotifierProvider<UserTemplatesNotifier, List<WorkoutTemplate>>(
   (ref) {
+    ref.watch(syncVersionProvider);
     final userId = ref.watch(currentUserStorageIdProvider);
     final syncQueueService = ref.watch(syncQueueServiceProvider);
     return UserTemplatesNotifier(userId, syncQueueService: syncQueueService);
@@ -405,8 +413,8 @@ final programsProvider =
 /// Provider for a single template by ID.
 ///
 /// First checks the cached list, then fetches from API if not found.
-final templateByIdProvider =
-    FutureProvider.autoDispose.family<WorkoutTemplate?, String>((ref, id) async {
+final templateByIdProvider = FutureProvider.autoDispose
+    .family<WorkoutTemplate?, String>((ref, id) async {
   // Try cache first
   final templatesAsync = ref.watch(templatesProvider);
   final templates = templatesAsync.valueOrNull;
@@ -434,8 +442,8 @@ final templateByIdProvider =
 });
 
 /// Provider for a single program by ID.
-final programByIdProvider =
-    FutureProvider.autoDispose.family<TrainingProgram?, String>((ref, id) async {
+final programByIdProvider = FutureProvider.autoDispose
+    .family<TrainingProgram?, String>((ref, id) async {
   // Try cache first
   final programsAsync = ref.watch(programsProvider);
   final programs = programsAsync.valueOrNull;
@@ -497,7 +505,8 @@ class TemplateActionsNotifier extends Notifier<void> {
     );
 
     // Save to persistent storage
-    final savedTemplate = await ref.read(userTemplatesProvider.notifier).addTemplate(template);
+    final savedTemplate =
+        await ref.read(userTemplatesProvider.notifier).addTemplate(template);
 
     // Invalidate templates provider to refresh list
     ref.invalidate(templatesProvider);
@@ -524,7 +533,8 @@ class TemplateActionsNotifier extends Notifier<void> {
     );
 
     // Save to persistent storage
-    final savedTemplate = await ref.read(userTemplatesProvider.notifier).addTemplate(newTemplate);
+    final savedTemplate =
+        await ref.read(userTemplatesProvider.notifier).addTemplate(newTemplate);
 
     ref.invalidate(templatesProvider);
 
@@ -539,12 +549,13 @@ class TemplateActionsNotifier extends Notifier<void> {
 
   /// Increments the times used counter for a template.
   Future<void> incrementTimesUsed(String templateId) async {
-    await ref.read(userTemplatesProvider.notifier).incrementTimesUsed(templateId);
+    await ref
+        .read(userTemplatesProvider.notifier)
+        .incrementTimesUsed(templateId);
   }
 }
 
-final templateActionsProvider =
-    NotifierProvider<TemplateActionsNotifier, void>(
+final templateActionsProvider = NotifierProvider<TemplateActionsNotifier, void>(
   TemplateActionsNotifier.new,
 );
 

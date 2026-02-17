@@ -44,11 +44,6 @@ class HydrationService {
       // Fetch all data in parallel
       final results = await Future.wait([
         _fetchAndStore<List<dynamic>>(
-          '/workouts',
-          UserStorageKeys.workoutHistory(_userId),
-          prefs,
-        ),
-        _fetchAndStore<List<dynamic>>(
           '/templates',
           UserStorageKeys.customTemplates(_userId),
           prefs,
@@ -75,6 +70,12 @@ class HydrationService {
       debugPrint('HydrationService: Hydration complete - '
           '$successCount/${results.length} endpoints succeeded');
 
+      // Do not hydrate workouts from `/workouts` because that endpoint
+      // returns summary objects, while local workout history requires
+      // full completed-workout payloads (sets/exercise details).
+      //
+      // Workouts are restored via SyncService pull from synced entities.
+      //
       // Do not set last-sync here. A full sync pass must run immediately
       // after hydration so entities not covered by hydrate endpoints are
       // still restored from the server.
@@ -129,6 +130,7 @@ class HydrationService {
       UserStorageKeys.workoutHistory(_userId): SyncEntityType.workout,
       UserStorageKeys.customTemplates(_userId): SyncEntityType.template,
       UserStorageKeys.measurements(_userId): SyncEntityType.measurement,
+      UserStorageKeys.mesocycles(_userId): SyncEntityType.mesocycle,
       UserStorageKeys.customExercises(_userId): SyncEntityType.exercise,
       UserStorageKeys.customPrograms(_userId): SyncEntityType.program,
       UserStorageKeys.achievements(_userId): SyncEntityType.achievement,
@@ -177,7 +179,8 @@ class HydrationService {
         final progressionJson = prefs.getString(progressionKey);
         if (progressionJson == null || progressionJson.isEmpty) continue;
         try {
-          final progressionData = jsonDecode(progressionJson) as Map<String, dynamic>;
+          final progressionData =
+              jsonDecode(progressionJson) as Map<String, dynamic>;
           await queueService.addToQueue(SyncQueueItem(
             entityType: SyncEntityType.progression,
             action: SyncAction.update,
@@ -186,7 +189,8 @@ class HydrationService {
           ));
           totalQueued++;
         } catch (e) {
-          debugPrint('HydrationService: Error reading progression $exerciseId: $e');
+          debugPrint(
+              'HydrationService: Error reading progression $exerciseId: $e');
         }
       }
     }
@@ -205,6 +209,25 @@ class HydrationService {
         totalQueued++;
       } catch (e) {
         debugPrint('HydrationService: Error reading settings: $e');
+      }
+    }
+
+    // Push active program (single object) if present.
+    final activeProgramJson =
+        prefs.getString(UserStorageKeys.activeProgram(_userId));
+    if (activeProgramJson != null && activeProgramJson.isNotEmpty) {
+      try {
+        final activeProgram =
+            jsonDecode(activeProgramJson) as Map<String, dynamic>;
+        await queueService.addToQueue(SyncQueueItem(
+          entityType: SyncEntityType.activeProgram,
+          action: SyncAction.update,
+          entityId: 'current',
+          data: activeProgram,
+        ));
+        totalQueued++;
+      } catch (e) {
+        debugPrint('HydrationService: Error reading active program: $e');
       }
     }
 

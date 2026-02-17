@@ -11,23 +11,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/user_storage_keys.dart';
 import '../../../shared/models/sync_queue_item.dart';
 import '../../../shared/services/sync_queue_service.dart';
+import '../../../shared/services/sync_service.dart';
 import '../models/mesocycle.dart';
 
-const _storageKey = 'liftiq_mesocycles';
 const _uuid = Uuid();
-
-/// Global sync queue service - injected via provider override or lazy initialization.
-SyncQueueService? _globalSyncQueueService;
 
 /// Provider for accessing all user mesocycles.
 final mesocyclesProvider =
     StateNotifierProvider<MesocyclesNotifier, AsyncValue<List<Mesocycle>>>(
   (ref) {
-    // Inject sync queue service
-    _globalSyncQueueService = ref.watch(syncQueueServiceProvider);
-    return MesocyclesNotifier();
+    ref.watch(syncVersionProvider);
+    final userId = ref.watch(currentUserStorageIdProvider);
+    final syncQueueService = ref.watch(syncQueueServiceProvider);
+    return MesocyclesNotifier(
+      userId: userId,
+      syncQueueService: syncQueueService,
+    );
   },
 );
 
@@ -67,7 +69,17 @@ final intensityMultiplierProvider = Provider<double>((ref) {
 
 /// State notifier for managing mesocycles locally.
 class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
-  MesocyclesNotifier() : super(const AsyncValue.loading()) {
+  final String _userId;
+  final SyncQueueService _syncQueueService;
+
+  String get _storageKey => UserStorageKeys.mesocycles(_userId);
+
+  MesocyclesNotifier({
+    required String userId,
+    required SyncQueueService syncQueueService,
+  })  : _userId = userId,
+        _syncQueueService = syncQueueService,
+        super(const AsyncValue.loading()) {
     Future.microtask(() => _loadMesocycles());
   }
 
@@ -119,7 +131,7 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
 
     final mesocycle = Mesocycle(
       id: id,
-      userId: 'local-offline-user',
+      userId: _userId,
       name: config.name,
       description: config.description,
       startDate: config.startDate,
@@ -146,9 +158,8 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
   }
 
   /// Queues a mesocycle change for sync.
-  Future<void> _queueMesocycleSync(Mesocycle mesocycle, SyncAction action) async {
-    if (_globalSyncQueueService == null) return;
-
+  Future<void> _queueMesocycleSync(
+      Mesocycle mesocycle, SyncAction action) async {
     try {
       final item = SyncQueueItem(
         entityType: SyncEntityType.mesocycle,
@@ -157,8 +168,9 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
         data: mesocycle.toJson(),
         lastModifiedAt: DateTime.now(),
       );
-      await _globalSyncQueueService!.addToQueue(item);
-      debugPrint('MesocyclesNotifier: Queued mesocycle ${mesocycle.id} for sync');
+      await _syncQueueService.addToQueue(item);
+      debugPrint(
+          'MesocyclesNotifier: Queued mesocycle ${mesocycle.id} for sync');
     } catch (e) {
       debugPrint('MesocyclesNotifier: Error queuing mesocycle for sync: $e');
     }
@@ -166,8 +178,6 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
 
   /// Queues a mesocycle deletion for sync.
   Future<void> _queueMesocycleDeleteSync(String mesocycleId) async {
-    if (_globalSyncQueueService == null) return;
-
     try {
       final item = SyncQueueItem(
         entityType: SyncEntityType.mesocycle,
@@ -175,10 +185,12 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
         entityId: mesocycleId,
         lastModifiedAt: DateTime.now(),
       );
-      await _globalSyncQueueService!.addToQueue(item);
-      debugPrint('MesocyclesNotifier: Queued mesocycle $mesocycleId for deletion sync');
+      await _syncQueueService.addToQueue(item);
+      debugPrint(
+          'MesocyclesNotifier: Queued mesocycle $mesocycleId for deletion sync');
     } catch (e) {
-      debugPrint('MesocyclesNotifier: Error queuing mesocycle deletion for sync: $e');
+      debugPrint(
+          'MesocyclesNotifier: Error queuing mesocycle deletion for sync: $e');
     }
   }
 
@@ -229,9 +241,14 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
     }
   }
 
-  _WeekParameters _getLinearWeekParams(int weekNumber, int totalWeeks, MesocycleGoal goal) {
+  _WeekParameters _getLinearWeekParams(
+      int weekNumber, int totalWeeks, MesocycleGoal goal) {
     if (weekNumber == totalWeeks) {
-      return _WeekParameters(weekType: WeekType.deload, volumeMultiplier: 0.5, intensityMultiplier: 0.85, rirTarget: 4);
+      return _WeekParameters(
+          weekType: WeekType.deload,
+          volumeMultiplier: 0.5,
+          intensityMultiplier: 0.85,
+          rirTarget: 4);
     }
     final progress = weekNumber / (totalWeeks - 1);
     return _WeekParameters(
@@ -242,34 +259,68 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
     );
   }
 
-  _WeekParameters _getUndulatingWeekParams(int weekNumber, int totalWeeks, MesocycleGoal goal) {
+  _WeekParameters _getUndulatingWeekParams(
+      int weekNumber, int totalWeeks, MesocycleGoal goal) {
     if (weekNumber % 4 == 0 || weekNumber == totalWeeks) {
-      return _WeekParameters(weekType: WeekType.deload, volumeMultiplier: 0.5, intensityMultiplier: 0.85, rirTarget: 4);
+      return _WeekParameters(
+          weekType: WeekType.deload,
+          volumeMultiplier: 0.5,
+          intensityMultiplier: 0.85,
+          rirTarget: 4);
     }
     final weekInCycle = weekNumber % 3;
     switch (weekInCycle) {
       case 1:
-        return _WeekParameters(weekType: WeekType.accumulation, volumeMultiplier: 1.1, intensityMultiplier: 0.85, rirTarget: 3);
+        return _WeekParameters(
+            weekType: WeekType.accumulation,
+            volumeMultiplier: 1.1,
+            intensityMultiplier: 0.85,
+            rirTarget: 3);
       case 2:
-        return _WeekParameters(weekType: WeekType.intensification, volumeMultiplier: 0.85, intensityMultiplier: 1.0, rirTarget: 1);
+        return _WeekParameters(
+            weekType: WeekType.intensification,
+            volumeMultiplier: 0.85,
+            intensityMultiplier: 1.0,
+            rirTarget: 1);
       case 0:
       default:
-        return _WeekParameters(weekType: WeekType.accumulation, volumeMultiplier: 1.0, intensityMultiplier: 0.9, rirTarget: 2);
+        return _WeekParameters(
+            weekType: WeekType.accumulation,
+            volumeMultiplier: 1.0,
+            intensityMultiplier: 0.9,
+            rirTarget: 2);
     }
   }
 
-  _WeekParameters _getBlockWeekParams(int weekNumber, int totalWeeks, MesocycleGoal goal) {
+  _WeekParameters _getBlockWeekParams(
+      int weekNumber, int totalWeeks, MesocycleGoal goal) {
     final accumulationEnd = (totalWeeks * 0.5).ceil();
     final intensificationEnd = (totalWeeks * 0.8).ceil();
 
     if (weekNumber <= accumulationEnd) {
-      return _WeekParameters(weekType: WeekType.accumulation, volumeMultiplier: 1.1, intensityMultiplier: 0.8, rirTarget: 3);
+      return _WeekParameters(
+          weekType: WeekType.accumulation,
+          volumeMultiplier: 1.1,
+          intensityMultiplier: 0.8,
+          rirTarget: 3);
     } else if (weekNumber <= intensificationEnd) {
-      return _WeekParameters(weekType: WeekType.intensification, volumeMultiplier: 0.9, intensityMultiplier: 0.95, rirTarget: 2);
+      return _WeekParameters(
+          weekType: WeekType.intensification,
+          volumeMultiplier: 0.9,
+          intensityMultiplier: 0.95,
+          rirTarget: 2);
     } else if (weekNumber == totalWeeks) {
-      return _WeekParameters(weekType: WeekType.deload, volumeMultiplier: 0.5, intensityMultiplier: 0.85, rirTarget: 4);
+      return _WeekParameters(
+          weekType: WeekType.deload,
+          volumeMultiplier: 0.5,
+          intensityMultiplier: 0.85,
+          rirTarget: 4);
     } else {
-      return _WeekParameters(weekType: WeekType.peak, volumeMultiplier: 0.6, intensityMultiplier: 1.0, rirTarget: 0);
+      return _WeekParameters(
+          weekType: WeekType.peak,
+          volumeMultiplier: 0.6,
+          intensityMultiplier: 1.0,
+          rirTarget: 0);
     }
   }
 
@@ -280,10 +331,14 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
 
     final updatedMesocycles = mesocycles.map((m) {
       if (m.status == MesocycleStatus.active) {
-        return m.copyWith(status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
+        return m.copyWith(
+            status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
       }
       if (m.id == mesocycleId) {
-        startedMesocycle = m.copyWith(status: MesocycleStatus.active, currentWeek: 1, updatedAt: DateTime.now());
+        startedMesocycle = m.copyWith(
+            status: MesocycleStatus.active,
+            currentWeek: 1,
+            updatedAt: DateTime.now());
         return startedMesocycle!;
       }
       return m;
@@ -314,11 +369,17 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
       }).toList();
 
       if (m.currentWeek >= m.totalWeeks) {
-        updatedMesocycle = m.copyWith(status: MesocycleStatus.completed, weeks: updatedWeeks, updatedAt: DateTime.now());
+        updatedMesocycle = m.copyWith(
+            status: MesocycleStatus.completed,
+            weeks: updatedWeeks,
+            updatedAt: DateTime.now());
         return updatedMesocycle!;
       }
 
-      updatedMesocycle = m.copyWith(currentWeek: m.currentWeek + 1, weeks: updatedWeeks, updatedAt: DateTime.now());
+      updatedMesocycle = m.copyWith(
+          currentWeek: m.currentWeek + 1,
+          weeks: updatedWeeks,
+          updatedAt: DateTime.now());
       return updatedMesocycle!;
     }).toList();
 
@@ -351,7 +412,8 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
   /// Deletes a mesocycle.
   Future<void> deleteMesocycle(String mesocycleId) async {
     final mesocycles = state.valueOrNull ?? [];
-    state = AsyncValue.data(mesocycles.where((m) => m.id != mesocycleId).toList());
+    state =
+        AsyncValue.data(mesocycles.where((m) => m.id != mesocycleId).toList());
     await _persist();
 
     // Queue deletion for sync
@@ -365,7 +427,8 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
 
     final updatedMesocycles = mesocycles.map((m) {
       if (m.id == mesocycleId) {
-        abandonedMesocycle = m.copyWith(status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
+        abandonedMesocycle = m.copyWith(
+            status: MesocycleStatus.abandoned, updatedAt: DateTime.now());
         return abandonedMesocycle!;
       }
       return m;

@@ -12,6 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/api_client.dart';
 import '../../../core/services/user_storage_keys.dart';
+import '../../../shared/models/sync_queue_item.dart';
+import '../../../shared/services/sync_queue_service.dart';
+import '../../../shared/services/sync_service.dart';
 import '../models/user_settings.dart';
 
 // ============================================================================
@@ -25,8 +28,10 @@ import '../models/user_settings.dart';
 final userSettingsProvider =
     StateNotifierProvider<UserSettingsNotifier, UserSettings>(
   (ref) {
+    ref.watch(syncVersionProvider);
     final userId = ref.watch(currentUserStorageIdProvider);
-    return UserSettingsNotifier(userId);
+    final syncQueueService = ref.watch(syncQueueServiceProvider);
+    return UserSettingsNotifier(userId, syncQueueService: syncQueueService);
   },
 );
 
@@ -38,11 +43,14 @@ final userSettingsProvider =
 class UserSettingsNotifier extends StateNotifier<UserSettings> {
   /// The user ID this notifier is scoped to.
   final String _userId;
+  final SyncQueueService? _syncQueueService;
 
   /// Gets the storage key for this user's settings.
   String get _settingsKey => UserStorageKeys.userSettings(_userId);
 
-  UserSettingsNotifier(this._userId) : super(const UserSettings()) {
+  UserSettingsNotifier(this._userId, {SyncQueueService? syncQueueService})
+      : _syncQueueService = syncQueueService,
+        super(const UserSettings()) {
     _loadSettings();
   }
 
@@ -59,7 +67,8 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
         state = UserSettings.fromJson(decoded);
         debugPrint('SettingsProvider: Loaded settings for user $_userId');
       } else {
-        debugPrint('SettingsProvider: No saved settings for user $_userId, using defaults');
+        debugPrint(
+            'SettingsProvider: No saved settings for user $_userId, using defaults');
       }
     } catch (e) {
       debugPrint('SettingsProvider: Error loading settings: $e');
@@ -337,9 +346,12 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
       displayName: displayName ?? state.displayName,
       hasCompletedOnboarding: true,
       // Set smart defaults based on experience level
-      sessionsAtCeilingRequired: experienceLevel == ExperienceLevel.beginner ? 2 : 2,
-      upperBodyWeightIncrement: experienceLevel == ExperienceLevel.beginner ? 2.5 : 2.5,
-      lowerBodyWeightIncrement: experienceLevel == ExperienceLevel.beginner ? 5.0 : 5.0,
+      sessionsAtCeilingRequired:
+          experienceLevel == ExperienceLevel.beginner ? 2 : 2,
+      upperBodyWeightIncrement:
+          experienceLevel == ExperienceLevel.beginner ? 2.5 : 2.5,
+      lowerBodyWeightIncrement:
+          experienceLevel == ExperienceLevel.beginner ? 5.0 : 5.0,
     );
     _saveSettings();
     debugPrint(
@@ -373,13 +385,15 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
 
   /// Sets the upper body weight increment.
   void setUpperBodyWeightIncrement(double increment) {
-    state = state.copyWith(upperBodyWeightIncrement: increment.clamp(1.0, 10.0));
+    state =
+        state.copyWith(upperBodyWeightIncrement: increment.clamp(1.0, 10.0));
     _saveSettings();
   }
 
   /// Sets the lower body weight increment.
   void setLowerBodyWeightIncrement(double increment) {
-    state = state.copyWith(lowerBodyWeightIncrement: increment.clamp(2.5, 20.0));
+    state =
+        state.copyWith(lowerBodyWeightIncrement: increment.clamp(2.5, 20.0));
     _saveSettings();
   }
 
@@ -421,6 +435,16 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
       final prefs = await SharedPreferences.getInstance();
       final settingsJson = jsonEncode(state.toJson());
       await prefs.setString(_settingsKey, settingsJson);
+      final syncQueueService = _syncQueueService;
+      if (syncQueueService != null) {
+        await syncQueueService.addToQueue(SyncQueueItem(
+          entityType: SyncEntityType.settings,
+          action: SyncAction.update,
+          entityId: _userId,
+          data: state.toJson(),
+          lastModifiedAt: DateTime.now(),
+        ));
+      }
       debugPrint('SettingsProvider: Settings saved for user $_userId');
     } catch (e) {
       debugPrint('SettingsProvider: Error saving settings: $e');
@@ -433,7 +457,8 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
 // ============================================================================
 
 /// Provider for requesting data export.
-final dataExportRequestProvider = FutureProvider.autoDispose<DataExportRequest?>(
+final dataExportRequestProvider =
+    FutureProvider.autoDispose<DataExportRequest?>(
   (ref) async {
     final api = ref.read(apiClientProvider);
 
@@ -631,7 +656,8 @@ final trainingPreferencesProvider = Provider<TrainingPreferences>((ref) {
 /// Use this in the router instead of watching the entire userSettingsProvider
 /// to prevent navigation rebuilds when unrelated settings change.
 final hasCompletedOnboardingProvider = Provider<bool>((ref) {
-  return ref.watch(userSettingsProvider.select((s) => s.hasCompletedOnboarding));
+  return ref
+      .watch(userSettingsProvider.select((s) => s.hasCompletedOnboarding));
 });
 
 // ============================================================================

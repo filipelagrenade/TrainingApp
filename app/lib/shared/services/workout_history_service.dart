@@ -19,6 +19,7 @@ import '../../features/analytics/models/analytics_data.dart';
 import '../../features/analytics/models/workout_summary.dart';
 import '../models/sync_queue_item.dart';
 import 'sync_queue_service.dart';
+import 'sync_service.dart';
 
 // ============================================================================
 // WORKOUT HISTORY SERVICE
@@ -91,8 +92,8 @@ class WorkoutHistoryService {
       if (prsJson != null) {
         final decoded = jsonDecode(prsJson) as Map<String, dynamic>;
         _personalRecords = decoded.map(
-          (key, value) =>
-              MapEntry(key, PersonalRecord.fromJson(value as Map<String, dynamic>)),
+          (key, value) => MapEntry(
+              key, PersonalRecord.fromJson(value as Map<String, dynamic>)),
         );
       }
 
@@ -140,7 +141,8 @@ class WorkoutHistoryService {
   }
 
   /// Queues a workout change for sync.
-  Future<void> _queueWorkoutSync(CompletedWorkout workout, SyncAction action) async {
+  Future<void> _queueWorkoutSync(
+      CompletedWorkout workout, SyncAction action) async {
     if (_syncQueueService == null) return;
 
     try {
@@ -152,7 +154,8 @@ class WorkoutHistoryService {
         lastModifiedAt: DateTime.now(),
       );
       await _syncQueueService!.addToQueue(item);
-      debugPrint('WorkoutHistoryService: Queued workout ${workout.id} for sync');
+      debugPrint(
+          'WorkoutHistoryService: Queued workout ${workout.id} for sync');
     } catch (e) {
       debugPrint('WorkoutHistoryService: Error queuing workout for sync: $e');
     }
@@ -170,9 +173,11 @@ class WorkoutHistoryService {
         lastModifiedAt: DateTime.now(),
       );
       await _syncQueueService!.addToQueue(item);
-      debugPrint('WorkoutHistoryService: Queued workout $workoutId for deletion sync');
+      debugPrint(
+          'WorkoutHistoryService: Queued workout $workoutId for deletion sync');
     } catch (e) {
-      debugPrint('WorkoutHistoryService: Error queuing workout deletion for sync: $e');
+      debugPrint(
+          'WorkoutHistoryService: Error queuing workout deletion for sync: $e');
     }
   }
 
@@ -439,7 +444,8 @@ class WorkoutHistoryService {
     for (final workout in periodWorkouts) {
       // Convert to Sunday = 0 format for display
       final dayOfWeek = workout.completedAt.weekday % 7;
-      workoutsByDayOfWeek[dayOfWeek] = (workoutsByDayOfWeek[dayOfWeek] ?? 0) + 1;
+      workoutsByDayOfWeek[dayOfWeek] =
+          (workoutsByDayOfWeek[dayOfWeek] ?? 0) + 1;
     }
 
     // Calculate workouts by week
@@ -452,10 +458,11 @@ class WorkoutHistoryService {
       var currentWeekStart = _getWeekStart(cutoff);
       while (currentWeekStart.isBefore(now)) {
         final weekEnd = currentWeekStart.add(const Duration(days: 7));
-        final weekWorkouts = periodWorkouts.where((w) =>
-          w.completedAt.isAfter(currentWeekStart) &&
-          w.completedAt.isBefore(weekEnd)
-        ).length;
+        final weekWorkouts = periodWorkouts
+            .where((w) =>
+                w.completedAt.isAfter(currentWeekStart) &&
+                w.completedAt.isBefore(weekEnd))
+            .length;
 
         workoutsByWeek.add(WeeklyWorkoutCount(
           weekStart: currentWeekStart,
@@ -477,7 +484,8 @@ class WorkoutHistoryService {
 
       // Get unique workout days
       final workoutDays = sortedByDate
-          .map((w) => DateTime(w.completedAt.year, w.completedAt.month, w.completedAt.day))
+          .map((w) => DateTime(
+              w.completedAt.year, w.completedAt.month, w.completedAt.day))
           .toSet()
           .toList()
         ..sort((a, b) => b.compareTo(a));
@@ -492,7 +500,8 @@ class WorkoutHistoryService {
         if (mostRecent == todayDate || mostRecent == yesterdayDate) {
           currentStreak = 1;
           for (var i = 1; i < workoutDays.length; i++) {
-            final expected = workoutDays[i - 1].subtract(const Duration(days: 1));
+            final expected =
+                workoutDays[i - 1].subtract(const Duration(days: 1));
             if (workoutDays[i] == expected) {
               currentStreak++;
             } else {
@@ -528,9 +537,8 @@ class WorkoutHistoryService {
       TimePeriod.allTime => 365 * 5, // Approximate
     };
     final weeks = daysInPeriod / 7;
-    final avgWorkoutsPerWeek = periodWorkouts.isNotEmpty
-        ? periodWorkouts.length / weeks
-        : 0.0;
+    final avgWorkoutsPerWeek =
+        periodWorkouts.isNotEmpty ? periodWorkouts.length / weeks : 0.0;
 
     return ConsistencyData(
       period: period.value,
@@ -549,7 +557,8 @@ class WorkoutHistoryService {
     final workoutsByDate = <String, CalendarDayData>{};
 
     for (final workout in _workouts) {
-      if (workout.completedAt.year == year && workout.completedAt.month == month) {
+      if (workout.completedAt.year == year &&
+          workout.completedAt.month == month) {
         final dateKey = workout.completedAt.toIso8601String().split('T')[0];
 
         final calendarWorkout = CalendarWorkout(
@@ -666,7 +675,8 @@ class WorkoutHistoryService {
       final prefs = await SharedPreferences.getInstance();
 
       // Save workouts
-      final workoutsJson = jsonEncode(_workouts.map((w) => w.toJson()).toList());
+      final workoutsJson =
+          jsonEncode(_workouts.map((w) => w.toJson()).toList());
       await prefs.setString(_storageKey, workoutsJson);
 
       // Save PRs
@@ -791,7 +801,8 @@ class WorkoutHistoryService {
     }
 
     await _persist();
-    debugPrint('WorkoutHistoryService: Added ${sampleWorkouts.length} sample workouts');
+    debugPrint(
+        'WorkoutHistoryService: Added ${sampleWorkouts.length} sample workouts');
   }
 }
 
@@ -862,28 +873,34 @@ class CompletedWorkout {
   factory CompletedWorkout.fromSession(WorkoutSession session) {
     final exercises = session.exerciseLogs.map((log) {
       // Convert strength sets (including drop set sub-entries)
-      final sets = log.sets.map((s) => CompletedSet(
-        weight: s.weight,
-        reps: s.reps,
-        rpe: s.rpe,
-        setType: s.setType.name,
-        dropSets: s.dropSets.map((d) => CompletedDropSet(
-          weight: d.weight,
-          reps: d.reps,
-          isCompleted: d.isCompleted,
-        )).toList(),
-      )).toList();
+      final sets = log.sets
+          .map((s) => CompletedSet(
+                weight: s.weight,
+                reps: s.reps,
+                rpe: s.rpe,
+                setType: s.setType.name,
+                dropSets: s.dropSets
+                    .map((d) => CompletedDropSet(
+                          weight: d.weight,
+                          reps: d.reps,
+                          isCompleted: d.isCompleted,
+                        ))
+                    .toList(),
+              ))
+          .toList();
 
       // Convert cardio sets
-      final cardioSets = log.cardioSets.map((cs) => CompletedCardioSet(
-        setNumber: cs.setNumber,
-        durationSeconds: cs.duration.inSeconds,
-        distance: cs.distance,
-        incline: cs.incline,
-        resistance: cs.resistance,
-        avgHeartRate: cs.avgHeartRate,
-        intensity: cs.intensity.name,
-      )).toList();
+      final cardioSets = log.cardioSets
+          .map((cs) => CompletedCardioSet(
+                setNumber: cs.setNumber,
+                durationSeconds: cs.duration.inSeconds,
+                distance: cs.distance,
+                incline: cs.incline,
+                resistance: cs.resistance,
+                avgHeartRate: cs.avgHeartRate,
+                intensity: cs.intensity.name,
+              ))
+          .toList();
 
       // Calculate volume (only for strength exercises), including drop sets
       final volume = log.isCardio
@@ -960,7 +977,8 @@ class CompletedWorkout {
         );
       } catch (_) {
         // Fallback for lightweight backend summary payloads.
-        final name = (raw['exerciseName'] ?? raw['name'] ?? 'Exercise') as String;
+        final name =
+            (raw['exerciseName'] ?? raw['name'] ?? 'Exercise') as String;
         final muscles = ((raw['primaryMuscles'] ?? raw['muscles']) as List?)
                 ?.whereType<String>()
                 .toList() ??
@@ -981,16 +999,13 @@ class CompletedWorkout {
     final startedAt = _parseDate(json['startedAt']);
     final completedAt = _parseDate(json['completedAt'], fallback: startedAt);
     final durationMinutes = _toInt(
-      json['durationMinutes'] ?? ((json['durationSeconds'] as num?)?.toDouble() ?? 0) / 60,
+      json['durationMinutes'] ??
+          ((json['durationSeconds'] as num?)?.toDouble() ?? 0) / 60,
       fallback: 0,
     );
-    final muscleGroups = (json['muscleGroups'] as List?)
-            ?.whereType<String>()
-            .toList() ??
-        parsedExercises
-            .expand((e) => e.primaryMuscles)
-            .toSet()
-            .toList();
+    final muscleGroups =
+        (json['muscleGroups'] as List?)?.whereType<String>().toList() ??
+            parsedExercises.expand((e) => e.primaryMuscles).toSet().toList();
 
     return CompletedWorkout(
       id: json['id'] as String,
@@ -1011,34 +1026,34 @@ class CompletedWorkout {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'userId': userId,
-    'templateId': templateId,
-    'templateName': templateName,
-    'startedAt': startedAt.toIso8601String(),
-    'completedAt': completedAt.toIso8601String(),
-    'durationMinutes': durationMinutes,
-    'totalVolume': totalVolume,
-    'totalSets': totalSets,
-    'prsAchieved': prsAchieved,
-    'muscleGroups': muscleGroups,
-    'exercises': exercises.map((e) => e.toJson()).toList(),
-    'notes': notes,
-    'rating': rating,
-  };
+        'id': id,
+        'userId': userId,
+        'templateId': templateId,
+        'templateName': templateName,
+        'startedAt': startedAt.toIso8601String(),
+        'completedAt': completedAt.toIso8601String(),
+        'durationMinutes': durationMinutes,
+        'totalVolume': totalVolume,
+        'totalSets': totalSets,
+        'prsAchieved': prsAchieved,
+        'muscleGroups': muscleGroups,
+        'exercises': exercises.map((e) => e.toJson()).toList(),
+        'notes': notes,
+        'rating': rating,
+      };
 
   WorkoutSummary toSummary() => WorkoutSummary(
-    id: id,
-    date: completedAt,
-    completedAt: completedAt,
-    durationMinutes: durationMinutes,
-    templateName: templateName,
-    exerciseCount: exercises.length,
-    totalSets: totalSets,
-    totalVolume: totalVolume,
-    muscleGroups: muscleGroups,
-    prsAchieved: prsAchieved,
-  );
+        id: id,
+        date: completedAt,
+        completedAt: completedAt,
+        durationMinutes: durationMinutes,
+        templateName: templateName,
+        exerciseCount: exercises.length,
+        totalSets: totalSets,
+        totalVolume: totalVolume,
+        muscleGroups: muscleGroups,
+        prsAchieved: prsAchieved,
+      );
 }
 
 /// A completed exercise within a workout.
@@ -1104,15 +1119,15 @@ class CompletedExercise {
       }
     }
 
-    final primaryMuscles = (json['primaryMuscles'] as List?)
-            ?.whereType<String>()
-            .toList() ??
-        (json['muscles'] as List?)?.whereType<String>().toList() ??
-        const <String>[];
+    final primaryMuscles =
+        (json['primaryMuscles'] as List?)?.whereType<String>().toList() ??
+            (json['muscles'] as List?)?.whereType<String>().toList() ??
+            const <String>[];
 
     return CompletedExercise(
       exerciseId: (json['exerciseId'] ?? json['id'] ?? 'unknown') as String,
-      exerciseName: (json['exerciseName'] ?? json['name'] ?? 'Exercise') as String,
+      exerciseName:
+          (json['exerciseName'] ?? json['name'] ?? 'Exercise') as String,
       primaryMuscles: primaryMuscles,
       equipment: (json['equipment'] as List?)?.cast<String>() ?? [],
       completedSets: _toInt(
@@ -1129,19 +1144,19 @@ class CompletedExercise {
   }
 
   Map<String, dynamic> toJson() => {
-    'exerciseId': exerciseId,
-    'exerciseName': exerciseName,
-    'primaryMuscles': primaryMuscles,
-    'equipment': equipment,
-    'completedSets': completedSets,
-    'volume': volume,
-    'sets': sets.map((s) => s.toJson()).toList(),
-    'isCardio': isCardio,
-    'usesIncline': usesIncline,
-    'usesResistance': usesResistance,
-    'cardioSets': cardioSets.map((s) => s.toJson()).toList(),
-    'cableAttachment': cableAttachment,
-  };
+        'exerciseId': exerciseId,
+        'exerciseName': exerciseName,
+        'primaryMuscles': primaryMuscles,
+        'equipment': equipment,
+        'completedSets': completedSets,
+        'volume': volume,
+        'sets': sets.map((s) => s.toJson()).toList(),
+        'isCardio': isCardio,
+        'usesIncline': usesIncline,
+        'usesResistance': usesResistance,
+        'cardioSets': cardioSets.map((s) => s.toJson()).toList(),
+        'cableAttachment': cableAttachment,
+      };
 }
 
 /// A completed set within an exercise.
@@ -1184,12 +1199,13 @@ class CompletedSet {
   }
 
   Map<String, dynamic> toJson() => {
-    'weight': weight,
-    'reps': reps,
-    'rpe': rpe,
-    'setType': setType,
-    if (dropSets.isNotEmpty) 'dropSets': dropSets.map((d) => d.toJson()).toList(),
-  };
+        'weight': weight,
+        'reps': reps,
+        'rpe': rpe,
+        'setType': setType,
+        if (dropSets.isNotEmpty)
+          'dropSets': dropSets.map((d) => d.toJson()).toList(),
+      };
 }
 
 /// A completed drop set sub-entry.
@@ -1213,10 +1229,10 @@ class CompletedDropSet {
   }
 
   Map<String, dynamic> toJson() => {
-    'weight': weight,
-    'reps': reps,
-    'isCompleted': isCompleted,
-  };
+        'weight': weight,
+        'reps': reps,
+        'isCompleted': isCompleted,
+      };
 }
 
 /// A completed cardio set.
@@ -1252,14 +1268,14 @@ class CompletedCardioSet {
   }
 
   Map<String, dynamic> toJson() => {
-    'setNumber': setNumber,
-    'durationSeconds': durationSeconds,
-    'distance': distance,
-    'incline': incline,
-    'resistance': resistance,
-    'avgHeartRate': avgHeartRate,
-    'intensity': intensity,
-  };
+        'setNumber': setNumber,
+        'durationSeconds': durationSeconds,
+        'distance': distance,
+        'incline': incline,
+        'resistance': resistance,
+        'avgHeartRate': avgHeartRate,
+        'intensity': intensity,
+      };
 
   /// Returns formatted duration string.
   String get durationString {
@@ -1293,7 +1309,9 @@ final workoutHistoryServiceProvider = Provider<WorkoutHistoryService>((ref) {
 /// Provider that initializes and exposes the workout history.
 ///
 /// Automatically re-initializes when the user changes.
-final workoutHistoryProvider = FutureProvider<List<CompletedWorkout>>((ref) async {
+final workoutHistoryProvider =
+    FutureProvider<List<CompletedWorkout>>((ref) async {
+  ref.watch(syncVersionProvider);
   final service = ref.watch(workoutHistoryServiceProvider);
   await service.initialize();
   return service.workouts;
@@ -1317,14 +1335,12 @@ class PreviousSetData {
 
   /// Formats the set as "85kg × 10" or "85kg × 10 @ RPE 8"
   String toDisplayString({String unit = 'kg', bool showRpe = false}) {
-    final weightStr = weight % 1 == 0
-        ? weight.toStringAsFixed(0)
-        : weight.toStringAsFixed(1);
+    final weightStr =
+        weight % 1 == 0 ? weight.toStringAsFixed(0) : weight.toStringAsFixed(1);
     final base = '$weightStr $unit × $reps';
     if (showRpe && rpe != null) {
-      final rpeStr = rpe! % 1 == 0
-          ? rpe!.toStringAsFixed(0)
-          : rpe!.toStringAsFixed(1);
+      final rpeStr =
+          rpe! % 1 == 0 ? rpe!.toStringAsFixed(0) : rpe!.toStringAsFixed(1);
       return '$base @ RPE $rpeStr';
     }
     return base;
@@ -1354,8 +1370,7 @@ class ExercisePerformanceHistory {
       : sets.map((s) => s.reps).reduce((a, b) => a > b ? a : b);
 
   /// Total volume for this exercise in this session.
-  double get totalVolume =>
-      sets.fold(0.0, (sum, s) => sum + s.weight * s.reps);
+  double get totalVolume => sets.fold(0.0, (sum, s) => sum + s.weight * s.reps);
 
   /// Returns a formatted summary of the sets (e.g., "85kg × 10, 10, 9").
   String get setsSummary {
@@ -1378,8 +1393,20 @@ class ExercisePerformanceHistory {
     if (days == 1) return 'Yesterday';
     if (days < 7) return '$days days ago';
     // Format as "Jan 20" for older dates
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return '${months[date.month - 1]} ${date.day}';
   }
 }
