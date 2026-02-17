@@ -112,9 +112,8 @@ class WeekCard extends StatelessWidget {
             ? colors.primary
             : weekColor.withValues(alpha: 0.2),
         shape: BoxShape.circle,
-        border: isCurrentWeek
-            ? Border.all(color: colors.primary, width: 2)
-            : null,
+        border:
+            isCurrentWeek ? Border.all(color: colors.primary, width: 2) : null,
       ),
       child: Center(
         child: week.isCompleted
@@ -147,7 +146,7 @@ class WeekCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        week.weekType.displayName,
+        week.weekNumber == 1 ? 'Baseline' : week.weekType.displayName,
         style: theme.textTheme.labelSmall?.copyWith(
           color: weekColor,
           fontWeight: FontWeight.w600,

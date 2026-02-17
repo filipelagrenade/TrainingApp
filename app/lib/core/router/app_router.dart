@@ -350,6 +350,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'periodization',
         builder: (context, state) => const PeriodizationScreen(),
       ),
+      GoRoute(
+        path: '/periodization/new',
+        name: 'new-periodization',
+        builder: (context, state) {
+          final weeks = int.tryParse(state.uri.queryParameters['weeks'] ?? '');
+          return MesocycleBuilderScreen(
+            initialProgramId: state.uri.queryParameters['programId'],
+            initialProgramName: state.uri.queryParameters['programName'],
+            initialTotalWeeks: weeks,
+          );
+        },
+      ),
 
       // ========================================
       // Calendar Routes

@@ -577,7 +577,13 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
             SnackBar(content: Text('Program "${program.name}" created!')),
           );
           if (_withPeriodization) {
-            context.go('/periodization');
+            final query = <String, String>{
+              if (program.id != null) 'programId': program.id!,
+              'programName': program.name,
+              'weeks': _durationWeeks.toString(),
+            };
+            context.go(Uri(path: '/periodization/new', queryParameters: query)
+                .toString());
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(

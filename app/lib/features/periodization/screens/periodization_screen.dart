@@ -12,7 +12,6 @@ import '../../programs/providers/user_programs_provider.dart';
 import '../../templates/models/training_program.dart';
 import '../models/mesocycle.dart';
 import '../providers/periodization_provider.dart';
-import '../services/mesocycle_program_service.dart';
 import '../widgets/week_card.dart';
 
 /// Main periodization planning screen.
@@ -48,7 +47,8 @@ class PeriodizationScreen extends ConsumerWidget {
         ],
       ),
       body: mesocyclesAsync.when(
-        data: (mesocycles) => _buildBody(context, ref, theme, colors, mesocycles),
+        data: (mesocycles) =>
+            _buildBody(context, ref, theme, colors, mesocycles),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
           child: Column(
@@ -82,9 +82,8 @@ class PeriodizationScreen extends ConsumerWidget {
     List<Mesocycle> mesocycles,
   ) {
     // Find active mesocycle
-    final activeMesocycle = mesocycles
-        .where((m) => m.status == MesocycleStatus.active)
-        .firstOrNull;
+    final activeMesocycle =
+        mesocycles.where((m) => m.status == MesocycleStatus.active).firstOrNull;
 
     if (mesocycles.isEmpty) {
       return _buildEmptyState(context, ref, theme, colors);
@@ -97,7 +96,8 @@ class PeriodizationScreen extends ConsumerWidget {
         children: [
           // Active mesocycle section
           if (activeMesocycle != null) ...[
-            _buildActiveMesocycleCard(context, ref, theme, colors, activeMesocycle),
+            _buildActiveMesocycleCard(
+                context, ref, theme, colors, activeMesocycle),
             const SizedBox(height: 24),
             Text(
               'Weekly Breakdown',
@@ -115,7 +115,9 @@ class PeriodizationScreen extends ConsumerWidget {
           ],
 
           // Other mesocycles
-          if (mesocycles.where((m) => m.status != MesocycleStatus.active).isNotEmpty) ...[
+          if (mesocycles
+              .where((m) => m.status != MesocycleStatus.active)
+              .isNotEmpty) ...[
             Text(
               activeMesocycle != null ? 'Other Mesocycles' : 'Your Mesocycles',
               style: theme.textTheme.titleMedium?.copyWith(
@@ -123,9 +125,8 @@ class PeriodizationScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            ...mesocycles
-                .where((m) => m.status != MesocycleStatus.active)
-                .map((m) => _buildMesocycleListItem(context, ref, theme, colors, m)),
+            ...mesocycles.where((m) => m.status != MesocycleStatus.active).map(
+                (m) => _buildMesocycleListItem(context, ref, theme, colors, m)),
           ],
 
           // Space for FAB
@@ -215,7 +216,8 @@ class PeriodizationScreen extends ConsumerWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: colors.primaryContainer,
                     borderRadius: BorderRadius.circular(16),
@@ -356,7 +358,8 @@ class PeriodizationScreen extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 IconButton(
-                  onPressed: () => _showMesocycleOptions(context, ref, mesocycle),
+                  onPressed: () =>
+                      _showMesocycleOptions(context, ref, mesocycle),
                   icon: const Icon(Icons.more_vert),
                 ),
               ],
@@ -396,9 +399,8 @@ class PeriodizationScreen extends ConsumerWidget {
                 children: [
                   Icon(
                     _getStatusIcon(mesocycle.status),
-                    color: isActive
-                        ? Colors.white.withOpacity(0.8)
-                        : statusColor,
+                    color:
+                        isActive ? Colors.white.withOpacity(0.8) : statusColor,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
@@ -439,22 +441,26 @@ class PeriodizationScreen extends ConsumerWidget {
                 width: double.infinity,
                 child: isPlanned
                     ? FilledButton.icon(
-                        onPressed: () => _startMesocycle(context, ref, mesocycle),
+                        onPressed: () =>
+                            _startMesocycle(context, ref, mesocycle),
                         style: isActive
                             ? FilledButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: statusColor,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                               )
                             : FilledButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                               ),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Start Mesocycle'),
                       )
                     : isActive
                         ? FilledButton.icon(
-                            onPressed: () => _showMesocycleDetails(context, mesocycle),
+                            onPressed: () =>
+                                _showMesocycleDetails(context, mesocycle),
                             style: FilledButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: statusColor,
@@ -464,7 +470,8 @@ class PeriodizationScreen extends ConsumerWidget {
                             label: const Text('View Details'),
                           )
                         : OutlinedButton.icon(
-                            onPressed: () => _showMesocycleDetails(context, mesocycle),
+                            onPressed: () =>
+                                _showMesocycleDetails(context, mesocycle),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
@@ -524,14 +531,20 @@ class PeriodizationScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Week ${week.weekNumber}: ${week.weekType.displayName}',
+              'Week ${week.weekNumber}: ${week.weekNumber == 1 ? 'Feeler/Baseline' : week.weekType.displayName}',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
-            Text(week.weekType.description),
+            Text(
+              week.weekNumber == 1
+                  ? 'Baseline week. Use this week to calibrate loads and technique before progression ramps up.'
+                  : week.weekType.description,
+            ),
             const SizedBox(height: 24),
-            _buildDetailRow(context, 'Volume', '${(week.volumeMultiplier * 100).round()}%'),
-            _buildDetailRow(context, 'Intensity', '${(week.intensityMultiplier * 100).round()}%'),
+            _buildDetailRow(
+                context, 'Volume', '${(week.volumeMultiplier * 100).round()}%'),
+            _buildDetailRow(context, 'Intensity',
+                '${(week.intensityMultiplier * 100).round()}%'),
             if (week.rirTarget != null)
               _buildDetailRow(context, 'RIR Target', '${week.rirTarget}'),
             if (week.notes != null) ...[
@@ -591,7 +604,8 @@ class PeriodizationScreen extends ConsumerWidget {
     );
   }
 
-  void _startMesocycle(BuildContext context, WidgetRef ref, Mesocycle mesocycle) {
+  void _startMesocycle(
+      BuildContext context, WidgetRef ref, Mesocycle mesocycle) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -606,7 +620,9 @@ class PeriodizationScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () {
-              ref.read(mesocyclesProvider.notifier).startMesocycle(mesocycle.id);
+              ref
+                  .read(mesocyclesProvider.notifier)
+                  .startMesocycle(mesocycle.id);
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Mesocycle started!')),
@@ -619,7 +635,8 @@ class PeriodizationScreen extends ConsumerWidget {
     );
   }
 
-  void _showMesocycleOptions(BuildContext context, WidgetRef ref, Mesocycle mesocycle) {
+  void _showMesocycleOptions(
+      BuildContext context, WidgetRef ref, Mesocycle mesocycle) {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -643,14 +660,17 @@ class PeriodizationScreen extends ConsumerWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.cancel, color: Theme.of(context).colorScheme.error),
+              leading: Icon(Icons.cancel,
+                  color: Theme.of(context).colorScheme.error),
               title: Text(
                 'Abandon Mesocycle',
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
               onTap: () {
                 Navigator.of(context).pop();
-                ref.read(mesocyclesProvider.notifier).abandonMesocycle(mesocycle.id);
+                ref
+                    .read(mesocyclesProvider.notifier)
+                    .abandonMesocycle(mesocycle.id);
               },
             ),
           ],
@@ -713,13 +733,24 @@ class PeriodizationScreen extends ConsumerWidget {
 
 /// Screen for building a new mesocycle step-by-step.
 class MesocycleBuilderScreen extends ConsumerStatefulWidget {
-  const MesocycleBuilderScreen({super.key});
+  final String? initialProgramId;
+  final String? initialProgramName;
+  final int? initialTotalWeeks;
+
+  const MesocycleBuilderScreen({
+    super.key,
+    this.initialProgramId,
+    this.initialProgramName,
+    this.initialTotalWeeks,
+  });
 
   @override
-  ConsumerState<MesocycleBuilderScreen> createState() => _MesocycleBuilderScreenState();
+  ConsumerState<MesocycleBuilderScreen> createState() =>
+      _MesocycleBuilderScreenState();
 }
 
-class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen> {
+class _MesocycleBuilderScreenState
+    extends ConsumerState<MesocycleBuilderScreen> {
   int _currentStep = 0;
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -729,6 +760,18 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
   PeriodizationType _periodizationType = PeriodizationType.linear;
   DateTime _startDate = DateTime.now();
   TrainingProgram? _selectedProgram;
+  bool _initialProgramResolved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialTotalWeeks != null) {
+      _totalWeeks = widget.initialTotalWeeks!.clamp(4, 12);
+    }
+    if ((widget.initialProgramName ?? '').isNotEmpty) {
+      _nameController.text = '${widget.initialProgramName} Mesocycle';
+    }
+  }
 
   @override
   void dispose() {
@@ -791,7 +834,14 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
             ),
             if (_currentStep > 0) const SizedBox(height: 8),
             Text(
-              const ['Select Goal', 'Duration', 'Periodization Type', 'Assign Program', 'Details', 'Review'][_currentStep],
+              const [
+                'Select Goal',
+                'Duration',
+                'Periodization Type',
+                'Assign Program',
+                'Details',
+                'Review'
+              ][_currentStep],
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -919,6 +969,18 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
     final programs = ref.watch(userProgramsProvider);
     final colors = theme.colorScheme;
 
+    if (!_initialProgramResolved && widget.initialProgramId != null) {
+      _initialProgramResolved = true;
+      final match =
+          programs.where((p) => p.id == widget.initialProgramId).firstOrNull;
+      if (match != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _selectedProgram = match);
+        });
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -930,6 +992,21 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
           ),
         ),
         const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Week 1 is a feeler week for baseline capture. Subsequent weeks auto-adjust volume and intensity.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
 
         // No program option
         Card(
@@ -937,16 +1014,21 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
           color: _selectedProgram == null ? colors.primaryContainer : null,
           child: ListTile(
             leading: Icon(
-              _selectedProgram == null ? Icons.check_circle : Icons.circle_outlined,
+              _selectedProgram == null
+                  ? Icons.check_circle
+                  : Icons.circle_outlined,
               color: _selectedProgram == null ? colors.primary : null,
             ),
             title: Text(
               'No Program',
               style: TextStyle(
-                fontWeight: _selectedProgram == null ? FontWeight.bold : FontWeight.normal,
+                fontWeight: _selectedProgram == null
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
-            subtitle: const Text('Create mesocycle without linking to a program'),
+            subtitle:
+                const Text('Create mesocycle without linking to a program'),
             onTap: () {
               setState(() => _selectedProgram = null);
             },
@@ -998,7 +1080,8 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
                 title: Text(
                   program.name,
                   style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
                 subtitle: Text(
@@ -1111,12 +1194,15 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
           ),
         ),
         const SizedBox(height: 16),
-        _buildReviewRow('Name', _nameController.text.isEmpty ? 'Untitled' : _nameController.text),
+        _buildReviewRow('Name',
+            _nameController.text.isEmpty ? 'Untitled' : _nameController.text),
         _buildReviewRow('Goal', _selectedGoal.displayName),
         _buildReviewRow('Duration', '$_totalWeeks weeks'),
         _buildReviewRow('Type', _periodizationType.displayName),
-        _buildReviewRow('Start', '${_startDate.day}/${_startDate.month}/${_startDate.year}'),
-        _buildReviewRow('End', '${endDate.day}/${endDate.month}/${endDate.year}'),
+        _buildReviewRow('Start',
+            '${_startDate.day}/${_startDate.month}/${_startDate.year}'),
+        _buildReviewRow(
+            'End', '${endDate.day}/${endDate.month}/${endDate.year}'),
         _buildReviewRow('Program', _selectedProgram?.name ?? 'None'),
 
         // Show program templates preview if assigned
@@ -1134,7 +1220,8 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
               children: [
                 Row(
                   children: [
-                    Icon(Icons.fitness_center, size: 18, color: colors.tertiary),
+                    Icon(Icons.fitness_center,
+                        size: 18, color: colors.tertiary),
                     const SizedBox(width: 8),
                     Text(
                       'Program Templates',
@@ -1217,7 +1304,9 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
 
     final config = MesocycleConfig(
       name: name,
-      description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
+      description: _descriptionController.text.isEmpty
+          ? null
+          : _descriptionController.text,
       startDate: _startDate,
       totalWeeks: _totalWeeks,
       periodizationType: _periodizationType,
@@ -1230,7 +1319,8 @@ class _MesocycleBuilderScreenState extends ConsumerState<MesocycleBuilderScreen>
 
     if (mounted) {
       Navigator.of(context).pop();
-      final programSuffix = _selectedProgram != null ? ' with ${_selectedProgram!.name}' : '';
+      final programSuffix =
+          _selectedProgram != null ? ' with ${_selectedProgram!.name}' : '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Mesocycle "$name" created$programSuffix!')),
       );

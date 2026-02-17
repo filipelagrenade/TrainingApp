@@ -204,12 +204,19 @@ class MesocyclesNotifier extends StateNotifier<AsyncValue<List<Mesocycle>>> {
     final weeks = <MesocycleWeek>[];
 
     for (var i = 1; i <= totalWeeks; i++) {
-      final weekParams = _getWeekParameters(
-        weekNumber: i,
-        totalWeeks: totalWeeks,
-        periodizationType: periodizationType,
-        goal: goal,
-      );
+      final weekParams = i == 1
+          ? const _WeekParameters(
+              weekType: WeekType.accumulation,
+              volumeMultiplier: 0.85,
+              intensityMultiplier: 0.8,
+              rirTarget: 4,
+            )
+          : _getWeekParameters(
+              weekNumber: i,
+              totalWeeks: totalWeeks,
+              periodizationType: periodizationType,
+              goal: goal,
+            );
 
       weeks.add(MesocycleWeek(
         id: _uuid.v4(),
