@@ -574,20 +574,14 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
 
         if (mounted) {
           if (_withPeriodization) {
-            final query = <String, String>{
-              if (program.id != null) 'programId': program.id!,
-              'programName': program.name,
-              'weeks': _durationWeeks.toString(),
-            };
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Program "${program.name}" created. Configure your mesocycle next.',
+                  'Program "${program.name}" created. Configure your mesocycle next in Periodization.',
                 ),
               ),
             );
-            context.go(Uri(path: '/periodization/new', queryParameters: query)
-                .toString());
+            context.go('/periodization');
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Program "${program.name}" created!')),

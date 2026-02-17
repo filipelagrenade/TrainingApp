@@ -353,14 +353,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/periodization/new',
         name: 'new-periodization',
-        builder: (context, state) {
-          final weeks = int.tryParse(state.uri.queryParameters['weeks'] ?? '');
-          return MesocycleBuilderScreen(
-            initialProgramId: state.uri.queryParameters['programId'],
-            initialProgramName: state.uri.queryParameters['programName'],
-            initialTotalWeeks: weeks,
-          );
-        },
+        redirect: (_, __) => '/periodization',
       ),
 
       // ========================================
