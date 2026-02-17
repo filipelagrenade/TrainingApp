@@ -47,6 +47,8 @@ import '../providers/weight_recommendation_provider.dart';
 import '../models/weight_recommendation.dart';
 import '../models/rep_range.dart';
 import '../../../shared/services/exercise_rep_override_service.dart';
+import '../../templates/models/workout_template.dart';
+import '../../templates/providers/templates_provider.dart';
 
 /// The main active workout screen.
 ///
@@ -1702,6 +1704,79 @@ class _FinishWorkoutDialogState extends ConsumerState<_FinishWorkoutDialog> {
     super.dispose();
   }
 
+  Future<void> _maybeHandleTemplateUpdate(
+    BuildContext context,
+    WorkoutSession? workoutSnapshot,
+    WorkoutModifications? modifications,
+  ) async {
+    if (workoutSnapshot == null || workoutSnapshot.templateId == null) return;
+    if (modifications == null || !modifications.hasModifications) return;
+
+    final templateId = workoutSnapshot.templateId!;
+    final existingTemplate =
+        ref.read(userTemplatesProvider.notifier).getTemplateById(templateId);
+    if (existingTemplate == null) return;
+
+    final selectedOps = await showDialog<_TemplateUpdateSelection>(
+      context: context,
+      builder: (_) => _TemplateUpdateDialog(
+        workout: workoutSnapshot,
+        template: existingTemplate,
+      ),
+    );
+
+    if (selectedOps == null || selectedOps.isEmpty) return;
+
+    var updatedExercises =
+        List<TemplateExercise>.from(existingTemplate.exercises);
+
+    for (final update in selectedOps.setRepUpdates) {
+      final idx =
+          updatedExercises.indexWhere((e) => e.exerciseId == update.exerciseId);
+      if (idx == -1) continue;
+      final current = updatedExercises[idx];
+      updatedExercises[idx] = current.copyWith(
+        defaultSets: update.defaultSets,
+        defaultReps: update.defaultReps,
+      );
+    }
+
+    if (selectedOps.removedExerciseIds.isNotEmpty) {
+      updatedExercises = updatedExercises
+          .where((e) => !selectedOps.removedExerciseIds.contains(e.exerciseId))
+          .toList();
+    }
+
+    for (final add in selectedOps.addedExercises) {
+      updatedExercises.add(
+        TemplateExercise(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          exerciseId: add.exerciseId,
+          exerciseName: add.exerciseName,
+          primaryMuscles: add.primaryMuscles,
+          orderIndex: updatedExercises.length,
+          defaultSets: add.defaultSets,
+          defaultReps: add.defaultReps,
+          defaultRestSeconds: 90,
+        ),
+      );
+    }
+
+    updatedExercises = [
+      for (var i = 0; i < updatedExercises.length; i++)
+        updatedExercises[i].copyWith(orderIndex: i),
+    ];
+
+    final updatedTemplate = existingTemplate.copyWith(
+      exercises: updatedExercises,
+      updatedAt: DateTime.now(),
+    );
+
+    await ref
+        .read(userTemplatesProvider.notifier)
+        .updateTemplate(updatedTemplate);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1756,6 +1831,15 @@ class _FinishWorkoutDialogState extends ConsumerState<_FinishWorkoutDialog> {
         ),
         FilledButton(
           onPressed: () async {
+            final snapshotState = ref.read(currentWorkoutProvider);
+            WorkoutSession? workoutSnapshot;
+            WorkoutModifications? modificationsSnapshot;
+            if (snapshotState
+                case ActiveWorkout(:final workout, :final modifications)) {
+              workoutSnapshot = workout;
+              modificationsSnapshot = modifications;
+            }
+
             await ref.read(currentWorkoutProvider.notifier).completeWorkout(
                   notes: _notesController.text.isEmpty
                       ? null
@@ -1764,6 +1848,12 @@ class _FinishWorkoutDialogState extends ConsumerState<_FinishWorkoutDialog> {
                 );
 
             if (context.mounted) {
+              await _maybeHandleTemplateUpdate(
+                context,
+                workoutSnapshot,
+                modificationsSnapshot,
+              );
+
               Navigator.of(context).pop();
               context.go('/');
 
@@ -1779,6 +1869,263 @@ class _FinishWorkoutDialogState extends ConsumerState<_FinishWorkoutDialog> {
       ],
     );
   }
+}
+
+class _TemplateUpdateDialog extends StatefulWidget {
+  final WorkoutSession workout;
+  final WorkoutTemplate template;
+
+  const _TemplateUpdateDialog({
+    required this.workout,
+    required this.template,
+  });
+
+  @override
+  State<_TemplateUpdateDialog> createState() => _TemplateUpdateDialogState();
+}
+
+class _TemplateUpdateDialogState extends State<_TemplateUpdateDialog> {
+  late final List<_SetRepUpdateOption> _setRepOptions;
+  late final List<_AddedExerciseOption> _addedOptions;
+  late final List<_RemovedExerciseOption> _removedOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    final templateByExerciseId = {
+      for (final exercise in widget.template.exercises)
+        exercise.exerciseId: exercise,
+    };
+    final workoutByExerciseId = {
+      for (final log in widget.workout.exerciseLogs) log.exerciseId: log,
+    };
+
+    _setRepOptions = widget.workout.exerciseLogs
+        .where((log) => templateByExerciseId.containsKey(log.exerciseId))
+        .map((log) {
+      final workingSets = log.sets
+          .where((s) => s.setType == SetType.working && s.reps > 0)
+          .toList();
+      final completedSets = workingSets.isEmpty
+          ? log.sets.where((s) => s.reps > 0).toList()
+          : workingSets;
+      final suggestedSets = completedSets.length;
+      final suggestedReps = completedSets.isEmpty
+          ? 10
+          : (completedSets.map((s) => s.reps).reduce((a, b) => a + b) /
+                  completedSets.length)
+              .round();
+      final original = templateByExerciseId[log.exerciseId]!;
+      return _SetRepUpdateOption(
+        exerciseId: log.exerciseId,
+        exerciseName: log.exerciseName,
+        originalSets: original.defaultSets,
+        originalReps: original.defaultReps,
+        suggestedSets: suggestedSets,
+        suggestedReps: suggestedReps,
+      );
+    }).toList();
+
+    _addedOptions = widget.workout.exerciseLogs
+        .where((log) => !templateByExerciseId.containsKey(log.exerciseId))
+        .map((log) {
+      final workingSets = log.sets
+          .where((s) => s.setType == SetType.working && s.reps > 0)
+          .toList();
+      final completedSets = workingSets.isEmpty
+          ? log.sets.where((s) => s.reps > 0).toList()
+          : workingSets;
+      final defaultSets = completedSets.isEmpty ? 3 : completedSets.length;
+      final defaultReps = completedSets.isEmpty
+          ? 10
+          : (completedSets.map((s) => s.reps).reduce((a, b) => a + b) /
+                  completedSets.length)
+              .round();
+      return _AddedExerciseOption(
+        exerciseId: log.exerciseId,
+        exerciseName: log.exerciseName,
+        primaryMuscles: log.primaryMuscles,
+        defaultSets: defaultSets,
+        defaultReps: defaultReps,
+      );
+    }).toList();
+
+    _removedOptions = widget.template.exercises
+        .where(
+            (exercise) => !workoutByExerciseId.containsKey(exercise.exerciseId))
+        .map((exercise) => _RemovedExerciseOption(
+              exerciseId: exercise.exerciseId,
+              exerciseName: exercise.exerciseName,
+            ))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Update Template?'),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Choose exactly what to apply from this workout to your template.',
+              ),
+              const SizedBox(height: 12),
+              if (_setRepOptions.isNotEmpty) ...[
+                const Text('Update Existing Exercises'),
+                const SizedBox(height: 6),
+                ..._setRepOptions.map((item) => CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      value: item.selected,
+                      onChanged: (v) =>
+                          setState(() => item.selected = v ?? false),
+                      title: Text(item.exerciseName),
+                      subtitle: Text(
+                        '${item.originalSets}x${item.originalReps} -> ${item.suggestedSets}x${item.suggestedReps}',
+                      ),
+                    )),
+              ],
+              if (_addedOptions.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Add Switched/Added Exercises'),
+                const SizedBox(height: 6),
+                ..._addedOptions.map((item) => CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      value: item.selected,
+                      onChanged: (v) =>
+                          setState(() => item.selected = v ?? false),
+                      title: Text(item.exerciseName),
+                      subtitle: Text('${item.defaultSets}x${item.defaultReps}'),
+                    )),
+              ],
+              if (_removedOptions.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Remove Exercises From Template'),
+                const SizedBox(height: 6),
+                ..._removedOptions.map((item) => CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      value: item.selected,
+                      onChanged: (v) =>
+                          setState(() => item.selected = v ?? false),
+                      title: Text(item.exerciseName),
+                    )),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Skip'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final selection = _TemplateUpdateSelection(
+              setRepUpdates: _setRepOptions
+                  .where((e) => e.selected)
+                  .map((e) => _SetRepUpdate(
+                        exerciseId: e.exerciseId,
+                        defaultSets: e.suggestedSets,
+                        defaultReps: e.suggestedReps,
+                      ))
+                  .toList(),
+              addedExercises: _addedOptions.where((e) => e.selected).toList(),
+              removedExerciseIds: _removedOptions
+                  .where((e) => e.selected)
+                  .map((e) => e.exerciseId)
+                  .toList(),
+            );
+            Navigator.pop(context, selection);
+          },
+          child: const Text('Apply Selected'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SetRepUpdateOption {
+  final String exerciseId;
+  final String exerciseName;
+  final int originalSets;
+  final int originalReps;
+  final int suggestedSets;
+  final int suggestedReps;
+  bool selected = false;
+
+  _SetRepUpdateOption({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.originalSets,
+    required this.originalReps,
+    required this.suggestedSets,
+    required this.suggestedReps,
+  });
+}
+
+class _AddedExerciseOption {
+  final String exerciseId;
+  final String exerciseName;
+  final List<String> primaryMuscles;
+  final int defaultSets;
+  final int defaultReps;
+  bool selected = false;
+
+  _AddedExerciseOption({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.primaryMuscles,
+    required this.defaultSets,
+    required this.defaultReps,
+  });
+}
+
+class _RemovedExerciseOption {
+  final String exerciseId;
+  final String exerciseName;
+  bool selected = false;
+
+  _RemovedExerciseOption({
+    required this.exerciseId,
+    required this.exerciseName,
+  });
+}
+
+class _SetRepUpdate {
+  final String exerciseId;
+  final int defaultSets;
+  final int defaultReps;
+
+  const _SetRepUpdate({
+    required this.exerciseId,
+    required this.defaultSets,
+    required this.defaultReps,
+  });
+}
+
+class _TemplateUpdateSelection {
+  final List<_SetRepUpdate> setRepUpdates;
+  final List<_AddedExerciseOption> addedExercises;
+  final List<String> removedExerciseIds;
+
+  const _TemplateUpdateSelection({
+    required this.setRepUpdates,
+    required this.addedExercises,
+    required this.removedExerciseIds,
+  });
+
+  bool get isEmpty =>
+      setRepUpdates.isEmpty &&
+      addedExercises.isEmpty &&
+      removedExerciseIds.isEmpty;
 }
 
 /// Sheet showing exercise history from previous workouts.

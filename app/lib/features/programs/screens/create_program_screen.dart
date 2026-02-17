@@ -48,6 +48,7 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
   int _daysPerWeek = 4;
   ProgramDifficulty _difficulty = ProgramDifficulty.intermediate;
   ProgramGoalType _goalType = ProgramGoalType.hypertrophy;
+  bool _withPeriodization = false;
 
   // Templates in this program
   final List<WorkoutTemplate> _templates = [];
@@ -185,7 +186,8 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
                     value: _durationWeeks,
                     items: List.generate(15, (i) => i + 4), // 4-18 weeks
                     itemBuilder: (value) => '$value weeks',
-                    onChanged: (value) => setState(() => _durationWeeks = value!),
+                    onChanged: (value) =>
+                        setState(() => _durationWeeks = value!),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -225,6 +227,43 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 24),
+
+            // Periodization setup
+            Text(
+              'Periodization',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(
+                  value: false,
+                  label: Text('Without'),
+                  icon: Icon(Icons.tune),
+                ),
+                ButtonSegment<bool>(
+                  value: true,
+                  label: Text('With'),
+                  icon: Icon(Icons.auto_graph),
+                ),
+              ],
+              selected: {_withPeriodization},
+              onSelectionChanged: (selection) {
+                setState(() => _withPeriodization = selection.first);
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _withPeriodization
+                  ? 'After saving, you will configure periodization. Week 1 should be used as a feeler/baseline week.'
+                  : 'Templates will drive sets/reps directly (users only enter weight during workouts).',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -292,7 +331,8 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       ),
       items: items.map((item) {
         return DropdownMenuItem<T>(
@@ -434,7 +474,8 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
   void _duplicateTemplate(int index) {
     if (_templates.length >= _daysPerWeek) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Increase days per week to add more days')),
+        const SnackBar(
+            content: Text('Increase days per week to add more days')),
       );
       return;
     }
@@ -497,14 +538,17 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
           isBuiltIn: false,
         );
 
-        await ref.read(userProgramsProvider.notifier).updateProgram(updatedProgram);
+        await ref
+            .read(userProgramsProvider.notifier)
+            .updateProgram(updatedProgram);
 
         // Auto-save templates to library
         await _autoSaveTemplatesToLibrary(updatedProgram.name);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Program "${updatedProgram.name}" updated!')),
+            SnackBar(
+                content: Text('Program "${updatedProgram.name}" updated!')),
           );
           context.pop();
         }
@@ -532,7 +576,18 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Program "${program.name}" created!')),
           );
-          context.pop();
+          if (_withPeriodization) {
+            context.go('/periodization');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Next: create a mesocycle and use Week 1 as a feeler week baseline.',
+                ),
+              ),
+            );
+          } else {
+            context.pop();
+          }
         }
       }
     } catch (e) {
