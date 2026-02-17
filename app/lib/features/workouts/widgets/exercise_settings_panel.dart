@@ -139,7 +139,7 @@ class ExerciseSettingsPanel extends StatelessWidget {
     // Preset options for quick selection
     final presets = [
       (RepRangePreset.strength, 'Strength', '3-5'),
-      (RepRangePreset.hypertrophy, 'Hypertrophy', '8-12'),
+      (RepRangePreset.hypertrophy, 'Hypertrophy', '6-12'),
       (RepRangePreset.endurance, 'Endurance', '15-20'),
     ];
 
@@ -148,7 +148,7 @@ class ExerciseSettingsPanel extends StatelessWidget {
     if (customRepRange != null) {
       if (customRepRange!.floor == 3 && customRepRange!.ceiling == 5) {
         selectedPreset = RepRangePreset.strength;
-      } else if (customRepRange!.floor == 8 && customRepRange!.ceiling == 12) {
+      } else if (customRepRange!.floor == 6 && customRepRange!.ceiling == 12) {
         selectedPreset = RepRangePreset.hypertrophy;
       } else if (customRepRange!.floor == 15 && customRepRange!.ceiling == 20) {
         selectedPreset = RepRangePreset.endurance;
@@ -229,7 +229,8 @@ class ExerciseSettingsPanel extends StatelessWidget {
                 label: Text('$label ($range)'),
                 selected: isSelected,
                 labelStyle: theme.textTheme.labelSmall?.copyWith(
-                  color: isSelected ? colors.onPrimaryContainer : colors.onSurface,
+                  color:
+                      isSelected ? colors.onPrimaryContainer : colors.onSurface,
                 ),
                 visualDensity: VisualDensity.comfortable,
                 onSelected: (_) {

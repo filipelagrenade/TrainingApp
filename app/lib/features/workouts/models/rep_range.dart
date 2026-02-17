@@ -26,7 +26,7 @@ enum RepRangePreset {
   /// Strength-focused: 3-5 reps, heavier weights
   strength,
 
-  /// Hypertrophy-focused: 8-12 reps, moderate weights (most common)
+  /// Hypertrophy-focused: 6-12 reps, moderate weights (most common)
   hypertrophy,
 
   /// Endurance-focused: 15-20 reps, lighter weights
@@ -49,7 +49,7 @@ extension RepRangePresetExtension on RepRangePreset {
             sessionsAtCeilingRequired: 2,
           ),
         RepRangePreset.hypertrophy => const RepRange(
-            floor: 8,
+            floor: 6,
             ceiling: 12,
             sessionsAtCeilingRequired: 2,
           ),
@@ -73,7 +73,7 @@ extension RepRangePresetExtension on RepRangePreset {
   /// Returns a human-readable label.
   String get label => switch (this) {
         RepRangePreset.strength => 'Strength (3-5)',
-        RepRangePreset.hypertrophy => 'Hypertrophy (8-12)',
+        RepRangePreset.hypertrophy => 'Hypertrophy (6-12)',
         RepRangePreset.endurance => 'Endurance (15-20)',
         RepRangePreset.power => 'Power (1-3)',
         RepRangePreset.custom => 'Custom',

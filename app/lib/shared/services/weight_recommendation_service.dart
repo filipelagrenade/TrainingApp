@@ -106,7 +106,8 @@ class WeightRecommendationService {
         );
 
         if (aiRecommendations != null) {
-          debugPrint('WeightRecommendationService: AI recommendations generated');
+          debugPrint(
+              'WeightRecommendationService: AI recommendations generated');
           return WorkoutRecommendations(
             templateId: templateId,
             exercises: aiRecommendations,
@@ -163,8 +164,13 @@ class WeightRecommendationService {
             .where((e) => e.exerciseId == exerciseId)
             .firstOrNull;
 
-        if (exercise != null && exercise.sets.isNotEmpty) {
-          final sets = exercise.sets
+        final workingSets = exercise?.sets
+                .where((s) => s.setType.toLowerCase() == 'working')
+                .toList() ??
+            const [];
+
+        if (exercise != null && workingSets.isNotEmpty) {
+          final sets = workingSets
               .map((s) => HistoricalSetData(
                     weight: s.weight,
                     reps: s.reps,
@@ -178,7 +184,8 @@ class WeightRecommendationService {
           // Calculate average RPE
           final rpeSets = sets.where((s) => s.rpe != null);
           final averageRpe = rpeSets.isNotEmpty
-              ? rpeSets.map((s) => s.rpe!).reduce((a, b) => a + b) / rpeSets.length
+              ? rpeSets.map((s) => s.rpe!).reduce((a, b) => a + b) /
+                  rpeSets.length
               : null;
 
           sessions.add(SessionExerciseData(
@@ -256,7 +263,8 @@ class WeightRecommendationService {
     try {
       return _parseAIResponse(response, exerciseNames);
     } catch (e) {
-      debugPrint('WeightRecommendationService: Failed to parse AI response: $e');
+      debugPrint(
+          'WeightRecommendationService: Failed to parse AI response: $e');
       return null;
     }
   }
@@ -345,7 +353,8 @@ Important:
       // Include progression state if available
       if (progressionState != null) {
         buffer.writeln('**Current Phase: ${progressionState.phase.label}**');
-        buffer.writeln('Sessions at ceiling: ${progressionState.consecutiveSessionsAtCeiling}');
+        buffer.writeln(
+            'Sessions at ceiling: ${progressionState.consecutiveSessionsAtCeiling}');
         if (progressionState.currentWeight != null) {
           buffer.writeln('Current weight: ${progressionState.currentWeight}kg');
         }
@@ -363,7 +372,8 @@ Important:
           buffer.writeln('  - ${set.weight}kg x ${set.reps}$rpeStr');
         }
         if (session.averageRpe != null) {
-          buffer.writeln('  Avg RPE: ${session.averageRpe!.toStringAsFixed(1)}');
+          buffer
+              .writeln('  Avg RPE: ${session.averageRpe!.toStringAsFixed(1)}');
         }
         buffer.writeln();
       }
@@ -466,7 +476,8 @@ Important:
         recommendations[exerciseId] = ExerciseRecommendation(
           exerciseId: exerciseId,
           exerciseName: exerciseName,
-          sets: _generateDefaultSets(exerciseName, userSettings, exerciseId: exerciseId),
+          sets: _generateDefaultSets(exerciseName, userSettings,
+              exerciseId: exerciseId),
           confidence: RecommendationConfidence.low,
           source: RecommendationSource.templateDefault,
           reasoning: 'No previous data - starting weights suggested',
@@ -497,7 +508,8 @@ Important:
       return ExerciseRecommendation(
         exerciseId: exerciseId,
         exerciseName: exerciseName,
-        sets: _generateDefaultSets(exerciseName, userSettings, exerciseId: exerciseId),
+        sets: _generateDefaultSets(exerciseName, userSettings,
+            exerciseId: exerciseId),
         confidence: RecommendationConfidence.low,
         source: RecommendationSource.algorithm,
         reasoning: 'No sets in previous session',
@@ -519,15 +531,16 @@ Important:
     final adjustedIncrement = increment * multiplier;
 
     // Analyze last session
-    final lastWeight = lastSets.map((s) => s.weight).reduce((a, b) => a > b ? a : b);
-    final lastAvgReps = lastSets.map((s) => s.reps).reduce((a, b) => a + b) / lastSets.length;
+    final lastWeight =
+        lastSets.map((s) => s.weight).reduce((a, b) => a > b ? a : b);
+    final lastAvgReps =
+        lastSets.map((s) => s.reps).reduce((a, b) => a + b) / lastSets.length;
     final lastTopReps = lastSets.first.reps;
     final avgRpe = lastSession.averageRpe;
 
     // Generate recommendation based on current phase
     return switch (progressionState.phase) {
-      ProgressionPhase.building =>
-        _recommendForBuilding(
+      ProgressionPhase.building => _recommendForBuilding(
           exerciseId: exerciseId,
           exerciseName: exerciseName,
           lastWeight: lastWeight,
@@ -538,8 +551,7 @@ Important:
           historyData: historyData,
           avgRpe: avgRpe,
         ),
-      ProgressionPhase.readyToProgress =>
-        _recommendForReadyToProgress(
+      ProgressionPhase.readyToProgress => _recommendForReadyToProgress(
           exerciseId: exerciseId,
           exerciseName: exerciseName,
           lastWeight: lastWeight,
@@ -548,8 +560,7 @@ Important:
           userSettings: userSettings,
           historyData: historyData,
         ),
-      ProgressionPhase.justProgressed =>
-        _recommendForJustProgressed(
+      ProgressionPhase.justProgressed => _recommendForJustProgressed(
           exerciseId: exerciseId,
           exerciseName: exerciseName,
           lastWeight: lastWeight,
@@ -559,8 +570,7 @@ Important:
           userSettings: userSettings,
           historyData: historyData,
         ),
-      ProgressionPhase.struggling =>
-        _recommendForStruggling(
+      ProgressionPhase.struggling => _recommendForStruggling(
           exerciseId: exerciseId,
           exerciseName: exerciseName,
           lastWeight: lastWeight,
@@ -568,8 +578,7 @@ Important:
           userSettings: userSettings,
           historyData: historyData,
         ),
-      ProgressionPhase.deloading =>
-        _recommendForDeloading(
+      ProgressionPhase.deloading => _recommendForDeloading(
           exerciseId: exerciseId,
           exerciseName: exerciseName,
           lastWeight: lastWeight,
@@ -611,12 +620,14 @@ Important:
     } else {
       reasoning = 'Building toward ${repRange.ceiling} reps '
           '(currently ${lastAvgReps.toStringAsFixed(0)}, ${repsToGo.toStringAsFixed(0)} to go)';
-      feedback = '$repsToGo more reps to hit your target of ${repRange.ceiling}';
+      feedback =
+          '$repsToGo more reps to hit your target of ${repRange.ceiling}';
     }
 
     // Target reps: current + 1 (progressive), but NEVER exceed ceiling
     // The ceiling is the max reps before weight increase - we shouldn't suggest more
-    final targetReps = (lastAvgReps + 1).clamp(repRange.floor, repRange.ceiling).round();
+    final targetReps =
+        (lastAvgReps + 1).clamp(repRange.floor, repRange.ceiling).round();
 
     // Determine confidence
     final confidence = historyData.sessions.length >= 3
@@ -671,12 +682,14 @@ Important:
       ),
       confidence: RecommendationConfidence.high,
       source: RecommendationSource.algorithm,
-      reasoning: 'Great progress! Increasing weight by ${increment.toStringAsFixed(1)}kg',
+      reasoning:
+          'Great progress! Increasing weight by ${increment.toStringAsFixed(1)}kg',
       isProgression: true,
       weightIncrease: increment,
       previousWeight: lastWeight,
       previousReps: repRange.ceiling,
-      phaseFeedback: 'Ready to increase weight! Aim for ${repRange.floor}+ reps at ${newWeight.toStringAsFixed(1)}kg',
+      phaseFeedback:
+          'Ready to increase weight! Aim for ${repRange.floor}+ reps at ${newWeight.toStringAsFixed(1)}kg',
     );
   }
 
@@ -694,13 +707,16 @@ Important:
     required ExerciseHistoryData historyData,
   }) {
     // Stay at current weight, aim to build reps
-    final targetReps = (lastAvgReps + 1).clamp(repRange.floor, repRange.ceiling).round();
+    final targetReps =
+        (lastAvgReps + 1).clamp(repRange.floor, repRange.ceiling).round();
 
     String feedback;
     if (lastAvgReps >= repRange.floor) {
-      feedback = 'Adapting well to new weight! Keep building to ${repRange.ceiling} reps';
+      feedback =
+          'Adapting well to new weight! Keep building to ${repRange.ceiling} reps';
     } else {
-      feedback = 'Weight increased recently - ${repRange.floor}+ reps is the goal';
+      feedback =
+          'Weight increased recently - ${repRange.floor}+ reps is the goal';
     }
 
     return ExerciseRecommendation(
@@ -756,7 +772,8 @@ Important:
           'dropping to ${fallbackWeight.toStringAsFixed(1)}kg to rebuild',
       isProgression: false,
       previousWeight: lastWeight,
-      phaseFeedback: 'Consider dropping to ${fallbackWeight.toStringAsFixed(1)}kg to rebuild strength',
+      phaseFeedback:
+          'Consider dropping to ${fallbackWeight.toStringAsFixed(1)}kg to rebuild strength',
     );
   }
 
@@ -772,7 +789,8 @@ Important:
     required ExerciseHistoryData historyData,
   }) {
     // Deload: same weight, fewer sets, moderate reps
-    final setCount = (historyData.sessions.first.sets.length * 0.6).round().clamp(2, 3);
+    final setCount =
+        (historyData.sessions.first.sets.length * 0.6).round().clamp(2, 3);
 
     return ExerciseRecommendation(
       exerciseId: exerciseId,
@@ -788,7 +806,8 @@ Important:
       reasoning: 'Deload week - reduced volume for recovery',
       isProgression: false,
       previousWeight: lastWeight,
-      phaseFeedback: 'Recovery week - lighter volume, focus on quality movement',
+      phaseFeedback:
+          'Recovery week - lighter volume, focus on quality movement',
     );
   }
 
@@ -809,7 +828,8 @@ Important:
     if (exerciseId != null && _repOverrideService != null) {
       final override = _repOverrideService.getOverride(exerciseId);
       if (override != null) {
-        debugPrint('WeightRecommendationService: Using custom rep range for $exerciseId: ${override.compactString}');
+        debugPrint(
+            'WeightRecommendationService: Using custom rep range for $exerciseId: ${override.compactString}');
         return override;
       }
     }
@@ -911,7 +931,8 @@ Important:
     required UserSettings userSettings,
     ExerciseProgressionState? progressionState,
   }) async {
-    debugPrint('WeightRecommendationService: Generating for $exerciseName (quick workout)');
+    debugPrint(
+        'WeightRecommendationService: Generating for $exerciseName (quick workout)');
 
     // Initialize history service if needed
     await _historyService.initialize();
@@ -924,10 +945,12 @@ Important:
       return null;
     }
 
-    debugPrint('WeightRecommendationService: Found ${historyData.sessions.length} sessions for $exerciseName');
+    debugPrint(
+        'WeightRecommendationService: Found ${historyData.sessions.length} sessions for $exerciseName');
 
     // Use progression state or create default
-    final state = progressionState ?? ExerciseProgressionState.initial(exerciseId);
+    final state =
+        progressionState ?? ExerciseProgressionState.initial(exerciseId);
 
     // Calculate recommendation using phase-aware algorithm
     return _generatePhaseAwareRecommendation(
@@ -952,8 +975,13 @@ Important:
           .where((e) => e.exerciseId == exerciseId)
           .firstOrNull;
 
-      if (exercise != null && exercise.sets.isNotEmpty) {
-        final sets = exercise.sets
+      final workingSets = exercise?.sets
+              .where((s) => s.setType.toLowerCase() == 'working')
+              .toList() ??
+          const [];
+
+      if (exercise != null && workingSets.isNotEmpty) {
+        final sets = workingSets
             .map((s) => HistoricalSetData(
                   weight: s.weight,
                   reps: s.reps,
@@ -967,7 +995,8 @@ Important:
         // Calculate average RPE
         final rpeSets = sets.where((s) => s.rpe != null);
         final averageRpe = rpeSets.isNotEmpty
-            ? rpeSets.map((s) => s.rpe!).reduce((a, b) => a + b) / rpeSets.length
+            ? rpeSets.map((s) => s.rpe!).reduce((a, b) => a + b) /
+                rpeSets.length
             : null;
 
         sessions.add(SessionExerciseData(
@@ -999,11 +1028,13 @@ Important:
 /// Provider for the weight recommendation service.
 ///
 /// Optionally includes the exercise rep override service if available.
-final weightRecommendationServiceProvider = Provider<WeightRecommendationService>((ref) {
+final weightRecommendationServiceProvider =
+    Provider<WeightRecommendationService>((ref) {
   // Try to get the rep override service if it's ready (may be null if not yet initialized)
   ExerciseRepOverrideService? repOverrideService;
   try {
-    final asyncService = ref.watch(initializedExerciseRepOverrideServiceProvider);
+    final asyncService =
+        ref.watch(initializedExerciseRepOverrideServiceProvider);
     repOverrideService = asyncService.valueOrNull;
   } catch (e) {
     // Service not ready yet, proceed without it

@@ -24,20 +24,28 @@ part 'exercise_log.g.dart';
 enum CableAttachment {
   /// Standard rope attachment
   rope,
+
   /// Single D-handle
   dHandle,
+
   /// V-bar / triangle bar
   vBar,
+
   /// Wide grip lat bar
   wideBar,
+
   /// Close grip / neutral grip bar
   closeGripBar,
+
   /// Straight bar
   straightBar,
+
   /// EZ curl bar attachment
   ezBar,
+
   /// Ankle strap
   ankleStrap,
+
   /// Single handle / stirrup
   stirrup,
 }
@@ -157,9 +165,9 @@ extension ExerciseLogExtensions on ExerciseLog {
   ///
   /// Checks the equipment list for cable-related terms.
   bool get usesCableEquipment {
-    final cableTerms = ['cable', 'pulley', 'machine'];
-    return equipment.any((e) =>
-        cableTerms.any((term) => e.toLowerCase().contains(term)));
+    final cableTerms = ['cable', 'pulley'];
+    return equipment
+        .any((e) => cableTerms.any((term) => e.toLowerCase().contains(term)));
   }
 
   /// Returns only the working sets (not warmups).
@@ -173,8 +181,7 @@ extension ExerciseLogExtensions on ExerciseLog {
   int get totalSetCount => sets.length;
 
   /// Returns the total volume for this exercise (sum of weight * reps).
-  double get totalVolume =>
-      sets.fold(0, (sum, set) => sum + set.volume);
+  double get totalVolume => sets.fold(0, (sum, set) => sum + set.volume);
 
   /// Returns the total working set volume (excluding warmups).
   double get workingVolume =>

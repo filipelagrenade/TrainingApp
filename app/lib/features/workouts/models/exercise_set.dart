@@ -22,16 +22,22 @@ part 'exercise_set.g.dart';
 enum SetType {
   /// Lighter sets to prepare for working sets
   warmup,
+
   /// Main working sets at target weight
   working,
+
   /// Reduced weight continuation sets (after working sets)
   dropset,
+
   /// Sets taken to muscular failure
   failure,
+
   /// As Many Reps As Possible - user enters actual reps after completion
   amrap,
+
   /// Cluster sets with intra-set rest periods
   cluster,
+
   /// Part of a superset - paired with another exercise
   superset,
 }
@@ -55,7 +61,7 @@ extension SetTypeExtensions on SetType {
         SetType.working => '',
         SetType.dropset => 'D',
         SetType.failure => 'F',
-        SetType.amrap => 'MAX',
+        SetType.amrap => 'A',
         SetType.cluster => 'C',
         SetType.superset => 'SS',
       };
@@ -138,7 +144,6 @@ class ExerciseSet with _$ExerciseSet {
 
     /// Drop set sub-entries (auto-generated when setType is dropset)
     @Default([]) List<DropSetEntry> dropSets,
-
   }) = _ExerciseSet;
 
   /// Creates a set from JSON.
@@ -152,8 +157,10 @@ class DropSetEntry with _$DropSetEntry {
   const factory DropSetEntry({
     /// Weight for this drop
     required double weight,
+
     /// Reps achieved for this drop (0 if not yet completed)
     @Default(0) int reps,
+
     /// Whether this drop has been completed
     @Default(false) bool isCompleted,
   }) = _DropSetEntry;
@@ -206,9 +213,8 @@ extension ExerciseSetExtensions on ExerciseSet {
     }
     if (showRpe && rpe != null) {
       // Format RPE: show decimal only if it's a half step (e.g., 7.5)
-      final rpeStr = rpe! % 1 == 0
-          ? rpe!.toStringAsFixed(0)
-          : rpe!.toStringAsFixed(1);
+      final rpeStr =
+          rpe! % 1 == 0 ? rpe!.toStringAsFixed(0) : rpe!.toStringAsFixed(1);
       return '$base @ RPE $rpeStr';
     }
     return base;

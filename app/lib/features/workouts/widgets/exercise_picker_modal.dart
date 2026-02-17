@@ -49,10 +49,26 @@ class ExercisePickerModal extends ConsumerStatefulWidget {
   /// Whether to enable multi-select mode.
   final bool multiSelect;
 
-  const ExercisePickerModal({super.key, this.multiSelect = false});
+  /// Optional muscles to prioritize at the top of search results.
+  final List<String> prioritizeMuscles;
+
+  /// Optional equipment strings to prioritize at the top of search results.
+  final List<String> prioritizeEquipment;
+
+  /// Optional exercise ID to de-prioritize (e.g. current exercise when replacing).
+  final String? excludeExerciseId;
+
+  const ExercisePickerModal({
+    super.key,
+    this.multiSelect = false,
+    this.prioritizeMuscles = const [],
+    this.prioritizeEquipment = const [],
+    this.excludeExerciseId,
+  });
 
   @override
-  ConsumerState<ExercisePickerModal> createState() => _ExercisePickerModalState();
+  ConsumerState<ExercisePickerModal> createState() =>
+      _ExercisePickerModalState();
 }
 
 class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
@@ -218,12 +234,16 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
                       left: 16,
                       right: 16,
                       // Add bottom padding for the confirm button in multi-select mode
-                      bottom: widget.multiSelect && _selectedExercises.isNotEmpty ? 80 : 16,
+                      bottom:
+                          widget.multiSelect && _selectedExercises.isNotEmpty
+                              ? 80
+                              : 16,
                     ),
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final exercise = filtered[index];
-                      final isSelected = _selectedExerciseIds.contains(exercise.id);
+                      final isSelected =
+                          _selectedExerciseIds.contains(exercise.id);
                       return _ExerciseTile(
                         exercise: exercise,
                         isSelected: widget.multiSelect ? isSelected : null,
@@ -343,7 +363,8 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
             Navigator.of(context).pop(_selectedExercises);
           },
           icon: const Icon(Icons.add),
-          label: Text('Add ${_selectedExercises.length} Exercise${_selectedExercises.length == 1 ? '' : 's'}'),
+          label: Text(
+              'Add ${_selectedExercises.length} Exercise${_selectedExercises.length == 1 ? '' : 's'}'),
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
           ),
@@ -373,6 +394,45 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
               e.primaryMuscles.contains(_selectedMuscleGroup) ||
               e.secondaryMuscles.contains(_selectedMuscleGroup))
           .toList();
+    }
+
+    // De-prioritize the current exercise in replacement flow.
+    if (widget.excludeExerciseId != null) {
+      filtered = [
+        ...filtered.where((e) => e.id != widget.excludeExerciseId),
+        ...filtered.where((e) => e.id == widget.excludeExerciseId),
+      ];
+    }
+
+    // Prioritize similar exercises first when replacement context is provided.
+    if (widget.prioritizeMuscles.isNotEmpty ||
+        widget.prioritizeEquipment.isNotEmpty) {
+      final targetMuscles =
+          widget.prioritizeMuscles.map((m) => m.toLowerCase()).toSet();
+      final targetEquipment =
+          widget.prioritizeEquipment.map((e) => e.toLowerCase()).toSet();
+
+      int score(Exercise exercise) {
+        var value = 0;
+        final primary =
+            exercise.primaryMuscles.map((m) => m.name.toLowerCase()).toSet();
+        final secondary =
+            exercise.secondaryMuscles.map((m) => m.name.toLowerCase()).toSet();
+
+        value += primary.intersection(targetMuscles).length * 3;
+        value += secondary.intersection(targetMuscles).length * 2;
+        if (targetEquipment.contains(exercise.equipment.name.toLowerCase())) {
+          value += 2;
+        }
+        return value;
+      }
+
+      filtered.sort((a, b) {
+        final aScore = score(a);
+        final bScore = score(b);
+        if (aScore != bScore) return bScore.compareTo(aScore);
+        return a.name.compareTo(b.name);
+      });
     }
 
     return filtered;
@@ -420,10 +480,7 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
     Navigator.of(context).pop();
 
     // Show the create exercise screen
-    final exercise = await showCreateExerciseScreen(context);
-
-    // If an exercise was created, we can use it
-    // (The caller would need to handle this differently)
+    await showCreateExerciseScreen(context);
   }
 }
 
@@ -431,6 +488,7 @@ class _ExercisePickerModalState extends ConsumerState<ExercisePickerModal> {
 class _ExerciseTile extends StatelessWidget {
   final Exercise exercise;
   final VoidCallback onTap;
+
   /// Whether this exercise is selected (for multi-select mode).
   /// Null means single-select mode (show add icon).
   final bool? isSelected;
@@ -469,7 +527,9 @@ class _ExerciseTile extends StatelessWidget {
           style: theme.textTheme.titleMedium,
         ),
         subtitle: Text(
-          exercise.primaryMuscles.map((m) => _getMuscleDisplayName(m)).join(', '),
+          exercise.primaryMuscles
+              .map((m) => _getMuscleDisplayName(m))
+              .join(', '),
           style: theme.textTheme.bodySmall?.copyWith(
             color: colors.onSurfaceVariant,
           ),

@@ -700,6 +700,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   WeightInputType _weightType = WeightInputType.absolute;
   RepRange? _customRepRange;
   SetType _setType = SetType.working;
+  bool _isCollapsed = false;
 
   ExerciseLog get exerciseLog => widget.exerciseLog;
   int get exerciseIndex => widget.exerciseIndex;
@@ -789,40 +790,158 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           // Exercise header
           _buildHeader(context, theme, colors),
 
-          // Quick controls (always visible; avoids cluttered dropdown UX)
-          _buildQuickControls(theme, colors),
+          if (_isCollapsed)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(
+                children: [
+                  Text(
+                    '${exerciseLog.sets.length} set${exerciseLog.sets.length == 1 ? '' : 's'} logged',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _isCollapsed = false),
+                    icon: const Icon(Icons.expand_more),
+                    label: const Text('Expand'),
+                  ),
+                ],
+              ),
+            ),
 
-          // AI recommendation chip (if available)
-          _buildRecommendationBanner(theme, colors),
+          if (!_isCollapsed) ...[
+            // Quick controls (always visible; avoids cluttered dropdown UX)
+            _buildQuickControls(theme, colors),
 
-          // Sets list - completed sets can be swiped to delete
-          ...exerciseLog.sets.asMap().entries.expand((entry) {
-            final setWidget = Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            // AI recommendation chip (if available)
+            _buildRecommendationBanner(theme, colors),
+
+            // Sets list - completed sets can be swiped to delete
+            ...exerciseLog.sets.asMap().entries.expand((entry) {
+              final setWidget = Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: SwipeableSetRow(
+                  setNumber: entry.key + 1,
+                  isCompleted: true,
+                  completedSet: entry.value,
+                  unit: unitString,
+                  defaultWeightType: _weightType,
+                  defaultSetType: _setType,
+                  rpeEnabled: true,
+                  swipeEnabled: swipeEnabled,
+                  onSwipeDelete: () {
+                    // Remove the set
+                    ref.read(currentWorkoutProvider.notifier).removeSet(
+                          exerciseIndex: exerciseIndex,
+                          setIndex: entry.key,
+                        );
+                  },
+                  onEdit: () {
+                    _showEditSetDialog(
+                      context,
+                      exerciseIndex,
+                      entry.key,
+                      entry.value,
+                      unitString,
+                    );
+                  },
+                  onComplete: ({
+                    required weight,
+                    required reps,
+                    rpe,
+                    setType = SetType.working,
+                    weightType,
+                    bandResistance,
+                  }) {
+                    // Update existing set
+                    ref.read(currentWorkoutProvider.notifier).updateSet(
+                          exerciseIndex: exerciseIndex,
+                          setIndex: entry.key,
+                          weight: weight,
+                          reps: reps,
+                          rpe: rpe,
+                          setType: setType,
+                          weightType: weightType,
+                          bandResistance: bandResistance,
+                        );
+                  },
+                ),
+              );
+
+              // Show drop set sub-rows below dropset sets
+              if (entry.value.setType == SetType.dropset &&
+                  entry.value.dropSets.isNotEmpty) {
+                return [
+                  setWidget,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: DropSetSubRows(
+                      dropSets: entry.value.dropSets,
+                      unit: unitString,
+                      onCompleteDrop: (dropIndex, reps) {
+                        ref
+                            .read(currentWorkoutProvider.notifier)
+                            .completeDropSet(
+                              exerciseIndex: exerciseIndex,
+                              setIndex: entry.key,
+                              dropIndex: dropIndex,
+                              reps: reps,
+                            );
+                      },
+                      onWeightChanged: (dropIndex, weight) {
+                        ref.read(currentWorkoutProvider.notifier).updateDropSet(
+                              exerciseIndex: exerciseIndex,
+                              setIndex: entry.key,
+                              dropIndex: dropIndex,
+                              weight: weight,
+                            );
+                      },
+                      onRepsChanged: (dropIndex, reps) {
+                        ref.read(currentWorkoutProvider.notifier).updateDropSet(
+                              exerciseIndex: exerciseIndex,
+                              setIndex: entry.key,
+                              dropIndex: dropIndex,
+                              reps: reps,
+                            );
+                      },
+                      onRemoveDrop: (dropIndex) {
+                        ref.read(currentWorkoutProvider.notifier).removeDropSet(
+                              exerciseIndex: exerciseIndex,
+                              setIndex: entry.key,
+                              dropIndex: dropIndex,
+                            );
+                      },
+                      onAddDrop: () {
+                        ref.read(currentWorkoutProvider.notifier).addDropSet(
+                              exerciseIndex: exerciseIndex,
+                              setIndex: entry.key,
+                            );
+                      },
+                    ),
+                  ),
+                ];
+              }
+
+              return [setWidget];
+            }),
+
+            // Add set row (input for next set) - swipe right to complete
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: SwipeableSetRow(
-                setNumber: entry.key + 1,
-                isCompleted: true,
-                completedSet: entry.value,
+                setNumber: exerciseLog.sets.length + 1,
+                previousWeight: exerciseLog.sets.lastOrNull?.weight,
+                previousReps: exerciseLog.sets.lastOrNull?.reps,
                 unit: unitString,
                 defaultWeightType: _weightType,
                 defaultSetType: _setType,
                 rpeEnabled: true,
                 swipeEnabled: swipeEnabled,
-                onSwipeDelete: () {
-                  // Remove the set
-                  ref.read(currentWorkoutProvider.notifier).removeSet(
-                        exerciseIndex: exerciseIndex,
-                        setIndex: entry.key,
-                      );
-                },
-                onEdit: () {
-                  _showEditSetDialog(
-                    context,
-                    exerciseIndex,
-                    entry.key,
-                    entry.value,
-                    unitString,
-                  );
+                onSwipeComplete: () {
+                  _logSetAndHandleSuperset(null, null);
                 },
                 onComplete: ({
                   required weight,
@@ -832,107 +951,15 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                   weightType,
                   bandResistance,
                 }) {
-                  // Update existing set
-                  ref.read(currentWorkoutProvider.notifier).updateSet(
-                        exerciseIndex: exerciseIndex,
-                        setIndex: entry.key,
-                        weight: weight,
-                        reps: reps,
-                        rpe: rpe,
-                        setType: setType,
-                        weightType: weightType,
-                        bandResistance: bandResistance,
-                      );
+                  _logSetAndHandleSuperset(weight, reps,
+                      rpe: rpe,
+                      setType: setType,
+                      weightType: weightType,
+                      bandResistance: bandResistance);
                 },
               ),
-            );
-
-            // Show drop set sub-rows below dropset sets
-            if (entry.value.setType == SetType.dropset &&
-                entry.value.dropSets.isNotEmpty) {
-              return [
-                setWidget,
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: DropSetSubRows(
-                    dropSets: entry.value.dropSets,
-                    unit: unitString,
-                    onCompleteDrop: (dropIndex, reps) {
-                      ref.read(currentWorkoutProvider.notifier).completeDropSet(
-                            exerciseIndex: exerciseIndex,
-                            setIndex: entry.key,
-                            dropIndex: dropIndex,
-                            reps: reps,
-                          );
-                    },
-                    onWeightChanged: (dropIndex, weight) {
-                      ref.read(currentWorkoutProvider.notifier).updateDropSet(
-                            exerciseIndex: exerciseIndex,
-                            setIndex: entry.key,
-                            dropIndex: dropIndex,
-                            weight: weight,
-                          );
-                    },
-                    onRepsChanged: (dropIndex, reps) {
-                      ref.read(currentWorkoutProvider.notifier).updateDropSet(
-                            exerciseIndex: exerciseIndex,
-                            setIndex: entry.key,
-                            dropIndex: dropIndex,
-                            reps: reps,
-                          );
-                    },
-                    onRemoveDrop: (dropIndex) {
-                      ref.read(currentWorkoutProvider.notifier).removeDropSet(
-                            exerciseIndex: exerciseIndex,
-                            setIndex: entry.key,
-                            dropIndex: dropIndex,
-                          );
-                    },
-                    onAddDrop: () {
-                      ref.read(currentWorkoutProvider.notifier).addDropSet(
-                            exerciseIndex: exerciseIndex,
-                            setIndex: entry.key,
-                          );
-                    },
-                  ),
-                ),
-              ];
-            }
-
-            return [setWidget];
-          }),
-
-          // Add set row (input for next set) - swipe right to complete
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SwipeableSetRow(
-              setNumber: exerciseLog.sets.length + 1,
-              previousWeight: exerciseLog.sets.lastOrNull?.weight,
-              previousReps: exerciseLog.sets.lastOrNull?.reps,
-              unit: unitString,
-              defaultWeightType: _weightType,
-              defaultSetType: _setType,
-              rpeEnabled: true,
-              swipeEnabled: swipeEnabled,
-              onSwipeComplete: () {
-                _logSetAndHandleSuperset(null, null);
-              },
-              onComplete: ({
-                required weight,
-                required reps,
-                rpe,
-                setType = SetType.working,
-                weightType,
-                bandResistance,
-              }) {
-                _logSetAndHandleSuperset(weight, reps,
-                    rpe: rpe,
-                    setType: setType,
-                    weightType: weightType,
-                    bandResistance: bandResistance);
-              },
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -995,8 +1022,10 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   Widget _buildRecommendationBanner(ThemeData theme, ColorScheme colors) {
     final recommendation =
         ref.watch(exerciseRecommendationProvider(exerciseLog.exerciseId));
-    final completedSets =
+    final completedSetsAll =
         exerciseLog.sets.where((set) => set.reps > 0).toList();
+    final completedSets =
+        completedSetsAll.where((set) => set.setType == _setType).toList();
 
     if ((recommendation == null || recommendation.sets.isEmpty) &&
         completedSets.isEmpty) {
@@ -1053,6 +1082,40 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       confidence = RecommendationConfidence.high;
     }
 
+    // Apply set-type-specific targeting so non-working sets do not
+    // alter working-set recommendations and vice versa.
+    switch (_setType) {
+      case SetType.warmup:
+        if (_weightType != WeightInputType.bodyweight &&
+            _weightType != WeightInputType.band) {
+          suggestedWeight = (suggestedWeight * 0.6).clamp(0, 1000).toDouble();
+        }
+        suggestedReps = targetRepRange.floor;
+        feedback = 'Warmup target: ease into working weight and focus on form.';
+        break;
+      case SetType.amrap:
+        suggestedReps = targetRepRange.ceiling + 1;
+        feedback = 'AMRAP target: push past the top of your rep range safely.';
+        break;
+      case SetType.dropset:
+        feedback =
+            'Dropset target: complete the top set, then reduce load for drops.';
+        break;
+      case SetType.failure:
+        feedback =
+            'Failure set: use controlled reps and stop at technical failure.';
+        break;
+      case SetType.cluster:
+        feedback = 'Cluster set: keep reps crisp with brief intra-set rest.';
+        break;
+      case SetType.superset:
+        feedback =
+            'Superset set: keep transitions fast and maintain quality reps.';
+        break;
+      case SetType.working:
+        break;
+    }
+
     final confidenceIcon = switch (confidence) {
       RecommendationConfidence.high => Icons.verified,
       RecommendationConfidence.medium => Icons.check_circle_outline,
@@ -1074,34 +1137,48 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.auto_awesome, size: 14, color: colors.primary),
-              const SizedBox(width: 4),
-              Text(
-                '${(recommendation?.isProgression ?? false) ? "+ " : ""}Next set: $suggestionText',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w600,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => _showSuggestionReasoning(
+          context: context,
+          suggestionText: suggestionText,
+          feedback: feedback,
+          confidence: confidence,
+          recommendation: recommendation,
+          completedSetsForType: completedSets.length,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 14, color: colors.primary),
+                const SizedBox(width: 4),
+                Text(
+                  '${(recommendation?.isProgression ?? false) ? "+ " : ""}${_setType.label}: $suggestionText',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(confidenceIcon, size: 14, color: confidenceColor),
+                const SizedBox(width: 4),
+                Icon(Icons.info_outline,
+                    size: 12, color: colors.onSurfaceVariant),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                feedback,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(width: 6),
-              Icon(confidenceIcon, size: 14, color: confidenceColor),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              feedback,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1177,6 +1254,17 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               contentPadding: EdgeInsets.zero,
             ),
           ),
+          PopupMenuItem(
+            value: 'toggleComplete',
+            child: ListTile(
+              leading: Icon(_isCollapsed
+                  ? Icons.expand_more
+                  : Icons.check_circle_outline),
+              title:
+                  Text(_isCollapsed ? 'Expand Exercise' : 'Complete Exercise'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
         ],
         onSelected: (value) {
           switch (value) {
@@ -1193,6 +1281,9 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               ref.read(currentWorkoutProvider.notifier).removeExercise(
                     exerciseIndex,
                   );
+              break;
+            case 'toggleComplete':
+              setState(() => _isCollapsed = !_isCollapsed);
               break;
           }
         },
@@ -1294,6 +1385,9 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       SetType.working,
       SetType.dropset,
       SetType.failure,
+      SetType.amrap,
+      SetType.cluster,
+      SetType.superset,
     ];
 
     showModalBottomSheet(
@@ -1352,7 +1446,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     final presets = [
       (null, 'Default'),
       (RepRangePreset.strength.defaultRange, 'Strength 3-5'),
-      (RepRangePreset.hypertrophy.defaultRange, 'Hypertrophy 8-12'),
+      (const RepRange(floor: 6, ceiling: 12), 'Hypertrophy 6-12'),
       (RepRangePreset.endurance.defaultRange, 'Endurance 15-20'),
     ];
 
@@ -1374,6 +1468,58 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               ),
             const SizedBox(height: 8),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showSuggestionReasoning({
+    required BuildContext context,
+    required String suggestionText,
+    required String feedback,
+    required RecommendationConfidence confidence,
+    required ExerciseRecommendation? recommendation,
+    required int completedSetsForType,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final confidenceText = switch (confidence) {
+      RecommendationConfidence.high => 'High',
+      RecommendationConfidence.medium => 'Medium',
+      RecommendationConfidence.low => 'Low',
+    };
+
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Suggestion Reasoning',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              Text('Recommended: $suggestionText'),
+              const SizedBox(height: 4),
+              Text('Set Type: ${_setType.label}'),
+              const SizedBox(height: 4),
+              Text('Confidence: $confidenceText'),
+              const SizedBox(height: 4),
+              Text('Sets analyzed (this type): $completedSetsForType'),
+              const SizedBox(height: 12),
+              Text(
+                recommendation?.reasoning?.trim().isNotEmpty == true
+                    ? recommendation!.reasoning!
+                    : feedback,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1403,10 +1549,15 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     BuildContext context,
     int exerciseIndex,
   ) async {
+    final current = exerciseLog;
     final exercise = await showModalBottomSheet<Exercise>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => const ExercisePickerModal(),
+      builder: (context) => ExercisePickerModal(
+        prioritizeMuscles: current.primaryMuscles,
+        prioritizeEquipment: current.equipment,
+        excludeExerciseId: current.exerciseId,
+      ),
     );
 
     if (exercise != null) {
