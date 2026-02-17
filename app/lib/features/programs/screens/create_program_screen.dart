@@ -573,25 +573,25 @@ class _CreateProgramScreenState extends ConsumerState<CreateProgramScreen> {
         await _autoSaveTemplatesToLibrary(program.name);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Program "${program.name}" created!')),
-          );
           if (_withPeriodization) {
             final query = <String, String>{
               if (program.id != null) 'programId': program.id!,
               'programName': program.name,
               'weeks': _durationWeeks.toString(),
             };
-            context.go(Uri(path: '/periodization/new', queryParameters: query)
-                .toString());
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text(
-                  'Next: create a mesocycle and use Week 1 as a feeler week baseline.',
+                  'Program "${program.name}" created. Configure your mesocycle next.',
                 ),
               ),
             );
+            context.go(Uri(path: '/periodization/new', queryParameters: query)
+                .toString());
           } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Program "${program.name}" created!')),
+            );
             context.pop();
           }
         }
