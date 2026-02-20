@@ -21,7 +21,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/services/api_client.dart';
 import '../../../shared/services/sync_service.dart';
 import '../models/workout_session.dart';
 import '../models/exercise_log.dart';
@@ -32,6 +31,7 @@ import '../models/weight_input.dart';
 import '../../../shared/services/workout_history_service.dart';
 import '../../../shared/services/workout_persistence_service.dart';
 import '../../../shared/services/notification_service.dart';
+import '../../../shared/services/exercise_rep_override_service.dart';
 import '../../analytics/providers/analytics_provider.dart';
 import '../../analytics/providers/weekly_report_provider.dart';
 import '../../analytics/providers/streak_provider.dart';
@@ -316,11 +316,21 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     Map<String, String>? templateExercises,
   }) {
     // Check if there's already an active workout
-    if (state is ActiveWorkout) {
-      state = WorkoutError(
-        'A workout is already in progress. Complete it first.',
-        workout: (state as ActiveWorkout).workout,
+    if (state case ActiveWorkout(:final workout)) {
+      // Keep current state stable; do not clobber active workout with an error.
+      _persistWorkout(workout);
+      debugPrint(
+        'CurrentWorkoutNotifier: startWorkout ignored because workout is already active',
       );
+      return;
+    }
+
+    // Recover gracefully from a stale error state that still carries an active workout.
+    if (state case WorkoutError(:final workout?) when workout.isActive) {
+      state = ActiveWorkout(workout: workout);
+      _persistWorkout(workout);
+      debugPrint(
+          'CurrentWorkoutNotifier: Recovered active workout from error state');
       return;
     }
 
@@ -582,6 +592,13 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     state = const NoWorkout();
   }
 
+  /// Persists current active workout for "continue later" flows.
+  void saveForResume() {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+    _persistWorkout(currentState.workout);
+  }
+
   // ==========================================================================
   // EXERCISE MANAGEMENT
   // ==========================================================================
@@ -610,6 +627,13 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
     final currentState = state;
     if (currentState is! ActiveWorkout) return;
 
+    // Pull persisted quick-setting defaults for this exercise if available.
+    final settingsService = ref.read(exerciseRepOverrideServiceProvider);
+    final defaultUnilateral =
+        settingsService.getUnilateralDefault(exerciseId) ?? false;
+    final defaultAttachment =
+        settingsService.getCableAttachmentDefault(exerciseId);
+
     final localLogId = _uuid.v4();
     final exerciseLog = ExerciseLog(
       id: localLogId,
@@ -626,6 +650,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       usesIncline: usesIncline,
       usesResistance: usesResistance,
       targetSets: templateSets, // Track expected sets from template
+      isUnilateral: defaultUnilateral,
+      cableAttachment: defaultAttachment,
     );
 
     final updatedWorkout = currentState.workout.addExercise(exerciseLog);
@@ -677,6 +703,28 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
 
     logs[exerciseIndex] = logs[exerciseIndex].copyWith(
       isUnilateral: !logs[exerciseIndex].isUnilateral,
+    );
+
+    final updatedWorkout = currentState.workout.copyWith(exerciseLogs: logs);
+    state = currentState.copyWith(workout: updatedWorkout);
+    _persistWorkout(updatedWorkout);
+  }
+
+  /// Sets unilateral mode explicitly for an exercise.
+  void setUnilateral({
+    required int exerciseIndex,
+    required bool isUnilateral,
+  }) {
+    final currentState = state;
+    if (currentState is! ActiveWorkout) return;
+
+    final logs = List<ExerciseLog>.from(currentState.workout.exerciseLogs);
+    if (exerciseIndex < 0 || exerciseIndex >= logs.length) return;
+
+    if (logs[exerciseIndex].isUnilateral == isUnilateral) return;
+
+    logs[exerciseIndex] = logs[exerciseIndex].copyWith(
+      isUnilateral: isUnilateral,
     );
 
     final updatedWorkout = currentState.workout.copyWith(exerciseLogs: logs);
@@ -755,6 +803,13 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
 
     final oldExercise = currentState.workout.exerciseLogs[exerciseIndex];
 
+    // Pull persisted quick-setting defaults for the replacement exercise.
+    final settingsService = ref.read(exerciseRepOverrideServiceProvider);
+    final defaultUnilateral =
+        settingsService.getUnilateralDefault(exerciseId) ?? false;
+    final defaultAttachment =
+        settingsService.getCableAttachmentDefault(exerciseId);
+
     // Create new exercise log at the same position
     final newExerciseLog = ExerciseLog(
       id: _uuid.v4(),
@@ -770,6 +825,8 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       isCardio: isCardio,
       usesIncline: usesIncline,
       usesResistance: usesResistance,
+      isUnilateral: defaultUnilateral,
+      cableAttachment: defaultAttachment,
     );
 
     // Replace the exercise at the same index
@@ -1366,20 +1423,25 @@ class CurrentWorkoutNotifier extends Notifier<CurrentWorkoutState> {
       // Skip exercises with no sets
       if (exerciseLog.sets.isEmpty) continue;
 
-      // Extract reps from each set
-      final repsPerSet = exerciseLog.sets.map((s) => s.reps).toList();
+      // Only working sets should influence progression state.
+      final workingSets = exerciseLog.sets
+          .where((s) => s.setType == SetType.working && s.reps > 0)
+          .toList();
 
-      // Get the weight used (use the most common weight across sets)
-      final weights = exerciseLog.sets.map((s) => s.weight).toList();
+      if (workingSets.isEmpty) continue;
+
+      // Extract reps from each working set
+      final repsPerSet = workingSets.map((s) => s.reps).toList();
+
+      // Get the weight used (use average across working sets)
+      final weights = workingSets.map((s) => s.weight).toList();
       final weight = weights.isNotEmpty
           ? weights.reduce((a, b) => a + b) / weights.length
           : 0.0;
 
       // Get RPE if available
-      final rpePerSet = exerciseLog.sets
-          .where((s) => s.rpe != null)
-          .map((s) => s.rpe!)
-          .toList();
+      final rpePerSet =
+          workingSets.where((s) => s.rpe != null).map((s) => s.rpe!).toList();
 
       try {
         await progressionNotifier.updateAfterSession(

@@ -33,10 +33,14 @@ RUN npx prisma generate
 # Copy compiled JS from build stage
 COPY --from=backend-build /app/dist ./dist
 
+# Copy boot.js diagnostic wrapper (plain JS, not compiled by tsc)
+COPY backend/src/boot.js ./dist/boot.js
+
 # Copy bundled Flutter web static assets
 COPY backend/public ./public/
+
 RUN ls -la ./public/index.html
 
 EXPOSE 8080
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/boot.js"]

@@ -135,6 +135,12 @@ Project preference:
 Feature completion phrase:
 - "Hark! The forge grows silent! - [Feature Name] hath been wrought and standeth ready for battle!"
 
+### Local Notification Rule (Mandatory)
+- When work is finished for a user request, send a **local Windows desktop notification** by running:
+  - `powershell -ExecutionPolicy Bypass -File scripts/send-push-notification.ps1 -Title "Codex Finished" -Message "<short completion summary>"`
+- The notifier must target the current PC session (toast notification with popup fallback).
+- If notification sending fails, mention that failure in the final response.
+
 ---
 
 ## Project Overview

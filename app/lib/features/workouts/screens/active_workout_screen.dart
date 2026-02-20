@@ -64,6 +64,8 @@ class ActiveWorkoutScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
+  bool _isLeaveDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -180,39 +182,45 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
   ) {
     final isInSupersetMode = ref.watch(isInSupersetModeProvider);
 
-    return Scaffold(
-      appBar: _buildAppBar(context, theme, colors, workout),
-      body: Column(
-        children: [
-          // Superset indicator (shown when in superset mode)
-          if (isInSupersetMode)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: SupersetIndicator(),
+    return WillPopScope(
+      onWillPop: () async {
+        _showCancelDialog(context);
+        return false;
+      },
+      child: Scaffold(
+        appBar: _buildAppBar(context, theme, colors, workout),
+        body: Column(
+          children: [
+            // Superset indicator (shown when in superset mode)
+            if (isInSupersetMode)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: SupersetIndicator(),
+              ),
+
+            // Music mini player (shown when music is playing)
+            MusicMiniPlayer(
+              onTap: () => showMusicPlayerSheet(context),
             ),
 
-          // Music mini player (shown when music is playing)
-          MusicMiniPlayer(
-            onTap: () => showMusicPlayerSheet(context),
-          ),
-
-          // Rest timer bar (shown when timer is running)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: RestTimerBar(
-              onTap: () => showRestTimerSheet(context),
+            // Rest timer bar (shown when timer is running)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: RestTimerBar(
+                onTap: () => showRestTimerSheet(context),
+              ),
             ),
-          ),
 
-          // Exercise list
-          Expanded(
-            child: workout.exerciseLogs.isEmpty
-                ? _buildEmptyExercises(context, theme, colors)
-                : _buildExerciseList(context, theme, colors, workout),
-          ),
-        ],
+            // Exercise list
+            Expanded(
+              child: workout.exerciseLogs.isEmpty
+                  ? _buildEmptyExercises(context, theme, colors)
+                  : _buildExerciseList(context, theme, colors, workout),
+            ),
+          ],
+        ),
+        floatingActionButton: _buildFloatingActionButton(context, workout),
       ),
-      floatingActionButton: _buildFloatingActionButton(context, workout),
     );
   }
 
@@ -453,6 +461,9 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
 
   /// Show dialog to confirm canceling workout.
   void _showCancelDialog(BuildContext context) {
+    if (_isLeaveDialogOpen) return;
+    _isLeaveDialogOpen = true;
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -467,6 +478,7 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           ),
           FilledButton.tonal(
             onPressed: () {
+              ref.read(currentWorkoutProvider.notifier).saveForResume();
               Navigator.of(dialogContext).pop();
               context.go('/');
             },
@@ -485,7 +497,9 @@ class _ActiveWorkoutScreenState extends ConsumerState<ActiveWorkoutScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      _isLeaveDialogOpen = false;
+    });
   }
 
   /// Show dialog to finish/complete workout.
@@ -720,17 +734,40 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
     // Load the saved rep override if any
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadRepOverride();
+      _loadExercisePreferences();
     });
   }
 
-  Future<void> _loadRepOverride() async {
+  Future<void> _loadExercisePreferences() async {
     try {
       final service =
           await ref.read(initializedExerciseRepOverrideServiceProvider.future);
-      final override = service.getOverride(exerciseLog.exerciseId);
-      if (override != null && mounted) {
-        setState(() => _customRepRange = override);
+      if (!mounted) return;
+
+      final repOverride = service.getOverride(exerciseLog.exerciseId);
+      if (repOverride != null) {
+        setState(() => _customRepRange = repOverride);
+      }
+
+      final unilateralDefault =
+          service.getUnilateralDefault(exerciseLog.exerciseId);
+      if (unilateralDefault != null &&
+          unilateralDefault != exerciseLog.isUnilateral) {
+        ref.read(currentWorkoutProvider.notifier).setUnilateral(
+              exerciseIndex: exerciseIndex,
+              isUnilateral: unilateralDefault,
+            );
+      }
+
+      final attachmentDefault =
+          service.getCableAttachmentDefault(exerciseLog.exerciseId);
+      if (exerciseLog.usesCableEquipment &&
+          exerciseLog.cableAttachment == null &&
+          attachmentDefault != null) {
+        ref.read(currentWorkoutProvider.notifier).updateCableAttachment(
+              exerciseIndex: exerciseIndex,
+              attachment: attachmentDefault,
+            );
       }
     } catch (e) {
       // Ignore errors on load
@@ -746,6 +783,27 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       } else {
         await service.removeOverride(exerciseLog.exerciseId);
       }
+    } catch (e) {
+      // Ignore errors on save
+    }
+  }
+
+  Future<void> _saveUnilateralDefault(bool isUnilateral) async {
+    try {
+      final service =
+          await ref.read(initializedExerciseRepOverrideServiceProvider.future);
+      await service.setUnilateralDefault(exerciseLog.exerciseId, isUnilateral);
+    } catch (e) {
+      // Ignore errors on save
+    }
+  }
+
+  Future<void> _saveCableAttachmentDefault(CableAttachment? attachment) async {
+    try {
+      final service =
+          await ref.read(initializedExerciseRepOverrideServiceProvider.future);
+      await service.setCableAttachmentDefault(
+          exerciseLog.exerciseId, attachment);
     } catch (e) {
       // Ignore errors on save
     }
@@ -1037,24 +1095,21 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     final unitStr =
         ref.watch(weightUnitProvider) == WeightUnit.kg ? 'kg' : 'lbs';
     final baseSet = recommendation?.firstSet;
-    final targetRepRange = _customRepRange ??
-        RepRange(
-          floor: ((baseSet?.reps ?? 8) - 2).clamp(1, 30),
-          ceiling: ((baseSet?.reps ?? 8) + 2).clamp(1, 30),
-        );
+    final targetRepRange =
+        _customRepRange ?? const RepRange(floor: 6, ceiling: 12);
 
     double suggestedWeight =
         baseSet?.weight ?? (completedSets.lastOrNull?.weight ?? 0);
-    int suggestedReps = baseSet?.reps ?? targetRepRange.ceiling;
+    int suggestedReps = baseSet?.reps ?? targetRepRange.floor;
     String feedback = recommendation?.phaseFeedback ??
         'Based on your latest workout performance.';
     RecommendationConfidence confidence =
         recommendation?.confidence ?? RecommendationConfidence.medium;
 
     final lastSet = completedSets.lastOrNull;
-    if (lastSet != null) {
+    if (recommendation == null && lastSet != null) {
       suggestedWeight = lastSet.weight;
-      suggestedReps = targetRepRange.ceiling;
+      suggestedReps = lastSet.reps;
 
       final lastRpe = lastSet.rpe;
       final exceededTopRange = lastSet.reps >= targetRepRange.ceiling + 1;
@@ -1065,6 +1120,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           lastSet.weightType != WeightInputType.band) {
         if (exceededTopRange && (lastRpe == null || lastRpe <= 8.5)) {
           suggestedWeight = (lastSet.weight + 2.5).clamp(0, 1000).toDouble();
+          suggestedReps = targetRepRange.floor;
           feedback =
               'You overshot target reps last set. Add weight for the next set.';
         } else if (belowTargetRange || tooHard) {
@@ -1073,9 +1129,12 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           feedback =
               'Last set was too hard. Reduce load and stay in the target range.';
         } else {
-          suggestedReps = targetRepRange.ceiling;
+          suggestedReps = (lastSet.reps + 1).clamp(
+            targetRepRange.floor,
+            targetRepRange.ceiling,
+          );
           feedback =
-              'Keep the same load and aim for the top of your target rep range.';
+              'Keep the same load and build reps gradually within your target range.';
         }
       } else {
         feedback =
@@ -1249,6 +1308,14 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             ),
           ),
           const PopupMenuItem(
+            value: 'warmups',
+            child: ListTile(
+              leading: Icon(Icons.local_fire_department_outlined),
+              title: Text('Add Warmups'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          const PopupMenuItem(
             value: 'remove',
             child: ListTile(
               leading: Icon(Icons.delete_outline),
@@ -1278,6 +1345,9 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               break;
             case 'switch':
               _showSwitchExercise(context, exerciseIndex);
+              break;
+            case 'warmups':
+              _showAddWarmupsDialog(context);
               break;
             case 'remove':
               ref.read(currentWorkoutProvider.notifier).removeExercise(
@@ -1315,9 +1385,12 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             selected: exerciseLog.isUnilateral,
             label: const Text('Unilateral'),
             onSelected: (_) {
-              ref.read(currentWorkoutProvider.notifier).toggleUnilateral(
-                    exerciseIndex,
+              final nextValue = !exerciseLog.isUnilateral;
+              ref.read(currentWorkoutProvider.notifier).setUnilateral(
+                    exerciseIndex: exerciseIndex,
+                    isUnilateral: nextValue,
                   );
+              _saveUnilateralDefault(nextValue);
             },
           ),
           ActionChip(
@@ -1435,6 +1508,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                       exerciseIndex: exerciseIndex,
                       attachment: value,
                     );
+                _saveCableAttachmentDefault(value);
                 Navigator.pop(context);
               },
             );
@@ -1473,6 +1547,223 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
         ),
       ),
     );
+  }
+
+  bool _isLikelyCompoundExercise() {
+    final name = exerciseLog.exerciseName.toLowerCase();
+    const compoundKeywords = [
+      'squat',
+      'deadlift',
+      'bench',
+      'press',
+      'row',
+      'pull up',
+      'pull-up',
+      'chin up',
+      'chin-up',
+      'lunge',
+      'dip',
+      'thrust',
+    ];
+
+    return exerciseLog.primaryMuscles.length >= 2 ||
+        compoundKeywords.any(name.contains);
+  }
+
+  double _roundWarmupWeight(double weight) {
+    if (weight <= 0) return 0;
+    return (weight / 2.5).round() * 2.5;
+  }
+
+  List<({double weight, int reps})> _generateWarmupSets({
+    required double targetWeight,
+    required int targetReps,
+  }) {
+    final isCompound = _isLikelyCompoundExercise();
+    final pattern = isCompound
+        ? (targetWeight >= 120
+            ? <({double pct, int reps})>[
+                (pct: 0.35, reps: 8),
+                (pct: 0.5, reps: 5),
+                (pct: 0.65, reps: 3),
+                (pct: 0.78, reps: 2),
+                (pct: 0.88, reps: 1),
+              ]
+            : targetWeight >= 80
+                ? <({double pct, int reps})>[
+                    (pct: 0.4, reps: 8),
+                    (pct: 0.6, reps: 5),
+                    (pct: 0.75, reps: 3),
+                    (pct: 0.88, reps: 1),
+                  ]
+                : <({double pct, int reps})>[
+                    (pct: 0.45, reps: 8),
+                    (pct: 0.65, reps: 5),
+                    (pct: 0.8, reps: 2),
+                  ])
+        : (targetWeight >= 40
+            ? <({double pct, int reps})>[
+                (pct: 0.45, reps: 8),
+                (pct: 0.65, reps: 5),
+                (pct: 0.8, reps: 2),
+              ]
+            : <({double pct, int reps})>[
+                (pct: 0.5, reps: 8),
+                (pct: 0.7, reps: 4),
+              ]);
+
+    final warmups = <({double weight, int reps})>[];
+    for (final step in pattern) {
+      final scaledWeight =
+          _roundWarmupWeight((targetWeight * step.pct).clamp(0, targetWeight));
+      if (scaledWeight <= 0 || scaledWeight >= targetWeight) continue;
+
+      final alreadyExists =
+          warmups.any((w) => (w.weight - scaledWeight).abs() < 0.1);
+      if (alreadyExists) continue;
+
+      final reps = step.reps > targetReps + 3 ? targetReps + 3 : step.reps;
+      warmups.add((weight: scaledWeight, reps: reps.clamp(1, 20)));
+    }
+
+    return warmups;
+  }
+
+  Future<void> _showAddWarmupsDialog(BuildContext context) async {
+    if (exerciseLog.isCardio) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content:
+                Text('Warmup auto-builder is for strength exercises only.')),
+      );
+      return;
+    }
+
+    if (_weightType == WeightInputType.bodyweight ||
+        _weightType == WeightInputType.band) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Warmup auto-builder requires weighted sets.')),
+      );
+      return;
+    }
+
+    final hasNonWarmupSets =
+        exerciseLog.sets.any((s) => s.reps > 0 && s.setType != SetType.warmup);
+    if (hasNonWarmupSets) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Add warmups before logging working sets for best results.'),
+        ),
+      );
+      return;
+    }
+
+    final recommendation =
+        ref.read(exerciseRecommendationProvider(exerciseLog.exerciseId));
+    final targetSet = recommendation?.firstSet;
+    final fallbackWeight =
+        exerciseLog.sets.lastOrNull?.weight ?? targetSet?.weight ?? 0;
+    final fallbackReps = targetSet?.reps ??
+        _customRepRange?.floor ??
+        exerciseLog.sets.lastOrNull?.reps ??
+        8;
+
+    final weightController = TextEditingController(
+      text: fallbackWeight > 0
+          ? fallbackWeight.toStringAsFixed(fallbackWeight % 1 == 0 ? 0 : 1)
+          : '',
+    );
+    final repsController = TextEditingController(text: fallbackReps.toString());
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add Warmups'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: weightController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Target working weight',
+                hintText: 'e.g. 100',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: repsController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Target working reps',
+                hintText: 'e.g. 8',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final targetWeight = double.tryParse(weightController.text.trim()) ?? 0;
+    final targetReps = int.tryParse(repsController.text.trim()) ?? 0;
+    if (targetWeight <= 0 || targetReps <= 0) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter valid target weight and reps.')),
+        );
+      }
+      return;
+    }
+
+    final warmups = _generateWarmupSets(
+      targetWeight: targetWeight,
+      targetReps: targetReps,
+    );
+
+    if (warmups.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('No warmup sets generated for that target.')),
+        );
+      }
+      return;
+    }
+
+    for (final warmup in warmups) {
+      ref.read(currentWorkoutProvider.notifier).logSet(
+            exerciseIndex: exerciseIndex,
+            weight: warmup.weight,
+            reps: warmup.reps,
+            setType: SetType.warmup,
+            weightType: _weightType,
+          );
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Added ${warmups.length} warmup set${warmups.length == 1 ? '' : 's'}',
+          ),
+        ),
+      );
+    }
   }
 
   void _showSuggestionReasoning({
@@ -1741,13 +2032,61 @@ class _FinishWorkoutDialogState extends ConsumerState<_FinishWorkoutDialog> {
       );
     }
 
-    if (selectedOps.removedExerciseIds.isNotEmpty) {
+    final workoutExerciseIds = {
+      for (final log in workoutSnapshot.exerciseLogs) log.exerciseId,
+    };
+    final selectedRemovedExerciseIds = selectedOps.removedExerciseIds.toSet();
+    final consumedAddedExercises = <_AddedExerciseOption>{};
+
+    // Handle exercise switches as in-place replacements rather than append+remove.
+    // A switch is inferred when an added exercise occupies a template order slot
+    // whose original template exercise is no longer present in the finished workout.
+    for (final add in selectedOps.addedExercises) {
+      TemplateExercise? templateAtSameOrder;
+      for (final templateExercise in existingTemplate.exercises) {
+        if (templateExercise.orderIndex == add.orderIndex) {
+          templateAtSameOrder = templateExercise;
+          break;
+        }
+      }
+
+      if (templateAtSameOrder == null ||
+          templateAtSameOrder.exerciseId == add.exerciseId) {
+        continue;
+      }
+
+      final shouldReplace =
+          selectedRemovedExerciseIds.contains(templateAtSameOrder.exerciseId) ||
+              !workoutExerciseIds.contains(templateAtSameOrder.exerciseId);
+      if (!shouldReplace) continue;
+
+      final templateTargetId = templateAtSameOrder.exerciseId;
+      final idx = updatedExercises.indexWhere(
+        (e) => e.exerciseId == templateTargetId,
+      );
+      if (idx == -1) continue;
+
+      final current = updatedExercises[idx];
+      updatedExercises[idx] = current.copyWith(
+        exerciseId: add.exerciseId,
+        exerciseName: add.exerciseName,
+        primaryMuscles: add.primaryMuscles,
+        defaultSets: add.defaultSets,
+        defaultReps: add.defaultReps,
+      );
+
+      selectedRemovedExerciseIds.remove(templateAtSameOrder.exerciseId);
+      consumedAddedExercises.add(add);
+    }
+
+    if (selectedRemovedExerciseIds.isNotEmpty) {
       updatedExercises = updatedExercises
-          .where((e) => !selectedOps.removedExerciseIds.contains(e.exerciseId))
+          .where((e) => !selectedRemovedExerciseIds.contains(e.exerciseId))
           .toList();
     }
 
     for (final add in selectedOps.addedExercises) {
+      if (consumedAddedExercises.contains(add)) continue;
       updatedExercises.add(
         TemplateExercise(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -1941,13 +2280,24 @@ class _TemplateUpdateDialogState extends State<_TemplateUpdateDialog> {
           : (completedSets.map((s) => s.reps).reduce((a, b) => a + b) /
                   completedSets.length)
               .round();
-      return _AddedExerciseOption(
+      final option = _AddedExerciseOption(
         exerciseId: log.exerciseId,
         exerciseName: log.exerciseName,
         primaryMuscles: log.primaryMuscles,
+        orderIndex: log.orderIndex,
         defaultSets: defaultSets,
         defaultReps: defaultReps,
       );
+      for (final templateExercise in widget.template.exercises) {
+        final looksLikeSwitch = templateExercise.orderIndex == log.orderIndex &&
+            templateExercise.exerciseId != log.exerciseId &&
+            !workoutByExerciseId.containsKey(templateExercise.exerciseId);
+        if (!looksLikeSwitch) continue;
+        option.replacesExerciseName = templateExercise.exerciseName;
+        option.selected = true;
+        break;
+      }
+      return option;
     }).toList();
 
     _removedOptions = widget.template.exercises
@@ -2001,7 +2351,11 @@ class _TemplateUpdateDialogState extends State<_TemplateUpdateDialog> {
                       onChanged: (v) =>
                           setState(() => item.selected = v ?? false),
                       title: Text(item.exerciseName),
-                      subtitle: Text('${item.defaultSets}x${item.defaultReps}'),
+                      subtitle: Text(
+                        item.replacesExerciseName == null
+                            ? '${item.defaultSets}x${item.defaultReps}'
+                            : 'Replaces ${item.replacesExerciseName} • ${item.defaultSets}x${item.defaultReps}',
+                      ),
                     )),
               ],
               if (_removedOptions.isNotEmpty) ...[
@@ -2075,14 +2429,17 @@ class _AddedExerciseOption {
   final String exerciseId;
   final String exerciseName;
   final List<String> primaryMuscles;
+  final int orderIndex;
   final int defaultSets;
   final int defaultReps;
+  String? replacesExerciseName;
   bool selected = false;
 
   _AddedExerciseOption({
     required this.exerciseId,
     required this.exerciseName,
     required this.primaryMuscles,
+    required this.orderIndex,
     required this.defaultSets,
     required this.defaultReps,
   });

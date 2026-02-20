@@ -8,6 +8,11 @@ build/
 .next/
 out/
 
+# Exception: Flutter web build needed for Railway deploy via `railway up`
+!app/build/
+app/build/*
+!app/build/web/
+
 # Environment files
 .env
 .env.local
