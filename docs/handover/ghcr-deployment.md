@@ -39,6 +39,7 @@ WEB_IMAGE=ghcr.io/filipelagrenade/trainingapp-web:latest
 Run:
 
 ```bash
+cd /root/liftiq
 bash scripts/deploy-ghcr.sh
 ```
 
@@ -54,8 +55,6 @@ After pushing to `main` and waiting for the workflow to publish new images:
 
 ```bash
 cd /root/liftiq
-git fetch origin
-git reset --hard origin/main
 bash scripts/deploy-ghcr.sh
 ```
 

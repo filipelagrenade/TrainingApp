@@ -11,6 +11,9 @@ fi
 
 cd "$ROOT_DIR"
 
+git fetch origin
+git reset --hard origin/main
+
 docker compose \
   --env-file "$ENV_FILE" \
   -f docker-compose.prod.yml \
