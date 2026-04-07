@@ -6,7 +6,9 @@ RUN npm install
 FROM node:20-alpine AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL=/api/v1
+ARG NEXT_PUBLIC_BUILD_ID=dev
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

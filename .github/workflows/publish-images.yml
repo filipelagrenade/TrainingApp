@@ -111,6 +111,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_API_URL=/api/v1
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           tags: ${{ steps.web-meta.outputs.tags }}
           labels: ${{ steps.web-meta.outputs.labels }}
           cache-from: type=gha,scope=web
