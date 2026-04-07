@@ -29,13 +29,13 @@ export const HomePage = () => {
           </Card>
         ) : meQuery.isError ? (
           <div className="grid min-h-[calc(100vh-3rem)] place-items-center">
-            <AuthCard onSuccess={() => meQuery.refetch()} />
+            <AuthCard onSuccess={() => window.location.reload()} />
           </div>
         ) : meQuery.data ? (
           <DashboardScreen user={meQuery.data.user} />
         ) : (
           <div className="grid min-h-[calc(100vh-3rem)] place-items-center">
-            <AuthCard onSuccess={() => meQuery.refetch()} />
+            <AuthCard onSuccess={() => window.location.reload()} />
           </div>
         )}
     </AppShell>
