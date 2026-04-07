@@ -51,8 +51,9 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const logoutMutation = useMutation({
     mutationFn: apiClient.logout,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.removeQueries({ queryKey: ["me"] });
       toast.success("Signed out");
+      window.location.href = "/";
     },
   });
 
