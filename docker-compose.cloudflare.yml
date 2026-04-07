@@ -1,0 +1,5 @@
+services:
+  caddy:
+    volumes:
+      - ./deploy/Caddyfile.cloudflare:/etc/caddy/Caddyfile:ro
+      - ./deploy/certs:/etc/caddy/certs:ro

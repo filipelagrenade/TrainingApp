@@ -87,6 +87,36 @@ docker compose --env-file .env.production -f docker-compose.prod.yml run --rm ba
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
+### Cloudflare Origin Certificate option
+
+If your DNS is proxied through Cloudflare and you already have a Cloudflare Origin Certificate plus private key, use the Cloudflare-specific override instead of Let's Encrypt.
+
+1. Create the cert directory on the Droplet:
+
+```bash
+mkdir -p deploy/certs
+```
+
+2. Save the Cloudflare origin certificate to `deploy/certs/origin.crt`
+
+3. Save the Cloudflare private key to `deploy/certs/origin.key`
+
+4. Lock down the key permissions:
+
+```bash
+chmod 600 deploy/certs/origin.key
+```
+
+5. In the Cloudflare dashboard, set SSL/TLS mode to `Full (strict)`.
+
+6. Start the stack with the Cloudflare override:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.cloudflare.yml up -d --build
+```
+
+If you use the Cloudflare override, `LETSENCRYPT_EMAIL` is no longer used by Caddy.
+
 ## 6. Verify
 
 Check containers:
@@ -114,6 +144,14 @@ For updates:
 git pull
 docker compose --env-file .env.production -f docker-compose.prod.yml run --rm migrate
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+If you are using the Cloudflare origin certificate override, use:
+
+```bash
+git pull
+docker compose --env-file .env.production -f docker-compose.prod.yml run --rm migrate
+docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.cloudflare.yml up -d --build
 ```
 
 ## Notes
