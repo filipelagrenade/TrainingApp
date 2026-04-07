@@ -11,8 +11,8 @@ coverage/
 Thumbs.db
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
-archive/
-app/
+/archive/
+/app/
 origincert.txt
 privatekey.txt
 deploy/certs/
