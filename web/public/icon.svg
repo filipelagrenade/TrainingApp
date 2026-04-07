@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="LiftIQ icon">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ECB365" />
+      <stop offset="50%" stop-color="#BC804A" />
+      <stop offset="100%" stop-color="#3D6351" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <path d="M142 176h48v160h120v40H142V176Zm168 0h60c47 0 82 33 82 80 0 48-35 80-82 80h-20v40h-40V176Zm40 40v80h18c22 0 43-14 43-40 0-27-21-40-43-40h-18Z" fill="#FFF8F0" />
+</svg>

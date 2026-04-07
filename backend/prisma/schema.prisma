@@ -1,7 +1,3 @@
-// LiftIQ Database Schema
-// This is the Prisma schema file for the workout tracking application.
-// It defines all data models, relationships, and enums for the system.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,674 +7,416 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================================
-// ENUMS
-// ============================================================================
-
-/// Unit preference for weight measurements
-enum UnitType {
-  KG
-  LBS
+enum AuthProvider {
+  EMAIL
+  GOOGLE
 }
 
-/// Type of set performed in a workout
-enum SetType {
-  WARMUP    // Lighter sets to prepare for working sets
-  WORKING   // Main working sets at target weight
-  DROPSET   // Reduced weight continuation sets
-  FAILURE   // Sets taken to muscular failure
+enum LoadType {
+  BODYWEIGHT
+  ASSISTED_BODYWEIGHT
+  EXTERNAL
+  FIXED_WEIGHT
+  PLATE_TOTAL
+  STACK
+  CABLE_STACK
 }
 
-/// Difficulty level for programs
-enum Difficulty {
-  BEGINNER
-  INTERMEDIATE
-  ADVANCED
+enum ProgramStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
 }
 
-/// Training goal type for programs
-enum GoalType {
-  STRENGTH        // Focus on maximal strength (1-5 reps)
-  HYPERTROPHY     // Focus on muscle growth (6-12 reps)
-  GENERAL_FITNESS // General conditioning and health
-  POWERLIFTING    // Competition-focused powerlifting
+enum WorkoutEntryType {
+  PROGRAM
+  TEMPLATE
+  QUICK
 }
 
-/// Type of social challenge
-enum ChallengeType {
-  TOTAL_VOLUME  // Total weight lifted in challenge period
-  WORKOUT_COUNT // Number of workouts completed
-  SPECIFIC_LIFT // Progress on a specific exercise
+enum WorkoutStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
 }
 
-/// Action types for audit logging
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  LOGIN
-  LOGOUT
-  DATA_EXPORT
-  DELETION_REQUEST
+enum ActivityType {
+  WORKOUT_COMPLETED
+  PR_HIT
+  LEVEL_UP
+  ACHIEVEMENT_UNLOCKED
+  STREAK_EXTENDED
+  CHALLENGE_JOINED
+  PROGRAM_WEEK_COMPLETED
 }
 
-// ============================================================================
-// USER & AUTH MODELS
-// ============================================================================
+enum ChallengeMetric {
+  XP
+  WORKOUTS
+  PROGRAM_WEEKS
+  PRS
+}
 
-/// User represents a registered user of the LiftIQ application.
-/// Contains authentication info, preferences, and relationships to all user data.
 model User {
-  id                  String    @id @default(uuid())
-  firebaseUid         String    @unique
-  email               String    @unique
-  displayName         String?
-  avatarUrl           String?
-  unitPreference      UnitType  @default(KG)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  lastLoginAt         DateTime?
-
-  // GDPR Compliance fields
-  privacyPolicyAcceptedAt DateTime?
-  dataExportRequested     DateTime?
-  deletionRequested       DateTime?
-  consentVersion          String?   @default("1.0")
-
-  // Onboarding
-  onboardingCompleted Boolean @default(false)
-  experienceLevel     Difficulty?
-  primaryGoal         GoalType?
-
-  // Relations
-  workoutSessions   WorkoutSession[]
-  workoutTemplates  WorkoutTemplate[]
-  customExercises   Exercise[]
-  progressionRules  ProgressionRule[]
-  socialProfile     SocialProfile?
-  auditLogs         AuditLog[]
-  deloadWeeks       DeloadWeek[]
-  bodyMeasurements  BodyMeasurement[]
-  progressPhotos    ProgressPhoto[]
-  mesocycles        Mesocycle[]
-  syncedPrograms    SyncedProgram[]
-  syncedEntities    SyncedEntity[]
-
-  @@index([firebaseUid])
-  @@index([email])
+  id                   String               @id @default(cuid())
+  email                String               @unique
+  displayName          String
+  xpTotal              Int                  @default(0)
+  level                Int                  @default(1)
+  avatarConfig         Json?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  authIdentities       AuthIdentity[]
+  sessions             Session[]
+  exercises            Exercise[]
+  exerciseEquivalencies ExerciseEquivalency[]
+  programs             Program[]
+  templates            WorkoutTemplate[]
+  workoutSessions      WorkoutSession[]
+  progressionSnapshots ProgressionSnapshot[]
+  xpLedgerEntries      XpLedger[]
+  userAchievements     UserAchievement[]
+  avatarInventory      UserAvatarItem[]
+  activityEvents       ActivityEvent[]
+  following            Follow[]             @relation("following")
+  followers            Follow[]             @relation("followers")
+  challengeEntries     ChallengeParticipant[]
 }
 
-/// Audit log for tracking all user data access and modifications.
-/// Required for GDPR compliance and security monitoring.
-model AuditLog {
-  id          String      @id @default(uuid())
-  userId      String
-  action      AuditAction
-  entityType  String
-  entityId    String?
-  metadata    Json?
-  ipAddress   String?
-  userAgent   String?
-  timestamp   DateTime    @default(now())
+model AuthIdentity {
+  id              String       @id @default(cuid())
+  userId          String
+  provider        AuthProvider
+  providerSubject String
+  passwordHash    String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([timestamp])
-  @@index([action])
+  @@unique([provider, providerSubject])
 }
 
-// ============================================================================
-// EXERCISE MODELS
-// ============================================================================
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
-/// Exercise represents a single exercise that can be performed in workouts.
-/// Includes both built-in exercises and user-created custom exercises.
 model Exercise {
-  id               String   @id @default(uuid())
-  name             String
-  description      String?
-  instructions     String?  // Step-by-step instructions
-  primaryMuscles   String[] // Array of primary muscle group names
-  secondaryMuscles String[] // Array of secondary muscle groups
-  equipment        String[] // Required equipment (barbell, dumbbell, etc.)
-  formCues         String[] // Key form reminders
-  commonMistakes   String[] // Common mistakes to avoid
-  category         String?  // Push, Pull, Legs, Core, etc.
-  isCompound       Boolean  @default(false) // Multi-joint movement
-  isCustom         Boolean  @default(false)
-  createdBy        String?  // User ID if custom exercise
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                  String                  @id @default(cuid())
+  userId              String?
+  slug                String
+  name                String
+  equipmentType       String
+  machineType         String?
+  attachment          String?
+  loadType            LoadType
+  unitMode            String                  @default("kg")
+  primaryMuscles      String[]
+  secondaryMuscles    String[]
+  isSystem            Boolean                 @default(false)
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  user                User?                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceEquivalencies ExerciseEquivalency[]   @relation("equivalencySource")
+  targetEquivalencies ExerciseEquivalency[]   @relation("equivalencyTarget")
+  programExercises    ProgramWorkoutExercise[]
+  templateExercises   TemplateExercise[]
 
-  // Relations
-  creator           User?              @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-  exerciseLogs      ExerciseLog[]
-  templateExercises TemplateExercise[]
-  progressionRules  ProgressionRule[]
-
-  @@index([name])
-  @@index([isCustom])
-  @@index([createdBy])
+  @@unique([userId, slug])
 }
 
-// ============================================================================
-// WORKOUT MODELS
-// ============================================================================
+model ExerciseEquivalency {
+  id               String   @id @default(cuid())
+  userId           String?
+  sourceExerciseId String
+  targetExerciseId String
+  createdAt        DateTime @default(now())
+  user             User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceExercise   Exercise @relation("equivalencySource", fields: [sourceExerciseId], references: [id], onDelete: Cascade)
+  targetExercise   Exercise @relation("equivalencyTarget", fields: [targetExerciseId], references: [id], onDelete: Cascade)
 
-/// WorkoutTemplate represents a reusable workout structure.
-/// Templates define which exercises to perform with default sets/reps.
+  @@unique([userId, sourceExerciseId, targetExerciseId])
+}
+
+model Program {
+  id                   String               @id @default(cuid())
+  userId               String
+  name                 String
+  goal                 String
+  description          String?
+  status               ProgramStatus        @default(PAUSED)
+  currentWeek          Int                  @default(1)
+  adherenceStreak      Int                  @default(0)
+  graceHours           Int                  @default(48)
+  startedAt            DateTime?
+  pausedAt             DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeks                ProgramWeek[]
+  sessions             WorkoutSession[]
+  progressionSnapshots ProgressionSnapshot[]
+}
+
+model ProgramWeek {
+  id         String           @id @default(cuid())
+  programId  String
+  weekNumber Int
+  label      String
+  isDeload   Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  program    Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  workouts   ProgramWorkout[]
+
+  @@unique([programId, weekNumber])
+}
+
+model ProgramWorkout {
+  id               String                  @id @default(cuid())
+  programWeekId    String
+  dayLabel         String
+  title            String
+  orderIndex       Int
+  estimatedMinutes Int                     @default(60)
+  xpReward         Int                     @default(100)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  programWeek      ProgramWeek             @relation(fields: [programWeekId], references: [id], onDelete: Cascade)
+  exercises        ProgramWorkoutExercise[]
+  workoutSessions  WorkoutSession[]
+}
+
+model ProgramWorkoutExercise {
+  id                  String         @id @default(cuid())
+  programWorkoutId    String
+  exerciseId          String
+  orderIndex          Int
+  sets                Int
+  repMin              Int
+  repMax              Int
+  restSeconds         Int            @default(120)
+  startWeight         Float?
+  increment           Float          @default(2.5)
+  deloadFactor        Float          @default(0.9)
+  targetRpe           Float?
+  loadTypeOverride    LoadType?
+  machineOverride     String?
+  attachmentOverride  String?
+  unilateral          Boolean        @default(false)
+  notes               String?
+  programWorkout      ProgramWorkout @relation(fields: [programWorkoutId], references: [id], onDelete: Cascade)
+  exercise            Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+}
+
 model WorkoutTemplate {
-  id          String   @id @default(uuid())
-  userId      String?  // Null for built-in templates
+  id          String             @id @default(cuid())
+  userId      String
   name        String
   description String?
-  programId   String?
-  estimatedDuration Int?     // Estimated duration in minutes
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Sync fields for offline-first sync
-  lastModifiedAt DateTime @default(now()) @updatedAt
-  clientId       String?  // Client-generated UUID for sync
-
-  // Relations
-  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  program   Program?           @relation(fields: [programId], references: [id], onDelete: SetNull)
-  exercises TemplateExercise[]
-  sessions  WorkoutSession[]
-
-  @@index([userId])
-  @@index([programId])
-  @@index([lastModifiedAt])
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises   TemplateExercise[]
 }
 
-/// TemplateExercise represents an exercise within a workout template.
-/// Defines the default sets, reps, and rest time for the exercise.
 model TemplateExercise {
-  id            String  @id @default(uuid())
-  templateId    String
-  exerciseId    String
-  orderIndex    Int     // Order in the workout
-  defaultSets   Int     @default(3)
-  defaultReps   Int     @default(10)
-  defaultRestSeconds Int @default(90)
-  notes         String?
-
-  // Relations
-  template WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  exercise Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-
-  @@unique([templateId, orderIndex])
-  @@index([templateId])
-  @@index([exerciseId])
+  id                  String          @id @default(cuid())
+  templateId          String
+  exerciseId          String
+  orderIndex          Int
+  sets                Int
+  repMin              Int
+  repMax              Int
+  restSeconds         Int             @default(120)
+  startWeight         Float?
+  loadTypeOverride    LoadType?
+  machineOverride     String?
+  attachmentOverride  String?
+  unilateral          Boolean         @default(false)
+  notes               String?
+  template            WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise            Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
 }
 
-/// WorkoutSession represents a single workout performed by a user.
-/// Contains all exercise logs and sets for the session.
 model WorkoutSession {
-  id              String    @id @default(uuid())
-  userId          String
-  templateId      String?
-  startedAt       DateTime  @default(now())
-  completedAt     DateTime?
-  durationSeconds Int?      // Calculated from start to completion
-  notes           String?
-  rating          Int?      // User rating 1-5
-
-  // Sync fields for offline-first sync
-  lastModifiedAt DateTime @default(now()) @updatedAt
-  clientId       String?  // Client-generated UUID for sync
-
-  // Relations
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  exerciseLogs ExerciseLog[]
-
-  @@index([userId])
-  @@index([templateId])
-  @@index([startedAt])
-  @@index([completedAt])
-  @@index([lastModifiedAt])
+  id                       String           @id @default(cuid())
+  userId                   String
+  programId                String?
+  programWorkoutId         String?
+  templateId               String?
+  title                    String
+  entryType                WorkoutEntryType
+  status                   WorkoutStatus    @default(IN_PROGRESS)
+  startedAt                DateTime         @default(now())
+  completedAt              DateTime?
+  notes                    String?
+  totalXp                  Int              @default(0)
+  wasPlanned               Boolean          @default(false)
+  qualifiesForProgression  Boolean          @default(true)
+  savedDraft               Json?
+  user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program                  Program?         @relation(fields: [programId], references: [id], onDelete: SetNull)
+  programWorkout           ProgramWorkout?  @relation(fields: [programWorkoutId], references: [id], onDelete: SetNull)
+  exercises                WorkoutExercise[]
 }
 
-/// ExerciseLog represents a single exercise performed within a workout session.
-/// Groups all sets for that exercise together.
-model ExerciseLog {
-  id          String  @id @default(uuid())
-  sessionId   String
-  exerciseId  String
-  orderIndex  Int     // Order in the workout
-  notes       String?
-  isPR        Boolean @default(false) // Personal record achieved
-
-  // Relations
-  session  WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exercise Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  sets     Set[]
-
-  @@unique([sessionId, orderIndex])
-  @@index([sessionId])
-  @@index([exerciseId])
+model WorkoutExercise {
+  id                     String          @id @default(cuid())
+  sessionId              String
+  exerciseId             String?
+  exerciseName           String
+  equipmentType          String
+  machineType            String?
+  attachment             String?
+  loadType               LoadType
+  unitMode               String          @default("kg")
+  unilateral             Boolean         @default(false)
+  orderIndex             Int
+  notes                  String?
+  prescribedSetCount     Int?
+  repMin                 Int?
+  repMax                 Int?
+  suggestedWeight        Float?
+  sourceProgramExerciseId String?
+  substitutedFromExerciseId String?
+  substitutedFromExerciseName String?
+  substitutionMode       String?
+  countsForProgression   Boolean         @default(true)
+  supersetGroupId        String?
+  supersetPosition       Int?
+  session                WorkoutSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sets                   WorkoutSet[]
 }
 
-/// Set represents a single set performed for an exercise.
-/// The core unit of workout data, containing weight, reps, and RPE.
-model Set {
-  id            String   @id @default(uuid())
-  exerciseLogId String
-  setNumber     Int      // 1-indexed set number
-  weight        Float    // Weight in user's preferred units
-  reps          Int
-  rpe           Float?   // Rate of Perceived Exertion (1-10)
-  setType       SetType  @default(WORKING)
-  completedAt   DateTime @default(now())
-  isPersonalRecord Boolean @default(false)
-
-  // Relations
-  exerciseLog ExerciseLog @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
-
-  @@index([exerciseLogId])
-  @@index([completedAt])
+model WorkoutSet {
+  id                String          @id @default(cuid())
+  workoutExerciseId String
+  setNumber         Int
+  weight            Float?
+  reps              Int
+  rpe               Float?
+  completedAt       DateTime        @default(now())
+  isWorkingSet      Boolean         @default(true)
+  isPersonalRecord  Boolean         @default(false)
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 }
 
-// ============================================================================
-// PROGRAM MODELS
-// ============================================================================
-
-/// Program represents a multi-week training program.
-/// Contains multiple workout templates organized by week and day.
-model Program {
-  id            String     @id @default(uuid())
-  name          String
-  description   String
-  durationWeeks Int
-  daysPerWeek   Int
-  difficulty    Difficulty
-  goalType      GoalType
-  isBuiltIn     Boolean    @default(false) // System-provided program
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-
-  // Relations
-  templates        WorkoutTemplate[]
-  progressionRules ProgressionRule[]
-
-  @@index([isBuiltIn])
-  @@index([difficulty])
-  @@index([goalType])
+model ProgressionSnapshot {
+  id                     String   @id @default(cuid())
+  userId                 String
+  programId              String
+  programWorkoutExerciseId String
+  recommendedWeight      Float?
+  state                  String
+  reason                 String
+  createdAt              DateTime @default(now())
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program                Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
 }
 
-/// SyncedProgram stores user-created program payloads for offline sync.
-/// The client keeps full program JSON and syncs it as a single entity.
-model SyncedProgram {
-  id             String   @id @default(uuid())
-  userId         String
-  externalId     String
-  data           Json
-  clientId       String?
-  lastModifiedAt DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, externalId])
-  @@index([userId])
-  @@index([lastModifiedAt])
-}
-
-/// Generic sync mirror for full client payloads across all sync entity types.
-model SyncedEntity {
-  id             String   @id @default(uuid())
-  userId         String
-  entityType     String
-  externalId     String
-  data           Json
-  clientId       String?
-  lastModifiedAt DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, entityType, externalId])
-  @@index([userId, entityType])
-  @@index([lastModifiedAt])
-}
-
-/// ProgressionRule defines how to progress weight for an exercise.
-/// Can be program-specific or user-customized per exercise.
-model ProgressionRule {
-  id                    String  @id @default(uuid())
-  userId                String?
-  exerciseId            String?
-  programId             String?
-
-  // Progression parameters
-  incrementKg           Float   @default(2.5)  // Weight increase in KG
-  incrementLbs          Float   @default(5.0)  // Weight increase in LBS
-  targetRepsMin         Int     @default(8)    // Minimum reps to progress
-  targetRepsMax         Int     @default(12)   // Maximum reps before forced progression
-  consecutiveSessionsRequired Int @default(2) // Sessions meeting target before progression
-  deloadPercentage      Float   @default(0.9)  // Weight reduction on deload (90%)
-
-  // Relations
-  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  program  Program?  @relation(fields: [programId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([exerciseId])
-  @@index([programId])
-}
-
-/// Type of deload week
-enum DeloadType {
-  VOLUME_REDUCTION    // Same weight, 50% fewer sets
-  INTENSITY_REDUCTION // 80% weight, same sets/reps
-  ACTIVE_RECOVERY     // Light cardio and mobility focus
-}
-
-/// DeloadWeek tracks scheduled and completed deload weeks for a user.
-/// Deloads are essential for recovery and long-term progress.
-model DeloadWeek {
-  id          String     @id @default(uuid())
-  userId      String
-  startDate   DateTime
-  endDate     DateTime
-  deloadType  DeloadType @default(VOLUME_REDUCTION)
-  reason      String?    // Why deload was recommended
-  completed   Boolean    @default(false)
-  skipped     Boolean    @default(false)
-  notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([startDate])
-  @@index([endDate])
-}
-
-// ============================================================================
-// SOCIAL MODELS
-// ============================================================================
-
-/// SocialProfile extends User with social features.
-/// Separate model to allow users to opt-in to social features.
-model SocialProfile {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  isPublic  Boolean  @default(false)
-  bio       String?
+model XpLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    String
+  metadata  Json?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  followers               Follow[]                @relation("Following")
-  following               Follow[]                @relation("Followers")
-  activityPosts           ActivityPost[]
-  challengeParticipations ChallengeParticipant[]
-
-  @@index([userId])
-  @@index([isPublic])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/// Follow represents a follower/following relationship between users.
-model Follow {
-  id          String   @id @default(uuid())
-  followerId  String   // The user doing the following
-  followingId String   // The user being followed
-  createdAt   DateTime @default(now())
+model Achievement {
+  id                String            @id @default(cuid())
+  key               String            @unique
+  title             String
+  description       String
+  xpReward          Int               @default(0)
+  requirementType   String
+  requirementTarget Int               @default(1)
+  userAchievements  UserAchievement[]
+}
 
-  // Relations
-  follower  SocialProfile @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade)
-  following SocialProfile @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
+
+model AvatarItem {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  title       String
+  slot        String
+  unlockLevel Int              @default(1)
+  costXp      Int?
+  inventory   UserAvatarItem[]
+}
+
+model UserAvatarItem {
+  id           String     @id @default(cuid())
+  userId       String
+  avatarItemId String
+  unlockedAt   DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarItem   AvatarItem @relation(fields: [avatarItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, avatarItemId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
-  @@index([followerId])
-  @@index([followingId])
 }
 
-/// ActivityPost represents a social activity post (workout completion, PR, etc.).
-model ActivityPost {
-  id        String   @id @default(uuid())
-  profileId String
-  sessionId String?  // Optional link to workout session
-  content   String?  // User-written content
-  postType  String   @default("workout") // workout, pr, milestone, etc.
-  createdAt DateTime @default(now())
-
-  // Relations
-  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([profileId])
-  @@index([createdAt])
-}
-
-/// Challenge represents a social fitness challenge.
 model Challenge {
-  id            String        @id @default(uuid())
-  name          String
-  description   String
-  startDate     DateTime
-  endDate       DateTime
-  challengeType ChallengeType
-  targetValue   Float?        // Target value to achieve
-  exerciseId    String?       // For SPECIFIC_LIFT challenges
-  createdAt     DateTime      @default(now())
-
-  // Relations
+  id           String                @id @default(cuid())
+  key          String                @unique
+  title        String
+  description  String
+  metric       ChallengeMetric
+  periodStart  DateTime
+  periodEnd    DateTime
+  target       Int?
+  isActive     Boolean               @default(true)
   participants ChallengeParticipant[]
-
-  @@index([startDate])
-  @@index([endDate])
 }
 
-/// ChallengeParticipant represents a user's participation in a challenge.
 model ChallengeParticipant {
-  id           String   @id @default(uuid())
-  challengeId  String
-  profileId    String
-  currentValue Float    @default(0)
-  joinedAt     DateTime @default(now())
+  id          String    @id @default(cuid())
+  challengeId String
+  userId      String
+  score       Int       @default(0)
+  joinedAt    DateTime  @default(now())
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relations
-  challenge Challenge     @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  profile   SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([challengeId, profileId])
-  @@index([challengeId])
-  @@index([profileId])
+  @@unique([challengeId, userId])
 }
 
-// ============================================================================
-// BODY MEASUREMENT MODELS
-// ============================================================================
-
-/// Unit type for length measurements
-enum LengthUnit {
-  INCHES
-  CM
-}
-
-/// Type of progress photo angle
-enum PhotoType {
-  FRONT
-  SIDE_LEFT
-  SIDE_RIGHT
-  BACK
-}
-
-/// BodyMeasurement tracks physical measurements over time.
-/// Helps users track body composition changes alongside strength progress.
-model BodyMeasurement {
-  id           String     @id @default(uuid())
-  userId       String
-  measuredAt   DateTime   @default(now())
-
-  // Weight (stored in kg, converted for display)
-  weight       Float?
-  bodyFat      Float?     // Percentage, e.g., 15.5
-
-  // Upper body measurements (stored in cm)
-  neck         Float?
-  shoulders    Float?
-  chest        Float?
-
-  // Arm measurements (stored in cm)
-  leftBicep    Float?
-  rightBicep   Float?
-  leftForearm  Float?
-  rightForearm Float?
-
-  // Core measurements (stored in cm)
-  waist        Float?
-  hips         Float?
-
-  // Leg measurements (stored in cm)
-  leftThigh    Float?
-  rightThigh   Float?
-  leftCalf     Float?
-  rightCalf    Float?
-
-  // Metadata
-  notes        String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  // Sync fields for offline-first sync
-  lastModifiedAt DateTime @default(now()) @updatedAt
-  clientId       String?  // Client-generated UUID for sync
-
-  // Relations
-  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  photos ProgressPhoto[]
-
-  @@index([userId])
-  @@index([measuredAt])
-  @@index([lastModifiedAt])
-}
-
-/// ProgressPhoto stores progress photos linked to measurements.
-/// Photos help visualize body composition changes over time.
-model ProgressPhoto {
-  id            String     @id @default(uuid())
-  userId        String
-  measurementId String?    // Optional link to a measurement
-  takenAt       DateTime   @default(now())
-  photoUrl      String     // Cloud storage URL
-  photoType     PhotoType
-  notes         String?
-  createdAt     DateTime   @default(now())
-
-  // Relations
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  measurement BodyMeasurement? @relation(fields: [measurementId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([measurementId])
-  @@index([takenAt])
-}
-
-// ============================================================================
-// PERIODIZATION MODELS
-// ============================================================================
-
-/// Type of periodization used in a mesocycle.
-enum PeriodizationType {
-  LINEAR           // Gradual increase in intensity week over week
-  UNDULATING       // Varies intensity daily or weekly
-  BLOCK            // Distinct phases (accumulation, intensification, peak)
-}
-
-/// Type of training week within a mesocycle.
-enum WeekType {
-  ACCUMULATION     // High volume, moderate intensity
-  INTENSIFICATION  // Moderate volume, high intensity
-  DELOAD           // Low volume and intensity for recovery
-  PEAK             // Low volume, maximal intensity
-  TRANSITION       // Active recovery between mesocycles
-}
-
-/// Training goal for a mesocycle.
-enum MesocycleGoal {
-  STRENGTH         // Focus on maximal strength (1-5 reps)
-  HYPERTROPHY      // Focus on muscle growth (6-12 reps)
-  POWER            // Focus on explosive strength
-  PEAKING          // Preparing for competition/testing
-  GENERAL_FITNESS  // General conditioning
-}
-
-/// Status of a mesocycle.
-enum MesocycleStatus {
-  PLANNED          // Scheduled for the future
-  ACTIVE           // Currently being executed
-  COMPLETED        // Successfully finished
-  ABANDONED        // Stopped before completion
-}
-
-/// Mesocycle represents a multi-week training block.
-/// The building block of periodized training programs.
-model Mesocycle {
-  id                String            @id @default(uuid())
-  userId            String
-  name              String
-  description       String?
-  startDate         DateTime
-  endDate           DateTime
-  totalWeeks        Int
-  currentWeek       Int               @default(1)
-  periodizationType PeriodizationType @default(LINEAR)
-  goal              MesocycleGoal     @default(HYPERTROPHY)
-  status            MesocycleStatus   @default(PLANNED)
-  notes             String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-
-  // Sync fields for offline-first sync
-  lastModifiedAt DateTime @default(now()) @updatedAt
-  clientId       String?  // Client-generated UUID for sync
-
-  // Relations
-  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  weeks MesocycleWeek[]
-
-  @@index([userId])
-  @@index([startDate])
-  @@index([status])
-  @@index([lastModifiedAt])
-}
-
-/// MesocycleWeek represents a single week within a mesocycle.
-/// Defines the training parameters for that week.
-model MesocycleWeek {
-  id                  String   @id @default(uuid())
-  mesocycleId         String
-  weekNumber          Int
-  weekType            WeekType @default(ACCUMULATION)
-  volumeMultiplier    Float    @default(1.0)  // Multiplier for set count
-  intensityMultiplier Float    @default(1.0)  // Multiplier for weight
-  rirTarget           Int?     // Reps in Reserve target for the week
-  notes               String?
-  isCompleted         Boolean  @default(false)
-  completedAt         DateTime?
-
-  // Sync fields for offline-first sync
-  lastModifiedAt DateTime @default(now()) @updatedAt
-  clientId       String?  // Client-generated UUID for sync
-
-  // Relations
-  mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
-
-  @@unique([mesocycleId, weekNumber])
-  @@index([mesocycleId])
-  @@index([lastModifiedAt])
+model ActivityEvent {
+  id        String       @id @default(cuid())
+  userId    String
+  type      ActivityType
+  title     String
+  body      String?
+  payload   Json?
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

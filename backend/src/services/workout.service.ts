@@ -1,805 +1,1085 @@
-/**
- * LiftIQ Backend - Workout Service
- *
- * Handles all workout-related business logic including:
- * - Starting and completing workout sessions
- * - Logging sets with performance tracking
- * - Calculating workout statistics
- * - Pre-filling suggested weights from previous sessions
- *
- * PERFORMANCE CRITICAL: Set logging must complete in < 100ms.
- * This service is optimized for speed - the user is in the gym!
- *
- * @module services/workout
- */
+import {
+  ActivityType,
+  WorkoutEntryType,
+  WorkoutStatus,
+  type LoadType,
+  type Prisma,
+} from "@prisma/client";
 
-import { Prisma, SetType, WorkoutSession, ExerciseLog, Set } from '@prisma/client';
-import { prisma } from '../utils/prisma';
-import { logger } from '../utils/logger';
-import { NotFoundError, ForbiddenError, ConflictError } from '../utils/errors';
+import { AppError } from "../lib/errors";
+import { prisma } from "../lib/prisma";
+import { createXpLedgerEntry, unlockAchievements } from "./gamification.service";
+import {
+  calculateProgressionRecommendation,
+  estimateOneRepMax,
+  type ExposureSnapshot,
+} from "./progression.service";
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
-/**
- * Input for starting a new workout session.
- */
-export interface StartWorkoutInput {
-  /** Optional template to base workout on */
-  templateId?: string;
-  /** Optional notes for the workout */
-  notes?: string;
-}
-
-/**
- * Input for adding an exercise to a workout.
- */
-export interface AddExerciseInput {
-  /** The exercise to add */
-  exerciseId: string;
-  /** Optional notes for this exercise */
-  notes?: string;
-}
-
-/**
- * Input for logging a set.
- * This is the most frequently used input - kept minimal for speed.
- */
-export interface LogSetInput {
-  /** The exercise log to add the set to */
-  exerciseLogId: string;
-  /** Weight in user's preferred unit */
-  weight: number;
-  /** Number of reps completed */
-  reps: number;
-  /** Rate of Perceived Exertion (1-10) */
-  rpe?: number;
-  /** Type of set (warmup, working, dropset, failure) */
-  setType?: SetType;
-}
-
-/**
- * Input for completing a workout.
- */
-export interface CompleteWorkoutInput {
-  /** Final notes for the workout */
-  notes?: string;
-  /** User rating (1-5) */
-  rating?: number;
-}
-
-/**
- * Previous set data for pre-filling suggestions.
- */
-export interface PreviousSetData {
-  exerciseId: string;
-  exerciseName: string;
-  weight: number;
-  reps: number;
-  rpe?: number;
+type WorkoutDraftSet = {
   setNumber: number;
-}
+  weight: number | null;
+  reps: number;
+  rpe: number | null;
+  isWorkingSet?: boolean;
+};
 
-/**
- * Workout with full details including exercises and sets.
- */
-export type WorkoutWithDetails = Prisma.WorkoutSessionGetPayload<{
-  include: {
-    template: true;
-    exerciseLogs: {
-      include: {
-        exercise: true;
-        sets: true;
-      };
+type WorkoutDraftExercise = {
+  exerciseId: string | null;
+  exerciseName: string;
+  equipmentType: string;
+  machineType?: string | null;
+  attachment?: string | null;
+  loadType: LoadType;
+  unitMode: string;
+  unilateral?: boolean;
+  notes?: string;
+  prescribedSetCount?: number | null;
+  repMin?: number | null;
+  repMax?: number | null;
+  suggestedWeight?: number | null;
+  recommendationReason?: string | null;
+  sourceProgramExerciseId?: string | null;
+  substitutedFromExerciseId?: string | null;
+  substitutedFromExerciseName?: string | null;
+  substitutionMode?: "EQUIVALENT" | "ALTERNATE" | null;
+  countsForProgression?: boolean;
+  supersetGroupId?: string | null;
+  supersetPosition?: number | null;
+  sets: WorkoutDraftSet[];
+};
+
+export type WorkoutDraft = {
+  title: string;
+  notes?: string;
+  exercises: WorkoutDraftExercise[];
+};
+
+const BASE_WORKOUT_XP = 100;
+const PR_XP = 40;
+const PROGRAM_WEEK_XP = 180;
+
+const buildExposureSnapshots = async (
+  userId: string,
+  programExerciseId: string,
+): Promise<ExposureSnapshot[]> => {
+  const exercises = await prisma.workoutExercise.findMany({
+    where: {
+      session: {
+        userId,
+        status: WorkoutStatus.COMPLETED,
+      },
+      sourceProgramExerciseId: programExerciseId,
+    },
+    include: {
+      sets: true,
+    },
+    orderBy: {
+      session: {
+        completedAt: "desc",
+      },
+    },
+    take: 2,
+  });
+
+  return exercises.map((exercise) => {
+    const workingSets = exercise.sets.filter((set) => set.isWorkingSet);
+    const ratedSets = workingSets.filter((set) => typeof set.rpe === "number");
+    const averageRpe =
+      ratedSets.reduce((sum, set) => sum + (set.rpe ?? 0), 0) / (ratedSets.length || 1);
+
+    return {
+      hitTopRange:
+        typeof exercise.repMax === "number" &&
+        workingSets.length > 0 &&
+        workingSets.every((set) => set.reps >= exercise.repMax!),
+      missedMinimum:
+        typeof exercise.repMin === "number" &&
+        workingSets.some((set) => set.reps < exercise.repMin!),
+      averageRpe: Number.isFinite(averageRpe) ? averageRpe : undefined,
+      workingWeight: workingSets.find((set) => typeof set.weight === "number")?.weight ?? undefined,
     };
-  };
-}>;
+  });
+};
 
-// ============================================================================
-// SERVICE CLASS
-// ============================================================================
-
-/**
- * WorkoutService handles all workout-related business logic.
- *
- * Design principles:
- * - Speed over features (set logging < 100ms)
- * - Offline-first support (minimal server round-trips)
- * - Smart defaults (pre-fill from previous sessions)
- *
- * @example
- * ```typescript
- * // Start a workout
- * const workout = await workoutService.startWorkout(userId, {
- *   templateId: 'push-day-template-id'
- * });
- *
- * // Log a set
- * const set = await workoutService.logSet(userId, workoutId, {
- *   exerciseLogId: 'exercise-log-id',
- *   weight: 100,
- *   reps: 8,
- *   rpe: 8
- * });
- *
- * // Complete the workout
- * const completed = await workoutService.completeWorkout(userId, workoutId, {
- *   rating: 4
- * });
- * ```
- */
-class WorkoutService {
-  // ==========================================================================
-  // WORKOUT SESSION METHODS
-  // ==========================================================================
-
-  /**
-   * Gets a user's workout history with pagination.
-   *
-   * @param userId - The user ID
-   * @param options - Pagination and filter options
-   * @returns Paginated list of workout summaries
-   */
-  async getWorkouts(
-    userId: string,
-    options: {
-      page?: number;
-      limit?: number;
-      from?: Date;
-      to?: Date;
-    } = {}
-  ): Promise<{ workouts: WorkoutWithDetails[]; total: number }> {
-    const { page = 1, limit = 20, from, to } = options;
-    const skip = (page - 1) * limit;
-
-    // Build filter conditions
-    const where: Prisma.WorkoutSessionWhereInput = { userId };
-
-    if (from || to) {
-      where.startedAt = {};
-      if (from) where.startedAt.gte = from;
-      if (to) where.startedAt.lte = to;
-    }
-
-    // Execute queries in parallel for speed
-    const [total, workouts] = await Promise.all([
-      prisma.workoutSession.count({ where }),
-      prisma.workoutSession.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { startedAt: 'desc' },
+const buildProgramDraft = async (userId: string, programWorkoutId: string): Promise<WorkoutDraft> => {
+  const workout = await prisma.programWorkout.findUnique({
+    where: { id: programWorkoutId },
+    include: {
+      exercises: {
         include: {
-          template: true,
-          exerciseLogs: {
-            orderBy: { orderIndex: 'asc' },
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: { setNumber: 'asc' },
-              },
-            },
-          },
+          exercise: true,
         },
-      }),
-    ]);
+        orderBy: { orderIndex: "asc" },
+      },
+    },
+  });
 
-    return { workouts, total };
+  if (!workout) {
+    throw new AppError(404, "PROGRAM_WORKOUT_NOT_FOUND", "That planned workout could not be found.");
   }
 
-  /**
-   * Gets the user's currently active (incomplete) workout, if any.
-   *
-   * @param userId - The user ID
-   * @returns The active workout or null
-   */
-  async getActiveWorkout(userId: string): Promise<WorkoutWithDetails | null> {
-    return prisma.workoutSession.findFirst({
-      where: {
-        userId,
-        completedAt: null,
-      },
-      include: {
-        template: true,
-        exerciseLogs: {
-          orderBy: { orderIndex: 'asc' },
-          include: {
-            exercise: true,
-            sets: {
-              orderBy: { setNumber: 'asc' },
-            },
-          },
-        },
-      },
-    });
-  }
-
-  /**
-   * Gets a single workout by ID with full details.
-   *
-   * @param userId - The user ID (for ownership verification)
-   * @param workoutId - The workout ID
-   * @returns The workout with all exercises and sets
-   * @throws NotFoundError if workout doesn't exist
-   * @throws ForbiddenError if user doesn't own the workout
-   */
-  async getWorkout(userId: string, workoutId: string): Promise<WorkoutWithDetails> {
-    const workout = await prisma.workoutSession.findUnique({
-      where: { id: workoutId },
-      include: {
-        template: true,
-        exerciseLogs: {
-          orderBy: { orderIndex: 'asc' },
-          include: {
-            exercise: true,
-            sets: {
-              orderBy: { setNumber: 'asc' },
-            },
-          },
-        },
-      },
-    });
-
-    if (!workout) {
-      throw new NotFoundError('Workout');
-    }
-
-    if (workout.userId !== userId) {
-      throw new ForbiddenError('You can only view your own workouts');
-    }
-
-    return workout;
-  }
-
-  /**
-   * Starts a new workout session.
-   *
-   * If a templateId is provided, pre-populates the workout with
-   * exercises from that template.
-   *
-   * @param userId - The user starting the workout
-   * @param input - Workout start input
-   * @returns The created workout with pre-populated exercises
-   * @throws ConflictError if user already has an active workout
-   */
-  async startWorkout(userId: string, input: StartWorkoutInput): Promise<WorkoutWithDetails> {
-    // Check for existing active workout
-    const existing = await this.getActiveWorkout(userId);
-    if (existing) {
-      throw new ConflictError(
-        'You already have an active workout. Complete it before starting a new one.'
-      );
-    }
-
-    // Create the workout session
-    const workout = await prisma.workoutSession.create({
-      data: {
-        userId,
-        templateId: input.templateId,
-        notes: input.notes,
-        startedAt: new Date(),
-      },
-    });
-
-    logger.info({ workoutId: workout.id, userId, templateId: input.templateId }, 'Workout started');
-
-    // If using a template, pre-populate exercises
-    if (input.templateId) {
-      const templateExercises = await prisma.templateExercise.findMany({
-        where: { templateId: input.templateId },
-        orderBy: { orderIndex: 'asc' },
-      });
-
-      // Create exercise logs for each template exercise
-      for (const te of templateExercises) {
-        await prisma.exerciseLog.create({
-          data: {
-            sessionId: workout.id,
-            exerciseId: te.exerciseId,
-            orderIndex: te.orderIndex,
-          },
+  return {
+    title: workout.title,
+    exercises: await Promise.all(
+      workout.exercises.map(async (exercise) => {
+        const exposures = await buildExposureSnapshots(userId, exercise.id);
+        const recommendation = calculateProgressionRecommendation({
+          exposures,
+          startWeight: exercise.startWeight ?? null,
+          increment: exercise.increment,
+          deloadFactor: exercise.deloadFactor,
         });
-      }
-    }
 
-    // Return the full workout with exercises
-    return this.getWorkout(userId, workout.id);
-  }
+        return {
+          exerciseId: exercise.exercise.id,
+          exerciseName: exercise.exercise.name,
+          equipmentType: exercise.exercise.equipmentType,
+          machineType: exercise.machineOverride ?? exercise.exercise.machineType,
+          attachment: exercise.attachmentOverride ?? exercise.exercise.attachment,
+          loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+          unitMode: exercise.exercise.unitMode,
+          unilateral: exercise.unilateral,
+          notes: exercise.notes ?? undefined,
+          prescribedSetCount: exercise.sets,
+          repMin: exercise.repMin,
+          repMax: exercise.repMax,
+          suggestedWeight: recommendation.weight,
+          recommendationReason: recommendation.reason,
+          sourceProgramExerciseId: exercise.id,
+          substitutedFromExerciseId: null,
+          substitutedFromExerciseName: null,
+          substitutionMode: null,
+          countsForProgression: true,
+          supersetGroupId: null,
+          supersetPosition: null,
+          sets: Array.from({ length: exercise.sets }).map((_, index) => ({
+            setNumber: index + 1,
+            weight: recommendation.weight ?? null,
+            reps: exercise.repMin,
+            rpe: exercise.targetRpe ?? null,
+            isWorkingSet: true,
+          })),
+        };
+      }),
+    ),
+  };
+};
 
-  /**
-   * Completes an active workout.
-   *
-   * Calculates total duration and marks the workout as complete.
-   *
-   * @param userId - The user ID
-   * @param workoutId - The workout to complete
-   * @param input - Completion input (notes, rating)
-   * @returns The completed workout
-   * @throws NotFoundError if workout doesn't exist
-   * @throws ForbiddenError if user doesn't own the workout
-   * @throws ConflictError if workout is already completed
-   */
-  async completeWorkout(
-    userId: string,
-    workoutId: string,
-    input: CompleteWorkoutInput
-  ): Promise<WorkoutWithDetails> {
-    // Verify ownership
-    const workout = await prisma.workoutSession.findUnique({
-      where: { id: workoutId },
-    });
-
-    if (!workout) {
-      throw new NotFoundError('Workout');
-    }
-
-    if (workout.userId !== userId) {
-      throw new ForbiddenError('You can only complete your own workouts');
-    }
-
-    if (workout.completedAt) {
-      throw new ConflictError('Workout is already completed');
-    }
-
-    // Calculate duration
-    const completedAt = new Date();
-    const durationSeconds = Math.floor(
-      (completedAt.getTime() - workout.startedAt.getTime()) / 1000
-    );
-
-    // Update the workout
-    await prisma.workoutSession.update({
-      where: { id: workoutId },
-      data: {
-        completedAt,
-        durationSeconds,
-        notes: input.notes || workout.notes,
-        rating: input.rating,
+const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => {
+  const template = await prisma.workoutTemplate.findUnique({
+    where: { id: templateId },
+    include: {
+      exercises: {
+        include: {
+          exercise: true,
+        },
+        orderBy: { orderIndex: "asc" },
       },
-    });
+    },
+  });
 
-    // Check for PRs
-    await this.detectPersonalRecords(workoutId);
-
-    logger.info(
-      { workoutId, userId, durationSeconds },
-      'Workout completed'
-    );
-
-    return this.getWorkout(userId, workoutId);
+  if (!template) {
+    throw new AppError(404, "TEMPLATE_NOT_FOUND", "That template could not be found.");
   }
 
-  /**
-   * Deletes a workout and all associated data.
-   *
-   * @param userId - The user ID
-   * @param workoutId - The workout to delete
-   * @throws NotFoundError if workout doesn't exist
-   * @throws ForbiddenError if user doesn't own the workout
-   */
-  async deleteWorkout(userId: string, workoutId: string): Promise<void> {
-    const workout = await prisma.workoutSession.findUnique({
-      where: { id: workoutId },
-    });
+  return {
+    title: template.name,
+    notes: template.description ?? undefined,
+    exercises: template.exercises.map((exercise) => ({
+      exerciseId: exercise.exercise.id,
+      exerciseName: exercise.exercise.name,
+      equipmentType: exercise.exercise.equipmentType,
+      machineType: exercise.machineOverride ?? exercise.exercise.machineType,
+      attachment: exercise.attachmentOverride ?? exercise.exercise.attachment,
+      loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+      unitMode: exercise.exercise.unitMode,
+      unilateral: exercise.unilateral,
+      notes: exercise.notes ?? undefined,
+      prescribedSetCount: exercise.sets,
+      repMin: exercise.repMin,
+      repMax: exercise.repMax,
+      suggestedWeight: exercise.startWeight,
+      recommendationReason: null,
+      sourceProgramExerciseId: null,
+      substitutedFromExerciseId: null,
+      substitutedFromExerciseName: null,
+      substitutionMode: null,
+      countsForProgression: true,
+      supersetGroupId: null,
+      supersetPosition: null,
+      sets: Array.from({ length: exercise.sets }).map((_, index) => ({
+        setNumber: index + 1,
+        weight: exercise.startWeight ?? null,
+        reps: exercise.repMin,
+        rpe: null,
+        isWorkingSet: true,
+      })),
+    })),
+  };
+};
 
-    if (!workout) {
-      throw new NotFoundError('Workout');
+const hydrateWorkoutDraft = (workout: {
+  title: string;
+  notes: string | null;
+  savedDraft: Prisma.JsonValue | null;
+}): WorkoutDraft => {
+  const savedDraft = workout.savedDraft as WorkoutDraft | null;
+
+  return (
+    savedDraft ?? {
+      title: workout.title,
+      notes: workout.notes ?? "",
+      exercises: [],
     }
+  );
+};
 
-    if (workout.userId !== userId) {
-      throw new ForbiddenError('You can only delete your own workouts');
-    }
+const getOwnedWorkout = async (userId: string, workoutId: string) => {
+  const workout = await prisma.workoutSession.findFirst({
+    where: {
+      id: workoutId,
+      userId,
+    },
+  });
 
-    await prisma.workoutSession.delete({
-      where: { id: workoutId },
-    });
-
-    logger.info({ workoutId, userId }, 'Workout deleted');
+  if (!workout) {
+    throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
   }
 
-  // ==========================================================================
-  // EXERCISE LOG METHODS
-  // ==========================================================================
+  return workout;
+};
 
-  /**
-   * Adds an exercise to an active workout.
-   *
-   * @param userId - The user ID
-   * @param workoutId - The workout to add to
-   * @param input - Exercise input
-   * @returns The created exercise log
-   * @throws NotFoundError if workout doesn't exist
-   * @throws ForbiddenError if user doesn't own the workout
-   * @throws ConflictError if workout is completed
-   */
-  async addExercise(
-    userId: string,
-    workoutId: string,
-    input: AddExerciseInput
-  ): Promise<ExerciseLog> {
-    // Verify ownership and active status
-    const workout = await prisma.workoutSession.findUnique({
-      where: { id: workoutId },
+const getVisibleExerciseForUser = async (userId: string, exerciseId: string) => {
+  const exercise = await prisma.exercise.findFirst({
+    where: {
+      id: exerciseId,
+      OR: [{ isSystem: true }, { userId }],
+    },
+  });
+
+  if (!exercise) {
+    throw new AppError(404, "EXERCISE_NOT_FOUND", "That exercise could not be found.");
+  }
+
+  return exercise;
+};
+
+const isEquivalentSubstitute = async (
+  userId: string,
+  sourceExerciseId: string,
+  targetExerciseId: string,
+) => {
+  if (sourceExerciseId === targetExerciseId) {
+    return true;
+  }
+
+  const equivalency = await prisma.exerciseEquivalency.findFirst({
+    where: {
+      sourceExerciseId,
+      targetExerciseId,
+      OR: [{ userId: null }, { userId }],
+    },
+  });
+
+  return Boolean(equivalency);
+};
+
+const buildBestSetLabel = (weight: number | null, reps: number) =>
+  weight === null ? `${reps} reps` : `${weight} x ${reps}`;
+
+const summarizeWorkingSets = (
+  sets: Array<{
+    weight: number | null;
+    reps: number;
+    isWorkingSet: boolean;
+    isPersonalRecord?: boolean;
+  }>,
+) => {
+  const workingSets = sets.filter((set) => set.isWorkingSet);
+  const sourceSets = workingSets.length ? workingSets : sets;
+  const volume = sourceSets.reduce((sum, set) => sum + (set.weight ?? 0) * set.reps, 0);
+  const bestSet = sourceSets.reduce<{
+    label: string;
+    estimatedOneRepMax: number | null;
+  } | null>((best, set) => {
+    const estimatedOneRepMax =
+      typeof set.weight === "number" ? estimateOneRepMax(set.weight, set.reps) : null;
+    const next = {
+      label: buildBestSetLabel(set.weight, set.reps),
+      estimatedOneRepMax,
+    };
+
+    if (!best) {
+      return next;
+    }
+
+    if ((estimatedOneRepMax ?? 0) > (best.estimatedOneRepMax ?? 0)) {
+      return next;
+    }
+
+    return best;
+  }, null);
+
+  return {
+    volume,
+    bestSetLabel: bestSet?.label ?? "-",
+    estimatedOneRepMax: bestSet?.estimatedOneRepMax ?? null,
+    personalRecordSets: sourceSets.filter((set) => set.isPersonalRecord).length,
+  };
+};
+
+const findPreviousExerciseExposure = async (
+  userId: string,
+  workoutExercise: {
+    id: string;
+    exerciseId: string | null;
+    sourceProgramExerciseId: string | null;
+  },
+  completedAt: Date | null,
+) => {
+  if (!completedAt) {
+    return null;
+  }
+
+  const matchingConditions = [];
+
+  if (workoutExercise.sourceProgramExerciseId) {
+    matchingConditions.push({
+      sourceProgramExerciseId: workoutExercise.sourceProgramExerciseId,
+    });
+  }
+
+  if (workoutExercise.exerciseId) {
+    matchingConditions.push({
+      exerciseId: workoutExercise.exerciseId,
+    });
+  }
+
+  if (!matchingConditions.length) {
+    return null;
+  }
+
+  return prisma.workoutExercise.findFirst({
+    where: {
+      id: {
+        not: workoutExercise.id,
+      },
+      OR: matchingConditions,
+      session: {
+        userId,
+        status: WorkoutStatus.COMPLETED,
+        completedAt: {
+          lt: completedAt,
+        },
+      },
+    },
+    include: {
+      sets: true,
+    },
+    orderBy: {
+      session: {
+        completedAt: "desc",
+      },
+    },
+  });
+};
+
+export const listRecentWorkouts = async (userId: string, limit?: number) =>
+  prisma.workoutSession.findMany({
+    where: {
+      userId,
+      status: WorkoutStatus.COMPLETED,
+    },
+    orderBy: { completedAt: "desc" },
+    take: limit,
+  });
+
+export const getInProgressWorkout = async (userId: string) =>
+  prisma.workoutSession.findFirst({
+    where: {
+      userId,
+      status: WorkoutStatus.IN_PROGRESS,
+    },
+    orderBy: { startedAt: "desc" },
+  });
+
+export const startWorkout = async (
+  userId: string,
+  input: {
+    entryType: WorkoutEntryType;
+    programWorkoutId?: string;
+    templateId?: string;
+    title?: string;
+  },
+) => {
+  let savedDraft: WorkoutDraft = {
+    title: input.title ?? "Quick Workout",
+    exercises: [],
+  };
+  let programId: string | null = null;
+  let programWorkoutId: string | null = null;
+  let wasPlanned = false;
+
+  if (input.entryType === WorkoutEntryType.PROGRAM) {
+    if (!input.programWorkoutId) {
+      throw new AppError(400, "PROGRAM_WORKOUT_REQUIRED", "A planned workout is required.");
+    }
+
+    const workout = await prisma.programWorkout.findUnique({
+      where: { id: input.programWorkoutId },
       include: {
-        exerciseLogs: {
-          orderBy: { orderIndex: 'desc' },
-          take: 1,
+        programWeek: {
+          include: {
+            program: true,
+          },
         },
       },
     });
 
-    if (!workout) {
-      throw new NotFoundError('Workout');
+    if (!workout || workout.programWeek.program.userId !== userId) {
+      throw new AppError(404, "PROGRAM_WORKOUT_NOT_FOUND", "That planned workout could not be found.");
     }
 
-    if (workout.userId !== userId) {
-      throw new ForbiddenError('You can only modify your own workouts');
-    }
-
-    if (workout.completedAt) {
-      throw new ConflictError('Cannot modify a completed workout');
-    }
-
-    // Calculate next order index
-    const nextIndex = workout.exerciseLogs.length > 0
-      ? workout.exerciseLogs[0].orderIndex + 1
-      : 0;
-
-    // Create the exercise log
-    const exerciseLog = await prisma.exerciseLog.create({
-      data: {
-        sessionId: workoutId,
-        exerciseId: input.exerciseId,
-        orderIndex: nextIndex,
-        notes: input.notes,
-      },
-      include: {
-        exercise: true,
-        sets: true,
-      },
-    });
-
-    logger.info(
-      { workoutId, exerciseId: input.exerciseId, userId },
-      'Exercise added to workout'
-    );
-
-    return exerciseLog;
+    savedDraft = await buildProgramDraft(userId, input.programWorkoutId);
+    programId = workout.programWeek.programId;
+    programWorkoutId = workout.id;
+    wasPlanned = true;
   }
 
-  // ==========================================================================
-  // SET LOGGING METHODS (PERFORMANCE CRITICAL)
-  // ==========================================================================
+  if (input.entryType === WorkoutEntryType.TEMPLATE) {
+    if (!input.templateId) {
+      throw new AppError(400, "TEMPLATE_REQUIRED", "A template is required.");
+    }
 
-  /**
-   * Logs a set for an exercise.
-   *
-   * THIS IS PERFORMANCE CRITICAL - must complete in < 100ms!
-   *
-   * Optimizations:
-   * - Single database query for ownership verification
-   * - Minimal validation
-   * - No heavy computations
-   *
-   * @param userId - The user ID
-   * @param workoutId - The workout ID
-   * @param input - Set data
-   * @returns The created set
-   * @throws NotFoundError if exercise log not found or workout completed
-   */
-  async logSet(userId: string, workoutId: string, input: LogSetInput): Promise<Set> {
-    const startTime = Date.now();
-
-    // Quick ownership check - single query
-    const exerciseLog = await prisma.exerciseLog.findFirst({
+    const template = await prisma.workoutTemplate.findFirst({
       where: {
-        id: input.exerciseLogId,
-        session: {
-          id: workoutId,
-          userId,
-          completedAt: null,
-        },
-      },
-      select: {
-        id: true,
-        _count: { select: { sets: true } },
+        id: input.templateId,
+        userId,
       },
     });
 
-    if (!exerciseLog) {
-      throw new NotFoundError('Exercise log not found or workout completed');
+    if (!template) {
+      throw new AppError(404, "TEMPLATE_NOT_FOUND", "That template could not be found.");
     }
 
-    // Calculate set number
-    const setNumber = exerciseLog._count.sets + 1;
+    savedDraft = await buildTemplateDraft(input.templateId);
+  }
 
-    // Create the set
-    const set = await prisma.set.create({
-      data: {
-        exerciseLogId: input.exerciseLogId,
-        setNumber,
-        weight: input.weight,
-        reps: input.reps,
-        rpe: input.rpe,
-        setType: input.setType || SetType.WORKING,
-        completedAt: new Date(),
+  return prisma.workoutSession.create({
+    data: {
+      userId,
+      programId,
+      programWorkoutId,
+      title: savedDraft.title,
+      entryType: input.entryType,
+      status: WorkoutStatus.IN_PROGRESS,
+      wasPlanned,
+      savedDraft,
+    },
+  });
+};
+
+export const getWorkout = async (userId: string, workoutId: string) => {
+  const workout = await prisma.workoutSession.findFirst({
+    where: {
+      id: workoutId,
+      userId,
+    },
+    include: {
+      exercises: {
+        include: {
+          sets: {
+            orderBy: {
+              setNumber: "asc",
+            },
+          },
+        },
+        orderBy: {
+          orderIndex: "asc",
+        },
       },
-    });
+    },
+  });
 
-    // Log performance
-    const duration = Date.now() - startTime;
-    logger.info(
-      { workoutId, setId: set.id, duration: `${duration}ms` },
-      'Set logged'
-    );
+  if (!workout) {
+    throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
+  }
 
-    // Warn if we're too slow
-    if (duration > 100) {
-      logger.warn(
-        { workoutId, setId: set.id, duration: `${duration}ms` },
-        'Set logging exceeded 100ms target'
+  const exerciseReviews = await Promise.all(
+    workout.exercises.map(async (exercise) => {
+      const currentSummary = summarizeWorkingSets(exercise.sets);
+      const previousExposure = await findPreviousExerciseExposure(
+        userId,
+        {
+          id: exercise.id,
+          exerciseId: exercise.exerciseId,
+          sourceProgramExerciseId: exercise.sourceProgramExerciseId,
+        },
+        workout.completedAt,
       );
-    }
+      const previousSummary = previousExposure
+        ? summarizeWorkingSets(previousExposure.sets)
+        : null;
 
-    return set;
-  }
+      return {
+        workoutExerciseId: exercise.id,
+        volume: currentSummary.volume,
+        bestSetLabel: currentSummary.bestSetLabel,
+        estimatedOneRepMax: currentSummary.estimatedOneRepMax,
+        personalRecordSets: currentSummary.personalRecordSets,
+        previousVolume: previousSummary?.volume ?? null,
+        previousBestSetLabel: previousSummary?.bestSetLabel ?? null,
+        previousEstimatedOneRepMax: previousSummary?.estimatedOneRepMax ?? null,
+        volumeChange:
+          previousSummary === null ? null : currentSummary.volume - previousSummary.volume,
+        oneRepMaxChange:
+          previousSummary === null ||
+          previousSummary.estimatedOneRepMax === null ||
+          currentSummary.estimatedOneRepMax === null
+            ? null
+            : currentSummary.estimatedOneRepMax - previousSummary.estimatedOneRepMax,
+      };
+    }),
+  );
 
-  /**
-   * Updates an existing set.
-   *
-   * @param userId - The user ID
-   * @param setId - The set to update
-   * @param input - Updated set data
-   * @returns The updated set
-   */
-  async updateSet(
-    userId: string,
-    setId: string,
-    input: Partial<LogSetInput>
-  ): Promise<Set> {
-    // Verify ownership
-    const set = await prisma.set.findFirst({
+  return {
+    ...workout,
+    exerciseReviews,
+  };
+};
+
+export const saveWorkoutDraft = async (userId: string, workoutId: string, draft: WorkoutDraft) =>
+  prisma.$transaction(async (transaction) => {
+    await getOwnedWorkout(userId, workoutId);
+
+    return transaction.workoutSession.update({
       where: {
-        id: setId,
-        exerciseLog: {
-          session: {
-            userId,
-            completedAt: null,
-          },
-        },
+        id: workoutId,
       },
-    });
-
-    if (!set) {
-      throw new NotFoundError('Set not found or workout completed');
-    }
-
-    return prisma.set.update({
-      where: { id: setId },
       data: {
-        weight: input.weight ?? set.weight,
-        reps: input.reps ?? set.reps,
-        rpe: input.rpe ?? set.rpe,
-        setType: input.setType ?? set.setType,
+        title: draft.title,
+        notes: draft.notes,
+        savedDraft: draft,
       },
     });
+  });
+
+export const applyWorkoutSubstitution = async (
+  userId: string,
+  workoutId: string,
+  input: {
+    exerciseIndex: number;
+    substituteExerciseId: string;
+  },
+) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+  const substituteExercise = await getVisibleExerciseForUser(userId, input.substituteExerciseId);
+  const draft = hydrateWorkoutDraft(workout);
+
+  if (!draft.exercises[input.exerciseIndex]) {
+    throw new AppError(400, "INVALID_EXERCISE_INDEX", "That workout exercise could not be found.");
   }
 
-  /**
-   * Deletes a set from a workout.
-   *
-   * @param userId - The user ID
-   * @param setId - The set to delete
-   */
-  async deleteSet(userId: string, setId: string): Promise<void> {
-    // Verify ownership
-    const set = await prisma.set.findFirst({
-      where: {
-        id: setId,
-        exerciseLog: {
-          session: {
-            userId,
-            completedAt: null,
-          },
-        },
+  const currentExercise = draft.exercises[input.exerciseIndex];
+  const originalExerciseId =
+    currentExercise.substitutedFromExerciseId ?? currentExercise.exerciseId ?? null;
+  const originalExerciseName =
+    currentExercise.substitutedFromExerciseName ?? currentExercise.exerciseName;
+  const isEquivalent =
+    originalExerciseId === null
+      ? false
+      : await isEquivalentSubstitute(userId, originalExerciseId, substituteExercise.id);
+
+  const nextDraft: WorkoutDraft = {
+    ...draft,
+    exercises: draft.exercises.map((exercise, index) =>
+      index === input.exerciseIndex
+        ? {
+            ...exercise,
+            exerciseId: substituteExercise.id,
+            exerciseName: substituteExercise.name,
+            equipmentType: substituteExercise.equipmentType,
+            machineType: substituteExercise.machineType,
+            attachment: substituteExercise.attachment,
+            loadType: substituteExercise.loadType,
+            unitMode: substituteExercise.unitMode,
+            substitutedFromExerciseId:
+              originalExerciseId && originalExerciseId !== substituteExercise.id ? originalExerciseId : null,
+            substitutedFromExerciseName:
+              originalExerciseId && originalExerciseId !== substituteExercise.id ? originalExerciseName : null,
+            substitutionMode:
+              originalExerciseId && originalExerciseId !== substituteExercise.id
+                ? isEquivalent
+                  ? "EQUIVALENT"
+                  : "ALTERNATE"
+                : null,
+            countsForProgression: currentExercise.sourceProgramExerciseId
+              ? isEquivalent
+              : true,
+          }
+        : exercise,
+    ),
+  };
+
+  await prisma.workoutSession.update({
+    where: { id: workoutId },
+    data: {
+      savedDraft: nextDraft,
+      title: nextDraft.title,
+      notes: nextDraft.notes,
+    },
+  });
+
+  return nextDraft;
+};
+
+export const removeWorkoutSubstitution = async (
+  userId: string,
+  workoutId: string,
+  exerciseIndex: number,
+) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+  const draft = hydrateWorkoutDraft(workout);
+  const currentExercise = draft.exercises[exerciseIndex];
+
+  if (!currentExercise) {
+    throw new AppError(400, "INVALID_EXERCISE_INDEX", "That workout exercise could not be found.");
+  }
+
+  if (!currentExercise.substitutedFromExerciseId) {
+    return draft;
+  }
+
+  const originalExercise = await getVisibleExerciseForUser(
+    userId,
+    currentExercise.substitutedFromExerciseId,
+  );
+
+  const nextDraft: WorkoutDraft = {
+    ...draft,
+    exercises: draft.exercises.map((exercise, index) =>
+      index === exerciseIndex
+        ? {
+            ...exercise,
+            exerciseId: originalExercise.id,
+            exerciseName: originalExercise.name,
+            equipmentType: originalExercise.equipmentType,
+            machineType: originalExercise.machineType,
+            attachment: originalExercise.attachment,
+            loadType: originalExercise.loadType,
+            unitMode: originalExercise.unitMode,
+            substitutedFromExerciseId: null,
+            substitutedFromExerciseName: null,
+            substitutionMode: null,
+            countsForProgression: true,
+          }
+        : exercise,
+    ),
+  };
+
+  await prisma.workoutSession.update({
+    where: { id: workoutId },
+    data: {
+      savedDraft: nextDraft,
+      title: nextDraft.title,
+      notes: nextDraft.notes,
+    },
+  });
+
+  return nextDraft;
+};
+
+export const pairWorkoutSuperset = async (
+  userId: string,
+  workoutId: string,
+  input: {
+    exerciseIndexes: [number, number];
+  },
+) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+  const draft = hydrateWorkoutDraft(workout);
+  const [firstIndex, secondIndex] = input.exerciseIndexes;
+
+  if (
+    !draft.exercises[firstIndex] ||
+    !draft.exercises[secondIndex] ||
+    firstIndex === secondIndex
+  ) {
+    throw new AppError(400, "INVALID_SUPERSET_PAIR", "Choose two different exercises to pair.");
+  }
+
+  const groupId = `superset-${Date.now()}`;
+  const nextDraft: WorkoutDraft = {
+    ...draft,
+    exercises: draft.exercises.map((exercise, index) => {
+      if (index === firstIndex) {
+        return {
+          ...exercise,
+          supersetGroupId: groupId,
+          supersetPosition: 1,
+        };
+      }
+
+      if (index === secondIndex) {
+        return {
+          ...exercise,
+          supersetGroupId: groupId,
+          supersetPosition: 2,
+        };
+      }
+
+      return exercise;
+    }),
+  };
+
+  await prisma.workoutSession.update({
+    where: { id: workoutId },
+    data: {
+      savedDraft: nextDraft,
+      title: nextDraft.title,
+      notes: nextDraft.notes,
+    },
+  });
+
+  return nextDraft;
+};
+
+export const unpairWorkoutSuperset = async (
+  userId: string,
+  workoutId: string,
+  supersetGroupId: string,
+) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+  const draft = hydrateWorkoutDraft(workout);
+
+  const nextDraft: WorkoutDraft = {
+    ...draft,
+    exercises: draft.exercises.map((exercise) =>
+      exercise.supersetGroupId === supersetGroupId
+        ? {
+            ...exercise,
+            supersetGroupId: null,
+            supersetPosition: null,
+          }
+        : exercise,
+    ),
+  };
+
+  await prisma.workoutSession.update({
+    where: { id: workoutId },
+    data: {
+      savedDraft: nextDraft,
+      title: nextDraft.title,
+      notes: nextDraft.notes,
+    },
+  });
+
+  return nextDraft;
+};
+
+const isPersonalRecord = async (
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  exerciseId: string | null,
+  weight: number | null,
+  reps: number,
+): Promise<boolean> => {
+  if (!exerciseId || typeof weight !== "number") {
+    return false;
+  }
+
+  const priorSets = await transaction.workoutSet.findMany({
+    where: {
+      weight: {
+        not: null,
       },
-    });
-
-    if (!set) {
-      throw new NotFoundError('Set not found or workout completed');
-    }
-
-    await prisma.set.delete({ where: { id: setId } });
-
-    logger.info({ setId, userId }, 'Set deleted');
-  }
-
-  // ==========================================================================
-  // SUGGESTION METHODS
-  // ==========================================================================
-
-  /**
-   * Gets previous set data for an exercise to pre-fill suggestions.
-   *
-   * Looks at the most recent completed workout containing this exercise
-   * and returns the set data for reference.
-   *
-   * @param userId - The user ID
-   * @param exerciseId - The exercise to get history for
-   * @returns Previous set data or null if no history
-   */
-  async getPreviousSets(userId: string, exerciseId: string): Promise<PreviousSetData[] | null> {
-    // Find the most recent completed workout with this exercise
-    const lastExerciseLog = await prisma.exerciseLog.findFirst({
-      where: {
+      workoutExercise: {
         exerciseId,
         session: {
           userId,
-          completedAt: { not: null },
+          status: WorkoutStatus.COMPLETED,
         },
       },
-      orderBy: {
-        session: {
-          completedAt: 'desc',
-        },
-      },
-      include: {
-        exercise: {
-          select: { name: true },
-        },
-        sets: {
-          orderBy: { setNumber: 'asc' },
-        },
-      },
-    });
+    },
+    select: {
+      weight: true,
+      reps: true,
+    },
+  });
 
-    if (!lastExerciseLog || lastExerciseLog.sets.length === 0) {
-      return null;
-    }
+  const bestPrevious = priorSets.reduce((best, set) => {
+    const oneRepMax = estimateOneRepMax(set.weight ?? 0, set.reps);
+    return Math.max(best, oneRepMax);
+  }, 0);
 
-    return lastExerciseLog.sets.map(set => ({
-      exerciseId,
-      exerciseName: lastExerciseLog.exercise.name,
-      weight: set.weight,
-      reps: set.reps,
-      rpe: set.rpe ?? undefined,
-      setNumber: set.setNumber,
-    }));
+  return estimateOneRepMax(weight, reps) > bestPrevious;
+};
+
+const maybeAdvanceProgramWeek = async (
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  programId: string,
+  programWorkoutId: string,
+): Promise<{ advanced: boolean; newWeek: number }> => {
+  const currentProgram = await transaction.program.findUnique({
+    where: {
+      id: programId,
+    },
+    include: {
+      weeks: {
+        include: {
+          workouts: true,
+        },
+      },
+    },
+  });
+
+  if (!currentProgram) {
+    return {
+      advanced: false,
+      newWeek: 1,
+    };
   }
 
-  // ==========================================================================
-  // PERSONAL RECORD DETECTION
-  // ==========================================================================
+  const currentWeek = currentProgram.weeks.find((week) => week.weekNumber === currentProgram.currentWeek);
+  if (!currentWeek) {
+    return {
+      advanced: false,
+      newWeek: currentProgram.currentWeek,
+    };
+  }
 
-  /**
-   * Detects and marks personal records for a completed workout.
-   *
-   * A PR is detected when:
-   * - User lifts more weight for the same reps
-   * - User does more reps at the same weight
-   * - User achieves a higher estimated 1RM
-   *
-   * @param workoutId - The workout to check for PRs
-   */
-  private async detectPersonalRecords(workoutId: string): Promise<void> {
-    const workout = await prisma.workoutSession.findUnique({
-      where: { id: workoutId },
+  const plannedIds = currentWeek.workouts.map((workout) => workout.id);
+
+  if (!plannedIds.includes(programWorkoutId)) {
+    return {
+      advanced: false,
+      newWeek: currentProgram.currentWeek,
+    };
+  }
+
+  const completedCount = await transaction.workoutSession.count({
+    where: {
+      userId,
+      programId,
+      programWorkoutId: {
+        in: plannedIds,
+      },
+      status: WorkoutStatus.COMPLETED,
+    },
+  });
+
+  if (completedCount < plannedIds.length) {
+    return {
+      advanced: false,
+      newWeek: currentProgram.currentWeek,
+    };
+  }
+
+  const nextWeekNumber = Math.min(
+    currentProgram.currentWeek + 1,
+    Math.max(...currentProgram.weeks.map((week) => week.weekNumber)),
+  );
+
+  await transaction.program.update({
+    where: { id: programId },
+    data: {
+      currentWeek: nextWeekNumber,
+      adherenceStreak: {
+        increment: 1,
+      },
+    },
+  });
+
+  await transaction.activityEvent.create({
+    data: {
+      userId,
+      type: ActivityType.PROGRAM_WEEK_COMPLETED,
+      title: `Completed week ${currentProgram.currentWeek} of ${currentProgram.name}`,
+      body: "Program adherence streak extended.",
+    },
+  });
+
+  await transaction.activityEvent.create({
+    data: {
+      userId,
+      type: ActivityType.STREAK_EXTENDED,
+      title: "Adherence streak extended",
+      body: "You completed every planned session for the week.",
+    },
+  });
+
+  return {
+    advanced: true,
+    newWeek: nextWeekNumber,
+  };
+};
+
+export const completeWorkout = async (userId: string, workoutId: string, draft: WorkoutDraft) =>
+  prisma.$transaction(async (transaction) => {
+    const workout = await transaction.workoutSession.findFirst({
+      where: {
+        id: workoutId,
+        userId,
+      },
       include: {
-        exerciseLogs: {
-          include: {
-            exercise: true,
-            sets: true,
-          },
-        },
+        user: true,
       },
     });
 
-    if (!workout) return;
+    if (!workout) {
+      throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
+    }
 
-    for (const exerciseLog of workout.exerciseLogs) {
-      const bestSet = this.findBestSet(exerciseLog.sets);
-      if (!bestSet) continue;
+    await transaction.workoutExercise.deleteMany({
+      where: {
+        sessionId: workout.id,
+      },
+    });
 
-      // Check if this is a PR
-      const isPR = await this.checkIfPR(
-        workout.userId,
-        exerciseLog.exerciseId,
-        bestSet,
-        workout.startedAt
-      );
+    let prCount = 0;
 
-      if (isPR) {
-        // Mark the exercise log as having a PR
-        await prisma.exerciseLog.update({
-          where: { id: exerciseLog.id },
-          data: { isPR: true },
-        });
+    for (const [exerciseIndex, exercise] of draft.exercises.entries()) {
+      const createdExercise = await transaction.workoutExercise.create({
+        data: {
+          sessionId: workout.id,
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          equipmentType: exercise.equipmentType,
+          machineType: exercise.machineType ?? null,
+          attachment: exercise.attachment ?? null,
+          loadType: exercise.loadType,
+          unitMode: exercise.unitMode,
+          unilateral: exercise.unilateral ?? false,
+          orderIndex: exerciseIndex,
+          notes: exercise.notes,
+          prescribedSetCount: exercise.prescribedSetCount,
+          repMin: exercise.repMin,
+          repMax: exercise.repMax,
+          suggestedWeight: exercise.suggestedWeight,
+          sourceProgramExerciseId:
+            exercise.countsForProgression === false ? null : exercise.sourceProgramExerciseId,
+          substitutedFromExerciseId: exercise.substitutedFromExerciseId ?? null,
+          substitutedFromExerciseName: exercise.substitutedFromExerciseName ?? null,
+          substitutionMode: exercise.substitutionMode ?? null,
+          countsForProgression: exercise.countsForProgression ?? true,
+          supersetGroupId: exercise.supersetGroupId ?? null,
+          supersetPosition: exercise.supersetPosition ?? null,
+        },
+      });
 
-        // Mark the specific set as a PR
-        await prisma.set.update({
-          where: { id: bestSet.id },
-          data: { isPersonalRecord: true },
-        });
-
-        logger.info(
-          {
-            workoutId,
-            exerciseId: exerciseLog.exerciseId,
-            exerciseName: exerciseLog.exercise.name,
-            weight: bestSet.weight,
-            reps: bestSet.reps,
-          },
-          'Personal record detected!'
+      for (const set of exercise.sets) {
+        const personalRecord = await isPersonalRecord(
+          transaction,
+          userId,
+          exercise.exerciseId,
+          set.weight,
+          set.reps,
         );
+
+        if (personalRecord) {
+          prCount += 1;
+        }
+
+        await transaction.workoutSet.create({
+          data: {
+            workoutExerciseId: createdExercise.id,
+            setNumber: set.setNumber,
+            weight: set.weight,
+            reps: set.reps,
+            rpe: set.rpe,
+            isWorkingSet: set.isWorkingSet ?? true,
+            isPersonalRecord: personalRecord,
+          },
+        });
       }
     }
-  }
 
-  /**
-   * Finds the best set from a list of sets based on estimated 1RM.
-   */
-  private findBestSet(sets: Set[]): Set | null {
-    if (sets.length === 0) return null;
+    let xpAwarded = workout.wasPlanned ? BASE_WORKOUT_XP + 40 : BASE_WORKOUT_XP;
 
-    return sets.reduce((best, current) => {
-      const bestE1RM = this.calculateEstimated1RM(best.weight, best.reps);
-      const currentE1RM = this.calculateEstimated1RM(current.weight, current.reps);
-      return currentE1RM > bestE1RM ? current : best;
-    });
-  }
-
-  /**
-   * Checks if a set is a personal record.
-   */
-  private async checkIfPR(
-    userId: string,
-    exerciseId: string,
-    set: Set,
-    beforeDate: Date
-  ): Promise<boolean> {
-    // Get all previous sets for this exercise
-    const previousBest = await prisma.set.findFirst({
-      where: {
-        exerciseLog: {
-          exerciseId,
-          session: {
-            userId,
-            completedAt: { lt: beforeDate },
-          },
+    if (prCount > 0) {
+      xpAwarded += prCount * PR_XP;
+      await transaction.activityEvent.create({
+        data: {
+          userId,
+          type: ActivityType.PR_HIT,
+          title: `Hit ${prCount} new personal record${prCount > 1 ? "s" : ""}`,
+          body: "Progression is moving in the right direction.",
         },
-      },
-      orderBy: [
-        { weight: 'desc' },
-        { reps: 'desc' },
-      ],
-    });
-
-    if (!previousBest) {
-      // First time doing this exercise - it's a PR!
-      return true;
+      });
     }
 
-    const previousE1RM = this.calculateEstimated1RM(previousBest.weight, previousBest.reps);
-    const currentE1RM = this.calculateEstimated1RM(set.weight, set.reps);
+    let completedWeek = false;
+    let newWeek = workout.programId ? 1 : 0;
 
-    return currentE1RM > previousE1RM;
-  }
+    if (workout.programId && workout.programWorkoutId) {
+      const advancement = await maybeAdvanceProgramWeek(
+        transaction,
+        userId,
+        workout.programId,
+        workout.programWorkoutId,
+      );
 
-  /**
-   * Calculates estimated 1RM using the Epley formula.
-   *
-   * Formula: 1RM = weight * (1 + reps/30)
-   *
-   * @param weight - Weight lifted
-   * @param reps - Number of reps
-   * @returns Estimated 1RM
-   */
-  private calculateEstimated1RM(weight: number, reps: number): number {
-    if (reps === 1) return weight;
-    return weight * (1 + reps / 30);
-  }
-}
+      completedWeek = advancement.advanced;
+      newWeek = advancement.newWeek;
 
-// Export singleton instance
-export const workoutService = new WorkoutService();
+      if (completedWeek) {
+        xpAwarded += PROGRAM_WEEK_XP;
+      }
+    }
+
+    await createXpLedgerEntry(
+      transaction,
+      userId,
+      xpAwarded,
+      completedWeek ? "program-week-complete" : "workout-complete",
+      { workoutId },
+    );
+
+    await transaction.workoutSession.update({
+      where: { id: workout.id },
+      data: {
+        title: draft.title,
+        notes: draft.notes,
+        status: WorkoutStatus.COMPLETED,
+        completedAt: new Date(),
+        totalXp: xpAwarded,
+        savedDraft: draft,
+      },
+    });
+
+    await transaction.activityEvent.create({
+      data: {
+        userId,
+        type: ActivityType.WORKOUT_COMPLETED,
+        title: `Completed ${draft.title}`,
+        body: workout.wasPlanned ? "Planned session complete." : "Quick workout logged.",
+      },
+    });
+
+    const workoutCompletedCount = await transaction.workoutSession.count({
+      where: {
+        userId,
+        status: WorkoutStatus.COMPLETED,
+      },
+    });
+
+    const unlockedAchievements = await unlockAchievements(transaction, {
+      user: {
+        ...workout.user,
+        xpTotal: workout.user.xpTotal + xpAwarded,
+      },
+      workoutCompletedCount,
+      prCount,
+      completedWeek,
+    });
+
+    return {
+      workoutId,
+      xpAwarded,
+      prCount,
+      completedWeek,
+      unlockedAchievements,
+      nextWeek: newWeek,
+    };
+  });

@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "ExerciseEquivalency_userId_sourceExerciseId_targetExerciseId_ke" RENAME TO "ExerciseEquivalency_userId_sourceExerciseId_targetExerciseI_key";

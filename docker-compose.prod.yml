@@ -1,0 +1,73 @@
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: liftiq-caddy
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  backend:
+    build:
+      context: ./backend
+    container_name: liftiq-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: 4000
+      NODE_ENV: production
+      APP_URL: ${APP_URL}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS}
+    expose:
+      - "4000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    build:
+      context: ./web
+    container_name: liftiq-web
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      PORT: 3000
+    expose:
+      - "3000"
+
+  migrate:
+    build:
+      context: ./backend
+    container_name: liftiq-migrate
+    profiles: ["ops"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: production
+      APP_URL: ${APP_URL}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS}
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+volumes:
+  caddy_data:
+  caddy_config:

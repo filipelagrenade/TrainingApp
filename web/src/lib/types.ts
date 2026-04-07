@@ -1,0 +1,374 @@
+export type ApiSuccess<T> = {
+  success: true;
+  data: T;
+};
+
+export type ApiError = {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+};
+
+export type ApiResponse<T> = ApiSuccess<T> | ApiError;
+
+export type User = {
+  id: string;
+  email: string;
+  displayName: string;
+  xpTotal: number;
+  level: number;
+  avatarConfig: Record<string, unknown> | null;
+};
+
+export type SocialUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  level: number;
+  xpTotal: number;
+  isFollowing: boolean;
+};
+
+export type Exercise = {
+  id: string;
+  name: string;
+  equipmentType: string;
+  machineType: string | null;
+  attachment: string | null;
+  loadType:
+    | "BODYWEIGHT"
+    | "ASSISTED_BODYWEIGHT"
+    | "EXTERNAL"
+    | "FIXED_WEIGHT"
+    | "PLATE_TOTAL"
+    | "STACK"
+    | "CABLE_STACK";
+  unitMode: "kg" | "lb";
+  primaryMuscles: string[];
+  secondaryMuscles: string[];
+  isSystem: boolean;
+};
+
+export type ExerciseSubstitutes = {
+  sourceExercise: Exercise;
+  equivalents: Exercise[];
+  alternatives: Exercise[];
+};
+
+export type LoadType = Exercise["loadType"];
+
+export type ProgramExercise = {
+  id: string;
+  exerciseId: string;
+  orderIndex: number;
+  sets: number;
+  repMin: number;
+  repMax: number;
+  restSeconds: number;
+  startWeight: number | null;
+  increment: number;
+  deloadFactor: number;
+  targetRpe: number | null;
+  loadTypeOverride: Exercise["loadType"] | null;
+  machineOverride: string | null;
+  attachmentOverride: string | null;
+  unilateral: boolean;
+  notes: string | null;
+  exercise: Exercise;
+};
+
+export type ProgramWorkout = {
+  id: string;
+  dayLabel: string;
+  title: string;
+  orderIndex: number;
+  estimatedMinutes: number;
+  xpReward: number;
+  exercises: ProgramExercise[];
+};
+
+export type ProgramWeek = {
+  id: string;
+  weekNumber: number;
+  label: string;
+  isDeload: boolean;
+  workouts: ProgramWorkout[];
+};
+
+export type Program = {
+  id: string;
+  name: string;
+  goal: string;
+  description: string | null;
+  status: "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
+  currentWeek: number;
+  adherenceStreak: number;
+  weeks: ProgramWeek[];
+};
+
+export type ProgramDifficulty = "Beginner" | "Intermediate" | "Advanced";
+export type ProgramGoal =
+  | "Strength"
+  | "Hypertrophy"
+  | "General Fitness"
+  | "Powerlifting";
+
+export type TemplateExercise = {
+  id: string;
+  exerciseId: string;
+  orderIndex: number;
+  sets: number;
+  repMin: number;
+  repMax: number;
+  restSeconds: number;
+  startWeight: number | null;
+  loadTypeOverride: LoadType | null;
+  machineOverride: string | null;
+  attachmentOverride: string | null;
+  unilateral: boolean;
+  notes: string | null;
+  exercise: Exercise;
+};
+
+export type WorkoutTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  exercises: TemplateExercise[];
+};
+
+export type DraftExercise = {
+  exerciseId: string;
+  exerciseName?: string;
+  sets: number;
+  repMin: number;
+  repMax: number;
+  restSeconds?: number;
+  startWeight?: number | null;
+  increment?: number;
+  deloadFactor?: number;
+  targetRpe?: number | null;
+  loadTypeOverride?: LoadType | null;
+  machineOverride?: string | null;
+  attachmentOverride?: string | null;
+  unilateral?: boolean;
+  notes?: string | null;
+};
+
+export type DraftTemplateDay = {
+  templateId?: string;
+  dayLabel: string;
+  title: string;
+  description?: string;
+  estimatedMinutes?: number;
+  exercises: DraftExercise[];
+};
+
+export type CreateProgramInput = {
+  name: string;
+  goal: ProgramGoal;
+  description?: string;
+  durationWeeks: number;
+  daysPerWeek: number;
+  days: DraftTemplateDay[];
+};
+
+export type ProgramDraft = {
+  name: string;
+  goal: ProgramGoal;
+  description: string;
+  durationWeeks: number;
+  daysPerWeek: number;
+  difficulty: ProgramDifficulty;
+  days: DraftTemplateDay[];
+};
+
+export type TemplateDraft = {
+  name: string;
+  description: string;
+  estimatedMinutes: number;
+  exercises: DraftExercise[];
+};
+
+export type ProgressionRecommendation = {
+  state: "START" | "HOLD" | "INCREASE" | "DELOAD";
+  weight: number | null;
+  reason: string;
+};
+
+export type ActiveProgram = Program & {
+  currentWeek: ProgramWeek | undefined;
+  currentWeekTotal: number;
+  currentWeekCompleted: number;
+  currentWeekCompletion: number;
+  completedWorkoutIds: string[];
+  graceHours: number;
+  recommendations: Record<string, ProgressionRecommendation>;
+};
+
+export type WorkoutSession = {
+  id: string;
+  title: string;
+  entryType: "PROGRAM" | "TEMPLATE" | "QUICK";
+  status: "DRAFT" | "IN_PROGRESS" | "COMPLETED";
+  wasPlanned: boolean;
+  totalXp: number;
+  notes: string | null;
+  savedDraft: WorkoutDraft | null;
+  completedAt: string | null;
+  programWorkoutId: string | null;
+};
+
+export type WorkoutSetRecord = {
+  id: string;
+  setNumber: number;
+  weight: number | null;
+  reps: number;
+  rpe: number | null;
+  isWorkingSet: boolean;
+  isPersonalRecord: boolean;
+};
+
+export type WorkoutExerciseRecord = {
+  id: string;
+  exerciseId: string | null;
+  exerciseName: string;
+  equipmentType: string;
+  machineType: string | null;
+  attachment: string | null;
+  loadType: Exercise["loadType"];
+  unitMode: "kg" | "lb";
+  unilateral: boolean;
+  orderIndex: number;
+  notes: string | null;
+  prescribedSetCount: number | null;
+  repMin: number | null;
+  repMax: number | null;
+  suggestedWeight: number | null;
+  sourceProgramExerciseId: string | null;
+  substitutedFromExerciseId: string | null;
+  substitutedFromExerciseName: string | null;
+  substitutionMode: "EQUIVALENT" | "ALTERNATE" | null;
+  countsForProgression: boolean;
+  supersetGroupId: string | null;
+  supersetPosition: number | null;
+  sets: WorkoutSetRecord[];
+};
+
+export type WorkoutExerciseReview = {
+  workoutExerciseId: string;
+  volume: number;
+  bestSetLabel: string;
+  estimatedOneRepMax: number | null;
+  personalRecordSets: number;
+  previousVolume: number | null;
+  previousBestSetLabel: string | null;
+  previousEstimatedOneRepMax: number | null;
+  volumeChange: number | null;
+  oneRepMaxChange: number | null;
+};
+
+export type WorkoutSessionDetail = WorkoutSession & {
+  exercises: WorkoutExerciseRecord[];
+  exerciseReviews: WorkoutExerciseReview[];
+};
+
+export type WorkoutDraftSet = {
+  setNumber: number;
+  weight: number | null;
+  reps: number;
+  rpe: number | null;
+  isWorkingSet?: boolean;
+};
+
+export type WorkoutDraftExercise = {
+  exerciseId: string | null;
+  exerciseName: string;
+  equipmentType: string;
+  machineType?: string | null;
+  attachment?: string | null;
+  loadType: Exercise["loadType"];
+  unitMode: "kg" | "lb";
+  unilateral?: boolean;
+  notes?: string;
+  prescribedSetCount?: number | null;
+  repMin?: number | null;
+  repMax?: number | null;
+  suggestedWeight?: number | null;
+  recommendationReason?: string | null;
+  sourceProgramExerciseId?: string | null;
+  substitutedFromExerciseId?: string | null;
+  substitutedFromExerciseName?: string | null;
+  substitutionMode?: "EQUIVALENT" | "ALTERNATE" | null;
+  countsForProgression?: boolean;
+  supersetGroupId?: string | null;
+  supersetPosition?: number | null;
+  sets: WorkoutDraftSet[];
+};
+
+export type CreateExerciseInput = {
+  name: string;
+  equipmentType: string;
+  machineType?: string;
+  attachment?: string;
+  loadType: LoadType;
+  unitMode: "kg" | "lb";
+  primaryMuscles: string[];
+  secondaryMuscles?: string[];
+};
+
+export type CreateTemplateInput = {
+  name: string;
+  description?: string;
+  exercises: DraftExercise[];
+};
+
+export type WorkoutDraft = {
+  title: string;
+  notes?: string;
+  exercises: WorkoutDraftExercise[];
+};
+
+export type LeaderboardEntry = {
+  rank: number;
+  userId: string;
+  displayName: string;
+  level: number;
+  xp: number;
+};
+
+export type Challenge = {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  joined: boolean;
+  myScore: number;
+  target: number | null;
+  metric: "XP" | "WORKOUTS" | "PROGRAM_WEEKS" | "PRS";
+  periodEnd: string;
+};
+
+export type ActivityEvent = {
+  id: string;
+  title: string;
+  body: string | null;
+  createdAt: string;
+  type: string;
+  user: Pick<User, "id" | "displayName" | "level">;
+};
+
+export type AchievementLibraryItem = {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  xpReward: number;
+  requirementType: string;
+  requirementTarget: number;
+  unlocked: boolean;
+  unlockedAt: string | null;
+};

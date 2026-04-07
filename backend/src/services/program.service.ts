@@ -1,272 +1,341 @@
-/**
- * LiftIQ Backend - Program Service
- *
- * Handles all training program-related business logic including:
- * - Program listing and details
- * - Enrolling users in programs
- * - Weekly schedule management
- * - Progression rules per program
- *
- * Programs are multi-week training plans that contain multiple
- * workout templates organized by week and day.
- *
- * @module services/program
- */
+import { ProgramStatus, WorkoutStatus, type Prisma, type ProgramWorkoutExercise } from "@prisma/client";
 
-import { Prisma, Program, Difficulty, GoalType } from '@prisma/client';
-import { prisma } from '../utils/prisma';
-import { logger } from '../utils/logger';
-import { NotFoundError, ForbiddenError } from '../utils/errors';
+import { AppError } from "../lib/errors";
+import { prisma } from "../lib/prisma";
+import { generateProgramDraft, type GeneratedProgramDraft } from "./generation.service";
+import {
+  calculateProgressionRecommendation,
+  type ExposureSnapshot,
+} from "./progression.service";
 
-// ============================================================================
-// TYPES
-// ============================================================================
+export type ProgramDayInput = {
+  dayLabel: string;
+  title: string;
+  estimatedMinutes?: number;
+  exercises: Array<{
+    exerciseId: string;
+    sets: number;
+    repMin: number;
+    repMax: number;
+    restSeconds?: number;
+    startWeight?: number | null;
+    increment?: number;
+    deloadFactor?: number;
+    targetRpe?: number | null;
+    loadTypeOverride?: ProgramWorkoutExercise["loadTypeOverride"];
+    machineOverride?: string;
+    attachmentOverride?: string;
+    unilateral?: boolean;
+    notes?: string;
+  }>;
+};
 
-/**
- * Filters for program listing.
- */
-export interface ProgramFilters {
-  /** Filter by difficulty level */
-  difficulty?: Difficulty;
-  /** Filter by goal type */
-  goalType?: GoalType;
-  /** Filter by days per week */
-  daysPerWeek?: number;
-  /** Only show built-in programs */
-  builtInOnly?: boolean;
-}
+export type ProgramInput = {
+  name: string;
+  goal: string;
+  description?: string;
+  durationWeeks: number;
+  daysPerWeek: number;
+  days: ProgramDayInput[];
+};
 
-/**
- * Program with full template details.
- */
-export type ProgramWithTemplates = Prisma.ProgramGetPayload<{
-  include: {
-    templates: {
-      include: {
-        exercises: {
-          include: {
-            exercise: true;
-          };
-        };
-      };
-    };
-    progressionRules: true;
-  };
-}>;
-
-// ============================================================================
-// SERVICE CLASS
-// ============================================================================
-
-/**
- * ProgramService handles all training program business logic.
- *
- * Programs provide structured, multi-week training plans with:
- * - Weekly workout schedules
- * - Progressive overload rules
- * - Goal-specific programming (strength, hypertrophy, etc.)
- *
- * @example
- * ```typescript
- * // Get all beginner programs
- * const programs = await programService.getPrograms({
- *   difficulty: Difficulty.BEGINNER,
- *   goalType: GoalType.STRENGTH,
- * });
- *
- * // Get program details
- * const program = await programService.getProgram(programId);
- *
- * // Get workout for a specific day
- * const template = programService.getWorkoutForDay(program, 1, 1);
- * ```
- */
-class ProgramService {
-  // ==========================================================================
-  // PROGRAM QUERIES
-  // ==========================================================================
-
-  /**
-   * Gets all programs with optional filtering.
-   *
-   * @param filters - Optional filters
-   * @returns List of programs
-   */
-  async getPrograms(filters: ProgramFilters = {}): Promise<Program[]> {
-    const where: Prisma.ProgramWhereInput = {};
-
-    if (filters.difficulty) {
-      where.difficulty = filters.difficulty;
-    }
-
-    if (filters.goalType) {
-      where.goalType = filters.goalType;
-    }
-
-    if (filters.daysPerWeek) {
-      where.daysPerWeek = filters.daysPerWeek;
-    }
-
-    if (filters.builtInOnly) {
-      where.isBuiltIn = true;
-    }
-
-    return prisma.program.findMany({
-      where,
-      orderBy: [
-        { isBuiltIn: 'desc' }, // Built-in programs first
-        { name: 'asc' },
-      ],
-    });
-  }
-
-  /**
-   * Gets a single program with full details.
-   *
-   * @param programId - The program ID
-   * @returns The program with templates and exercises
-   * @throws NotFoundError if program doesn't exist
-   */
-  async getProgram(programId: string): Promise<ProgramWithTemplates> {
-    const program = await prisma.program.findUnique({
-      where: { id: programId },
-      include: {
-        templates: {
-          include: {
-            exercises: {
-              include: {
-                exercise: true,
-              },
-              orderBy: { orderIndex: 'asc' },
+const programInclude = {
+  weeks: {
+    include: {
+      workouts: {
+        include: {
+          exercises: {
+            include: {
+              exercise: true,
             },
+            orderBy: { orderIndex: "asc" },
           },
         },
-        progressionRules: true,
+        orderBy: { orderIndex: "asc" },
       },
-    });
+    },
+    orderBy: { weekNumber: "asc" },
+  },
+} satisfies Prisma.ProgramInclude;
 
-    if (!program) {
-      throw new NotFoundError('Program');
-    }
+const buildWeekCreates = (input: ProgramInput) =>
+  Array.from({ length: input.durationWeeks }, (_, weekIndex) => ({
+    weekNumber: weekIndex + 1,
+    label: `Week ${weekIndex + 1}`,
+    isDeload: false,
+    workouts: {
+      create: input.days.map((day, workoutIndex) => ({
+        dayLabel: day.dayLabel,
+        title: day.title,
+        orderIndex: workoutIndex,
+        estimatedMinutes: day.estimatedMinutes ?? 60,
+        exercises: {
+          create: day.exercises.map((exercise, exerciseIndex) => ({
+            exerciseId: exercise.exerciseId,
+            orderIndex: exerciseIndex,
+            sets: exercise.sets,
+            repMin: exercise.repMin,
+            repMax: exercise.repMax,
+            restSeconds: exercise.restSeconds ?? 120,
+            startWeight: exercise.startWeight ?? null,
+            increment: exercise.increment ?? 2.5,
+            deloadFactor: exercise.deloadFactor ?? 0.9,
+            targetRpe: exercise.targetRpe ?? null,
+            loadTypeOverride: exercise.loadTypeOverride ?? null,
+            machineOverride: exercise.machineOverride,
+            attachmentOverride: exercise.attachmentOverride,
+            unilateral: exercise.unilateral ?? false,
+            notes: exercise.notes,
+          })),
+        },
+      })),
+    },
+  }));
 
-    return program;
-  }
+export const listPrograms = async (userId: string) =>
+  prisma.program.findMany({
+    where: { userId },
+    include: programInclude,
+    orderBy: { createdAt: "desc" },
+  });
 
-  /**
-   * Gets recommended programs for a user based on their profile.
-   *
-   * @param userId - The user ID
-   * @returns List of recommended programs
-   */
-  async getRecommendedPrograms(userId: string): Promise<Program[]> {
-    // Get user preferences
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        experienceLevel: true,
-        primaryGoal: true,
+export const createProgram = async (userId: string, input: ProgramInput) =>
+  prisma.program.create({
+    data: {
+      userId,
+      name: input.name,
+      goal: input.goal,
+      description: input.description,
+      weeks: {
+        create: buildWeekCreates(input),
       },
-    });
+    },
+    include: programInclude,
+  });
 
-    if (!user) {
-      throw new NotFoundError('User');
-    }
-
-    // Find matching programs
-    const programs = await prisma.program.findMany({
+export const updateProgram = async (userId: string, programId: string, input: ProgramInput) =>
+  prisma.$transaction(async (transaction) => {
+    const existing = await transaction.program.findFirst({
       where: {
-        isBuiltIn: true,
-        difficulty: user.experienceLevel ?? undefined,
-        goalType: user.primaryGoal ?? undefined,
+        id: programId,
+        userId,
       },
-      take: 5,
+      select: {
+        id: true,
+        currentWeek: true,
+      },
     });
 
-    // If no exact matches, return popular programs
-    if (programs.length === 0) {
-      return prisma.program.findMany({
-        where: { isBuiltIn: true },
-        take: 5,
-      });
+    if (!existing) {
+      throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
     }
 
-    return programs;
+    await transaction.programWeek.deleteMany({
+      where: {
+        programId,
+      },
+    });
+
+    await transaction.program.update({
+      where: { id: programId },
+      data: {
+        name: input.name,
+        goal: input.goal,
+        description: input.description,
+        currentWeek: Math.min(existing.currentWeek, input.durationWeeks),
+        weeks: {
+          create: buildWeekCreates(input),
+        },
+      },
+    });
+
+    return transaction.program.findUniqueOrThrow({
+      where: { id: programId },
+      include: programInclude,
+    });
+  });
+
+export const activateProgram = async (userId: string, programId: string) => {
+  const program = await prisma.program.findFirst({
+    where: {
+      id: programId,
+      userId,
+    },
+  });
+
+  if (!program) {
+    throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
   }
 
-  // ==========================================================================
-  // PROGRAM UTILITIES
-  // ==========================================================================
+  await prisma.program.updateMany({
+    where: {
+      userId,
+      status: ProgramStatus.ACTIVE,
+      id: {
+        not: programId,
+      },
+    },
+    data: {
+      status: ProgramStatus.PAUSED,
+      pausedAt: new Date(),
+    },
+  });
 
-  /**
-   * Gets the workout template for a specific week and day.
-   *
-   * Programs typically have workouts organized by day (1-7).
-   * This helper finds the template for a given day.
-   *
-   * @param program - The program with templates
-   * @param week - The week number (1-indexed)
-   * @param day - The day of the week (1-7)
-   * @returns The template for that day or null
-   */
-  getWorkoutForDay(
-    program: ProgramWithTemplates,
-    week: number,
-    day: number
-  ): ProgramWithTemplates['templates'][0] | null {
-    // For now, templates are just listed by day
-    // Future: Support week-specific variations
-    const dayIndex = day - 1;
+  return prisma.program.update({
+    where: { id: programId },
+    data: {
+      status: ProgramStatus.ACTIVE,
+      startedAt: program.startedAt ?? new Date(),
+      pausedAt: null,
+    },
+  });
+};
 
-    if (dayIndex < 0 || dayIndex >= program.templates.length) {
-      return null;
-    }
+export const archiveProgram = async (userId: string, programId: string) => {
+  const program = await prisma.program.findFirst({
+    where: {
+      id: programId,
+      userId,
+    },
+  });
 
-    return program.templates[dayIndex];
+  if (!program) {
+    throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
   }
 
-  /**
-   * Gets all workouts for a week.
-   *
-   * @param program - The program
-   * @param week - The week number
-   * @returns Array of templates for that week
-   */
-  getWorkoutsForWeek(
-    program: ProgramWithTemplates,
-    week: number
-  ): ProgramWithTemplates['templates'] {
-    // For now, all weeks are the same
-    // Future: Support periodization with different weeks
-    return program.templates;
+  return prisma.program.update({
+    where: { id: programId },
+    data: {
+      status: ProgramStatus.ARCHIVED,
+      pausedAt: new Date(),
+    },
+  });
+};
+
+const buildExposureSnapshots = async (
+  userId: string,
+  programExerciseId: string,
+): Promise<ExposureSnapshot[]> => {
+  const exercises = await prisma.workoutExercise.findMany({
+    where: {
+      session: {
+        userId,
+        status: "COMPLETED",
+      },
+      sourceProgramExerciseId: programExerciseId,
+    },
+    include: {
+      sets: true,
+    },
+    orderBy: {
+      session: {
+        completedAt: "desc",
+      },
+    },
+    take: 2,
+  });
+
+  return exercises.map((exercise) => {
+    const workingSets = exercise.sets.filter((set) => set.isWorkingSet);
+    const ratedSets = workingSets.filter((set) => typeof set.rpe === "number");
+    const averageRpe =
+      ratedSets.reduce((sum, set) => sum + (set.rpe ?? 0), 0) / (ratedSets.length || 1);
+
+    return {
+      hitTopRange:
+        typeof exercise.repMax === "number" &&
+        workingSets.length > 0 &&
+        workingSets.every((set) => set.reps >= exercise.repMax!),
+      missedMinimum:
+        typeof exercise.repMin === "number" &&
+        workingSets.some((set) => set.reps < exercise.repMin!),
+      averageRpe: Number.isFinite(averageRpe) ? averageRpe : undefined,
+      workingWeight: workingSets.find((set) => typeof set.weight === "number")?.weight ?? undefined,
+    };
+  });
+};
+
+export const getActiveProgram = async (userId: string) => {
+  const program = await prisma.program.findFirst({
+    where: {
+      userId,
+      status: ProgramStatus.ACTIVE,
+    },
+    include: programInclude,
+  });
+
+  if (!program) {
+    return null;
   }
 
-  /**
-   * Calculates overall program volume per muscle group.
-   *
-   * Useful for displaying program balance/coverage.
-   *
-   * @param program - The program to analyze
-   * @returns Map of muscle group to set count per week
-   */
-  calculateWeeklyVolume(
-    program: ProgramWithTemplates
-  ): Record<string, number> {
-    const volume: Record<string, number> = {};
+  const currentWeek = program.weeks.find((week) => week.weekNumber === program.currentWeek);
+  const currentWorkoutIds = currentWeek?.workouts.map((workout) => workout.id) ?? [];
+  const completedSessions = currentWorkoutIds.length
+    ? await prisma.workoutSession.findMany({
+        where: {
+          userId,
+          programId: program.id,
+          programWorkoutId: {
+            in: currentWorkoutIds,
+          },
+          status: WorkoutStatus.COMPLETED,
+        },
+        select: {
+          programWorkoutId: true,
+        },
+      })
+    : [];
+  const completedWorkoutIds = completedSessions
+    .map((session) => session.programWorkoutId)
+    .filter((programWorkoutId): programWorkoutId is string => Boolean(programWorkoutId));
+  const recommendations = await Promise.all(
+    (currentWeek?.workouts ?? []).flatMap((workout) =>
+      workout.exercises.map(async (exercise) => {
+        const exposures = await buildExposureSnapshots(userId, exercise.id);
 
-    for (const template of program.templates) {
-      for (const te of template.exercises) {
-        const muscles = te.exercise.primaryMuscles;
-        const sets = te.defaultSets;
+        return [
+          exercise.id,
+          calculateProgressionRecommendation({
+            exposures,
+            startWeight: exercise.startWeight ?? null,
+            increment: exercise.increment,
+            deloadFactor: exercise.deloadFactor,
+          }),
+        ] as const;
+      }),
+    ),
+  );
 
-        for (const muscle of muscles) {
-          volume[muscle] = (volume[muscle] || 0) + sets;
-        }
-      }
-    }
+  return {
+    ...program,
+    currentWeek,
+    currentWeekTotal: currentWorkoutIds.length,
+    currentWeekCompleted: completedWorkoutIds.length,
+    currentWeekCompletion:
+      currentWorkoutIds.length === 0 ? 0 : completedWorkoutIds.length / currentWorkoutIds.length,
+    completedWorkoutIds,
+    graceHours: program.graceHours,
+    recommendations: Object.fromEntries(recommendations),
+  };
+};
 
-    return volume;
+export const getProgramById = async (userId: string, programId: string) => {
+  const program = await prisma.program.findFirst({
+    where: {
+      userId,
+      id: programId,
+    },
+    include: programInclude,
+  });
+
+  if (!program) {
+    throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
   }
-}
 
-// Export singleton instance
-export const programService = new ProgramService();
+  return program;
+};
+
+export const generateProgramDraftForUser = async (
+  userId: string,
+  prompt: string,
+): Promise<GeneratedProgramDraft> => generateProgramDraft(userId, prompt);

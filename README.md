@@ -1,137 +1,38 @@
 # LiftIQ
 
-> Your AI lifting coach that actually understands progressive overload
+LiftIQ is a server-first training companion built as a Next.js PWA plus an Express and Prisma API.
 
-LiftIQ is a workout tracking application that combines the logging speed of Strong/Hevy with intelligent AI guidance for progressive overload - the missing middle ground between "dumb trackers" and expensive coaching platforms.
+## Packages
 
-## Features
+- `web/`: Next.js App Router PWA with shadcn/ui, TanStack Query, and Jotai
+- `backend/`: Express API with Prisma and PostgreSQL
+- `archive/`: reference-only copy of the legacy codebase
 
-### Core Features
-- **Lightning-Fast Logging** - Log sets in under 3 seconds with pre-filled suggestions
-- **Progressive Overload Engine** - Smart weight progression recommendations
-- **Plateau Detection** - Automatic identification when exercises stall, with evidence-based intervention suggestions
-- **Offline-First** - Full functionality without internet, syncs when connected
+## Local development
 
-### AI Coach
-- **Chat Interface** - Ask questions about form, programming, and get personalized advice
-- **Contextual Tips** - Smart guidance during workouts
-- **Exercise Alternatives** - Get substitutions for injuries or equipment limitations
+1. Make sure Docker Desktop is running
+2. Start PostgreSQL with `docker compose up -d postgres`
+3. Copy `backend/.env.example` to `backend/.env`
+4. Copy `web/.env.example` to `web/.env.local`
+5. Install dependencies inside `backend/` and `web/` if needed
+6. Run `npm run db:migrate`
+7. Run `npm run db:seed`
+8. Start the backend with `npm run dev:backend`
+9. Start the web app with `npm run dev:web`
 
-### Analytics
-- **1RM Tracking** - Estimated and tested max tracking with trend visualization
-- **Volume Analytics** - Track volume per muscle group over time
-- **Workout Consistency** - Calendar view of training frequency
+## Production deployment
 
-### Social
-- **Activity Feed** - See friends' workouts and PRs
-- **Challenges** - Weekly/monthly competitive challenges
+The repo is prepared for a DigitalOcean Droplet deployment with:
 
-## Tech Stack
+- `docker-compose.prod.yml`
+- `deploy/Caddyfile`
+- `.env.production.example`
 
-| Component | Technology |
-|-----------|------------|
-| Mobile App | Flutter + Riverpod + Isar |
-| Web Dashboard | Next.js + shadcn/ui + TanStack Query |
-| Backend API | Node.js + TypeScript + Express + Prisma |
-| Database | PostgreSQL |
-| AI | Groq (Llama 3) |
-| Auth | Firebase Auth |
-| Hosting | Railway |
+Use the runbook in [docs/handover/digitalocean-deployment.md](docs/handover/digitalocean-deployment.md).
 
-## Project Structure
+## Product focus
 
-```
-/TrainingApp
-├── backend/          # Node.js API
-├── app/              # Flutter mobile app
-├── web/              # Next.js web dashboard
-└── docs/             # Documentation
-    ├── features/     # Feature breakdowns
-    └── handover/     # Agent handover docs
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20.x LTS
-- Flutter (latest stable)
-- PostgreSQL 15+
-- pnpm (for web app)
-
-### Backend Setup
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-# Edit .env with your database and Firebase credentials
-npx prisma migrate dev
-npx prisma db seed
-npm run dev
-```
-
-### Flutter App Setup
-
-```bash
-cd app
-flutter pub get
-flutter run
-```
-
-### Web Dashboard Setup
-
-```bash
-cd web
-pnpm install
-cp .env.example .env.local
-# Edit .env.local with your API URL
-pnpm dev
-```
-
-## Development
-
-See the AGENTS.md files in each directory for development guidelines:
-
-- [Root AGENTS.md](./AGENTS.md) - Project-wide rules and XML output contract
-- [Backend AGENTS.md](./backend/AGENTS.md) - Node.js/TypeScript backend constraints
-- [App AGENTS.md](./app/AGENTS.md) - Flutter app constraints
-- [Web AGENTS.md](./web/AGENTS.md) - Next.js/web constraints
-
-## Testing
-
-### Backend
-```bash
-cd backend
-npm test                 # All tests
-npm run test:coverage    # With coverage report
-```
-
-### Flutter
-```bash
-cd app
-flutter test             # All tests
-flutter test --coverage  # With coverage
-```
-
-### Web
-```bash
-cd web
-pnpm test               # Unit tests
-pnpm test:e2e           # E2E tests
-```
-
-## Contributing
-
-1. Read the relevant AGENTS.md file for the area you're working on
-2. Follow the Feature Completion Protocol for all new features
-3. Ensure 90%+ test coverage
-4. Create feature documentation and handover documents
-
-## License
-
-Proprietary - All rights reserved
-
----
-
-*Built with the help of Claude Code*
+- fast workout logging
+- program-centric progression
+- cloud-only user-scoped data
+- XP, levels, achievements, and social competition

@@ -1,14 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { cn } from '../../src/lib/utils';
+import { describe, expect, it } from "vitest";
 
-describe('cn', () => {
-  it('merges and deduplicates tailwind classes', () => {
-    expect(cn('px-2', 'px-4', 'text-sm')).toBe('px-4 text-sm');
-  });
+import { cn } from "@/lib/utils";
 
-  it('supports conditional classes', () => {
-    const isActive = true;
-    expect(cn('base', isActive && 'active')).toBe('base active');
+describe("cn", () => {
+  it("merges and de-duplicates tailwind classes", () => {
+    expect(cn("px-2 py-2", "px-4", "text-sm")).toBe("py-2 px-4 text-sm");
   });
 });
-

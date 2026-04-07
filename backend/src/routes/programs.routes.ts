@@ -1,165 +1,136 @@
-/**
- * LiftIQ Backend - Program Routes
- *
- * These routes handle training program browsing and management.
- * Programs are multi-week training plans with scheduled workouts.
- *
- * Endpoints:
- * - GET /programs - List available programs
- * - GET /programs/:id - Get single program with templates
- */
+import { LoadType } from "@prisma/client";
+import { Router } from "express";
+import { z } from "zod";
 
-import { Router, Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
-import { prisma } from '../utils/prisma';
-import { successResponse, paginationMeta, parsePaginationQuery } from '../utils/response';
-import { validateQuery, validateParams } from '../middleware/validation.middleware';
-import { optionalAuthMiddleware } from '../middleware/auth.middleware';
-import { NotFoundError } from '../utils/errors';
-import { Difficulty, GoalType } from '@prisma/client';
+import { sendSuccess } from "../lib/http";
+import { requireAuth } from "../middleware/auth";
+import { validateBody } from "../middleware/validation";
+import {
+  activateProgram,
+  archiveProgram,
+  createProgram,
+  generateProgramDraftForUser,
+  getActiveProgram,
+  getProgramById,
+  listPrograms,
+  updateProgram,
+} from "../services/program.service";
 
-export const programRoutes = Router();
+const programsRouter = Router();
 
-/**
- * Schema for listing programs with filters.
- */
-const ListProgramsSchema = z.object({
-  page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(20),
-  difficulty: z.nativeEnum(Difficulty).optional(),
-  goalType: z.nativeEnum(GoalType).optional(),
-  search: z.string().optional(),
+const programExerciseSchema = z.object({
+  exerciseId: z.string().min(1),
+  sets: z.coerce.number().int().min(1).max(10),
+  repMin: z.coerce.number().int().min(1).max(30),
+  repMax: z.coerce.number().int().min(1).max(30),
+  restSeconds: z.coerce.number().int().min(15).max(600).optional(),
+  startWeight: z.coerce.number().nonnegative().nullable().optional(),
+  increment: z.coerce.number().positive().optional(),
+  deloadFactor: z.coerce.number().min(0.5).max(1).optional(),
+  targetRpe: z.coerce.number().min(5).max(10).nullable().optional(),
+  loadTypeOverride: z.nativeEnum(LoadType).nullable().optional(),
+  machineOverride: z.string().max(80).nullable().optional(),
+  attachmentOverride: z.string().max(80).nullable().optional(),
+  unilateral: z.boolean().optional(),
+  notes: z.string().max(300).nullable().optional(),
 });
 
-/**
- * Schema for program ID parameter.
- */
-const ProgramIdSchema = z.object({
-  id: z.string().uuid(),
+const programDaySchema = z.object({
+  dayLabel: z.string().min(2).max(40),
+  title: z.string().min(2).max(80),
+  estimatedMinutes: z.coerce.number().int().min(15).max(240).optional(),
+  exercises: z.array(programExerciseSchema).min(1),
 });
 
-/**
- * GET /programs
- *
- * Lists available training programs.
- * Most users will see built-in programs.
- */
-programRoutes.get(
-  '/',
-  optionalAuthMiddleware,
-  validateQuery(ListProgramsSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { difficulty, goalType, search } = req.query as {
-        difficulty?: Difficulty;
-        goalType?: GoalType;
-        search?: string;
-      };
-      const { page, limit, skip } = parsePaginationQuery(req.query);
+const programSchema = z.object({
+  name: z.string().min(3).max(80),
+  goal: z.string().min(2).max(40),
+  description: z.string().max(300).optional(),
+  durationWeeks: z.coerce.number().int().min(4).max(16),
+  daysPerWeek: z.coerce.number().int().min(2).max(6),
+  days: z.array(programDaySchema).min(1).max(6),
+});
 
-      // Build filter conditions
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const where: any = {
-        isBuiltIn: true, // Only show built-in programs for now
-      };
+const draftPromptSchema = z.object({
+  prompt: z.string().min(4).max(500),
+});
 
-      if (difficulty) {
-        where.difficulty = difficulty;
-      }
+programsRouter.use(requireAuth);
 
-      if (goalType) {
-        where.goalType = goalType;
-      }
-
-      if (search) {
-        where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-
-      // Get total count
-      const total = await prisma.program.count({ where });
-
-      // Get programs
-      const programs = await prisma.program.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [
-          { difficulty: 'asc' },
-          { name: 'asc' },
-        ],
-        include: {
-          _count: {
-            select: { templates: true },
-          },
-        },
-      });
-
-      // Transform to summary format
-      const summaries = programs.map(p => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        durationWeeks: p.durationWeeks,
-        daysPerWeek: p.daysPerWeek,
-        difficulty: p.difficulty,
-        goalType: p.goalType,
-        workoutCount: p._count.templates,
-      }));
-
-      res.json(successResponse(summaries, paginationMeta(page, limit, total)));
-    } catch (error) {
-      next(error);
-    }
+programsRouter.get("/", async (request, response, next) => {
+  try {
+    const programs = await listPrograms(request.currentUser!.id);
+    sendSuccess(response, programs);
+  } catch (error) {
+    next(error);
   }
-);
+});
 
-/**
- * GET /programs/:id
- *
- * Gets a single program with all its templates.
- */
-programRoutes.get(
-  '/:id',
-  optionalAuthMiddleware,
-  validateParams(ProgramIdSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-
-      const program = await prisma.program.findUnique({
-        where: { id },
-        include: {
-          templates: {
-            include: {
-              exercises: {
-                orderBy: { orderIndex: 'asc' },
-                include: {
-                  exercise: {
-                    select: {
-                      id: true,
-                      name: true,
-                      primaryMuscles: true,
-                      equipment: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          progressionRules: true,
-        },
-      });
-
-      if (!program) {
-        throw new NotFoundError('Program');
-      }
-
-      res.json(successResponse(program));
-    } catch (error) {
-      next(error);
-    }
+programsRouter.post("/generate-draft", validateBody(draftPromptSchema), async (request, response, next) => {
+  try {
+    const draft = await generateProgramDraftForUser(request.currentUser!.id, request.body.prompt);
+    sendSuccess(response, draft);
+  } catch (error) {
+    next(error);
   }
-);
+});
+
+programsRouter.get("/active", async (request, response, next) => {
+  try {
+    const program = await getActiveProgram(request.currentUser!.id);
+    sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.get("/:programId", async (request, response, next) => {
+  try {
+    const program = await getProgramById(request.currentUser!.id, request.params.programId);
+    sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.post("/", validateBody(programSchema), async (request, response, next) => {
+  try {
+    const program = await createProgram(request.currentUser!.id, request.body);
+    sendSuccess(response, program, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.put("/:programId", validateBody(programSchema), async (request, response, next) => {
+  try {
+    const program = await updateProgram(
+      request.currentUser!.id,
+      String(request.params.programId),
+      request.body,
+    );
+    sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.post("/:programId/activate", async (request, response, next) => {
+  try {
+    const program = await activateProgram(request.currentUser!.id, request.params.programId);
+    sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.post("/:programId/archive", async (request, response, next) => {
+  try {
+    const program = await archiveProgram(request.currentUser!.id, request.params.programId);
+    sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+export { programsRouter };

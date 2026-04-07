@@ -1,427 +1,113 @@
-/**
- * LiftIQ Backend - Template Routes
- *
- * These routes handle workout template management - creating, editing,
- * and using reusable workout structures.
- *
- * Endpoints:
- * - GET /templates - List user's templates
- * - GET /templates/:id - Get single template
- * - POST /templates - Create new template
- * - PUT /templates/:id - Update template
- * - DELETE /templates/:id - Delete template
- */
+import { LoadType } from "@prisma/client";
+import { Router } from "express";
+import { z } from "zod";
 
-import { Router, Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
-import { prisma } from '../utils/prisma';
-import { logger } from '../utils/logger';
-import { successResponse, paginationMeta, parsePaginationQuery } from '../utils/response';
-import { validateBody, validateQuery, validateParams } from '../middleware/validation.middleware';
-import { authMiddleware } from '../middleware/auth.middleware';
-import { NotFoundError, ForbiddenError } from '../utils/errors';
+import { sendSuccess } from "../lib/http";
+import { requireAuth } from "../middleware/auth";
+import { validateBody } from "../middleware/validation";
+import {
+  createTemplate,
+  deleteTemplate,
+  duplicateTemplate,
+  generateTemplateDraftForUser,
+  getTemplateById,
+  listTemplates,
+  updateTemplate,
+} from "../services/template.service";
 
-export const templateRoutes = Router();
+const templatesRouter = Router();
 
-// All template routes require authentication
-templateRoutes.use(authMiddleware);
-
-/**
- * Schema for listing templates.
- */
-const ListTemplatesSchema = z.object({
-  page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(100).default(20),
-  search: z.string().optional(),
+const templateExerciseSchema = z.object({
+  exerciseId: z.string().min(1),
+  sets: z.coerce.number().int().min(1).max(10),
+  repMin: z.coerce.number().int().min(1).max(30),
+  repMax: z.coerce.number().int().min(1).max(30),
+  restSeconds: z.coerce.number().int().min(15).max(600).optional(),
+  startWeight: z.coerce.number().nonnegative().nullable().optional(),
+  loadTypeOverride: z.nativeEnum(LoadType).nullable().optional(),
+  machineOverride: z.string().max(80).nullable().optional(),
+  attachmentOverride: z.string().max(80).nullable().optional(),
+  unilateral: z.boolean().optional(),
+  notes: z.string().max(300).nullable().optional(),
 });
 
-/**
- * Schema for template ID parameter.
- */
-const TemplateIdSchema = z.object({
-  id: z.string().uuid(),
+const templateSchema = z.object({
+  name: z.string().min(3).max(80),
+  description: z.string().max(300).optional(),
+  exercises: z.array(templateExerciseSchema).min(1),
 });
 
-/**
- * Schema for template exercise in creation/update.
- */
-const TemplateExerciseInput = z.object({
-  exerciseId: z.string().uuid(),
-  orderIndex: z.number().int().min(0),
-  defaultSets: z.number().int().min(1).max(20).default(3),
-  defaultReps: z.number().int().min(1).max(100).default(10),
-  defaultRestSeconds: z.number().int().min(0).max(600).default(90),
-  notes: z.string().max(500).optional(),
+const draftPromptSchema = z.object({
+  prompt: z.string().min(4).max(500),
 });
 
-/**
- * Schema for creating a template.
- */
-const CreateTemplateSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).optional(),
-  estimatedDuration: z.number().int().min(1).max(300).optional(),
-  exercises: z.array(TemplateExerciseInput).min(1),
+templatesRouter.use(requireAuth);
+
+templatesRouter.get("/", async (request, response, next) => {
+  try {
+    const templates = await listTemplates(request.currentUser!.id);
+    sendSuccess(response, templates);
+  } catch (error) {
+    next(error);
+  }
 });
 
-/**
- * Schema for updating a template.
- */
-const UpdateTemplateSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  description: z.string().max(500).optional().nullable(),
-  estimatedDuration: z.number().int().min(1).max(300).optional().nullable(),
-  exercises: z.array(TemplateExerciseInput).optional(),
+templatesRouter.post("/generate-draft", validateBody(draftPromptSchema), async (request, response, next) => {
+  try {
+    const draft = await generateTemplateDraftForUser(request.currentUser!.id, request.body.prompt);
+    sendSuccess(response, draft);
+  } catch (error) {
+    next(error);
+  }
 });
 
-/**
- * GET /templates
- *
- * Lists user's workout templates.
- */
-templateRoutes.get(
-  '/',
-  validateQuery(ListTemplatesSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = req.user!.id;
-      const { search } = req.query as { search?: string };
-      const { page, limit, skip } = parsePaginationQuery(req.query);
-
-      // Build filter conditions
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const where: any = { userId };
-
-      if (search) {
-        where.name = {
-          contains: search,
-          mode: 'insensitive',
-        };
-      }
-
-      // Get total count
-      const total = await prisma.workoutTemplate.count({ where });
-
-      // Get templates with exercise count
-      const templates = await prisma.workoutTemplate.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { updatedAt: 'desc' },
-        include: {
-          exercises: {
-            select: {
-              exercise: {
-                select: {
-                  name: true,
-                  primaryMuscles: true,
-                },
-              },
-            },
-          },
-          _count: {
-            select: { sessions: true },
-          },
-        },
-      });
-
-      // Transform to summary format
-      const summaries = templates.map(t => ({
-        id: t.id,
-        name: t.name,
-        description: t.description,
-        estimatedDuration: t.estimatedDuration,
-        exerciseCount: t.exercises.length,
-        timesUsed: t._count.sessions,
-        exercises: t.exercises.map(e => ({
-          name: e.exercise.name,
-          muscles: e.exercise.primaryMuscles,
-        })),
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-      }));
-
-      res.json(successResponse(summaries, paginationMeta(page, limit, total)));
-    } catch (error) {
-      next(error);
-    }
+templatesRouter.get("/:templateId", async (request, response, next) => {
+  try {
+    const template = await getTemplateById(request.currentUser!.id, request.params.templateId);
+    sendSuccess(response, template);
+  } catch (error) {
+    next(error);
   }
-);
+});
 
-/**
- * GET /templates/:id
- *
- * Gets a single template with full details.
- */
-templateRoutes.get(
-  '/:id',
-  validateParams(TemplateIdSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const userId = req.user!.id;
-
-      const template = await prisma.workoutTemplate.findUnique({
-        where: { id },
-        include: {
-          exercises: {
-            orderBy: { orderIndex: 'asc' },
-            include: {
-              exercise: true,
-            },
-          },
-        },
-      });
-
-      if (!template) {
-        throw new NotFoundError('Template');
-      }
-
-      // Allow access to user's own templates and program templates (userId = null)
-      if (template.userId !== null && template.userId !== userId) {
-        throw new ForbiddenError('You can only view your own templates');
-      }
-
-      res.json(successResponse(template));
-    } catch (error) {
-      next(error);
-    }
+templatesRouter.post("/", validateBody(templateSchema), async (request, response, next) => {
+  try {
+    const template = await createTemplate(request.currentUser!.id, request.body);
+    sendSuccess(response, template, 201);
+  } catch (error) {
+    next(error);
   }
-);
+});
 
-/**
- * POST /templates
- *
- * Creates a new workout template.
- */
-templateRoutes.post(
-  '/',
-  validateBody(CreateTemplateSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = req.user!.id;
-      const { name, description, estimatedDuration, exercises } = req.body;
-
-      // Create template with exercises in a transaction
-      const template = await prisma.workoutTemplate.create({
-        data: {
-          userId,
-          name,
-          description,
-          estimatedDuration,
-          exercises: {
-            create: exercises.map((e: z.infer<typeof TemplateExerciseInput>) => ({
-              exerciseId: e.exerciseId,
-              orderIndex: e.orderIndex,
-              defaultSets: e.defaultSets,
-              defaultReps: e.defaultReps,
-              defaultRestSeconds: e.defaultRestSeconds,
-              notes: e.notes,
-            })),
-          },
-        },
-        include: {
-          exercises: {
-            orderBy: { orderIndex: 'asc' },
-            include: {
-              exercise: true,
-            },
-          },
-        },
-      });
-
-      logger.info({ templateId: template.id, userId }, 'Template created');
-
-      res.status(201).json(successResponse(template));
-    } catch (error) {
-      next(error);
-    }
+templatesRouter.put("/:templateId", validateBody(templateSchema), async (request, response, next) => {
+  try {
+    const template = await updateTemplate(
+      request.currentUser!.id,
+      String(request.params.templateId),
+      request.body,
+    );
+    sendSuccess(response, template);
+  } catch (error) {
+    next(error);
   }
-);
+});
 
-/**
- * PUT /templates/:id
- *
- * Updates a template (replaces exercises if provided).
- */
-templateRoutes.put(
-  '/:id',
-  validateParams(TemplateIdSchema),
-  validateBody(UpdateTemplateSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const userId = req.user!.id;
-      const { name, description, estimatedDuration, exercises } = req.body;
-
-      // Verify ownership
-      const existing = await prisma.workoutTemplate.findUnique({
-        where: { id },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Template');
-      }
-
-      if (existing.userId !== userId) {
-        throw new ForbiddenError('You can only modify your own templates');
-      }
-
-      // Update template - if exercises provided, replace all
-      const template = await prisma.$transaction(async (tx) => {
-        // Delete existing exercises if new ones provided
-        if (exercises) {
-          await tx.templateExercise.deleteMany({
-            where: { templateId: id },
-          });
-        }
-
-        // Update template
-        return tx.workoutTemplate.update({
-          where: { id },
-          data: {
-            name,
-            description,
-            estimatedDuration,
-            ...(exercises && {
-              exercises: {
-                create: exercises.map((e: z.infer<typeof TemplateExerciseInput>) => ({
-                  exerciseId: e.exerciseId,
-                  orderIndex: e.orderIndex,
-                  defaultSets: e.defaultSets,
-                  defaultReps: e.defaultReps,
-                  defaultRestSeconds: e.defaultRestSeconds,
-                  notes: e.notes,
-                })),
-              },
-            }),
-          },
-          include: {
-            exercises: {
-              orderBy: { orderIndex: 'asc' },
-              include: {
-                exercise: true,
-              },
-            },
-          },
-        });
-      });
-
-      logger.info({ templateId: id, userId }, 'Template updated');
-
-      res.json(successResponse(template));
-    } catch (error) {
-      next(error);
-    }
+templatesRouter.post("/:templateId/duplicate", async (request, response, next) => {
+  try {
+    const template = await duplicateTemplate(request.currentUser!.id, request.params.templateId);
+    sendSuccess(response, template, 201);
+  } catch (error) {
+    next(error);
   }
-);
+});
 
-/**
- * POST /templates/:id/duplicate
- *
- * Duplicates a template for the current user.
- */
-templateRoutes.post(
-  '/:id/duplicate',
-  validateParams(TemplateIdSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const userId = req.user!.id;
-
-      // Get the source template
-      const source = await prisma.workoutTemplate.findUnique({
-        where: { id },
-        include: {
-          exercises: {
-            orderBy: { orderIndex: 'asc' },
-          },
-        },
-      });
-
-      if (!source) {
-        throw new NotFoundError('Template');
-      }
-
-      // Allow duplicating own templates or built-in templates
-      if (source.userId !== null && source.userId !== userId) {
-        throw new ForbiddenError('You can only duplicate your own or built-in templates');
-      }
-
-      // Create new template
-      const newTemplate = await prisma.workoutTemplate.create({
-        data: {
-          userId,
-          name: `${source.name} (Copy)`,
-          description: source.description,
-          estimatedDuration: source.estimatedDuration,
-          exercises: {
-            create: source.exercises.map((e) => ({
-              exerciseId: e.exerciseId,
-              orderIndex: e.orderIndex,
-              defaultSets: e.defaultSets,
-              defaultReps: e.defaultReps,
-              defaultRestSeconds: e.defaultRestSeconds,
-              notes: e.notes,
-            })),
-          },
-        },
-        include: {
-          exercises: {
-            orderBy: { orderIndex: 'asc' },
-            include: {
-              exercise: true,
-            },
-          },
-        },
-      });
-
-      logger.info(
-        { sourceTemplateId: id, newTemplateId: newTemplate.id, userId },
-        'Template duplicated'
-      );
-
-      res.status(201).json(successResponse(newTemplate));
-    } catch (error) {
-      next(error);
-    }
+templatesRouter.delete("/:templateId", async (request, response, next) => {
+  try {
+    await deleteTemplate(request.currentUser!.id, request.params.templateId);
+    sendSuccess(response, { ok: true });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
-/**
- * DELETE /templates/:id
- *
- * Deletes a template.
- */
-templateRoutes.delete(
-  '/:id',
-  validateParams(TemplateIdSchema),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const userId = req.user!.id;
-
-      const existing = await prisma.workoutTemplate.findUnique({
-        where: { id },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Template');
-      }
-
-      if (existing.userId !== userId) {
-        throw new ForbiddenError('You can only delete your own templates');
-      }
-
-      await prisma.workoutTemplate.delete({
-        where: { id },
-      });
-
-      logger.info({ templateId: id, userId }, 'Template deleted');
-
-      res.json(successResponse({ message: 'Template deleted' }));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+export { templatesRouter };
