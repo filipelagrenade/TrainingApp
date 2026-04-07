@@ -39,9 +39,13 @@ WEB_IMAGE=ghcr.io/filipelagrenade/trainingapp-web:latest
 Run:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.ghcr.yml pull
-docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.ghcr.yml run --rm migrate
-docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.ghcr.yml -f docker-compose.cloudflare.yml up -d
+bash scripts/deploy-ghcr.sh
+```
+
+If you need initial seed data:
+
+```bash
+bash scripts/seed-ghcr.sh
 ```
 
 ## Update flow
@@ -52,9 +56,7 @@ After pushing to `main` and waiting for the workflow to publish new images:
 cd /root/liftiq
 git fetch origin
 git reset --hard origin/main
-docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.ghcr.yml pull
-docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.ghcr.yml run --rm migrate
-docker compose --env-file .env.production -f docker-compose.prod.yml -f docker-compose.ghcr.yml -f docker-compose.cloudflare.yml up -d
+bash scripts/deploy-ghcr.sh
 ```
 
 No local Docker build is needed on the Droplet.
