@@ -1,29 +1,65 @@
-const CACHE_NAME = "liftiq-shell-v1";
-const OFFLINE_ASSETS = ["/"];
+const CACHE_NAME = "liftiq-static-v2";
+const STATIC_PATHS = new Set(["/icon.svg", "/manifest.webmanifest"]);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(OFFLINE_ASSETS)));
+  self.skipWaiting();
+  event.waitUntil(Promise.resolve());
 });
 
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+      )
+      .then(() => self.clients.claim()),
+  );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
+const isStaticAsset = (request) => {
+  const url = new URL(request.url);
+
+  if (url.origin !== self.location.origin) {
+    return false;
+  }
+
+  if (url.pathname.startsWith("/api/")) {
+    return false;
+  }
+
+  if (request.mode === "navigate") {
+    return false;
+  }
+
+  return url.pathname.startsWith("/_next/static/") || STATIC_PATHS.has(url.pathname);
+};
+
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
+  if (event.request.method !== "GET" || !isStaticAsset(event.request)) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cachedResponse = await cache.match(event.request);
+      const networkRequest = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse.ok) {
+            cache.put(event.request, networkResponse.clone());
+          }
 
-      return fetch(event.request).then((networkResponse) => {
-        if (event.request.url.startsWith(self.location.origin)) {
-          const copy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
 
-        return networkResponse;
-      });
+      return cachedResponse ?? networkRequest;
     }),
   );
 });

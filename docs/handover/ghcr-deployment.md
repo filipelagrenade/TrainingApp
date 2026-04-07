@@ -49,6 +49,18 @@ If you need initial seed data:
 bash scripts/seed-ghcr.sh
 ```
 
+To tail logs:
+
+```bash
+bash scripts/logs-ghcr.sh
+```
+
+To tail one service only:
+
+```bash
+bash scripts/logs-ghcr.sh web
+```
+
 ## Update flow
 
 After pushing to `main` and waiting for the workflow to publish new images:

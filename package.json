@@ -19,6 +19,7 @@
     "docker:prod:down": "docker compose --env-file .env.production -f docker-compose.prod.yml down",
     "docker:prod:logs": "docker compose --env-file .env.production -f docker-compose.prod.yml logs -f",
     "docker:ghcr:deploy": "bash scripts/deploy-ghcr.sh",
-    "docker:ghcr:seed": "bash scripts/seed-ghcr.sh"
+    "docker:ghcr:seed": "bash scripts/seed-ghcr.sh",
+    "docker:ghcr:logs": "bash scripts/logs-ghcr.sh"
   }
 }
