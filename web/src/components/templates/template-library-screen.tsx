@@ -4,10 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Play, Rows3 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
+import type { Exercise } from "@/lib/types";
 import { AuthCard } from "@/components/auth/auth-card";
+import { TemplateBuilderSheet } from "@/components/templates/template-builder-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const TemplateLibraryScreen = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [builderOpen, setBuilderOpen] = useState(false);
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -24,6 +28,11 @@ export const TemplateLibraryScreen = () => {
   const templatesQuery = useQuery({
     queryKey: ["templates"],
     queryFn: apiClient.getTemplates,
+    enabled: meQuery.isSuccess,
+  });
+  const exercisesQuery = useQuery({
+    queryKey: ["exercises"],
+    queryFn: apiClient.getExercises,
     enabled: meQuery.isSuccess,
   });
 
@@ -80,9 +89,12 @@ export const TemplateLibraryScreen = () => {
                 Save reusable sessions for travel gyms, swaps, or quick structured training days.
               </CardDescription>
             </div>
-            <Button asChild variant="ghost">
-              <Link href="/">Back</Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setBuilderOpen(true)}>Create template</Button>
+              <Button asChild variant="ghost">
+                <Link href="/">Back</Link>
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
@@ -151,6 +163,12 @@ export const TemplateLibraryScreen = () => {
           </Card>
         )}
       </div>
+
+      <TemplateBuilderSheet
+        exercises={(exercisesQuery.data as Exercise[] | undefined) ?? []}
+        onOpenChange={setBuilderOpen}
+        open={builderOpen}
+      />
     </div>
   );
 };

@@ -28,6 +28,21 @@ export const equipmentTypeOptions = [
   "Other",
 ];
 
+export const defaultLoadTypeByEquipment: Record<string, LoadType> = {
+  Barbell: "FIXED_WEIGHT",
+  Dumbbell: "FIXED_WEIGHT",
+  Cable: "CABLE_STACK",
+  Machine: "STACK",
+  Bodyweight: "BODYWEIGHT",
+  "Smith Machine": "FIXED_WEIGHT",
+  "EZ Bar": "FIXED_WEIGHT",
+  Kettlebell: "FIXED_WEIGHT",
+  "Resistance Band": "EXTERNAL",
+  Other: "EXTERNAL",
+};
+
+export const equipmentTypesWithAttachments = new Set(["Cable", "Resistance Band", "Other"]);
+
 export const muscleGroupOptions = [
   "Chest",
   "Upper Chest",

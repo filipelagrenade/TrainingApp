@@ -9,9 +9,11 @@ import { apiClient } from "@/lib/api-client";
 import { createBlankDayDraft, generatedTemplateToDayDraft } from "@/lib/programs";
 import type { DraftTemplateDay, Exercise } from "@/lib/types";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
+import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NullableNumberInput } from "@/components/ui/nullable-number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sheet,
@@ -30,14 +32,6 @@ const restPresetOptions = [
   { label: "180 sec", value: 180 },
 ];
 
-const parseOptionalNumber = (value: string) => {
-  if (value.trim() === "") {
-    return null;
-  }
-
-  return Number(value);
-};
-
 export const DayEditorSheet = ({
   day,
   exercises,
@@ -53,6 +47,7 @@ export const DayEditorSheet = ({
 }) => {
   const [localDay, setLocalDay] = useState<DraftTemplateDay | null>(day);
   const [prompt, setPrompt] = useState("");
+  const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
 
   useEffect(() => {
     setLocalDay(day);
@@ -150,13 +145,14 @@ export const DayEditorSheet = ({
 
           <div className="space-y-2">
             <Label htmlFor="day-minutes">Estimated minutes</Label>
-            <Input
+            <NullableNumberInput
               id="day-minutes"
-              type="number"
               value={localDay.estimatedMinutes ?? 55}
-              onChange={(event) =>
+              onChange={(value) =>
                 setLocalDay((current) =>
-                  current ? { ...current, estimatedMinutes: Number(event.target.value) } : current,
+                  current
+                    ? { ...current, estimatedMinutes: value ?? current.estimatedMinutes ?? 55 }
+                    : current,
                 )
               }
             />
@@ -226,8 +222,7 @@ export const DayEditorSheet = ({
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="space-y-2">
                       <Label>Sets</Label>
-                      <Input
-                        type="number"
+                      <NullableNumberInput
                         value={exercise.sets}
                         onChange={(event) =>
                           setLocalDay((current) =>
@@ -236,7 +231,7 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, sets: Number(event.target.value) }
+                                      ? { ...candidate, sets: event ?? candidate.sets }
                                       : candidate,
                                   ),
                                 }
@@ -247,8 +242,7 @@ export const DayEditorSheet = ({
                     </div>
                     <div className="space-y-2">
                       <Label>Rep min</Label>
-                      <Input
-                        type="number"
+                      <NullableNumberInput
                         value={exercise.repMin}
                         onChange={(event) =>
                           setLocalDay((current) =>
@@ -257,7 +251,7 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, repMin: Number(event.target.value) }
+                                      ? { ...candidate, repMin: event ?? candidate.repMin }
                                       : candidate,
                                   ),
                                 }
@@ -268,8 +262,7 @@ export const DayEditorSheet = ({
                     </div>
                     <div className="space-y-2">
                       <Label>Rep max</Label>
-                      <Input
-                        type="number"
+                      <NullableNumberInput
                         value={exercise.repMax}
                         onChange={(event) =>
                           setLocalDay((current) =>
@@ -278,7 +271,7 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, repMax: Number(event.target.value) }
+                                      ? { ...candidate, repMax: event ?? candidate.repMax }
                                       : candidate,
                                   ),
                                 }
@@ -289,10 +282,9 @@ export const DayEditorSheet = ({
                     </div>
                     <div className="space-y-2">
                       <Label>Start weight</Label>
-                      <Input
-                        type="number"
-                        value={exercise.startWeight ?? ""}
-                        onChange={(event) =>
+                      <NullableNumberInput
+                        value={exercise.startWeight ?? null}
+                        onChange={(value) =>
                           setLocalDay((current) =>
                             current
                               ? {
@@ -301,7 +293,7 @@ export const DayEditorSheet = ({
                                     index === exerciseIndex
                                       ? {
                                           ...candidate,
-                                          startWeight: parseOptionalNumber(event.target.value),
+                                          startWeight: value,
                                         }
                                       : candidate,
                                   ),
@@ -346,18 +338,17 @@ export const DayEditorSheet = ({
                     </div>
                     <div className="space-y-2">
                       <Label>Increment</Label>
-                      <Input
-                        type="number"
-                        step="0.5"
+                      <NullableNumberInput
+                        step={0.5}
                         value={exercise.increment ?? 2.5}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setLocalDay((current) =>
                             current
                               ? {
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, increment: Number(event.target.value) }
+                                      ? { ...candidate, increment: value ?? candidate.increment ?? 2.5 }
                                       : candidate,
                                   ),
                                 }
@@ -368,11 +359,10 @@ export const DayEditorSheet = ({
                     </div>
                     <div className="space-y-2">
                       <Label>Target RPE</Label>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        value={exercise.targetRpe ?? ""}
-                        onChange={(event) =>
+                      <NullableNumberInput
+                        step={0.5}
+                        value={exercise.targetRpe ?? null}
+                        onChange={(value) =>
                           setLocalDay((current) =>
                             current
                               ? {
@@ -381,7 +371,7 @@ export const DayEditorSheet = ({
                                     index === exerciseIndex
                                       ? {
                                           ...candidate,
-                                          targetRpe: parseOptionalNumber(event.target.value),
+                                          targetRpe: value,
                                         }
                                       : candidate,
                                   ),
@@ -393,18 +383,17 @@ export const DayEditorSheet = ({
                     </div>
                     <div className="space-y-2">
                       <Label>Deload factor</Label>
-                      <Input
-                        type="number"
-                        step="0.05"
+                      <NullableNumberInput
+                        step={0.05}
                         value={exercise.deloadFactor ?? 0.9}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setLocalDay((current) =>
                             current
                               ? {
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, deloadFactor: Number(event.target.value) }
+                                      ? { ...candidate, deloadFactor: value ?? candidate.deloadFactor ?? 0.9 }
                                       : candidate,
                                   ),
                                 }
@@ -464,6 +453,10 @@ export const DayEditorSheet = ({
               <Plus className="h-4 w-4" />
               Add exercise
             </Button>
+            <Button variant="outline" onClick={() => setBulkSheetOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Bulk add
+            </Button>
             <ExerciseCreatorDialog triggerLabel="New custom exercise" />
           </div>
         </div>
@@ -481,6 +474,26 @@ export const DayEditorSheet = ({
           </Button>
         </SheetFooter>
       </SheetContent>
+      <ExerciseBulkPickerSheet
+        description="Queue several exercises, then add them to this day in one go."
+        exercises={exercises}
+        onConfirm={(selectedExercises) =>
+          setLocalDay((current) =>
+            current
+              ? {
+                  ...current,
+                  exercises: [
+                    ...current.exercises,
+                    ...selectedExercises.map((exercise) => createBlankDayDraft(exercise, 1).exercises[0]).filter(Boolean),
+                  ],
+                }
+              : current,
+          )
+        }
+        onOpenChange={setBulkSheetOpen}
+        open={bulkSheetOpen}
+        title="Bulk add exercises"
+      />
     </Sheet>
   );
 };

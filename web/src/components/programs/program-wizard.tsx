@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NullableNumberInput } from "@/components/ui/nullable-number-input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -158,20 +159,7 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
 
       const program = await apiClient.createProgram(payload);
       await apiClient.activateProgram(program.id);
-
-      const templateResults = await Promise.allSettled(
-        sanitizedDays.map((day) =>
-          apiClient.createTemplate({
-            name: day.title,
-            description: day.description,
-            exercises: day.exercises,
-          }),
-        ),
-      );
-
-      const failedTemplateCount = templateResults.filter((result) => result.status === "rejected").length;
-
-      return { failedTemplateCount, programId: program.id, updated: false };
+      return { failedTemplateCount: 0, programId: program.id, updated: false };
     },
     onSuccess: async ({ failedTemplateCount, updated }) => {
       await queryClient.invalidateQueries({ queryKey: ["programs"] });
@@ -184,11 +172,7 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
         return;
       }
 
-      toast.success(
-        failedTemplateCount === 0
-          ? "Program created and activated"
-          : "Program created. Some day templates could not be saved.",
-      );
+      toast.success("Program created and activated");
       router.push("/");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -294,24 +278,22 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="duration-weeks">Duration (weeks)</Label>
-                <Input
+                <NullableNumberInput
                   id="duration-weeks"
-                  type="number"
                   min={4}
                   max={16}
                   value={durationWeeks}
-                  onChange={(event) => setDurationWeeks(Number(event.target.value))}
+                  onChange={(value) => setDurationWeeks(value ?? 8)}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="days-per-week">Days per week</Label>
-                <Input
+                <NullableNumberInput
                   id="days-per-week"
-                  type="number"
                   min={2}
                   max={6}
                   value={daysPerWeek}
-                  onChange={(event) => setDaysPerWeek(Number(event.target.value))}
+                  onChange={(value) => setDaysPerWeek(value ?? 4)}
                 />
               </div>
               <div className="space-y-2">

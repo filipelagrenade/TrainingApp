@@ -38,6 +38,7 @@ const programExerciseSchema = z.object({
 const programDaySchema = z.object({
   dayLabel: z.string().min(2).max(40),
   title: z.string().min(2).max(80),
+  description: z.string().max(300).optional(),
   estimatedMinutes: z.coerce.number().int().min(15).max(240).optional(),
   exercises: z.array(programExerciseSchema).min(1),
 });

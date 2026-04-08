@@ -11,6 +11,7 @@ import {
 export type ProgramDayInput = {
   dayLabel: string;
   title: string;
+  description?: string;
   estimatedMinutes?: number;
   exercises: Array<{
     exerciseId: string;
@@ -92,6 +93,28 @@ const buildWeekCreates = (input: ProgramInput) =>
     },
   }));
 
+const buildTemplateCreates = (input: ProgramInput) =>
+  input.days.map((day) => ({
+    name: day.title,
+    description: day.description ?? `Auto-saved from ${input.name}`,
+    exercises: {
+      create: day.exercises.map((exercise, exerciseIndex) => ({
+        exerciseId: exercise.exerciseId,
+        orderIndex: exerciseIndex,
+        sets: exercise.sets,
+        repMin: exercise.repMin,
+        repMax: exercise.repMax,
+        restSeconds: exercise.restSeconds ?? 120,
+        startWeight: exercise.startWeight ?? null,
+        loadTypeOverride: exercise.loadTypeOverride ?? null,
+        machineOverride: exercise.machineOverride,
+        attachmentOverride: exercise.attachmentOverride,
+        unilateral: exercise.unilateral ?? false,
+        notes: exercise.notes,
+      })),
+    },
+  }));
+
 export const listPrograms = async (userId: string) =>
   prisma.program.findMany({
     where: { userId },
@@ -100,17 +123,32 @@ export const listPrograms = async (userId: string) =>
   });
 
 export const createProgram = async (userId: string, input: ProgramInput) =>
-  prisma.program.create({
-    data: {
-      userId,
-      name: input.name,
-      goal: input.goal,
-      description: input.description,
-      weeks: {
-        create: buildWeekCreates(input),
+  prisma.$transaction(async (transaction) => {
+    const program = await transaction.program.create({
+      data: {
+        userId,
+        name: input.name,
+        goal: input.goal,
+        description: input.description,
+        weeks: {
+          create: buildWeekCreates(input),
+        },
       },
-    },
-    include: programInclude,
+      include: programInclude,
+    });
+
+    for (const template of buildTemplateCreates(input)) {
+      await transaction.workoutTemplate.create({
+        data: {
+          userId,
+          name: template.name,
+          description: template.description,
+          exercises: template.exercises,
+        },
+      });
+    }
+
+    return program;
   });
 
 export const updateProgram = async (userId: string, programId: string, input: ProgramInput) =>

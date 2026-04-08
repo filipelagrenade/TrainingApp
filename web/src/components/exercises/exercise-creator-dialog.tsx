@@ -7,12 +7,13 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import {
+  defaultLoadTypeByEquipment,
   equipmentTypeOptions,
-  loadTypeOptions,
+  equipmentTypesWithAttachments,
   muscleGroupOptions,
   unitModeOptions,
 } from "@/lib/exercise-options";
-import type { CreateExerciseInput, Exercise, LoadType } from "@/lib/types";
+import type { CreateExerciseInput, Exercise } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -22,10 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const defaultState: CreateExerciseInput = {
   name: "",
-  equipmentType: "Machine",
-  machineType: "",
+  equipmentType: "Dumbbell",
   attachment: "",
-  loadType: "STACK",
+  loadType: "FIXED_WEIGHT",
   unitMode: "kg",
   primaryMuscles: ["Chest"],
   secondaryMuscles: [],
@@ -47,8 +47,11 @@ export const ExerciseCreatorDialog = ({
     mutationFn: () =>
       apiClient.createExercise({
         ...form,
-        machineType: form.machineType?.trim() || undefined,
-        attachment: form.attachment?.trim() || undefined,
+        loadType: defaultLoadTypeByEquipment[form.equipmentType] ?? "EXTERNAL",
+        attachment:
+          equipmentTypesWithAttachments.has(form.equipmentType)
+            ? form.attachment?.trim() || undefined
+            : undefined,
         primaryMuscles: form.primaryMuscles,
         secondaryMuscles: form.secondaryMuscles?.filter(Boolean),
       }),
@@ -66,6 +69,8 @@ export const ExerciseCreatorDialog = ({
   const updateField = <K extends keyof CreateExerciseInput>(key: K, value: CreateExerciseInput[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
+
+  const usesAttachment = equipmentTypesWithAttachments.has(form.equipmentType);
 
   const primaryMuscle = form.primaryMuscles[0] ?? "Chest";
   const secondaryMuscles = form.secondaryMuscles ?? [];
@@ -85,7 +90,7 @@ export const ExerciseCreatorDialog = ({
         <DialogHeader>
           <DialogTitle>Create custom exercise</DialogTitle>
           <DialogDescription>
-            Add your gym’s machine naming, attachments, and load mode once so logging stays fast later.
+            Keep this quick. Pick the equipment and LiftIQ will fill the load mode for you.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
@@ -101,7 +106,17 @@ export const ExerciseCreatorDialog = ({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Equipment type</Label>
-              <Select value={form.equipmentType} onValueChange={(value) => updateField("equipmentType", value)}>
+              <Select
+                value={form.equipmentType}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    equipmentType: value,
+                    loadType: defaultLoadTypeByEquipment[value] ?? "EXTERNAL",
+                    attachment: equipmentTypesWithAttachments.has(value) ? current.attachment : "",
+                  }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Equipment type" />
                 </SelectTrigger>
@@ -116,40 +131,20 @@ export const ExerciseCreatorDialog = ({
             </div>
             <div className="grid gap-2">
               <Label>Load type</Label>
-              <Select value={form.loadType} onValueChange={(value) => updateField("loadType", value as LoadType)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Load type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {loadTypeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input value={(defaultLoadTypeByEquipment[form.equipmentType] ?? "EXTERNAL").replaceAll("_", " ")} disabled />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="machine-type">Machine type</Label>
-              <Input
-                id="machine-type"
-                value={form.machineType ?? ""}
-                onChange={(event) => updateField("machineType", event.target.value)}
-                placeholder="45 Degree Leg Press"
-              />
-            </div>
+          {usesAttachment ? (
             <div className="grid gap-2">
               <Label htmlFor="attachment">Attachment</Label>
               <Input
                 id="attachment"
                 value={form.attachment ?? ""}
                 onChange={(event) => updateField("attachment", event.target.value)}
-                placeholder="Wide bar"
+                placeholder={form.equipmentType === "Cable" ? "Rope, straight bar, wide bar" : "Optional attachment"}
               />
             </div>
-          </div>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Unit mode</Label>

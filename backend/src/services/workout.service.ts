@@ -922,13 +922,14 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
         id: workoutId,
         userId,
       },
-      include: {
-        user: true,
-      },
     });
 
     if (!workout) {
       throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
+    }
+
+    if (workout.status === WorkoutStatus.COMPLETED) {
+      throw new AppError(409, "WORKOUT_ALREADY_COMPLETED", "That workout has already been completed.");
     }
 
     await transaction.workoutExercise.deleteMany({
@@ -1012,6 +1013,18 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
     let completedWeek = false;
     let newWeek = workout.programId ? 1 : 0;
 
+    await transaction.workoutSession.update({
+      where: { id: workout.id },
+      data: {
+        title: draft.title,
+        notes: draft.notes,
+        status: WorkoutStatus.COMPLETED,
+        completedAt: new Date(),
+        totalXp: xpAwarded,
+        savedDraft: draft,
+      },
+    });
+
     if (workout.programId && workout.programWorkoutId) {
       const advancement = await maybeAdvanceProgramWeek(
         transaction,
@@ -1036,18 +1049,6 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
       { workoutId },
     );
 
-    await transaction.workoutSession.update({
-      where: { id: workout.id },
-      data: {
-        title: draft.title,
-        notes: draft.notes,
-        status: WorkoutStatus.COMPLETED,
-        completedAt: new Date(),
-        totalXp: xpAwarded,
-        savedDraft: draft,
-      },
-    });
-
     await transaction.activityEvent.create({
       data: {
         userId,
@@ -1064,11 +1065,14 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
       },
     });
 
-    const unlockedAchievements = await unlockAchievements(transaction, {
-      user: {
-        ...workout.user,
-        xpTotal: workout.user.xpTotal + xpAwarded,
+    const updatedUser = await transaction.user.findUniqueOrThrow({
+      where: {
+        id: userId,
       },
+    });
+
+    const unlockedAchievements = await unlockAchievements(transaction, {
+      user: updatedUser,
       workoutCompletedCount,
       prCount,
       completedWeek,

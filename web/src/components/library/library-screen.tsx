@@ -264,8 +264,15 @@ export const LibraryScreen = () => {
         <TabsContent value="templates">
           <Card className="border-border/70">
             <CardHeader>
-              <CardTitle>Template library</CardTitle>
-              <CardDescription>Reusable days for quick starts, travel gyms, and substitutions.</CardDescription>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Template library</CardTitle>
+                  <CardDescription>Reusable days for quick starts, travel gyms, and substitutions.</CardDescription>
+                </div>
+                <Button asChild>
+                  <Link href="/templates">Create template</Link>
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               {templatesQuery.isLoading ? (
