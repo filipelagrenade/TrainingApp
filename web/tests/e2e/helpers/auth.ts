@@ -15,13 +15,14 @@ export const registerWithFreshUser = async (page: Page) => {
   const user = buildTestUser();
 
   await page.goto("/");
-  await expect(page.getByText("LiftIQ Beta")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Create account" })).toBeVisible();
   await page.getByRole("tab", { name: "Create account" }).click();
   await page.getByLabel("Display name").fill(user.displayName);
   await page.getByLabel("Email").last().fill(user.email);
   await page.getByLabel("Password").last().fill(user.password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText("Welcome back")).toBeVisible();
+  await expect(page.getByText(`Welcome back, ${user.displayName}`)).toBeVisible();
 
   return user;
 };
