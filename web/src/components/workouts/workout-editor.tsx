@@ -165,13 +165,15 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     mutationFn: (payload: WorkoutDraft) => apiClient.completeWorkout(sessionId, payload),
     onSuccess: async (result) => {
       clearDraft(sessionId);
-      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
-      await queryClient.invalidateQueries({ queryKey: ["active-program"] });
-      await queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
-      await queryClient.invalidateQueries({ queryKey: ["feed"] });
-      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
       toast.success(`Workout complete. +${result.xpAwarded} XP`);
       router.push("/");
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["recent-workouts"] }),
+        queryClient.invalidateQueries({ queryKey: ["active-program"] }),
+        queryClient.invalidateQueries({ queryKey: ["leaderboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["feed"] }),
+        queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] }),
+      ]);
     },
     onError: (error: Error) => toast.error(error.message),
   });

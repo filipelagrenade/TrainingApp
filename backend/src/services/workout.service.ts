@@ -777,15 +777,13 @@ export const unpairWorkoutSuperset = async (
   return nextDraft;
 };
 
-const isPersonalRecord = async (
+const getPersonalRecordBenchmarks = async (
   transaction: Prisma.TransactionClient,
   userId: string,
-  exerciseId: string | null,
-  weight: number | null,
-  reps: number,
-): Promise<boolean> => {
-  if (!exerciseId || typeof weight !== "number") {
-    return false;
+  exerciseIds: string[],
+) => {
+  if (!exerciseIds.length) {
+    return new Map<string, number>();
   }
 
   const priorSets = await transaction.workoutSet.findMany({
@@ -794,7 +792,9 @@ const isPersonalRecord = async (
         not: null,
       },
       workoutExercise: {
-        exerciseId,
+        exerciseId: {
+          in: exerciseIds,
+        },
         session: {
           userId,
           status: WorkoutStatus.COMPLETED,
@@ -804,15 +804,28 @@ const isPersonalRecord = async (
     select: {
       weight: true,
       reps: true,
+      workoutExercise: {
+        select: {
+          exerciseId: true,
+        },
+      },
     },
   });
 
-  const bestPrevious = priorSets.reduce((best, set) => {
-    const oneRepMax = estimateOneRepMax(set.weight ?? 0, set.reps);
-    return Math.max(best, oneRepMax);
-  }, 0);
+  return priorSets.reduce((benchmarks, set) => {
+    const exerciseId = set.workoutExercise.exerciseId;
+    if (!exerciseId || typeof set.weight !== "number") {
+      return benchmarks;
+    }
 
-  return estimateOneRepMax(weight, reps) > bestPrevious;
+    const oneRepMax = estimateOneRepMax(set.weight, set.reps);
+    const currentBest = benchmarks.get(exerciseId) ?? 0;
+    if (oneRepMax > currentBest) {
+      benchmarks.set(exerciseId, oneRepMax);
+    }
+
+    return benchmarks;
+  }, new Map<string, number>());
 };
 
 const maybeAdvanceProgramWeek = async (
@@ -939,6 +952,12 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
     });
 
     let prCount = 0;
+    const trackedExerciseIds = [...new Set(draft.exercises.flatMap((exercise) => exercise.exerciseId ? [exercise.exerciseId] : []))];
+    const personalRecordBenchmarks = await getPersonalRecordBenchmarks(
+      transaction,
+      userId,
+      trackedExerciseIds,
+    );
 
     for (const [exerciseIndex, exercise] of draft.exercises.entries()) {
       const createdExercise = await transaction.workoutExercise.create({
@@ -969,29 +988,33 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
         },
       });
 
-      for (const set of exercise.sets) {
-        const personalRecord = await isPersonalRecord(
-          transaction,
-          userId,
-          exercise.exerciseId,
-          set.weight,
-          set.reps,
-        );
+      const createdSets = exercise.sets.map((set) => {
+        let personalRecord = false;
 
-        if (personalRecord) {
-          prCount += 1;
+        if (exercise.exerciseId && typeof set.weight === "number") {
+          const estimate = estimateOneRepMax(set.weight, set.reps);
+          const bestPrevious = personalRecordBenchmarks.get(exercise.exerciseId) ?? 0;
+          if (estimate > bestPrevious) {
+            personalRecord = true;
+            personalRecordBenchmarks.set(exercise.exerciseId, estimate);
+            prCount += 1;
+          }
         }
 
-        await transaction.workoutSet.create({
-          data: {
-            workoutExerciseId: createdExercise.id,
-            setNumber: set.setNumber,
-            weight: set.weight,
-            reps: set.reps,
-            rpe: set.rpe,
-            isWorkingSet: set.isWorkingSet ?? true,
-            isPersonalRecord: personalRecord,
-          },
+        return {
+          workoutExerciseId: createdExercise.id,
+          setNumber: set.setNumber,
+          weight: set.weight,
+          reps: set.reps,
+          rpe: set.rpe,
+          isWorkingSet: set.isWorkingSet ?? true,
+          isPersonalRecord: personalRecord,
+        };
+      });
+
+      if (createdSets.length) {
+        await transaction.workoutSet.createMany({
+          data: createdSets,
         });
       }
     }

@@ -87,19 +87,19 @@ export const unlockAchievements = async (
   },
 ): Promise<string[]> => {
   const definitions = await transaction.achievement.findMany();
+  const existingAchievements = await transaction.userAchievement.findMany({
+    where: {
+      userId: input.user.id,
+    },
+    select: {
+      achievementId: true,
+    },
+  });
+  const unlockedIds = new Set(existingAchievements.map((achievement) => achievement.achievementId));
   const unlocked: string[] = [];
 
   for (const definition of definitions) {
-    const existing = await transaction.userAchievement.findUnique({
-      where: {
-        userId_achievementId: {
-          userId: input.user.id,
-          achievementId: definition.id,
-        },
-      },
-    });
-
-    if (existing) {
+    if (unlockedIds.has(definition.id)) {
       continue;
     }
 
@@ -134,6 +134,7 @@ export const unlockAchievements = async (
         achievementId: definition.id,
       },
     });
+    unlockedIds.add(definition.id);
 
     await createXpLedgerEntry(
       transaction,
