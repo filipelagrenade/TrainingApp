@@ -59,6 +59,16 @@ const BASE_WORKOUT_XP = 100;
 const PR_XP = 40;
 const PROGRAM_WEEK_XP = 180;
 
+type WorkoutCompletionCoreResult = {
+  workoutId: string;
+  workoutTitle: string;
+  wasPlanned: boolean;
+  xpAwarded: number;
+  prCount: number;
+  completedWeek: boolean;
+  nextWeek: number;
+};
+
 const buildExposureSnapshots = async (
   userId: string,
   programExerciseId: string,
@@ -946,28 +956,107 @@ const maybeAdvanceProgramWeek = async (
     },
   });
 
-  await transaction.activityEvent.create({
-    data: {
-      userId,
-      type: ActivityType.PROGRAM_WEEK_COMPLETED,
-      title: `Completed week ${currentProgram.currentWeek} of ${currentProgram.name}`,
-      body: "Program adherence streak extended.",
-    },
-  });
-
-  await transaction.activityEvent.create({
-    data: {
-      userId,
-      type: ActivityType.STREAK_EXTENDED,
-      title: "Adherence streak extended",
-      body: "You completed every planned session for the week.",
-    },
-  });
-
   return {
     advanced: true,
     newWeek: nextWeekNumber,
   };
+};
+
+const runPostWorkoutEffects = async (
+  userId: string,
+  result: WorkoutCompletionCoreResult,
+) => {
+  const effectsStartedAt = Date.now();
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      if (result.prCount > 0) {
+        await transaction.activityEvent.create({
+          data: {
+            userId,
+            type: ActivityType.PR_HIT,
+            title: `Hit ${result.prCount} new personal record${result.prCount > 1 ? "s" : ""}`,
+            body: "Progression is moving in the right direction.",
+          },
+        });
+      }
+
+      if (result.completedWeek) {
+        await transaction.activityEvent.create({
+          data: {
+            userId,
+            type: ActivityType.PROGRAM_WEEK_COMPLETED,
+            title: `Completed week ${Math.max(1, result.nextWeek - 1)}`,
+            body: "Program adherence streak extended.",
+          },
+        });
+
+        await transaction.activityEvent.create({
+          data: {
+            userId,
+            type: ActivityType.STREAK_EXTENDED,
+            title: "Adherence streak extended",
+            body: "You completed every planned session for the week.",
+          },
+        });
+      }
+
+      await createXpLedgerEntry(
+        transaction,
+        userId,
+        result.xpAwarded,
+        result.completedWeek ? "program-week-complete" : "workout-complete",
+        { workoutId: result.workoutId },
+      );
+
+      await transaction.activityEvent.create({
+        data: {
+          userId,
+          type: ActivityType.WORKOUT_COMPLETED,
+          title: `Completed ${result.workoutTitle}`,
+          body: result.wasPlanned ? "Planned session complete." : "Quick workout logged.",
+        },
+      });
+
+      const workoutCompletedCount = await transaction.workoutSession.count({
+        where: {
+          userId,
+          status: WorkoutStatus.COMPLETED,
+        },
+      });
+
+      const updatedUser = await transaction.user.findUniqueOrThrow({
+        where: {
+          id: userId,
+        },
+      });
+
+      await unlockAchievements(transaction, {
+        user: updatedUser,
+        workoutCompletedCount,
+        prCount: result.prCount,
+        completedWeek: result.completedWeek,
+      });
+    });
+
+    logger.info(
+      {
+        workoutId: result.workoutId,
+        userId,
+        durationMs: Date.now() - effectsStartedAt,
+      },
+      "Processed workout side effects",
+    );
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        workoutId: result.workoutId,
+        userId,
+      },
+      "Failed to process workout side effects",
+    );
+  }
 };
 
 export const completeWorkout = async (userId: string, workoutId: string, draft: WorkoutDraft) => {
@@ -1067,18 +1156,11 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
 
     if (prCount > 0) {
       xpAwarded += prCount * PR_XP;
-      await transaction.activityEvent.create({
-        data: {
-          userId,
-          type: ActivityType.PR_HIT,
-          title: `Hit ${prCount} new personal record${prCount > 1 ? "s" : ""}`,
-          body: "Progression is moving in the right direction.",
-        },
-      });
     }
 
     let completedWeek = false;
     let newWeek = workout.programId ? 1 : 0;
+    const completedAt = new Date();
 
     await transaction.workoutSession.update({
       where: { id: workout.id },
@@ -1086,8 +1168,7 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
         title: draft.title,
         notes: draft.notes,
         status: WorkoutStatus.COMPLETED,
-        completedAt: new Date(),
-        totalXp: xpAwarded,
+        completedAt,
         savedDraft: draft,
       },
     });
@@ -1108,50 +1189,23 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
       }
     }
 
-    await createXpLedgerEntry(
-      transaction,
-      userId,
-      xpAwarded,
-      completedWeek ? "program-week-complete" : "workout-complete",
-      { workoutId },
-    );
-
-    await transaction.activityEvent.create({
+    await transaction.workoutSession.update({
+      where: { id: workout.id },
       data: {
-        userId,
-        type: ActivityType.WORKOUT_COMPLETED,
-        title: `Completed ${draft.title}`,
-        body: workout.wasPlanned ? "Planned session complete." : "Quick workout logged.",
+        totalXp: xpAwarded,
+        completedAt,
       },
     });
 
-    const workoutCompletedCount = await transaction.workoutSession.count({
-      where: {
-        userId,
-        status: WorkoutStatus.COMPLETED,
-      },
-    });
-
-    const updatedUser = await transaction.user.findUniqueOrThrow({
-      where: {
-        id: userId,
-      },
-    });
-
-    const unlockedAchievements = await unlockAchievements(transaction, {
-      user: updatedUser,
-      workoutCompletedCount,
-      prCount,
-      completedWeek,
-    });
-
-    return {
+      return {
       workoutId,
+      workoutTitle: draft.title,
+      wasPlanned: workout.wasPlanned,
       xpAwarded,
       prCount,
       completedWeek,
-      unlockedAchievements,
       nextWeek: newWeek,
+      unlockedAchievements: [],
     };
   }, {
     maxWait: 5_000,
@@ -1168,6 +1222,8 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
       },
       "Completed workout",
     );
+
+    void runPostWorkoutEffects(userId, result);
 
     return result;
   });
