@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const defaultState: CreateExerciseInput = {
   name: "",
+  exerciseCategory: "STRENGTH",
   equipmentType: "Dumbbell",
   attachment: "",
   loadType: "FIXED_WEIGHT",
@@ -47,6 +48,7 @@ export const ExerciseCreatorDialog = ({
     mutationFn: () =>
       apiClient.createExercise({
         ...form,
+        exerciseCategory: form.exerciseCategory ?? "STRENGTH",
         loadType: defaultLoadTypeByEquipment[form.equipmentType] ?? "EXTERNAL",
         attachment:
           equipmentTypesWithAttachments.has(form.equipmentType)
@@ -103,6 +105,32 @@ export const ExerciseCreatorDialog = ({
               placeholder="Hammer Strength Incline Press"
             />
           </div>
+          <div className="grid gap-2">
+            <Label>Exercise type</Label>
+            <Select
+              value={form.exerciseCategory ?? "STRENGTH"}
+              onValueChange={(value) =>
+                setForm((current) => ({
+                  ...current,
+                  exerciseCategory: value as "STRENGTH" | "CARDIO",
+                  equipmentType:
+                    value === "CARDIO" && !["Treadmill", "Bike", "Rower", "Stair Climber", "Elliptical", "Sled"].includes(current.equipmentType)
+                      ? "Treadmill"
+                      : value === "STRENGTH" && ["Treadmill", "Bike", "Rower", "Stair Climber", "Elliptical", "Sled"].includes(current.equipmentType)
+                        ? "Dumbbell"
+                        : current.equipmentType,
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Exercise type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="STRENGTH">Strength</SelectItem>
+                <SelectItem value="CARDIO">Cardio</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Equipment type</Label>
@@ -121,7 +149,13 @@ export const ExerciseCreatorDialog = ({
                   <SelectValue placeholder="Equipment type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {equipmentTypeOptions.map((option) => (
+                  {equipmentTypeOptions
+                    .filter((option) =>
+                      form.exerciseCategory === "CARDIO"
+                        ? ["Treadmill", "Bike", "Rower", "Stair Climber", "Elliptical", "Sled", "Other"].includes(option)
+                        : !["Treadmill", "Bike", "Rower", "Stair Climber", "Elliptical", "Sled"].includes(option),
+                    )
+                    .map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
                     </SelectItem>

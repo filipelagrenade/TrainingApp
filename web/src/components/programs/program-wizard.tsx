@@ -50,6 +50,7 @@ const moveItem = <T,>(items: T[], from: number, to: number) => {
 const sanitizeDraftExercise = (exercise: DraftExercise): DraftExercise => ({
   exerciseId: exercise.exerciseId,
   exerciseName: exercise.exerciseName,
+  exerciseCategory: exercise.exerciseCategory,
   sets: exercise.sets,
   repMin: exercise.repMin,
   repMax: exercise.repMax,
@@ -59,6 +60,8 @@ const sanitizeDraftExercise = (exercise: DraftExercise): DraftExercise => ({
   deloadFactor: exercise.deloadFactor ?? 0.9,
   targetRpe: exercise.targetRpe ?? null,
   loadTypeOverride: exercise.loadTypeOverride ?? null,
+  trackingMode: exercise.trackingMode ?? null,
+  defaultTrackingData: exercise.defaultTrackingData ?? null,
   machineOverride: exercise.machineOverride?.trim() || undefined,
   attachmentOverride: exercise.attachmentOverride?.trim() || undefined,
   unilateral: exercise.unilateral ?? false,

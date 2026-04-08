@@ -61,6 +61,7 @@ async function main() {
         where: { id: existing.id },
         data: {
           name: exercise.name,
+          exerciseCategory: exercise.exerciseCategory,
           equipmentType: exercise.equipmentType,
           loadType: exercise.loadType,
           machineType: exercise.machineType ?? null,

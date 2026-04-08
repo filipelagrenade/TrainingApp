@@ -51,39 +51,30 @@ import {
   equipmentTypesWithAttachments,
   unitModeOptions,
 } from "@/lib/exercise-options";
-import type { Exercise, WorkoutDraft, WorkoutDraftExercise } from "@/lib/types";
-
-const buildExerciseDraft = (exercise: Exercise): WorkoutDraftExercise => ({
-  exerciseId: exercise.id,
-  exerciseName: exercise.name,
-  equipmentType: exercise.equipmentType,
-  machineType: exercise.machineType,
-  attachment: exercise.attachment,
-  loadType: exercise.loadType,
-  unitMode: exercise.unitMode,
-  unilateral: false,
-  notes: "",
-  prescribedSetCount: 3,
-  repMin: 8,
-  repMax: 10,
-  suggestedWeight: null,
-  sourceProgramExerciseId: null,
-  substitutedFromExerciseId: null,
-  substitutedFromExerciseName: null,
-  substitutionMode: null,
-  countsForProgression: true,
-  supersetGroupId: null,
-  supersetPosition: null,
-  sets: [
-    {
-      setNumber: 1,
-      weight: null,
-      reps: 8,
-      rpe: null,
-      isWorkingSet: true,
-    },
-  ],
-});
+import type {
+  Exercise,
+  TemplateDraft,
+  TrackingMode,
+  WorkoutDraft,
+  WorkoutDraftExercise,
+  WorkoutDraftSet,
+  WorkoutSetTrackingData,
+  WorkoutSetType,
+} from "@/lib/types";
+import {
+  buildDraftSet,
+  buildExerciseDraft,
+  changeExerciseTrackingMode,
+  compareExerciseLineup,
+  defaultSetTypeForCategory,
+  defaultTrackingDataForMode,
+  deriveNormalizedWeight,
+  draftExerciseToTemplateExercise,
+  formatDuration,
+  formatSetLoad,
+  strengthSetTypeOptions,
+  trackingModeOptions,
+} from "@/lib/workout-tracking";
 
 const formatRestTime = (seconds: number) => {
   const safeSeconds = Math.max(0, seconds);
@@ -95,23 +86,8 @@ const formatRestTime = (seconds: number) => {
 
 const toTemplateExercises = (exercises: WorkoutDraftExercise[]) =>
   exercises
-    .filter((exercise) => Boolean(exercise.exerciseId))
-    .map((exercise) => ({
-      exerciseId: exercise.exerciseId as string,
-      sets: exercise.prescribedSetCount ?? exercise.sets.length,
-      repMin: exercise.repMin ?? exercise.sets.at(0)?.reps ?? 8,
-      repMax: exercise.repMax ?? exercise.sets.at(0)?.reps ?? 10,
-      restSeconds: 90,
-      startWeight:
-        exercise.suggestedWeight ??
-        exercise.sets.find((set) => set.weight !== null)?.weight ??
-        null,
-      loadTypeOverride: exercise.loadType,
-      machineOverride: exercise.machineType ?? null,
-      attachmentOverride: exercise.attachment ?? null,
-      unilateral: exercise.unilateral ?? false,
-      notes: exercise.notes ?? null,
-    }));
+    .map(draftExerciseToTemplateExercise)
+    .filter((exercise): exercise is NonNullable<ReturnType<typeof draftExerciseToTemplateExercise>> => Boolean(exercise));
 
 export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const queryClient = useQueryClient();
@@ -124,8 +100,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [supersetSheetOpen, setSupersetSheetOpen] = useState(false);
   const [substituteSearch, setSubstituteSearch] = useState("");
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [keepChangesOpen, setKeepChangesOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDescription, setTemplateDescription] = useState("");
+  const [postCompleteSelection, setPostCompleteSelection] = useState<number[]>([]);
   const [showSessionMeta, setShowSessionMeta] = useState(false);
   const [expandedSetIndex, setExpandedSetIndex] = useState(0);
   const [completedSetKeys, setCompletedSetKeys] = useState<string[]>([]);
@@ -137,6 +115,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const autosaveQueuedRef = useRef(false);
   const autosaveRunningRef = useRef(false);
   const latestDraftRef = useRef<WorkoutDraft | null>(null);
+  const pendingCompletionLineupRef = useRef<ReturnType<typeof compareExerciseLineup> | null>(null);
   const [syncState, setSyncState] = useState<"saving" | "synced" | "error">("synced");
 
   const sessionQuery = useQuery({
@@ -166,8 +145,21 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     mutationFn: (payload: WorkoutDraft) => apiClient.completeWorkout(sessionId, payload),
     onSuccess: async (result) => {
       clearDraft(sessionId);
-      toast.success(`Workout complete. +${result.xpAwarded} XP`);
-      router.push("/");
+      const pendingLineup = pendingCompletionLineupRef.current;
+
+      if (pendingLineup?.hasChanges && draft?.exercises.length) {
+        setPostCompleteSelection(
+          draft.exercises.map((_, index) => index).filter((index) => pendingLineup.selections[index]?.selected),
+        );
+        setTemplateName(`${draft.title} template`);
+        setTemplateDescription(draft.notes ?? "");
+        setKeepChangesOpen(true);
+      } else {
+        pendingCompletionLineupRef.current = null;
+        toast.success(`Workout complete. +${result.xpAwarded} XP`);
+        router.push("/");
+      }
+
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: ["recent-workouts"] }),
         queryClient.invalidateQueries({ queryKey: ["active-program"] }),
@@ -191,6 +183,40 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       toast.success("Workout saved to templates");
       setSaveTemplateOpen(false);
       setTemplateDescription("");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const keepChangesTemplateMutation = useMutation({
+    mutationFn: (payload: { name: string; description?: string; exercises: TemplateDraft["exercises"] }) =>
+      apiClient.createTemplate(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Changes saved as template");
+      applyCompletionSuccess();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const updateTemplateMutation = useMutation({
+    mutationFn: (payload: {
+      templateId: string;
+      draft: {
+        name: string;
+        description?: string;
+        exercises: TemplateDraft["exercises"];
+      };
+    }) =>
+      apiClient.updateTemplate(payload.templateId, {
+        name: payload.draft.name,
+        description: payload.draft.description,
+        exercises: payload.draft.exercises,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Template updated");
+      setKeepChangesOpen(false);
+      router.push("/");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -336,25 +362,18 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }, [activeExerciseIndex]);
 
   useEffect(() => {
-    if (!restRunning) {
-      return;
-    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (session?.status !== "IN_PROGRESS") {
+        return;
+      }
 
-    const timer = window.setInterval(() => {
-      setRestRemaining((current) => {
-        if (current <= 1) {
-          window.clearInterval(timer);
-          setRestRunning(false);
-          toast.success("Rest timer done");
-          return 0;
-        }
+      event.preventDefault();
+      event.returnValue = "";
+    };
 
-        return current - 1;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [restRunning]);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [session?.status]);
 
   const updateExercise = (
     exerciseIndex: number,
@@ -371,6 +390,35 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         : current,
     );
   };
+
+  const updateSet = (
+    exerciseIndex: number,
+    setIndex: number,
+    updater: (set: WorkoutDraftSet, exercise: WorkoutDraftExercise) => WorkoutDraftSet,
+  ) => {
+    updateExercise(exerciseIndex, (exercise) => ({
+      ...exercise,
+      sets: exercise.sets.map((set, candidateIndex) =>
+        candidateIndex === setIndex ? updater(set, exercise) : set,
+      ),
+    }));
+  };
+
+  const applyCompletionSuccess = () => {
+    pendingCompletionLineupRef.current = null;
+    toast.success("Workout complete");
+    setKeepChangesOpen(false);
+    router.push("/");
+  };
+
+  const selectedTemplateExercises = useMemo(
+    () =>
+      draft?.exercises
+        .filter((_, index) => postCompleteSelection.includes(index))
+        .map(draftExerciseToTemplateExercise)
+        .filter((exercise): exercise is NonNullable<ReturnType<typeof draftExerciseToTemplateExercise>> => Boolean(exercise)) ?? [],
+    [draft?.exercises, postCompleteSelection],
+  );
 
   const startRestTimer = (seconds: number) => {
     setRestDuration(seconds);
@@ -424,6 +472,15 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     }
   };
 
+  const handleCompleteWorkout = () => {
+    if (!draft || !session) {
+      return;
+    }
+
+    pendingCompletionLineupRef.current = compareExerciseLineup(draft, session.originDraft);
+    completeMutation.mutate(draft);
+  };
+
   const setKeyFor = (exerciseIndex: number, setIndex: number) => `${exerciseIndex}-${setIndex}`;
 
   const toggleSetCompleted = (setIndex: number) => {
@@ -453,6 +510,39 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   const activeExercise = draft?.exercises[activeExerciseIndex];
   const usesAttachment = activeExercise ? equipmentTypesWithAttachments.has(activeExercise.equipmentType) : false;
+
+  useEffect(() => {
+    if (!restRunning) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setRestRemaining((current) => {
+        if (current <= 1) {
+          window.clearInterval(timer);
+          setRestRunning(false);
+          if (
+            typeof window !== "undefined" &&
+            document.hidden &&
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            new Notification("Rest timer done", {
+              body: activeExercise?.exerciseName
+                ? `Back to ${activeExercise.exerciseName}`
+                : "Jump back into your workout.",
+            });
+          }
+          toast.success("Rest timer done");
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [activeExercise?.exerciseName, restRunning]);
 
   const activeExerciseSummary = useMemo(() => {
     if (!activeExercise) {
@@ -784,16 +874,20 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             <div className="grid grid-cols-3 gap-2">
                 <SummaryField
                   label="Prescription"
-                  value={`${activeExercise.repMin ?? "-"}-${activeExercise.repMax ?? "-"} reps`}
+                  value={
+                    activeExercise.exerciseCategory === "CARDIO"
+                      ? `${Math.round(((activeExercise.defaultTrackingData?.durationSeconds as number | null | undefined) ?? 900) / 60)} min target`
+                      : `${activeExercise.repMin ?? "-"}-${activeExercise.repMax ?? "-"} reps`
+                  }
                 />
                 <SummaryField
                   label="Suggested"
-                  value={
-                    activeExercise.suggestedWeight !== null &&
-                    activeExercise.suggestedWeight !== undefined
-                      ? `${activeExercise.suggestedWeight} ${activeExercise.unitMode}`
-                      : "None"
-                  }
+                  value={formatSetLoad(
+                    activeExercise.trackingMode,
+                    activeExercise.unitMode,
+                    activeExercise.suggestedWeight ?? null,
+                    activeExercise.defaultTrackingData ?? null,
+                  )}
                 />
                 <SummaryField
                   label="Progress"
@@ -864,6 +958,27 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   const setKey = setKeyFor(activeExerciseIndex, setIndex);
                   const isDone = completedSetKeySet.has(setKey);
                   const isExpanded = expandedSetIndex === setIndex;
+                  const setTrackingData = (set.trackingData ??
+                    activeExercise.defaultTrackingData ??
+                    null) as WorkoutSetTrackingData | null;
+                  const setDurationSeconds =
+                    typeof setTrackingData?.durationSeconds === "number"
+                      ? setTrackingData.durationSeconds
+                      : null;
+                  const setPlateCount =
+                    typeof setTrackingData?.plateCount === "number" ? setTrackingData.plateCount : null;
+                  const setExternalLoad =
+                    typeof setTrackingData?.externalLoad === "number"
+                      ? setTrackingData.externalLoad
+                      : null;
+                  const setPerSideLoad =
+                    typeof setTrackingData?.perSideLoad === "number" ? setTrackingData.perSideLoad : null;
+                  const setDistance =
+                    typeof setTrackingData?.distance === "number" ? setTrackingData.distance : null;
+                  const setIncline =
+                    typeof setTrackingData?.incline === "number" ? setTrackingData.incline : null;
+                  const setBandLevel =
+                    typeof setTrackingData?.bandLevel === "string" ? setTrackingData.bandLevel : "MEDIUM";
 
                   return (
                     <div
@@ -883,21 +998,32 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                           </div>
                           <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
                             <div>
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Weight</p>
-                              <p className="truncate text-sm font-semibold text-foreground">
-                                {set.weight === null ? "--" : `${set.weight} ${activeExercise.unitMode}`}
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                                {activeExercise.trackingMode === "CARDIO" ? "Cardio" : "Load"}
                               </p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reps</p>
-                              <p className="text-sm font-semibold text-foreground">{set.reps}</p>
+                              <p className="truncate text-sm font-semibold text-foreground">
+                                {formatSetLoad(
+                                  activeExercise.trackingMode,
+                                  activeExercise.unitMode,
+                                  set.weight,
+                                  setTrackingData,
+                                )}
+                              </p>
                             </div>
                             <div>
                               <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                                {set.isWorkingSet ? "RPE" : "Type"}
+                                {activeExercise.exerciseCategory === "CARDIO" ? "Time" : "Reps"}
                               </p>
                               <p className="text-sm font-semibold text-foreground">
-                                {set.isWorkingSet ? (set.rpe === null ? "--" : set.rpe) : "Warm-up"}
+                                {activeExercise.exerciseCategory === "CARDIO"
+                                  ? formatDuration(setDurationSeconds)
+                                  : set.reps}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Type</p>
+                              <p className="text-sm font-semibold text-foreground">
+                                {set.setType?.replaceAll("_", " ") ?? (set.isWorkingSet ? "NORMAL" : "WARMUP")}
                               </p>
                             </div>
                           </div>
@@ -915,77 +1041,214 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                       </div>
                       {isExpanded ? (
                         <div className="border-t border-border/70 px-3 py-3">
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                             <div className="space-y-1.5">
-                              <Label className="text-xs">Weight</Label>
+                              <Label className="text-xs">
+                                {activeExercise.trackingMode === "CARDIO" ? "Duration" : "Load"}
+                              </Label>
                               <NullableNumberInput
-                                value={set.weight}
-                                onChange={(value) =>
-                                  updateExercise(activeExerciseIndex, (current) => ({
-                                    ...current,
-                                    sets: current.sets.map((candidate, candidateIndex) =>
-                                      candidateIndex === setIndex ? { ...candidate, weight: value } : candidate,
-                                    ),
-                                  }))
+                                value={
+                                  activeExercise.trackingMode === "CARDIO"
+                                    ? (setDurationSeconds === null ? null : setDurationSeconds / 60)
+                                    : activeExercise.trackingMode === "PLATES_PER_SIDE"
+                                      ? setPlateCount
+                                      : activeExercise.trackingMode === "BODYWEIGHT_PLUS_LOAD"
+                                        ? setExternalLoad
+                                        : activeExercise.trackingMode === "PER_SIDE_LOAD"
+                                          ? setPerSideLoad
+                                          : set.weight
                                 }
-                                placeholder={activeExercise.unitMode}
+                                onChange={(value) =>
+                                  updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => {
+                                    const nextTrackingData = {
+                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                    } as WorkoutSetTrackingData;
+
+                                    if (exercise.trackingMode === "CARDIO") {
+                                      nextTrackingData.durationSeconds = value === null ? null : value * 60;
+                                      return {
+                                        ...candidate,
+                                        trackingData: nextTrackingData,
+                                      };
+                                    }
+
+                                    if (exercise.trackingMode === "PLATES_PER_SIDE") {
+                                      nextTrackingData.plateCount = value;
+                                      return {
+                                        ...candidate,
+                                        trackingData: nextTrackingData,
+                                        weight: deriveNormalizedWeight(exercise.trackingMode, null, nextTrackingData),
+                                      };
+                                    }
+
+                                    if (exercise.trackingMode === "BODYWEIGHT_PLUS_LOAD") {
+                                      nextTrackingData.externalLoad = value;
+                                      return {
+                                        ...candidate,
+                                        trackingData: nextTrackingData,
+                                        weight: deriveNormalizedWeight(exercise.trackingMode, null, nextTrackingData),
+                                      };
+                                    }
+
+                                    if (exercise.trackingMode === "PER_SIDE_LOAD") {
+                                      nextTrackingData.perSideLoad = value;
+                                      return {
+                                        ...candidate,
+                                        trackingData: nextTrackingData,
+                                        weight: deriveNormalizedWeight(exercise.trackingMode, null, nextTrackingData),
+                                      };
+                                    }
+
+                                    return { ...candidate, weight: value };
+                                  })
+                                }
+                                placeholder={
+                                  activeExercise.trackingMode === "CARDIO"
+                                    ? "min"
+                                    : activeExercise.trackingMode === "PLATES_PER_SIDE"
+                                      ? "plates"
+                                      : activeExercise.unitMode
+                                }
                               />
                             </div>
                             <div className="space-y-1.5">
-                              <Label className="text-xs">Reps</Label>
-                              <NullableNumberInput
-                                value={set.reps}
-                                onChange={(value) =>
-                                  updateExercise(activeExerciseIndex, (current) => ({
-                                    ...current,
-                                    sets: current.sets.map((candidate, candidateIndex) =>
-                                      candidateIndex === setIndex
-                                        ? { ...candidate, reps: value ?? candidate.reps }
-                                        : candidate,
-                                    ),
-                                  }))
-                                }
-                              />
+                              <Label className="text-xs">
+                                {activeExercise.exerciseCategory === "CARDIO" ? "Distance" : "Reps"}
+                              </Label>
+                              {activeExercise.exerciseCategory === "CARDIO" ? (
+                                <NullableNumberInput
+                                  value={setDistance}
+                                  onChange={(value) =>
+                                    updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => ({
+                                      ...candidate,
+                                      trackingData: {
+                                        ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                        distance: value,
+                                      },
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                <NullableNumberInput
+                                  value={set.reps}
+                                  onChange={(value) =>
+                                    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
+                                      ...candidate,
+                                      reps: value ?? candidate.reps,
+                                    }))
+                                  }
+                                />
+                              )}
                             </div>
                             <div className="space-y-1.5">
-                              <Label className="text-xs">{set.isWorkingSet ? "RPE" : "Warm-up"}</Label>
-                              <NullableNumberInput
-                                step={0.5}
-                                value={set.rpe}
-                                onChange={(value) =>
-                                  updateExercise(activeExerciseIndex, (current) => ({
-                                    ...current,
-                                    sets: current.sets.map((candidate, candidateIndex) =>
-                                      candidateIndex === setIndex ? { ...candidate, rpe: value } : candidate,
-                                    ),
-                                  }))
-                                }
-                              />
+                              <Label className="text-xs">
+                                {activeExercise.exerciseCategory === "CARDIO" ? "Incline / RPE" : "RPE"}
+                              </Label>
+                              {activeExercise.exerciseCategory === "CARDIO" ? (
+                                <NullableNumberInput
+                                  step={0.5}
+                                  value={setIncline}
+                                  onChange={(value) =>
+                                    updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => ({
+                                      ...candidate,
+                                      trackingData: {
+                                        ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                        incline: value,
+                                      },
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                <NullableNumberInput
+                                  step={0.5}
+                                  value={set.rpe}
+                                  onChange={(value) =>
+                                    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
+                                      ...candidate,
+                                      rpe: value,
+                                    }))
+                                  }
+                                />
+                              )}
                             </div>
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1.5">
-                              <Checkbox
-                                checked={set.isWorkingSet ?? true}
-                                id={`working-set-${setIndex}`}
-                                onCheckedChange={(checked) =>
-                                  updateExercise(activeExerciseIndex, (current) => ({
-                                    ...current,
-                                    sets: current.sets.map((candidate, candidateIndex) =>
-                                      candidateIndex === setIndex
-                                        ? { ...candidate, isWorkingSet: checked === true }
-                                        : candidate,
-                                    ),
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Set type</Label>
+                              <Select
+                                value={set.setType ?? defaultSetTypeForCategory(activeExercise.exerciseCategory)}
+                                onValueChange={(value) =>
+                                  updateSet(activeExerciseIndex, setIndex, (candidate) => ({
+                                    ...candidate,
+                                    setType: value as WorkoutSetType,
                                   }))
                                 }
-                              />
-                              <Label
-                                className="text-xs font-normal text-muted-foreground"
-                                htmlFor={`working-set-${setIndex}`}
                               >
-                                Working set
-                              </Label>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Set type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(activeExercise.exerciseCategory === "CARDIO"
+                                    ? [{ value: "CARDIO", label: "Cardio" }]
+                                    : strengthSetTypeOptions
+                                  ).map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
+                            {activeExercise.trackingMode === "BAND_LEVEL" ? (
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Band level</Label>
+                                <Select
+                                  value={setBandLevel}
+                                  onValueChange={(value) =>
+                                    updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => ({
+                                      ...candidate,
+                                      trackingData: {
+                                        ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                        bandLevel: value,
+                                      },
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Band level" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {["LIGHT", "MEDIUM", "HEAVY", "EXTRA_HEAVY"].map((level) => (
+                                      <SelectItem key={level} value={level}>
+                                        {level.replaceAll("_", " ")}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {activeExercise.exerciseCategory !== "CARDIO" ? (
+                              <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1.5">
+                                <Checkbox
+                                  checked={set.isWorkingSet ?? true}
+                                  id={`working-set-${setIndex}`}
+                                  onCheckedChange={(checked) =>
+                                    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
+                                      ...candidate,
+                                      isWorkingSet: checked === true,
+                                    }))
+                                  }
+                                />
+                                <Label
+                                  className="text-xs font-normal text-muted-foreground"
+                                  htmlFor={`working-set-${setIndex}`}
+                                >
+                                  Working set
+                                </Label>
+                              </div>
+                            ) : null}
                             <Button
                               size="sm"
                               type="button"
@@ -1062,9 +1325,20 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                       {
                         setNumber: current.sets.length + 1,
                         weight: current.sets.at(-1)?.weight ?? current.suggestedWeight ?? null,
-                        reps: current.sets.at(-1)?.reps ?? current.repMin ?? 8,
+                        reps:
+                          current.exerciseCategory === "CARDIO"
+                            ? 0
+                            : current.sets.at(-1)?.reps ?? current.repMin ?? 8,
                         rpe: current.sets.at(-1)?.rpe ?? null,
-                        isWorkingSet: current.sets.at(-1)?.isWorkingSet ?? true,
+                        setType: current.sets.at(-1)?.setType ?? defaultSetTypeForCategory(current.exerciseCategory),
+                        trackingData:
+                          current.sets.at(-1)?.trackingData ??
+                          current.defaultTrackingData ??
+                          defaultTrackingDataForMode(current.trackingMode, current.unitMode),
+                        isWorkingSet:
+                          current.exerciseCategory === "CARDIO"
+                            ? false
+                            : current.sets.at(-1)?.isWorkingSet ?? true,
                       },
                     ],
                   }))
@@ -1107,7 +1381,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             <Button
               className="flex-1"
               size="lg"
-              onClick={() => completeMutation.mutate(draft)}
+              onClick={handleCompleteWorkout}
               disabled={completeMutation.isPending || draft.exercises.length === 0}
             >
               {completeMutation.isPending ? "Completing..." : "Complete workout"}
@@ -1459,13 +1733,47 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Tracking mode</Label>
+                  <Select
+                    value={activeExercise.trackingMode}
+                    onValueChange={(value) =>
+                      updateExercise(activeExerciseIndex, (current) =>
+                        changeExerciseTrackingMode(current, value as TrackingMode),
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tracking mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {trackingModeOptions
+                        .filter((option) =>
+                          activeExercise.exerciseCategory === "CARDIO"
+                            ? option.value === "CARDIO"
+                            : option.value !== "CARDIO",
+                        )
+                        .map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
                   <Label>Load type</Label>
                   <Input value={activeExercise.loadType.replaceAll("_", " ")} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>Exercise type</Label>
+                  <Input value={activeExercise.exerciseCategory === "CARDIO" ? "Cardio" : "Strength"} disabled />
                 </div>
               </div>
               {usesAttachment ? (
                 <div className="space-y-2">
-                  <Label>Attachment</Label>
+                  <Label>Grip / attachment</Label>
                   <Input
                     value={activeExercise.attachment ?? ""}
                     onChange={(event) =>
@@ -1502,16 +1810,31 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Suggested weight</Label>
-                  <NullableNumberInput
-                    value={activeExercise.suggestedWeight ?? null}
-                    onChange={(value) =>
-                      updateExercise(activeExerciseIndex, (current) => ({
-                        ...current,
-                        suggestedWeight: value,
-                      }))
-                    }
-                  />
+                  <Label>{activeExercise.exerciseCategory === "CARDIO" ? "Default duration (min)" : "Suggested weight"}</Label>
+                  {activeExercise.exerciseCategory === "CARDIO" ? (
+                    <NullableNumberInput
+                      value={Math.round(((activeExercise.defaultTrackingData?.durationSeconds as number | null | undefined) ?? 900) / 60)}
+                      onChange={(value) =>
+                        updateExercise(activeExerciseIndex, (current) => ({
+                          ...current,
+                          defaultTrackingData: {
+                            ...(current.defaultTrackingData ?? {}),
+                            durationSeconds: (value ?? 15) * 60,
+                          },
+                        }))
+                      }
+                    />
+                  ) : (
+                    <NullableNumberInput
+                      value={activeExercise.suggestedWeight ?? null}
+                      onChange={(value) =>
+                        updateExercise(activeExerciseIndex, (current) => ({
+                          ...current,
+                          suggestedWeight: value,
+                        }))
+                      }
+                    />
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
@@ -1573,6 +1896,98 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               }
             >
               {createTemplateMutation.isPending ? "Saving..." : "Save template"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={keepChangesOpen} onOpenChange={setKeepChangesOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Keep workout changes?</DialogTitle>
+            <DialogDescription>
+              You changed the exercise lineup for this session. Keep the useful parts without rebuilding them later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="post-complete-template-name">Template name</Label>
+              <Input
+                id="post-complete-template-name"
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder="Travel gym push"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="post-complete-template-description">Description</Label>
+              <Textarea
+                id="post-complete-template-description"
+                value={templateDescription}
+                onChange={(event) => setTemplateDescription(event.target.value)}
+                placeholder="Optional note for what changed"
+              />
+            </div>
+            <div className="space-y-2 rounded-2xl border border-border/70 bg-background/70 p-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Exercises to keep</p>
+              <div className="mt-3 space-y-2">
+                {draft?.exercises.map((exercise, index) => (
+                  <label
+                    key={`${exercise.exerciseId ?? exercise.exerciseName}-${index}`}
+                    className="flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2"
+                  >
+                    <Checkbox
+                      checked={postCompleteSelection.includes(index)}
+                      onCheckedChange={(checked) =>
+                        setPostCompleteSelection((current) =>
+                          checked === true
+                            ? [...current, index]
+                            : current.filter((candidate) => candidate !== index),
+                        )
+                      }
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{exercise.exerciseName}</p>
+                      <p className="text-xs text-muted-foreground">{exercise.equipmentType}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={applyCompletionSuccess}>
+              Keep none
+            </Button>
+            {session?.entryType === "TEMPLATE" && session.templateId ? (
+              <Button
+                variant="outline"
+                disabled={postCompleteSelection.length === 0 || updateTemplateMutation.isPending}
+                onClick={() =>
+                  updateTemplateMutation.mutate({
+                    templateId: session.templateId as string,
+                    draft: {
+                      name: templateName.trim() || draft?.title || "Updated template",
+                      description: templateDescription.trim(),
+                      exercises: selectedTemplateExercises,
+                    },
+                  })
+                }
+              >
+                {updateTemplateMutation.isPending ? "Updating..." : "Update original template"}
+              </Button>
+            ) : null}
+            <Button
+              disabled={postCompleteSelection.length === 0 || keepChangesTemplateMutation.isPending}
+              onClick={() =>
+                keepChangesTemplateMutation.mutate({
+                  name: templateName.trim() || draft?.title || "Updated workout template",
+                  description: templateDescription.trim() || undefined,
+                  exercises: selectedTemplateExercises,
+                })
+              }
+            >
+              {keepChangesTemplateMutation.isPending ? "Saving..." : "Save as template"}
             </Button>
           </DialogFooter>
         </DialogContent>

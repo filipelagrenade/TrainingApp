@@ -1,8 +1,9 @@
-import { LoadType } from "@prisma/client";
+import { ExerciseCategory, LoadType } from "@prisma/client";
 
 export type SeedExercise = {
   slug: string;
   name: string;
+  exerciseCategory?: ExerciseCategory;
   equipmentType: string;
   machineType?: string;
   attachment?: string;
@@ -12,6 +13,7 @@ export type SeedExercise = {
 };
 
 type ExerciseGroup = {
+  exerciseCategory?: ExerciseCategory;
   equipmentType: string;
   loadType: LoadType;
   names: string[];
@@ -32,6 +34,7 @@ const buildExercises = (group: ExerciseGroup): SeedExercise[] =>
   group.names.map((name) => ({
     slug: slugify(`${group.equipmentType}-${name}`),
     name,
+    exerciseCategory: group.exerciseCategory ?? ExerciseCategory.STRENGTH,
     equipmentType: group.equipmentType,
     loadType: group.loadType,
     machineType: group.machineType,
@@ -41,6 +44,48 @@ const buildExercises = (group: ExerciseGroup): SeedExercise[] =>
   }));
 
 const exerciseGroups: ExerciseGroup[] = [
+  {
+    exerciseCategory: ExerciseCategory.CARDIO,
+    equipmentType: "Treadmill",
+    loadType: LoadType.EXTERNAL,
+    names: [
+      "Treadmill Run",
+      "Incline Treadmill Walk",
+      "Tempo Treadmill Run",
+      "Sprint Intervals",
+    ],
+    primaryMuscles: ["Quads", "Calves"],
+    secondaryMuscles: ["Glutes", "Core"],
+  },
+  {
+    exerciseCategory: ExerciseCategory.CARDIO,
+    equipmentType: "Bike",
+    loadType: LoadType.EXTERNAL,
+    names: [
+      "Stationary Bike",
+      "Spin Bike Intervals",
+      "Air Bike Sprint",
+      "Recovery Ride",
+    ],
+    primaryMuscles: ["Quads"],
+    secondaryMuscles: ["Glutes", "Calves"],
+  },
+  {
+    exerciseCategory: ExerciseCategory.CARDIO,
+    equipmentType: "Rower",
+    loadType: LoadType.EXTERNAL,
+    names: ["Row Erg", "Row Intervals", "Steady State Row"],
+    primaryMuscles: ["Back", "Quads"],
+    secondaryMuscles: ["Glutes", "Core"],
+  },
+  {
+    exerciseCategory: ExerciseCategory.CARDIO,
+    equipmentType: "Stair Climber",
+    loadType: LoadType.EXTERNAL,
+    names: ["Stair Climber", "Stair Sprint Intervals"],
+    primaryMuscles: ["Glutes", "Quads"],
+    secondaryMuscles: ["Calves", "Core"],
+  },
   {
     equipmentType: "Barbell",
     loadType: LoadType.PLATE_TOTAL,

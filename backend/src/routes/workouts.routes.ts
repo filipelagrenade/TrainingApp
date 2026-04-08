@@ -1,4 +1,4 @@
-import { LoadType, WorkoutEntryType } from "@prisma/client";
+import { ExerciseCategory, LoadType, TrackingMode, WorkoutEntryType, WorkoutSetType } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 
@@ -20,6 +20,11 @@ import {
 
 const workoutsRouter = Router();
 
+const trackingDataSchema = z.record(
+  z.string(),
+  z.union([z.string(), z.number(), z.boolean(), z.null()]),
+);
+
 const draftSchema = z.object({
   title: z.string().min(2).max(80),
   notes: z.string().max(400).optional(),
@@ -27,10 +32,13 @@ const draftSchema = z.object({
     z.object({
       exerciseId: z.string().nullable(),
       exerciseName: z.string().min(2).max(80),
+      exerciseCategory: z.nativeEnum(ExerciseCategory),
       equipmentType: z.string().min(2).max(80),
       machineType: z.string().nullable().optional(),
       attachment: z.string().nullable().optional(),
       loadType: z.nativeEnum(LoadType),
+      trackingMode: z.nativeEnum(TrackingMode),
+      defaultTrackingData: trackingDataSchema.nullable().optional(),
       unitMode: z.enum(["kg", "lb"]),
       unilateral: z.boolean().optional(),
       notes: z.string().max(300).optional(),
@@ -52,6 +60,8 @@ const draftSchema = z.object({
           weight: z.coerce.number().nonnegative().nullable(),
           reps: z.coerce.number().int().min(0).max(100),
           rpe: z.coerce.number().min(1).max(10).nullable(),
+          setType: z.nativeEnum(WorkoutSetType).optional(),
+          trackingData: trackingDataSchema.nullable().optional(),
           isWorkingSet: z.boolean().optional(),
         }),
       ),

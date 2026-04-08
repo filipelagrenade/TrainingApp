@@ -1,4 +1,4 @@
-import { LoadType } from "@prisma/client";
+import { ExerciseCategory, LoadType } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 
@@ -17,6 +17,7 @@ const exercisesRouter = Router();
 
 const createExerciseSchema = z.object({
   name: z.string().min(2).max(80),
+  exerciseCategory: z.nativeEnum(ExerciseCategory).optional(),
   equipmentType: z.string().min(2).max(60),
   machineType: z.string().max(60).optional(),
   attachment: z.string().max(60).optional(),

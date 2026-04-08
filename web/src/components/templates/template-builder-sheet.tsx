@@ -11,11 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NullableNumberInput } from "@/components/ui/nullable-number-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { createBlankDayDraft } from "@/lib/programs";
 import type { DraftExercise, Exercise } from "@/lib/types";
+import { defaultTrackingDataForMode, trackingModeOptions } from "@/lib/workout-tracking";
 
 const sanitizeExercise = (exercise: DraftExercise): DraftExercise => ({
   exerciseId: exercise.exerciseId,
@@ -26,6 +28,8 @@ const sanitizeExercise = (exercise: DraftExercise): DraftExercise => ({
   restSeconds: exercise.restSeconds ?? 90,
   startWeight: exercise.startWeight ?? null,
   loadTypeOverride: exercise.loadTypeOverride ?? null,
+  trackingMode: exercise.trackingMode ?? null,
+  defaultTrackingData: exercise.defaultTrackingData ?? null,
   machineOverride: exercise.machineOverride?.trim() || undefined,
   attachmentOverride: exercise.attachmentOverride?.trim() || undefined,
   unilateral: exercise.unilateral ?? false,
@@ -147,44 +151,146 @@ export const TemplateBuilderSheet = ({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Rep min</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Minutes" : "Rep min"}</Label>
                       <NullableNumberInput
-                        value={exercise.repMin}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? Math.round(((exercise.defaultTrackingData?.durationSeconds ?? 900) as number) / 60)
+                            : exercise.repMin
+                        }
                         onChange={(value) =>
                           setItems((current) =>
                             current.map((candidate, index) =>
-                              index === exerciseIndex ? { ...candidate, repMin: value ?? candidate.repMin } : candidate,
+                              index === exerciseIndex
+                                ? exercise.exerciseCategory === "CARDIO"
+                                  ? {
+                                      ...candidate,
+                                      defaultTrackingData: {
+                                        ...candidate.defaultTrackingData,
+                                        durationSeconds: (value ?? 15) * 60,
+                                      },
+                                    }
+                                  : { ...candidate, repMin: value ?? candidate.repMin }
+                                : candidate,
                             ),
                           )
                         }
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Rep max</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Distance" : "Rep max"}</Label>
                       <NullableNumberInput
-                        value={exercise.repMax}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? (exercise.defaultTrackingData?.distance as number | null | undefined) ?? null
+                            : exercise.repMax
+                        }
                         onChange={(value) =>
                           setItems((current) =>
                             current.map((candidate, index) =>
-                              index === exerciseIndex ? { ...candidate, repMax: value ?? candidate.repMax } : candidate,
+                              index === exerciseIndex
+                                ? exercise.exerciseCategory === "CARDIO"
+                                  ? {
+                                      ...candidate,
+                                      defaultTrackingData: {
+                                        ...candidate.defaultTrackingData,
+                                        distance: value,
+                                      },
+                                    }
+                                  : { ...candidate, repMax: value ?? candidate.repMax }
+                                : candidate,
                             ),
                           )
                         }
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Start weight</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Resistance" : "Start weight"}</Label>
                       <NullableNumberInput
-                        value={exercise.startWeight ?? null}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? (exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null
+                            : exercise.startWeight ?? null
+                        }
                         onChange={(value) =>
                           setItems((current) =>
                             current.map((candidate, index) =>
-                              index === exerciseIndex ? { ...candidate, startWeight: value } : candidate,
+                              index === exerciseIndex
+                                ? exercise.exerciseCategory === "CARDIO"
+                                  ? {
+                                      ...candidate,
+                                      defaultTrackingData: {
+                                        ...candidate.defaultTrackingData,
+                                        resistance: value,
+                                      },
+                                    }
+                                  : { ...candidate, startWeight: value }
+                                : candidate,
                             ),
                           )
                         }
                       />
                     </div>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Tracking mode</Label>
+                      <Select
+                        value={exercise.trackingMode ?? (exercise.exerciseCategory === "CARDIO" ? "CARDIO" : "ABSOLUTE_WEIGHT")}
+                        onValueChange={(value) =>
+                          setItems((current) =>
+                            current.map((candidate, index) =>
+                              index === exerciseIndex
+                                ? {
+                                    ...candidate,
+                                    trackingMode: value as DraftExercise["trackingMode"],
+                                    defaultTrackingData:
+                                      defaultTrackingDataForMode(value as NonNullable<DraftExercise["trackingMode"]>, "kg") ?? null,
+                                  }
+                                : candidate,
+                            ),
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Tracking mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {trackingModeOptions
+                            .filter((option) =>
+                              exercise.exerciseCategory === "CARDIO" ? option.value === "CARDIO" : option.value !== "CARDIO",
+                            )
+                            .map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {exercise.exerciseCategory === "CARDIO" ? (
+                      <div className="space-y-2">
+                        <Label>Incline</Label>
+                        <NullableNumberInput
+                          value={(exercise.defaultTrackingData?.incline as number | null | undefined) ?? null}
+                          onChange={(value) =>
+                            setItems((current) =>
+                              current.map((candidate, index) =>
+                                index === exerciseIndex
+                                  ? {
+                                      ...candidate,
+                                      defaultTrackingData: {
+                                        ...candidate.defaultTrackingData,
+                                        incline: value,
+                                      },
+                                    }
+                                  : candidate,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}

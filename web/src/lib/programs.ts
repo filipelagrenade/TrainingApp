@@ -6,6 +6,7 @@ import type {
   TemplateDraft,
   WorkoutTemplate,
 } from "./types";
+import { defaultTrackingModeForExercise, defaultTrackingDataForMode } from "./workout-tracking";
 
 const slugify = (value: string) =>
   value
@@ -24,15 +25,21 @@ export const createBlankDayDraft = (exercise?: Exercise, dayNumber = 1): DraftTe
         {
           exerciseId: exercise.id,
           exerciseName: exercise.name,
+          exerciseCategory: exercise.exerciseCategory,
           sets: 3,
-          repMin: 8,
-          repMax: 10,
+          repMin: exercise.exerciseCategory === "CARDIO" ? 0 : 8,
+          repMax: exercise.exerciseCategory === "CARDIO" ? 0 : 10,
           restSeconds: 90,
           startWeight: null,
           increment: 2.5,
           deloadFactor: 0.9,
           targetRpe: 8,
           loadTypeOverride: exercise.loadType,
+          trackingMode: defaultTrackingModeForExercise(exercise),
+          defaultTrackingData: defaultTrackingDataForMode(
+            defaultTrackingModeForExercise(exercise),
+            exercise.unitMode,
+          ),
           machineOverride: exercise.machineType,
           attachmentOverride: exercise.attachment,
           unilateral: false,
@@ -54,6 +61,7 @@ export const templateToDayDraft = (
   exercises: template.exercises.map((exercise) => ({
     exerciseId: exercise.exerciseId,
     exerciseName: exercise.exercise.name,
+    exerciseCategory: exercise.exercise.exerciseCategory,
     sets: exercise.sets,
     repMin: exercise.repMin,
     repMax: exercise.repMax,
@@ -63,6 +71,8 @@ export const templateToDayDraft = (
     deloadFactor: 0.9,
     targetRpe: null,
     loadTypeOverride: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+    trackingMode: exercise.trackingMode,
+    defaultTrackingData: exercise.defaultTrackingData,
     machineOverride: exercise.machineOverride,
     attachmentOverride: exercise.attachmentOverride,
     unilateral: exercise.unilateral,
@@ -108,6 +118,7 @@ export const programToDraftDays = (program: Program): DraftTemplateDay[] => {
     exercises: workout.exercises.map((exercise) => ({
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exercise.name,
+      exerciseCategory: exercise.exercise.exerciseCategory,
       sets: exercise.sets,
       repMin: exercise.repMin,
       repMax: exercise.repMax,
@@ -117,6 +128,8 @@ export const programToDraftDays = (program: Program): DraftTemplateDay[] => {
       deloadFactor: exercise.deloadFactor,
       targetRpe: exercise.targetRpe,
       loadTypeOverride: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+      trackingMode: exercise.trackingMode,
+      defaultTrackingData: exercise.defaultTrackingData,
       machineOverride: exercise.machineOverride,
       attachmentOverride: exercise.attachmentOverride,
       unilateral: exercise.unilateral,

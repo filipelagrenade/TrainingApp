@@ -1,14 +1,27 @@
 import {
+  ExerciseCategory,
   ActivityType,
+  Prisma,
+  TrackingMode,
   WorkoutEntryType,
+  WorkoutSetType,
   WorkoutStatus,
   type LoadType,
-  type Prisma,
 } from "@prisma/client";
 
 import { AppError } from "../lib/errors";
 import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
+import {
+  buildDefaultSetTrackingData,
+  buildProgramExerciseTracking,
+  buildTemplateExerciseTracking,
+  defaultSetTypeForCategory,
+  deriveTrackingMode,
+  formatTrackingSummary,
+  normalizeTrackingData,
+  normalizeWeightForTrackingMode,
+} from "../lib/tracking";
 import { createXpLedgerEntry, unlockAchievements } from "./gamification.service";
 import {
   calculateProgressionRecommendation,
@@ -21,16 +34,21 @@ type WorkoutDraftSet = {
   weight: number | null;
   reps: number;
   rpe: number | null;
+  setType?: WorkoutSetType;
+  trackingData?: Prisma.JsonValue | null;
   isWorkingSet?: boolean;
 };
 
 type WorkoutDraftExercise = {
   exerciseId: string | null;
   exerciseName: string;
+  exerciseCategory: ExerciseCategory;
   equipmentType: string;
   machineType?: string | null;
   attachment?: string | null;
   loadType: LoadType;
+  trackingMode: TrackingMode;
+  defaultTrackingData?: Prisma.JsonValue | null;
   unitMode: string;
   unilateral?: boolean;
   notes?: string;
@@ -140,14 +158,25 @@ const buildProgramDraft = async (userId: string, programWorkoutId: string): Prom
           increment: exercise.increment,
           deloadFactor: exercise.deloadFactor,
         });
+        const tracking = buildProgramExerciseTracking({
+          exerciseCategory: exercise.exercise.exerciseCategory,
+          equipmentType: exercise.exercise.equipmentType,
+          loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+          unitMode: exercise.exercise.unitMode,
+          trackingMode: exercise.trackingMode,
+          defaultTrackingData: exercise.defaultTrackingData,
+        });
 
         return {
           exerciseId: exercise.exercise.id,
           exerciseName: exercise.exercise.name,
+          exerciseCategory: tracking.exerciseCategory,
           equipmentType: exercise.exercise.equipmentType,
           machineType: exercise.machineOverride ?? exercise.exercise.machineType,
           attachment: exercise.attachmentOverride ?? exercise.exercise.attachment,
           loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+          trackingMode: tracking.trackingMode,
+          defaultTrackingData: tracking.defaultTrackingData,
           unitMode: exercise.exercise.unitMode,
           unilateral: exercise.unilateral,
           notes: exercise.notes ?? undefined,
@@ -166,9 +195,16 @@ const buildProgramDraft = async (userId: string, programWorkoutId: string): Prom
           sets: Array.from({ length: exercise.sets }).map((_, index) => ({
             setNumber: index + 1,
             weight: recommendation.weight ?? null,
-            reps: exercise.repMin,
+            reps: tracking.exerciseCategory === ExerciseCategory.CARDIO ? 0 : exercise.repMin,
             rpe: exercise.targetRpe ?? null,
-            isWorkingSet: true,
+            setType: defaultSetTypeForCategory(tracking.exerciseCategory),
+            trackingData: buildDefaultSetTrackingData({
+              exerciseCategory: tracking.exerciseCategory,
+              trackingMode: tracking.trackingMode,
+              unitMode: exercise.exercise.unitMode,
+              defaultTrackingData: tracking.defaultTrackingData,
+            }),
+            isWorkingSet: tracking.exerciseCategory !== ExerciseCategory.CARDIO,
           })),
         };
       }),
@@ -197,12 +233,26 @@ const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => 
     title: template.name,
     notes: template.description ?? undefined,
     exercises: template.exercises.map((exercise) => ({
+      ...(function () {
+        const tracking = buildTemplateExerciseTracking({
+          exerciseCategory: exercise.exercise.exerciseCategory,
+          equipmentType: exercise.exercise.equipmentType,
+          loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+          unitMode: exercise.exercise.unitMode,
+          trackingMode: exercise.trackingMode,
+          defaultTrackingData: exercise.defaultTrackingData,
+        });
+
+        return {
       exerciseId: exercise.exercise.id,
       exerciseName: exercise.exercise.name,
+      exerciseCategory: tracking.exerciseCategory,
       equipmentType: exercise.exercise.equipmentType,
       machineType: exercise.machineOverride ?? exercise.exercise.machineType,
       attachment: exercise.attachmentOverride ?? exercise.exercise.attachment,
       loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
+      trackingMode: tracking.trackingMode,
+      defaultTrackingData: tracking.defaultTrackingData,
       unitMode: exercise.exercise.unitMode,
       unilateral: exercise.unilateral,
       notes: exercise.notes ?? undefined,
@@ -221,10 +271,19 @@ const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => 
       sets: Array.from({ length: exercise.sets }).map((_, index) => ({
         setNumber: index + 1,
         weight: exercise.startWeight ?? null,
-        reps: exercise.repMin,
+        reps: tracking.exerciseCategory === ExerciseCategory.CARDIO ? 0 : exercise.repMin,
         rpe: null,
-        isWorkingSet: true,
+        setType: defaultSetTypeForCategory(tracking.exerciseCategory),
+        trackingData: buildDefaultSetTrackingData({
+          exerciseCategory: tracking.exerciseCategory,
+          trackingMode: tracking.trackingMode,
+          unitMode: exercise.exercise.unitMode,
+          defaultTrackingData: tracking.defaultTrackingData,
+        }),
+        isWorkingSet: tracking.exerciseCategory !== ExerciseCategory.CARDIO,
       })),
+        };
+      })(),
     })),
   };
 };
@@ -236,13 +295,57 @@ const hydrateWorkoutDraft = (workout: {
 }): WorkoutDraft => {
   const savedDraft = workout.savedDraft as WorkoutDraft | null;
 
-  return (
+  const baseDraft =
     savedDraft ?? {
       title: workout.title,
       notes: workout.notes ?? "",
       exercises: [],
-    }
-  );
+    };
+
+  return {
+    ...baseDraft,
+    notes: baseDraft.notes ?? "",
+    exercises: baseDraft.exercises.map((exercise) => {
+      const exerciseCategory = exercise.exerciseCategory ?? ExerciseCategory.STRENGTH;
+      const trackingMode =
+        exercise.trackingMode ??
+        deriveTrackingMode({
+          exerciseCategory,
+          equipmentType: exercise.equipmentType,
+          loadType: exercise.loadType,
+        });
+      const defaultTrackingData =
+        normalizeTrackingData(exercise.defaultTrackingData) ??
+        buildDefaultSetTrackingData({
+          exerciseCategory,
+          trackingMode,
+          unitMode: exercise.unitMode,
+        });
+
+      return {
+        ...exercise,
+        exerciseCategory,
+        trackingMode,
+        defaultTrackingData,
+        sets: exercise.sets.map((set) => ({
+          ...set,
+          setType: set.setType ?? defaultSetTypeForCategory(exerciseCategory),
+          trackingData:
+            normalizeTrackingData(set.trackingData) ??
+            buildDefaultSetTrackingData({
+              exerciseCategory,
+              trackingMode,
+              unitMode: exercise.unitMode,
+              defaultTrackingData,
+            }),
+          isWorkingSet:
+            typeof set.isWorkingSet === "boolean"
+              ? set.isWorkingSet
+              : exerciseCategory !== ExerciseCategory.CARDIO,
+        })),
+      };
+    }),
+  };
 };
 
 const getOwnedWorkout = async (userId: string, workoutId: string) => {
@@ -295,20 +398,31 @@ const isEquivalentSubstitute = async (
   return Boolean(equivalency);
 };
 
-const buildBestSetLabel = (weight: number | null, reps: number) =>
-  weight === null ? `${reps} reps` : `${weight} x ${reps}`;
-
 const summarizeWorkingSets = (
   sets: Array<{
     weight: number | null;
     reps: number;
     isWorkingSet: boolean;
     isPersonalRecord?: boolean;
+    setType?: WorkoutSetType;
+    trackingData?: Prisma.JsonValue | null;
   }>,
+  exercise: {
+    trackingMode: TrackingMode | null;
+    unitMode: string;
+  },
 ) => {
   const workingSets = sets.filter((set) => set.isWorkingSet);
   const sourceSets = workingSets.length ? workingSets : sets;
   const volume = sourceSets.reduce((sum, set) => sum + (set.weight ?? 0) * set.reps, 0);
+  const cardioDurationSeconds = sourceSets.reduce((sum, set) => {
+    const trackingData = normalizeTrackingData(set.trackingData);
+    return sum + (typeof trackingData?.durationSeconds === "number" ? trackingData.durationSeconds : 0);
+  }, 0);
+  const cardioDistance = sourceSets.reduce((sum, set) => {
+    const trackingData = normalizeTrackingData(set.trackingData);
+    return sum + (typeof trackingData?.distance === "number" ? trackingData.distance : 0);
+  }, 0);
   const bestSet = sourceSets.reduce<{
     label: string;
     estimatedOneRepMax: number | null;
@@ -316,7 +430,14 @@ const summarizeWorkingSets = (
     const estimatedOneRepMax =
       typeof set.weight === "number" ? estimateOneRepMax(set.weight, set.reps) : null;
     const next = {
-      label: buildBestSetLabel(set.weight, set.reps),
+      label: formatTrackingSummary({
+        setType: set.setType ?? WorkoutSetType.NORMAL,
+        trackingMode: exercise.trackingMode ?? TrackingMode.ABSOLUTE_WEIGHT,
+        unitMode: exercise.unitMode,
+        weight: set.weight,
+        reps: set.reps,
+        trackingData: set.trackingData,
+      }),
       estimatedOneRepMax,
     };
 
@@ -333,6 +454,8 @@ const summarizeWorkingSets = (
 
   return {
     volume,
+    cardioDurationSeconds,
+    cardioDistance,
     bestSetLabel: bestSet?.label ?? "-",
     estimatedOneRepMax: bestSet?.estimatedOneRepMax ?? null,
     personalRecordSets: sourceSets.filter((set) => set.isPersonalRecord).length,
@@ -427,6 +550,18 @@ export const startWorkout = async (
     title: input.title ?? "Quick Workout",
     exercises: [],
   };
+  const existingInProgress = await prisma.workoutSession.findFirst({
+    where: {
+      userId,
+      status: WorkoutStatus.IN_PROGRESS,
+    },
+    orderBy: { startedAt: "desc" },
+  });
+
+  if (existingInProgress) {
+    return existingInProgress;
+  }
+
   let programId: string | null = null;
   let programWorkoutId: string | null = null;
   let wasPlanned = false;
@@ -481,11 +616,13 @@ export const startWorkout = async (
       userId,
       programId,
       programWorkoutId,
+      templateId: input.entryType === WorkoutEntryType.TEMPLATE ? input.templateId ?? null : null,
       title: savedDraft.title,
       entryType: input.entryType,
       status: WorkoutStatus.IN_PROGRESS,
       wasPlanned,
       savedDraft,
+      originDraft: savedDraft,
     },
   });
 };
@@ -517,6 +654,19 @@ export const getWorkout = async (userId: string, workoutId: string) => {
     throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
   }
 
+  const hydratedSavedDraft = hydrateWorkoutDraft({
+    title: workout.title,
+    notes: workout.notes,
+    savedDraft: workout.savedDraft,
+  });
+  const hydratedOriginDraft = workout.originDraft
+    ? hydrateWorkoutDraft({
+        title: workout.title,
+        notes: workout.notes,
+        savedDraft: workout.originDraft,
+      })
+    : null;
+
   if (workout.status !== WorkoutStatus.COMPLETED) {
     logger.info(
       {
@@ -530,13 +680,18 @@ export const getWorkout = async (userId: string, workoutId: string) => {
 
     return {
       ...workout,
+      savedDraft: hydratedSavedDraft,
+      originDraft: hydratedOriginDraft,
       exerciseReviews: [],
     };
   }
 
   const exerciseReviews = await Promise.all(
     workout.exercises.map(async (exercise) => {
-      const currentSummary = summarizeWorkingSets(exercise.sets);
+      const currentSummary = summarizeWorkingSets(exercise.sets, {
+        trackingMode: exercise.trackingMode,
+        unitMode: exercise.unitMode,
+      });
       const previousExposure = await findPreviousExerciseExposure(
         userId,
         {
@@ -547,7 +702,10 @@ export const getWorkout = async (userId: string, workoutId: string) => {
         workout.completedAt,
       );
       const previousSummary = previousExposure
-        ? summarizeWorkingSets(previousExposure.sets)
+        ? summarizeWorkingSets(previousExposure.sets, {
+            trackingMode: previousExposure.trackingMode,
+            unitMode: previousExposure.unitMode,
+          })
         : null;
 
       return {
@@ -583,6 +741,8 @@ export const getWorkout = async (userId: string, workoutId: string) => {
 
   return {
     ...workout,
+    savedDraft: hydratedSavedDraft,
+    originDraft: hydratedOriginDraft,
     exerciseReviews,
   };
 };
@@ -641,6 +801,16 @@ export const applyWorkoutSubstitution = async (
     originalExerciseId === null
       ? false
       : await isEquivalentSubstitute(userId, originalExerciseId, substituteExercise.id);
+  const trackingMode = deriveTrackingMode({
+    exerciseCategory: substituteExercise.exerciseCategory,
+    equipmentType: substituteExercise.equipmentType,
+    loadType: substituteExercise.loadType,
+  });
+  const defaultTrackingData = buildDefaultSetTrackingData({
+    exerciseCategory: substituteExercise.exerciseCategory,
+    trackingMode,
+    unitMode: substituteExercise.unitMode,
+  });
 
   const nextDraft: WorkoutDraft = {
     ...draft,
@@ -650,10 +820,13 @@ export const applyWorkoutSubstitution = async (
             ...exercise,
             exerciseId: substituteExercise.id,
             exerciseName: substituteExercise.name,
+            exerciseCategory: substituteExercise.exerciseCategory,
             equipmentType: substituteExercise.equipmentType,
             machineType: substituteExercise.machineType,
             attachment: substituteExercise.attachment,
             loadType: substituteExercise.loadType,
+            trackingMode,
+            defaultTrackingData,
             unitMode: substituteExercise.unitMode,
             substitutedFromExerciseId:
               originalExerciseId && originalExerciseId !== substituteExercise.id ? originalExerciseId : null,
@@ -668,6 +841,18 @@ export const applyWorkoutSubstitution = async (
             countsForProgression: currentExercise.sourceProgramExerciseId
               ? isEquivalent
               : true,
+            sets: exercise.sets.map((set) => ({
+              ...set,
+              setType: defaultSetTypeForCategory(substituteExercise.exerciseCategory),
+              trackingData:
+                normalizeTrackingData(set.trackingData) ??
+                buildDefaultSetTrackingData({
+                  exerciseCategory: substituteExercise.exerciseCategory,
+                  trackingMode,
+                  unitMode: substituteExercise.unitMode,
+                  defaultTrackingData,
+                }),
+            })),
           }
         : exercise,
     ),
@@ -706,6 +891,16 @@ export const removeWorkoutSubstitution = async (
     userId,
     currentExercise.substitutedFromExerciseId,
   );
+  const trackingMode = deriveTrackingMode({
+    exerciseCategory: originalExercise.exerciseCategory,
+    equipmentType: originalExercise.equipmentType,
+    loadType: originalExercise.loadType,
+  });
+  const defaultTrackingData = buildDefaultSetTrackingData({
+    exerciseCategory: originalExercise.exerciseCategory,
+    trackingMode,
+    unitMode: originalExercise.unitMode,
+  });
 
   const nextDraft: WorkoutDraft = {
     ...draft,
@@ -715,15 +910,30 @@ export const removeWorkoutSubstitution = async (
             ...exercise,
             exerciseId: originalExercise.id,
             exerciseName: originalExercise.name,
+            exerciseCategory: originalExercise.exerciseCategory,
             equipmentType: originalExercise.equipmentType,
             machineType: originalExercise.machineType,
             attachment: originalExercise.attachment,
             loadType: originalExercise.loadType,
+            trackingMode,
+            defaultTrackingData,
             unitMode: originalExercise.unitMode,
             substitutedFromExerciseId: null,
             substitutedFromExerciseName: null,
             substitutionMode: null,
             countsForProgression: true,
+            sets: exercise.sets.map((set) => ({
+              ...set,
+              setType: defaultSetTypeForCategory(originalExercise.exerciseCategory),
+              trackingData:
+                normalizeTrackingData(set.trackingData) ??
+                buildDefaultSetTrackingData({
+                  exerciseCategory: originalExercise.exerciseCategory,
+                  trackingMode,
+                  unitMode: originalExercise.unitMode,
+                  defaultTrackingData,
+                }),
+            })),
           }
         : exercise,
     ),
@@ -1098,10 +1308,13 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
           sessionId: workout.id,
           exerciseId: exercise.exerciseId,
           exerciseName: exercise.exerciseName,
+          exerciseCategory: exercise.exerciseCategory,
           equipmentType: exercise.equipmentType,
           machineType: exercise.machineType ?? null,
           attachment: exercise.attachment ?? null,
           loadType: exercise.loadType,
+          trackingMode: exercise.trackingMode,
+          defaultTrackingData: normalizeTrackingData(exercise.defaultTrackingData) ?? Prisma.JsonNull,
           unitMode: exercise.unitMode,
           unilateral: exercise.unilateral ?? false,
           orderIndex: exerciseIndex,
@@ -1122,10 +1335,15 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
       });
 
       const createdSets = exercise.sets.map((set) => {
+        const normalizedWeight = normalizeWeightForTrackingMode(
+          exercise.trackingMode,
+          set.weight,
+          set.trackingData,
+        );
         let personalRecord = false;
 
-        if (exercise.exerciseId && typeof set.weight === "number") {
-          const estimate = estimateOneRepMax(set.weight, set.reps);
+        if (exercise.exerciseId && typeof normalizedWeight === "number") {
+          const estimate = estimateOneRepMax(normalizedWeight, set.reps);
           const bestPrevious = personalRecordBenchmarks.get(exercise.exerciseId) ?? 0;
           if (estimate > bestPrevious) {
             personalRecord = true;
@@ -1137,9 +1355,11 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
         return {
           workoutExerciseId: createdExercise.id,
           setNumber: set.setNumber,
-          weight: set.weight,
+          weight: normalizedWeight,
           reps: set.reps,
           rpe: set.rpe,
+          setType: set.setType ?? defaultSetTypeForCategory(exercise.exerciseCategory),
+          trackingData: normalizeTrackingData(set.trackingData) ?? Prisma.JsonNull,
           isWorkingSet: set.isWorkingSet ?? true,
           isPersonalRecord: personalRecord,
         };

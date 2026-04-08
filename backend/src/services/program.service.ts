@@ -1,4 +1,10 @@
-import { ProgramStatus, WorkoutStatus, type Prisma, type ProgramWorkoutExercise } from "@prisma/client";
+import {
+  Prisma,
+  ProgramStatus,
+  WorkoutStatus,
+  type ProgramWorkoutExercise,
+  type TrackingMode,
+} from "@prisma/client";
 
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
@@ -24,6 +30,8 @@ export type ProgramDayInput = {
     deloadFactor?: number;
     targetRpe?: number | null;
     loadTypeOverride?: ProgramWorkoutExercise["loadTypeOverride"];
+    trackingMode?: TrackingMode | null;
+    defaultTrackingData?: Prisma.InputJsonValue | null;
     machineOverride?: string;
     attachmentOverride?: string;
     unilateral?: boolean;
@@ -83,6 +91,8 @@ const buildWeekCreates = (input: ProgramInput) =>
             deloadFactor: exercise.deloadFactor ?? 0.9,
             targetRpe: exercise.targetRpe ?? null,
             loadTypeOverride: exercise.loadTypeOverride ?? null,
+            trackingMode: exercise.trackingMode ?? null,
+            defaultTrackingData: exercise.defaultTrackingData ?? Prisma.JsonNull,
             machineOverride: exercise.machineOverride,
             attachmentOverride: exercise.attachmentOverride,
             unilateral: exercise.unilateral ?? false,
@@ -107,6 +117,8 @@ const buildTemplateCreates = (input: ProgramInput) =>
         restSeconds: exercise.restSeconds ?? 120,
         startWeight: exercise.startWeight ?? null,
         loadTypeOverride: exercise.loadTypeOverride ?? null,
+        trackingMode: exercise.trackingMode ?? null,
+        defaultTrackingData: exercise.defaultTrackingData ?? Prisma.JsonNull,
         machineOverride: exercise.machineOverride,
         attachmentOverride: exercise.attachmentOverride,
         unilateral: exercise.unilateral ?? false,

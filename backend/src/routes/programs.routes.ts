@@ -1,4 +1,4 @@
-import { LoadType } from "@prisma/client";
+import { LoadType, TrackingMode } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 
@@ -18,17 +18,24 @@ import {
 
 const programsRouter = Router();
 
+const trackingDataSchema = z.record(
+  z.string(),
+  z.union([z.string(), z.number(), z.boolean(), z.null()]),
+);
+
 const programExerciseSchema = z.object({
   exerciseId: z.string().min(1),
   sets: z.coerce.number().int().min(1).max(10),
-  repMin: z.coerce.number().int().min(1).max(30),
-  repMax: z.coerce.number().int().min(1).max(30),
+  repMin: z.coerce.number().int().min(0).max(30),
+  repMax: z.coerce.number().int().min(0).max(30),
   restSeconds: z.coerce.number().int().min(15).max(600).optional(),
   startWeight: z.coerce.number().nonnegative().nullable().optional(),
   increment: z.coerce.number().positive().optional(),
   deloadFactor: z.coerce.number().min(0.5).max(1).optional(),
   targetRpe: z.coerce.number().min(5).max(10).nullable().optional(),
   loadTypeOverride: z.nativeEnum(LoadType).nullable().optional(),
+  trackingMode: z.nativeEnum(TrackingMode).nullable().optional(),
+  defaultTrackingData: trackingDataSchema.nullable().optional(),
   machineOverride: z.string().max(80).nullable().optional(),
   attachmentOverride: z.string().max(80).nullable().optional(),
   unilateral: z.boolean().optional(),

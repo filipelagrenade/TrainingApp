@@ -25,6 +25,12 @@ export const equipmentTypeOptions = [
   "EZ Bar",
   "Kettlebell",
   "Resistance Band",
+  "Treadmill",
+  "Bike",
+  "Rower",
+  "Stair Climber",
+  "Elliptical",
+  "Sled",
   "Other",
 ];
 
@@ -38,6 +44,12 @@ export const defaultLoadTypeByEquipment: Record<string, LoadType> = {
   "EZ Bar": "FIXED_WEIGHT",
   Kettlebell: "FIXED_WEIGHT",
   "Resistance Band": "EXTERNAL",
+  Treadmill: "EXTERNAL",
+  Bike: "EXTERNAL",
+  Rower: "EXTERNAL",
+  "Stair Climber": "EXTERNAL",
+  Elliptical: "EXTERNAL",
+  Sled: "EXTERNAL",
   Other: "EXTERNAL",
 };
 

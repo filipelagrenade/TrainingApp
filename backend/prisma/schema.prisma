@@ -22,6 +22,31 @@ enum LoadType {
   CABLE_STACK
 }
 
+enum ExerciseCategory {
+  STRENGTH
+  CARDIO
+}
+
+enum TrackingMode {
+  ABSOLUTE_WEIGHT
+  PLATES_PER_SIDE
+  BODYWEIGHT_ONLY
+  BODYWEIGHT_PLUS_LOAD
+  BAND_LEVEL
+  PER_SIDE_LOAD
+  CARDIO
+}
+
+enum WorkoutSetType {
+  NORMAL
+  WARMUP
+  AMRAP
+  DROP
+  CLUSTER
+  SUPERSET
+  CARDIO
+}
+
 enum ProgramStatus {
   ACTIVE
   PAUSED
@@ -112,6 +137,7 @@ model Exercise {
   userId              String?
   slug                String
   name                String
+  exerciseCategory    ExerciseCategory        @default(STRENGTH)
   equipmentType       String
   machineType         String?
   attachment          String?
@@ -207,6 +233,8 @@ model ProgramWorkoutExercise {
   deloadFactor        Float          @default(0.9)
   targetRpe           Float?
   loadTypeOverride    LoadType?
+  trackingMode        TrackingMode?
+  defaultTrackingData Json?
   machineOverride     String?
   attachmentOverride  String?
   unilateral          Boolean        @default(false)
@@ -237,6 +265,8 @@ model TemplateExercise {
   restSeconds         Int             @default(120)
   startWeight         Float?
   loadTypeOverride    LoadType?
+  trackingMode        TrackingMode?
+  defaultTrackingData Json?
   machineOverride     String?
   attachmentOverride  String?
   unilateral          Boolean         @default(false)
@@ -261,6 +291,7 @@ model WorkoutSession {
   wasPlanned               Boolean          @default(false)
   qualifiesForProgression  Boolean          @default(true)
   savedDraft               Json?
+  originDraft              Json?
   user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   program                  Program?         @relation(fields: [programId], references: [id], onDelete: SetNull)
   programWorkout           ProgramWorkout?  @relation(fields: [programWorkoutId], references: [id], onDelete: SetNull)
@@ -272,10 +303,13 @@ model WorkoutExercise {
   sessionId              String
   exerciseId             String?
   exerciseName           String
+  exerciseCategory       ExerciseCategory @default(STRENGTH)
   equipmentType          String
   machineType            String?
   attachment             String?
   loadType               LoadType
+  trackingMode           TrackingMode?
+  defaultTrackingData    Json?
   unitMode               String          @default("kg")
   unilateral             Boolean         @default(false)
   orderIndex             Int
@@ -302,6 +336,8 @@ model WorkoutSet {
   weight            Float?
   reps              Int
   rpe               Float?
+  setType           WorkoutSetType  @default(NORMAL)
+  trackingData      Json?
   completedAt       DateTime        @default(now())
   isWorkingSet      Boolean         @default(true)
   isPersonalRecord  Boolean         @default(false)

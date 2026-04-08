@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { createBlankDayDraft, generatedTemplateToDayDraft } from "@/lib/programs";
 import type { DraftTemplateDay, Exercise } from "@/lib/types";
+import { defaultTrackingDataForMode, trackingModeOptions } from "@/lib/workout-tracking";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
@@ -222,9 +223,13 @@ export const DayEditorSheet = ({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Rep min</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Minutes" : "Rep min"}</Label>
                       <NullableNumberInput
-                        value={exercise.repMin}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? Math.round(((exercise.defaultTrackingData?.durationSeconds ?? 900) as number) / 60)
+                            : exercise.repMin
+                        }
                         onChange={(event) =>
                           setLocalDay((current) =>
                             current
@@ -232,7 +237,15 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, repMin: event ?? candidate.repMin }
+                                      ? exercise.exerciseCategory === "CARDIO"
+                                        ? {
+                                            ...candidate,
+                                            defaultTrackingData: {
+                                              ...candidate.defaultTrackingData,
+                                              durationSeconds: (event ?? 15) * 60,
+                                            },
+                                          }
+                                        : { ...candidate, repMin: event ?? candidate.repMin }
                                       : candidate,
                                   ),
                                 }
@@ -242,9 +255,13 @@ export const DayEditorSheet = ({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Rep max</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Distance" : "Rep max"}</Label>
                       <NullableNumberInput
-                        value={exercise.repMax}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? (exercise.defaultTrackingData?.distance as number | null | undefined) ?? null
+                            : exercise.repMax
+                        }
                         onChange={(event) =>
                           setLocalDay((current) =>
                             current
@@ -252,7 +269,15 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, repMax: event ?? candidate.repMax }
+                                      ? exercise.exerciseCategory === "CARDIO"
+                                        ? {
+                                            ...candidate,
+                                            defaultTrackingData: {
+                                              ...candidate.defaultTrackingData,
+                                              distance: event,
+                                            },
+                                          }
+                                        : { ...candidate, repMax: event ?? candidate.repMax }
                                       : candidate,
                                   ),
                                 }
@@ -262,9 +287,13 @@ export const DayEditorSheet = ({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Start weight</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Resistance" : "Start weight"}</Label>
                       <NullableNumberInput
-                        value={exercise.startWeight ?? null}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? (exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null
+                            : exercise.startWeight ?? null
+                        }
                         onChange={(value) =>
                           setLocalDay((current) =>
                             current
@@ -272,10 +301,18 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? {
-                                          ...candidate,
-                                          startWeight: value,
-                                        }
+                                      ? exercise.exerciseCategory === "CARDIO"
+                                        ? {
+                                            ...candidate,
+                                            defaultTrackingData: {
+                                              ...candidate.defaultTrackingData,
+                                              resistance: value,
+                                            },
+                                          }
+                                        : {
+                                            ...candidate,
+                                            startWeight: value,
+                                          }
                                       : candidate,
                                   ),
                                 }
@@ -286,6 +323,46 @@ export const DayEditorSheet = ({
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="space-y-2">
+                      <Label>Tracking mode</Label>
+                      <Select
+                        value={exercise.trackingMode ?? (exercise.exerciseCategory === "CARDIO" ? "CARDIO" : "ABSOLUTE_WEIGHT")}
+                        onValueChange={(value) =>
+                          setLocalDay((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  exercises: current.exercises.map((candidate, index) =>
+                                    index === exerciseIndex
+                                      ? {
+                                          ...candidate,
+                                          trackingMode: value as DraftTemplateDay["exercises"][number]["trackingMode"],
+                                          defaultTrackingData:
+                                            defaultTrackingDataForMode(value as NonNullable<typeof candidate.trackingMode>, "kg") ?? null,
+                                        }
+                                      : candidate,
+                                  ),
+                                }
+                              : current,
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Tracking mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {trackingModeOptions
+                            .filter((option) =>
+                              exercise.exerciseCategory === "CARDIO" ? option.value === "CARDIO" : option.value !== "CARDIO",
+                            )
+                            .map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="space-y-2">
                       <Label>Rest</Label>
                       <Select
@@ -318,10 +395,62 @@ export const DayEditorSheet = ({
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Increment</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Resistance" : "Increment"}</Label>
+                      {exercise.exerciseCategory === "CARDIO" ? (
+                        <NullableNumberInput
+                          step={0.5}
+                          value={(exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null}
+                          onChange={(value) =>
+                            setLocalDay((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    exercises: current.exercises.map((candidate, index) =>
+                                      index === exerciseIndex
+                                        ? {
+                                            ...candidate,
+                                            defaultTrackingData: {
+                                              ...candidate.defaultTrackingData,
+                                              resistance: value,
+                                            },
+                                          }
+                                        : candidate,
+                                    ),
+                                  }
+                                : current,
+                            )
+                          }
+                        />
+                      ) : (
+                        <NullableNumberInput
+                          step={0.5}
+                          value={exercise.increment ?? 2.5}
+                          onChange={(value) =>
+                            setLocalDay((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    exercises: current.exercises.map((candidate, index) =>
+                                      index === exerciseIndex
+                                        ? { ...candidate, increment: value ?? candidate.increment ?? 2.5 }
+                                        : candidate,
+                                    ),
+                                  }
+                                : current,
+                            )
+                          }
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Incline" : "Target RPE"}</Label>
                       <NullableNumberInput
                         step={0.5}
-                        value={exercise.increment ?? 2.5}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? (exercise.defaultTrackingData?.incline as number | null | undefined) ?? null
+                            : exercise.targetRpe ?? null
+                        }
                         onChange={(value) =>
                           setLocalDay((current) =>
                             current
@@ -329,7 +458,18 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, increment: value ?? candidate.increment ?? 2.5 }
+                                      ? exercise.exerciseCategory === "CARDIO"
+                                        ? {
+                                            ...candidate,
+                                            defaultTrackingData: {
+                                              ...candidate.defaultTrackingData,
+                                              incline: value,
+                                            },
+                                          }
+                                        : {
+                                            ...candidate,
+                                            targetRpe: value,
+                                          }
                                       : candidate,
                                   ),
                                 }
@@ -339,34 +479,14 @@ export const DayEditorSheet = ({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Target RPE</Label>
-                      <NullableNumberInput
-                        step={0.5}
-                        value={exercise.targetRpe ?? null}
-                        onChange={(value) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? {
-                                          ...candidate,
-                                          targetRpe: value,
-                                        }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Deload factor</Label>
+                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Speed" : "Deload factor"}</Label>
                       <NullableNumberInput
                         step={0.05}
-                        value={exercise.deloadFactor ?? 0.9}
+                        value={
+                          exercise.exerciseCategory === "CARDIO"
+                            ? (exercise.defaultTrackingData?.speed as number | null | undefined) ?? null
+                            : exercise.deloadFactor ?? 0.9
+                        }
                         onChange={(value) =>
                           setLocalDay((current) =>
                             current
@@ -374,7 +494,15 @@ export const DayEditorSheet = ({
                                   ...current,
                                   exercises: current.exercises.map((candidate, index) =>
                                     index === exerciseIndex
-                                      ? { ...candidate, deloadFactor: value ?? candidate.deloadFactor ?? 0.9 }
+                                      ? exercise.exerciseCategory === "CARDIO"
+                                        ? {
+                                            ...candidate,
+                                            defaultTrackingData: {
+                                              ...candidate.defaultTrackingData,
+                                              speed: value,
+                                            },
+                                          }
+                                        : { ...candidate, deloadFactor: value ?? candidate.deloadFactor ?? 0.9 }
                                       : candidate,
                                   ),
                                 }

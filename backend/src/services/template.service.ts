@@ -1,4 +1,4 @@
-import type { LoadType, Prisma } from "@prisma/client";
+import { Prisma, type LoadType, type TrackingMode } from "@prisma/client";
 
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
@@ -12,6 +12,8 @@ export type TemplateExerciseInput = {
   restSeconds?: number;
   startWeight?: number | null;
   loadTypeOverride?: LoadType | null;
+  trackingMode?: TrackingMode | null;
+  defaultTrackingData?: Prisma.InputJsonValue | null;
   machineOverride?: string;
   attachmentOverride?: string;
   unilateral?: boolean;
@@ -66,6 +68,8 @@ const buildTemplateExerciseCreateMany = (exercises: TemplateExerciseInput[]) =>
     restSeconds: exercise.restSeconds ?? 120,
     startWeight: exercise.startWeight ?? null,
     loadTypeOverride: exercise.loadTypeOverride ?? null,
+    trackingMode: exercise.trackingMode ?? null,
+    defaultTrackingData: exercise.defaultTrackingData ?? Prisma.JsonNull,
     machineOverride: exercise.machineOverride,
     attachmentOverride: exercise.attachmentOverride,
     unilateral: exercise.unilateral ?? false,
@@ -142,6 +146,8 @@ export const duplicateTemplate = async (userId: string, templateId: string) => {
       restSeconds: exercise.restSeconds,
       startWeight: exercise.startWeight,
       loadTypeOverride: exercise.loadTypeOverride,
+      trackingMode: exercise.trackingMode,
+      defaultTrackingData: (exercise.defaultTrackingData as Prisma.InputJsonValue | null) ?? null,
       machineOverride: exercise.machineOverride ?? undefined,
       attachmentOverride: exercise.attachmentOverride ?? undefined,
       unilateral: exercise.unilateral,

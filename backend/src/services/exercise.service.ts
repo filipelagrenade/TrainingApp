@@ -1,4 +1,4 @@
-import type { LoadType } from "@prisma/client";
+import { ExerciseCategory, type LoadType } from "@prisma/client";
 
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
@@ -15,6 +15,7 @@ export const createExercise = async (
   userId: string,
   input: {
     name: string;
+    exerciseCategory?: ExerciseCategory;
     equipmentType: string;
     machineType?: string;
     attachment?: string;
@@ -29,6 +30,7 @@ export const createExercise = async (
       userId,
       slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
       name: input.name,
+      exerciseCategory: input.exerciseCategory ?? ExerciseCategory.STRENGTH,
       equipmentType: input.equipmentType,
       machineType: input.machineType,
       attachment: input.attachment,

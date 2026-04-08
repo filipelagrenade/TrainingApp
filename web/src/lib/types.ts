@@ -35,6 +35,7 @@ export type SocialUser = {
 export type Exercise = {
   id: string;
   name: string;
+  exerciseCategory: "STRENGTH" | "CARDIO";
   equipmentType: string;
   machineType: string | null;
   attachment: string | null;
@@ -60,6 +61,42 @@ export type ExerciseSubstitutes = {
 
 export type LoadType = Exercise["loadType"];
 
+export type ExerciseCategory = Exercise["exerciseCategory"];
+
+export type TrackingMode =
+  | "ABSOLUTE_WEIGHT"
+  | "PLATES_PER_SIDE"
+  | "BODYWEIGHT_ONLY"
+  | "BODYWEIGHT_PLUS_LOAD"
+  | "BAND_LEVEL"
+  | "PER_SIDE_LOAD"
+  | "CARDIO";
+
+export type WorkoutSetType =
+  | "NORMAL"
+  | "WARMUP"
+  | "AMRAP"
+  | "DROP"
+  | "CLUSTER"
+  | "SUPERSET"
+  | "CARDIO";
+
+export type WorkoutSetTrackingData = {
+  plateCount?: number | null;
+  plateWeight?: number | null;
+  barWeight?: number | null;
+  externalLoad?: number | null;
+  bandLevel?: string | null;
+  perSideLoad?: number | null;
+  durationSeconds?: number | null;
+  distance?: number | null;
+  distanceUnit?: string | null;
+  incline?: number | null;
+  resistance?: number | null;
+  speed?: number | null;
+  clusterSize?: number | null;
+};
+
 export type ProgramExercise = {
   id: string;
   exerciseId: string;
@@ -73,6 +110,8 @@ export type ProgramExercise = {
   deloadFactor: number;
   targetRpe: number | null;
   loadTypeOverride: Exercise["loadType"] | null;
+  trackingMode: TrackingMode | null;
+  defaultTrackingData: WorkoutSetTrackingData | null;
   machineOverride: string | null;
   attachmentOverride: string | null;
   unilateral: boolean;
@@ -126,6 +165,8 @@ export type TemplateExercise = {
   restSeconds: number;
   startWeight: number | null;
   loadTypeOverride: LoadType | null;
+  trackingMode: TrackingMode | null;
+  defaultTrackingData: WorkoutSetTrackingData | null;
   machineOverride: string | null;
   attachmentOverride: string | null;
   unilateral: boolean;
@@ -143,6 +184,7 @@ export type WorkoutTemplate = {
 export type DraftExercise = {
   exerciseId: string;
   exerciseName?: string;
+  exerciseCategory?: ExerciseCategory;
   sets: number;
   repMin: number;
   repMax: number;
@@ -152,6 +194,8 @@ export type DraftExercise = {
   deloadFactor?: number;
   targetRpe?: number | null;
   loadTypeOverride?: LoadType | null;
+  trackingMode?: TrackingMode | null;
+  defaultTrackingData?: WorkoutSetTrackingData | null;
   machineOverride?: string | null;
   attachmentOverride?: string | null;
   unilateral?: boolean;
@@ -218,8 +262,10 @@ export type WorkoutSession = {
   totalXp: number;
   notes: string | null;
   savedDraft: WorkoutDraft | null;
+  originDraft: WorkoutDraft | null;
   completedAt: string | null;
   programWorkoutId: string | null;
+  templateId: string | null;
 };
 
 export type WorkoutSetRecord = {
@@ -228,6 +274,8 @@ export type WorkoutSetRecord = {
   weight: number | null;
   reps: number;
   rpe: number | null;
+  setType: WorkoutSetType;
+  trackingData: WorkoutSetTrackingData | null;
   isWorkingSet: boolean;
   isPersonalRecord: boolean;
 };
@@ -236,10 +284,13 @@ export type WorkoutExerciseRecord = {
   id: string;
   exerciseId: string | null;
   exerciseName: string;
+  exerciseCategory: ExerciseCategory;
   equipmentType: string;
   machineType: string | null;
   attachment: string | null;
   loadType: Exercise["loadType"];
+  trackingMode: TrackingMode | null;
+  defaultTrackingData: WorkoutSetTrackingData | null;
   unitMode: "kg" | "lb";
   unilateral: boolean;
   orderIndex: number;
@@ -281,16 +332,21 @@ export type WorkoutDraftSet = {
   weight: number | null;
   reps: number;
   rpe: number | null;
+  setType?: WorkoutSetType;
+  trackingData?: WorkoutSetTrackingData | null;
   isWorkingSet?: boolean;
 };
 
 export type WorkoutDraftExercise = {
   exerciseId: string | null;
   exerciseName: string;
+  exerciseCategory: ExerciseCategory;
   equipmentType: string;
   machineType?: string | null;
   attachment?: string | null;
   loadType: Exercise["loadType"];
+  trackingMode: TrackingMode;
+  defaultTrackingData?: WorkoutSetTrackingData | null;
   unitMode: "kg" | "lb";
   unilateral?: boolean;
   notes?: string;
@@ -311,6 +367,7 @@ export type WorkoutDraftExercise = {
 
 export type CreateExerciseInput = {
   name: string;
+  exerciseCategory?: ExerciseCategory;
   equipmentType: string;
   machineType?: string;
   attachment?: string;
