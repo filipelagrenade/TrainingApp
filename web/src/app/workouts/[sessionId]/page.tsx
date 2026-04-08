@@ -9,7 +9,7 @@ export default async function WorkoutPage({
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,_#faf7f1_0%,_#f0ebe3_100%)]">
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="mx-auto max-w-3xl px-4 py-4 sm:px-5 sm:py-5">
         <WorkoutEditor sessionId={resolvedParams.sessionId} />
       </main>
     </div>

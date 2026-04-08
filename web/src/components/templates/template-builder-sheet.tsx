@@ -84,7 +84,7 @@ export const TemplateBuilderSheet = ({
             <SheetTitle>Create template</SheetTitle>
             <SheetDescription>Build a single reusable workout without going through a program.</SheetDescription>
           </SheetHeader>
-          <div className="mt-6 space-y-5">
+          <div className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="template-name-builder">Template name</Label>
               <Input
@@ -104,9 +104,21 @@ export const TemplateBuilderSheet = ({
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Exercises</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {items.length ? `${items.length} queued` : "Nothing added yet"}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setBulkSheetOpen(true)}>
+                  <Wand2 className="h-4 w-4" />
+                  Bulk add
+                </Button>
+              </div>
               {items.map((exercise, exerciseIndex) => (
-                <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-2xl border border-border/70 bg-card p-4">
+                <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-2xl border border-border/70 bg-card p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-foreground">{exercise.exerciseName}</p>
@@ -120,7 +132,7 @@ export const TemplateBuilderSheet = ({
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div className="space-y-2">
                       <Label>Sets</Label>
                       <NullableNumberInput
@@ -178,7 +190,7 @@ export const TemplateBuilderSheet = ({
               ))}
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -192,10 +204,6 @@ export const TemplateBuilderSheet = ({
               >
                 <Plus className="h-4 w-4" />
                 Add exercise
-              </Button>
-              <Button variant="outline" onClick={() => setBulkSheetOpen(true)}>
-                <Wand2 className="h-4 w-4" />
-                Bulk add
               </Button>
               <ExerciseCreatorDialog
                 onCreated={(exercise) => {

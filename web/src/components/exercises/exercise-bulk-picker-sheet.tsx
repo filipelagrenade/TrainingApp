@@ -83,7 +83,7 @@ export const ExerciseBulkPickerSheet = ({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/70 bg-card p-4">
+          <div className="rounded-2xl border border-border/70 bg-card p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Queued</p>
@@ -120,7 +120,7 @@ export const ExerciseBulkPickerSheet = ({
             </div>
           </div>
 
-          <div className="max-h-[48vh] space-y-3 overflow-y-auto pr-1">
+          <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
             {filteredExercises.length ? (
               filteredExercises.map((exercise) => {
                 const isSelected = selectedIds.has(exercise.id);
@@ -128,7 +128,7 @@ export const ExerciseBulkPickerSheet = ({
                 return (
                   <button
                     key={exercise.id}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                    className={`w-full rounded-2xl border p-3 text-left transition ${
                       isSelected ? "border-primary/50 bg-primary/5" : "border-border/70 bg-background/70"
                     }`}
                     onClick={() =>
@@ -143,14 +143,14 @@ export const ExerciseBulkPickerSheet = ({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-foreground">{exercise.name}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="mt-0.5 text-sm text-muted-foreground">
                           {exercise.equipmentType}
                           {exercise.attachment ? ` • ${exercise.attachment}` : ""}
                         </p>
                       </div>
                       {isSelected ? <Badge variant="default">Queued</Badge> : null}
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {exercise.primaryMuscles.slice(0, 2).map((muscle) => (
                         <Badge key={muscle} variant="outline">
                           {muscle}

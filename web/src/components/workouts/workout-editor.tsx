@@ -423,6 +423,33 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     }
   };
 
+  const setKeyFor = (exerciseIndex: number, setIndex: number) => `${exerciseIndex}-${setIndex}`;
+
+  const toggleSetCompleted = (setIndex: number) => {
+    if (!activeExercise) {
+      return;
+    }
+
+    const key = setKeyFor(activeExerciseIndex, setIndex);
+    const isCompleted = completedSetKeySet.has(key);
+
+    setCompletedSetKeys((current) =>
+      isCompleted ? current.filter((candidate) => candidate !== key) : [...current, key],
+    );
+
+    if (isCompleted) {
+      setExpandedSetIndex(setIndex);
+      return;
+    }
+
+    const nextIncompleteIndex = activeExercise.sets.findIndex(
+      (_, candidateIndex) =>
+        candidateIndex > setIndex && !completedSetKeySet.has(setKeyFor(activeExerciseIndex, candidateIndex)),
+    );
+
+    setExpandedSetIndex(nextIncompleteIndex >= 0 ? nextIncompleteIndex : -1);
+  };
+
   const activeExercise = draft?.exercises[activeExerciseIndex];
   const usesAttachment = activeExercise ? equipmentTypesWithAttachments.has(activeExercise.equipmentType) : false;
 
@@ -491,6 +518,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }, [session]);
 
   const completedSetKeySet = new Set(completedSetKeys);
+  const activeExerciseCompletedSets = activeExercise
+    ? activeExercise.sets.filter((_, index) => completedSetKeySet.has(setKeyFor(activeExerciseIndex, index))).length
+    : 0;
+  const activeExerciseTotalSets = activeExercise?.sets.length ?? 0;
 
   if (sessionQuery.isLoading || !draft || !session) {
     return (
@@ -623,235 +654,145 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }
 
   return (
-    <div className="space-y-6 pb-28">
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle>{draft.title}</CardTitle>
-              <CardDescription>
-                One exercise at a time. Jump anywhere when gym flow forces it.
-              </CardDescription>
+    <div className="space-y-4 pb-32">
+      <div className="sticky top-0 z-20 -mx-4 bg-[linear-gradient(180deg,rgba(250,247,241,0.98)_0%,rgba(250,247,241,0.95)_78%,rgba(250,247,241,0)_100%)] px-4 pb-3 pt-1 backdrop-blur">
+        <div className="rounded-3xl border border-border/70 bg-card/95 p-3 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {session.wasPlanned ? "Planned session" : "Quick workout"}
+              </p>
+              <h1 className="truncate text-lg font-semibold text-foreground">{draft.title}</h1>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {draft.exercises.length
+                  ? `Exercise ${activeExerciseIndex + 1} of ${draft.exercises.length}`
+                  : "Add a few movements to get started"}
+              </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Badge variant={session.wasPlanned ? "default" : "secondary"}>{session.entryType}</Badge>
               <Badge variant="outline">
                 {syncState === "saving" ? "Saving..." : syncState === "error" ? "Local only" : "Synced"}
               </Badge>
+              <Button size="icon" variant="outline" onClick={() => setShowSessionMeta(true)}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setShowSessionMeta((current) => !current)}>
-              {showSessionMeta ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {showSessionMeta ? "Hide workout info" : "Show workout info"}
-            </Button>
-            <Button variant="outline" onClick={() => setBulkSheetOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Bulk add
-            </Button>
-            <ExerciseCreatorDialog
-              onCreated={(exercise) => addExerciseToWorkout(exercise)}
-              triggerLabel="Custom exercise"
-            />
-            <Button variant="outline" onClick={() => saveNow()}>
-              <Save className="h-4 w-4" />
-              Save now
-            </Button>
-          </div>
-          {showSessionMeta ? (
-            <div className="grid gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="workout-title">Workout title</Label>
-                <Input
-                  id="workout-title"
-                  value={draft.title}
-                  onChange={(event) =>
-                    setDraft((current) => (current ? { ...current, title: event.target.value } : current))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="workout-notes">Session notes</Label>
-                <Textarea
-                  id="workout-notes"
-                  value={draft.notes ?? ""}
-                  onChange={(event) =>
-                    setDraft((current) => (current ? { ...current, notes: event.target.value } : current))
-                  }
-                />
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Rest timer</p>
-                    <p className="mt-2 text-2xl font-semibold text-foreground">
-                      {formatRestTime(restRemaining)}
-                    </p>
-                  </div>
-                  <Button
-                    size="icon"
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setRestRunning(false);
-                      setRestRemaining(restDuration);
-                    }}
-                  >
-                    <TimerReset className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {[60, 90, 120, 180].map((seconds) => (
-                    <Button
-                      key={seconds}
-                      size="sm"
-                      type="button"
-                      variant={restDuration === seconds ? "default" : "outline"}
-                      onClick={() => startRestTimer(seconds)}
-                    >
-                      {seconds < 120 ? `${seconds}s` : `${seconds / 60} min`}
-                    </Button>
-                  ))}
-                  <Button
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setRestRunning((current) => !current)}
-                  >
-                    {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    {restRunning ? "Pause" : "Resume"}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!draft.exercises.some((exercise) => exercise.exerciseId)) {
-                      toast.error("Add at least one saved exercise before creating a template");
-                      return;
-                    }
-
-                    setTemplateName(`${draft.title} template`);
-                    setTemplateDescription(draft.notes ?? "");
-                    setSaveTemplateOpen(true);
-                  }}
-                >
-                  <Save className="h-4 w-4" />
-                  Save as template
-                </Button>
-              </div>
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/80 px-3 py-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
+              <p className="text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
             </div>
-          ) : (
-            <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Rest timer</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
-                    {formatRestTime(restRemaining)}
-                  </p>
-                </div>
+            <div className="flex items-center gap-2">
+              {[60, 90, 180].map((seconds) => (
                 <Button
+                  key={seconds}
                   size="sm"
                   type="button"
-                  variant="outline"
-                  onClick={() => startRestTimer(restDuration)}
+                  variant={restDuration === seconds ? "default" : "outline"}
+                  onClick={() => startRestTimer(seconds)}
                 >
-                  {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {restRunning ? "Pause" : `Start ${restDuration < 120 ? `${restDuration}s` : `${restDuration / 60} min`}`}
+                  {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
                 </Button>
-              </div>
-            </div>
-          )}
-        </CardHeader>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {draft.exercises.map((exercise, index) => (
-              <button
-                key={`${exercise.exerciseName}-${index}`}
-                className={`min-w-[11rem] rounded-2xl border px-4 py-3 text-left ${
-                  index === activeExerciseIndex
-                    ? "border-primary/50 bg-primary/5"
-                    : "border-border/70 bg-background/70"
-                }`}
-                onClick={() => setActiveExerciseIndex(index)}
+              ))}
+              <Button
+                size="icon"
                 type="button"
+                variant="ghost"
+                onClick={() => setRestRunning((current) => !current)}
               >
-                <p className="text-xs text-muted-foreground">Exercise {index + 1}</p>
-                <p className="mt-1 line-clamp-2 font-semibold text-foreground">{exercise.exerciseName}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {exercise.supersetGroupId ? (
-                    <Badge variant="outline" className="text-[10px]">
-                      Superset
-                    </Badge>
-                  ) : null}
-                  {exercise.substitutedFromExerciseName ? (
-                    <Badge variant="secondary" className="text-[10px]">
-                      Swap
-                    </Badge>
-                  ) : null}
-                </div>
-              </button>
-            ))}
+                {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
+        </div>
 
-          {activeExercise ? (
-            <div className="space-y-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Exercise {activeExerciseIndex + 1} of {draft.exercises.length}
-                  </p>
-                  <h2 className="text-2xl font-semibold text-foreground">{activeExercise.exerciseName}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">{activeExerciseSummary}</p>
-                  {activeExercise.substitutedFromExerciseName ? (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Replacing {activeExercise.substitutedFromExerciseName} •{" "}
-                      {activeExercise.countsForProgression ? "Counts for progression" : "Alternate only"}
-                    </p>
-                  ) : null}
-                </div>
-                <Button variant="outline" onClick={() => setDetailsSheetOpen(true)}>
-                  <MoreHorizontal className="h-4 w-4" />
-                  Manage
-                </Button>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {draft.exercises.map((exercise, index) => (
+            <button
+              key={`${exercise.exerciseName}-${index}`}
+              className={`min-w-[8.5rem] rounded-2xl border px-3 py-2 text-left transition ${
+                index === activeExerciseIndex
+                  ? "border-primary/50 bg-primary/5"
+                  : "border-border/70 bg-background/70"
+              }`}
+              onClick={() => setActiveExerciseIndex(index)}
+              type="button"
+            >
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {index + 1}
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {exercise.supersetGroupId ? (
+                  <Badge variant="outline" className="px-2 py-0 text-[10px]">
+                    Pair
+                  </Badge>
+                ) : null}
+                {exercise.substitutedFromExerciseName ? (
+                  <Badge variant="secondary" className="px-2 py-0 text-[10px]">
+                    Swap
+                  </Badge>
+                ) : null}
               </div>
+            </button>
+          ))}
+        </div>
+      </div>
 
-              <div className="grid gap-3 rounded-2xl border border-border/70 bg-background/70 p-4 sm:grid-cols-3">
+      <Card className="border-border/70 bg-card/95 shadow-sm">
+        <CardContent className="space-y-4 p-4">
+          {activeExercise ? (
+            <>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  Active exercise
+                </p>
+                <h2 className="truncate text-xl font-semibold text-foreground">{activeExercise.exerciseName}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{activeExerciseSummary}</p>
+                {activeExercise.substitutedFromExerciseName ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Replacing {activeExercise.substitutedFromExerciseName} •{" "}
+                    {activeExercise.countsForProgression ? "Counts for progression" : "Alternate only"}
+                  </p>
+                ) : null}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setDetailsSheetOpen(true)}>
+                Manage
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
                 <SummaryField
                   label="Prescription"
                   value={`${activeExercise.repMin ?? "-"}-${activeExercise.repMax ?? "-"} reps`}
                 />
                 <SummaryField
-                  label="Suggested load"
+                  label="Suggested"
                   value={
                     activeExercise.suggestedWeight !== null &&
                     activeExercise.suggestedWeight !== undefined
                       ? `${activeExercise.suggestedWeight} ${activeExercise.unitMode}`
-                      : "No suggestion"
+                      : "None"
                   }
                 />
                 <SummaryField
-                  label="Working sets"
-                  value={String(activeExercise.prescribedSetCount ?? activeExercise.sets.length)}
+                  label="Progress"
+                  value={`${activeExerciseCompletedSets}/${activeExerciseTotalSets}`}
                 />
-              </div>
+            </div>
 
-              {activeSupersetPartner ? (
-                <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Superset pairing</p>
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-foreground">{activeSupersetPartner.exerciseName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Alternate between both exercises, then rest after the pair.
-                      </p>
-                    </div>
+            {activeSupersetPartner ? (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-2">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Paired with</p>
+                  <p className="text-sm font-semibold text-foreground">{activeSupersetPartner.exerciseName}</p>
+                </div>
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => {
                         const partnerIndex = draft.exercises.findIndex(
                           (exercise) => exercise.supersetGroupId === activeExercise.supersetGroupId && exercise !== activeExercise,
@@ -863,11 +804,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     >
                       Go to pair
                     </Button>
-                  </div>
-                </div>
-              ) : null}
+              </div>
+            ) : null}
 
-              <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <Button
                   size="sm"
                   type="button"
@@ -885,212 +825,213 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     }))
                   }
                 >
-                  Fill suggested load
+                  Fill load
                 </Button>
                 <Button size="sm" type="button" variant="outline" onClick={() => startRestTimer(90)}>
-                  Start 90s rest
+                  Start rest
                 </Button>
-                <Button
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const next = activeSupersetPartner ? activeExercise.supersetGroupId : null;
-                    if (next) {
-                      const partnerIndex = draft.exercises.findIndex(
-                        (exercise, index) =>
-                          index !== activeExerciseIndex && exercise.supersetGroupId === next,
-                      );
-                      if (partnerIndex >= 0) {
-                        setActiveExerciseIndex(partnerIndex);
-                      }
-                    } else {
-                      setActiveExerciseIndex((current) =>
-                        Math.min(draft.exercises.length - 1, current + 1),
-                      );
-                    }
-                  }}
-                >
-                  {activeSupersetPartner ? "Go to paired exercise" : "Next exercise"}
+                <Button size="sm" type="button" variant="outline" onClick={() => setBulkSheetOpen(true)}>
+                  Add exercise
                 </Button>
+            </div>
+
+            {activeExercise.recommendationReason ? (
+              <div className="rounded-2xl border border-border/70 bg-background/70 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Why this load</p>
+                <p className="mt-1 text-sm text-foreground">{activeExercise.recommendationReason}</p>
               </div>
+            ) : null}
 
-              {activeExercise.recommendationReason ? (
-                <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Why this load</p>
-                  <p className="mt-2 text-sm text-foreground">{activeExercise.recommendationReason}</p>
-                </div>
-              ) : null}
+            <div className="space-y-2">
+                {activeExercise.sets.map((set, setIndex) => {
+                  const setKey = setKeyFor(activeExerciseIndex, setIndex);
+                  const isDone = completedSetKeySet.has(setKey);
+                  const isExpanded = expandedSetIndex === setIndex;
 
-              <div className="space-y-3">
-                {activeExercise.sets.map((set, setIndex) => (
-                  <div
-                    key={`${activeExercise.exerciseName}-${setIndex}`}
-                    className={`rounded-2xl border p-4 ${completedSetKeySet.has(`${activeExerciseIndex}-${setIndex}`) ? "border-primary/30 bg-primary/5" : "border-border/70 bg-background/70"}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <button
-                        className="flex-1 text-left"
-                        onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
-                        type="button"
-                      >
-                        <p className="font-semibold text-foreground">Set {set.setNumber}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {set.weight === null ? "--" : `${set.weight} ${activeExercise.unitMode}`} • {set.reps} reps
-                          {set.rpe !== null ? ` • RPE ${set.rpe}` : ""}
-                        </p>
-                      </button>
-                      <div className="flex items-center gap-3">
-                        <Button
-                          size="sm"
-                          variant={completedSetKeySet.has(`${activeExerciseIndex}-${setIndex}`) ? "default" : "outline"}
-                          onClick={() =>
-                            setCompletedSetKeys((current) =>
-                              current.includes(`${activeExerciseIndex}-${setIndex}`)
-                                ? current.filter((key) => key !== `${activeExerciseIndex}-${setIndex}`)
-                                : [...current, `${activeExerciseIndex}-${setIndex}`],
-                            )
-                          }
+                  return (
+                    <div
+                      key={`${activeExercise.exerciseName}-${setIndex}`}
+                      className={`rounded-2xl border ${
+                        isDone ? "border-primary/30 bg-primary/5" : "border-border/70 bg-background/70"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 px-3 py-3">
+                        <button
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
+                          type="button"
                         >
-                          {completedSetKeySet.has(`${activeExerciseIndex}-${setIndex}`) ? "Done" : "Mark done"}
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-card text-sm font-semibold text-foreground">
+                            {set.setNumber}
+                          </div>
+                          <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Weight</p>
+                              <p className="truncate text-sm font-semibold text-foreground">
+                                {set.weight === null ? "--" : `${set.weight} ${activeExercise.unitMode}`}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reps</p>
+                              <p className="text-sm font-semibold text-foreground">{set.reps}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                                {set.isWorkingSet ? "RPE" : "Type"}
+                              </p>
+                              <p className="text-sm font-semibold text-foreground">
+                                {set.isWorkingSet ? (set.rpe === null ? "--" : set.rpe) : "Warm-up"}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                        <Button size="sm" variant={isDone ? "default" : "outline"} onClick={() => toggleSetCompleted(setIndex)}>
+                          {isDone ? "Done" : "Check"}
                         </Button>
                         <Button
-                          size="sm"
+                          size="icon"
                           variant="ghost"
-                          disabled={activeExercise.sets.length === 1}
-                          onClick={() =>
-                            updateExercise(activeExerciseIndex, (current) => ({
-                              ...current,
-                              sets: current.sets
-                                .filter((_, candidateIndex) => candidateIndex !== setIndex)
-                                .map((candidate, candidateIndex) => ({
-                                  ...candidate,
-                                  setNumber: candidateIndex + 1,
-                                })),
-                            }))
-                          }
+                          onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
                         >
-                          Remove
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </Button>
                       </div>
-                    </div>
-                    {expandedSetIndex === setIndex ? (
-                      <>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                          <div className="space-y-2">
-                            <Label>Weight</Label>
-                            <NullableNumberInput
-                              value={set.weight}
-                              onChange={(value) =>
-                                updateExercise(activeExerciseIndex, (current) => ({
-                                  ...current,
-                                  sets: current.sets.map((candidate, candidateIndex) =>
-                                    candidateIndex === setIndex ? { ...candidate, weight: value } : candidate,
-                                  ),
-                                }))
-                              }
-                              placeholder={`Weight (${activeExercise.unitMode})`}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Reps</Label>
-                            <NullableNumberInput
-                              value={set.reps}
-                              onChange={(value) =>
-                                updateExercise(activeExerciseIndex, (current) => ({
-                                  ...current,
-                                  sets: current.sets.map((candidate, candidateIndex) =>
-                                    candidateIndex === setIndex
-                                      ? { ...candidate, reps: value ?? candidate.reps }
-                                      : candidate,
-                                  ),
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>{set.isWorkingSet ? "RPE" : "Warm-up"}</Label>
-                            <NullableNumberInput
-                              step={0.5}
-                              value={set.rpe}
-                              onChange={(value) =>
-                                updateExercise(activeExerciseIndex, (current) => ({
-                                  ...current,
-                                  sets: current.sets.map((candidate, candidateIndex) =>
-                                    candidateIndex === setIndex ? { ...candidate, rpe: value } : candidate,
-                                  ),
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              checked={set.isWorkingSet ?? true}
-                              id={`working-set-${setIndex}`}
-                              onCheckedChange={(checked) =>
-                                updateExercise(activeExerciseIndex, (current) => ({
-                                  ...current,
-                                  sets: current.sets.map((candidate, candidateIndex) =>
-                                    candidateIndex === setIndex
-                                      ? { ...candidate, isWorkingSet: checked === true }
-                                      : candidate,
-                                  ),
-                                }))
-                              }
-                            />
-                            <Label
-                              className="text-sm font-normal text-muted-foreground"
-                              htmlFor={`working-set-${setIndex}`}
-                            >
-                              Working set
-                            </Label>
-                          </div>
-                          <Button
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                            onClick={() =>
-                              updateExercise(activeExerciseIndex, (current) => {
-                                const previousSet = current.sets[setIndex - 1];
-                                if (!previousSet) {
-                                  return current;
+                      {isExpanded ? (
+                        <div className="border-t border-border/70 px-3 py-3">
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Weight</Label>
+                              <NullableNumberInput
+                                value={set.weight}
+                                onChange={(value) =>
+                                  updateExercise(activeExerciseIndex, (current) => ({
+                                    ...current,
+                                    sets: current.sets.map((candidate, candidateIndex) =>
+                                      candidateIndex === setIndex ? { ...candidate, weight: value } : candidate,
+                                    ),
+                                  }))
                                 }
+                                placeholder={activeExercise.unitMode}
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Reps</Label>
+                              <NullableNumberInput
+                                value={set.reps}
+                                onChange={(value) =>
+                                  updateExercise(activeExerciseIndex, (current) => ({
+                                    ...current,
+                                    sets: current.sets.map((candidate, candidateIndex) =>
+                                      candidateIndex === setIndex
+                                        ? { ...candidate, reps: value ?? candidate.reps }
+                                        : candidate,
+                                    ),
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">{set.isWorkingSet ? "RPE" : "Warm-up"}</Label>
+                              <NullableNumberInput
+                                step={0.5}
+                                value={set.rpe}
+                                onChange={(value) =>
+                                  updateExercise(activeExerciseIndex, (current) => ({
+                                    ...current,
+                                    sets: current.sets.map((candidate, candidateIndex) =>
+                                      candidateIndex === setIndex ? { ...candidate, rpe: value } : candidate,
+                                    ),
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1.5">
+                              <Checkbox
+                                checked={set.isWorkingSet ?? true}
+                                id={`working-set-${setIndex}`}
+                                onCheckedChange={(checked) =>
+                                  updateExercise(activeExerciseIndex, (current) => ({
+                                    ...current,
+                                    sets: current.sets.map((candidate, candidateIndex) =>
+                                      candidateIndex === setIndex
+                                        ? { ...candidate, isWorkingSet: checked === true }
+                                        : candidate,
+                                    ),
+                                  }))
+                                }
+                              />
+                              <Label
+                                className="text-xs font-normal text-muted-foreground"
+                                htmlFor={`working-set-${setIndex}`}
+                              >
+                                Working set
+                              </Label>
+                            </div>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              onClick={() =>
+                                updateExercise(activeExerciseIndex, (current) => {
+                                  const previousSet = current.sets[setIndex - 1];
+                                  if (!previousSet) {
+                                    return current;
+                                  }
 
-                                return {
+                                  return {
+                                    ...current,
+                                    sets: current.sets.map((candidate, candidateIndex) =>
+                                      candidateIndex === setIndex
+                                        ? {
+                                            ...candidate,
+                                            weight: previousSet.weight,
+                                            reps: previousSet.reps,
+                                            rpe: previousSet.rpe,
+                                            isWorkingSet: previousSet.isWorkingSet,
+                                          }
+                                        : candidate,
+                                    ),
+                                  };
+                                })
+                              }
+                              disabled={setIndex === 0}
+                            >
+                              Copy previous
+                            </Button>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              onClick={() => startRestTimer(activeExercise.repMax && activeExercise.repMax <= 6 ? 180 : 90)}
+                            >
+                              Start rest
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={activeExercise.sets.length === 1}
+                              onClick={() =>
+                                updateExercise(activeExerciseIndex, (current) => ({
                                   ...current,
-                                  sets: current.sets.map((candidate, candidateIndex) =>
-                                    candidateIndex === setIndex
-                                      ? {
-                                          ...candidate,
-                                          weight: previousSet.weight,
-                                          reps: previousSet.reps,
-                                          rpe: previousSet.rpe,
-                                          isWorkingSet: previousSet.isWorkingSet,
-                                        }
-                                      : candidate,
-                                  ),
-                                };
-                              })
-                            }
-                            disabled={setIndex === 0}
-                          >
-                            Copy previous set
-                          </Button>
-                          <Button
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                            onClick={() => startRestTimer(activeExercise.repMax && activeExercise.repMax <= 6 ? 180 : 90)}
-                          >
-                            Start rest timer
-                          </Button>
+                                  sets: current.sets
+                                    .filter((_, candidateIndex) => candidateIndex !== setIndex)
+                                    .map((candidate, candidateIndex) => ({
+                                      ...candidate,
+                                      setNumber: candidateIndex + 1,
+                                    })),
+                                }))
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </div>
                         </div>
-                      </>
-                    ) : null}
-                  </div>
-                ))}
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
 
               <Button
@@ -1115,7 +1056,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 <Plus className="h-4 w-4" />
                 Add set
               </Button>
-            </div>
+            </>
           ) : (
             <div className="rounded-2xl border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground">
               Add an exercise to start logging.
@@ -1124,43 +1065,142 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         </CardContent>
       </Card>
 
-      <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/95 p-4 shadow-lg backdrop-blur">
-        <Button
-          disabled={activeExerciseIndex === 0 || draft.exercises.length === 0}
-          onClick={() => setActiveExerciseIndex((current) => Math.max(0, current - 1))}
-          variant="outline"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Previous
-        </Button>
-        <div className="text-center">
-          <p className="text-sm font-semibold text-foreground">
-            {draft.exercises.length
-              ? `Exercise ${activeExerciseIndex + 1} / ${draft.exercises.length}`
-              : "No exercises"}
-          </p>
-          <p className="text-xs text-muted-foreground">Jump tabs above if you go out of order.</p>
+      <div className="sticky bottom-0 z-20 -mx-4 bg-[linear-gradient(180deg,rgba(240,235,227,0)_0%,rgba(240,235,227,0.96)_40%,rgba(240,235,227,1)_100%)] px-4 pb-4 pt-6">
+        <div className="rounded-3xl border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur">
+          <div className="flex items-center gap-2">
+            <Button
+              size="icon"
+              disabled={activeExerciseIndex === 0 || draft.exercises.length === 0}
+              onClick={() => setActiveExerciseIndex((current) => Math.max(0, current - 1))}
+              variant="outline"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              className="flex-1"
+              size="lg"
+              onClick={() => completeMutation.mutate(draft)}
+              disabled={completeMutation.isPending || draft.exercises.length === 0}
+            >
+              {completeMutation.isPending ? "Completing..." : "Complete workout"}
+            </Button>
+            <Button
+              size="icon"
+              disabled={activeExerciseIndex >= draft.exercises.length - 1 || draft.exercises.length === 0}
+              onClick={() => setActiveExerciseIndex((current) => Math.min(draft.exercises.length - 1, current + 1))}
+              variant="outline"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <Button
-          disabled={activeExerciseIndex >= draft.exercises.length - 1 || draft.exercises.length === 0}
-          onClick={() => setActiveExerciseIndex((current) => Math.min(draft.exercises.length - 1, current + 1))}
-          variant="outline"
-        >
-          Next
-          <ChevronRight className="h-4 w-4" />
-        </Button>
       </div>
 
-      <div className="sticky bottom-0 z-10 bg-[linear-gradient(180deg,rgba(240,235,227,0)_0%,rgba(240,235,227,0.96)_40%,rgba(240,235,227,1)_100%)] pt-6">
-        <Button
-          className="h-12 w-full"
-          size="lg"
-          onClick={() => completeMutation.mutate(draft)}
-          disabled={completeMutation.isPending || draft.exercises.length === 0}
-        >
-          {completeMutation.isPending ? "Completing..." : "Complete workout"}
-        </Button>
-      </div>
+      <Sheet open={showSessionMeta} onOpenChange={setShowSessionMeta}>
+        <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
+          <SheetHeader>
+            <SheetTitle>Workout tools</SheetTitle>
+            <SheetDescription>
+              Keep the session surface compact and move setup actions into one place.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="workout-title">Workout title</Label>
+              <Input
+                id="workout-title"
+                value={draft.title}
+                onChange={(event) =>
+                  setDraft((current) => (current ? { ...current, title: event.target.value } : current))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="workout-notes">Session notes</Label>
+              <Textarea
+                id="workout-notes"
+                value={draft.notes ?? ""}
+                onChange={(event) =>
+                  setDraft((current) => (current ? { ...current, notes: event.target.value } : current))
+                }
+              />
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Rest timer</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">
+                    {formatRestTime(restRemaining)}
+                  </p>
+                </div>
+                <Button
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setRestRunning(false);
+                    setRestRemaining(restDuration);
+                  }}
+                >
+                  <TimerReset className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[60, 90, 120, 180].map((seconds) => (
+                  <Button
+                    key={seconds}
+                    size="sm"
+                    type="button"
+                    variant={restDuration === seconds ? "default" : "outline"}
+                    onClick={() => startRestTimer(seconds)}
+                  >
+                    {seconds < 120 ? `${seconds}s` : `${seconds / 60} min`}
+                  </Button>
+                ))}
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setRestRunning((current) => !current)}
+                >
+                  {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  {restRunning ? "Pause" : "Resume"}
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button variant="outline" onClick={() => setBulkSheetOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Bulk add
+              </Button>
+              <ExerciseCreatorDialog
+                onCreated={(exercise) => addExerciseToWorkout(exercise)}
+                triggerLabel="Custom exercise"
+              />
+              <Button variant="outline" onClick={() => saveNow()}>
+                <Save className="h-4 w-4" />
+                Save now
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (!draft.exercises.some((exercise) => exercise.exerciseId)) {
+                    toast.error("Add at least one saved exercise before creating a template");
+                    return;
+                  }
+
+                  setTemplateName(`${draft.title} template`);
+                  setTemplateDescription(draft.notes ?? "");
+                  setSaveTemplateOpen(true);
+                }}
+              >
+                <Save className="h-4 w-4" />
+                Save as template
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <ExerciseBulkPickerSheet
         description="Queue multiple exercises, then drop them into the workout together."
