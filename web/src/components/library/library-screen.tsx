@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
+import { ProgramActivationDialog } from "@/components/programs/program-activation-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
+import type { Program } from "@/lib/types";
 
 export const LibraryScreen = () => {
   const queryClient = useQueryClient();
@@ -32,6 +34,7 @@ export const LibraryScreen = () => {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [equivalentTargetId, setEquivalentTargetId] = useState("");
   const [equivalentPickerOpen, setEquivalentPickerOpen] = useState(false);
+  const [activationProgram, setActivationProgram] = useState<Program | null>(null);
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -65,10 +68,15 @@ export const LibraryScreen = () => {
     onError: (error: Error) => toast.error(error.message),
   });
   const activateProgramMutation = useMutation({
-    mutationFn: apiClient.activateProgram,
+    mutationFn: (payload: { programId: string; startWeekNumber?: number; startWorkoutId?: string }) =>
+      apiClient.activateProgram(payload.programId, {
+        startWeekNumber: payload.startWeekNumber,
+        startWorkoutId: payload.startWorkoutId,
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["programs"] });
       await queryClient.invalidateQueries({ queryKey: ["active-program"] });
+      setActivationProgram(null);
       toast.success("Program activated");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -233,12 +241,12 @@ export const LibraryScreen = () => {
                         />
                         <MetricCard icon={Flame} label="Streak" value={String(program.adherenceStreak)} compact />
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         <Button asChild size="sm" variant="outline">
                           <Link href={`/programs/${program.id}/edit`}>Edit</Link>
                         </Button>
                         {program.status !== "ACTIVE" ? (
-                          <Button size="sm" variant="outline" onClick={() => activateProgramMutation.mutate(program.id)}>
+                          <Button size="sm" variant="outline" onClick={() => setActivationProgram(program)}>
                             Activate
                           </Button>
                         ) : null}
@@ -495,6 +503,24 @@ export const LibraryScreen = () => {
         selectedExerciseId={equivalentTargetId}
         title="Choose equivalent"
       />
+      <ProgramActivationDialog
+        isPending={activateProgramMutation.isPending}
+        onConfirm={(payload) =>
+          activationProgram
+            ? activateProgramMutation.mutate({
+                programId: activationProgram.id,
+                ...payload,
+              })
+            : undefined
+        }
+        onOpenChange={(open) => {
+          if (!open) {
+            setActivationProgram(null);
+          }
+        }}
+        open={Boolean(activationProgram)}
+        program={activationProgram}
+      />
     </div>
   );
 };
@@ -510,7 +536,7 @@ const MetricCard = ({
   value: string;
   compact?: boolean;
 }) => (
-  <div className={`rounded-2xl border border-border/70 bg-background/70 ${compact ? "p-3" : "p-4"}`}>
+  <div className={`flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-background/70 ${compact ? "p-3" : "p-4"}`}>
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
       {label}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Dumbbell, Flame, Sparkles, Trophy } from "lucide-react";
+import { CheckCircle2, Dumbbell, Flame, Sparkles, Trophy, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -62,6 +62,15 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["active-program"] });
       toast.success("Program archived");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const skipWorkoutMutation = useMutation({
+    mutationFn: (payload: { programId: string; workoutId: string }) =>
+      apiClient.skipProgramWorkout(payload.programId, payload.workoutId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["active-program"] });
+      toast.success("Workout skipped");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -170,11 +179,17 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                   <div>
                     <p className="text-sm text-muted-foreground">{activeProgram.name}</p>
                     <p className="font-semibold text-foreground">
-                      Week {currentWeek.weekNumber} progress: {activeProgram.currentWeekCompleted}/
-                      {activeProgram.currentWeekTotal}
+                      Week {currentWeek.weekNumber} progress: {activeProgram.currentWeekCompleted} done
+                      {activeProgram.currentWeekSkipped > 0
+                        ? ` • ${activeProgram.currentWeekSkipped} skipped`
+                        : ""}{" "}
+                      • {activeProgram.currentWeekTotal} total
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Finish every planned session this week. {activeProgram.graceHours}-hour rollover keeps rest days sane.
+                      {activeProgram.currentWeekSkipped > 0
+                        ? `${activeProgram.currentWeekSkipped} skipped this week. `
+                        : ""}
+                      Finish or skip every planned session this week. {activeProgram.graceHours}-hour rollover keeps rest days sane.
                     </p>
                   </div>
                   <Button
@@ -198,6 +213,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
 
               {currentWeek.workouts.map((workout) => {
                 const isCompleted = activeProgram.completedWorkoutIds.includes(workout.id);
+                const isSkipped = activeProgram.skippedWorkoutIds.includes(workout.id);
                 const recommendedCount = workout.exercises.filter(
                   (exercise) => activeProgram.recommendations[exercise.id]?.weight !== null,
                 ).length;
@@ -214,6 +230,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                               Done
                             </Badge>
                           ) : null}
+                          {isSkipped ? <Badge variant="outline">Skipped</Badge> : null}
                         </div>
                         <p className="font-semibold text-foreground">{workout.title}</p>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -221,18 +238,35 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                           {recommendedCount > 0 ? ` • ${recommendedCount} load suggestions ready` : ""}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        disabled={isCompleted}
-                        onClick={() =>
-                          startWorkoutMutation.mutate({
-                            entryType: "PROGRAM",
-                            programWorkoutId: workout.id,
-                          })
-                        }
-                      >
-                        {isCompleted ? "Completed" : "Start"}
-                      </Button>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          size="sm"
+                          disabled={isCompleted || isSkipped}
+                          onClick={() =>
+                            startWorkoutMutation.mutate({
+                              entryType: "PROGRAM",
+                              programWorkoutId: workout.id,
+                            })
+                          }
+                        >
+                          {isCompleted ? "Completed" : isSkipped ? "Skipped" : "Start"}
+                        </Button>
+                        {!isCompleted && !isSkipped ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              skipWorkoutMutation.mutate({
+                                programId: activeProgram.id,
+                                workoutId: workout.id,
+                              })
+                            }
+                          >
+                            <SkipForward className="h-4 w-4" />
+                            Skip
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 );
@@ -296,7 +330,7 @@ const StatPill = ({
   label: string;
   value: string;
 }) => (
-  <div className="rounded-2xl border border-border/70 bg-card/80 p-3">
+  <div className="flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-card/80 p-3">
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Icon className="h-4 w-4" />
       {label}

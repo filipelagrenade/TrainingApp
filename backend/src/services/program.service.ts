@@ -48,6 +48,11 @@ export type ProgramInput = {
   days: ProgramDayInput[];
 };
 
+export type ActivateProgramInput = {
+  startWeekNumber?: number;
+  startWorkoutId?: string;
+};
+
 const programInclude = {
   weeks: {
     include: {
@@ -205,11 +210,167 @@ export const updateProgram = async (userId: string, programId: string, input: Pr
     });
   });
 
-export const activateProgram = async (userId: string, programId: string) => {
+const getProgramWeekProgress = async (
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  programId: string,
+  weekNumber: number,
+) => {
+  const week = await transaction.programWeek.findFirst({
+    where: {
+      programId,
+      weekNumber,
+    },
+    include: {
+      workouts: {
+        include: {
+          skips: {
+            where: {
+              userId,
+              weekNumber,
+            },
+            select: {
+              programWorkoutId: true,
+            },
+          },
+        },
+        orderBy: { orderIndex: "asc" },
+      },
+    },
+  });
+
+  if (!week) {
+    return null;
+  }
+
+  const workoutIds = week.workouts.map((workout) => workout.id);
+  const completedSessions = await (workoutIds.length
+    ? transaction.workoutSession.findMany({
+        where: {
+          userId,
+          programId,
+          status: WorkoutStatus.COMPLETED,
+          programWorkoutId: {
+            in: workoutIds,
+          },
+        },
+        select: {
+          programWorkoutId: true,
+        },
+      })
+    : Promise.resolve([]));
+
+  const skippedWorkoutIds = week.workouts.flatMap((workout) =>
+    workout.skips.map((skip) => skip.programWorkoutId),
+  );
+
+  return {
+    week,
+    completedWorkoutIds: completedSessions
+      .map((session: { programWorkoutId: string | null }) => session.programWorkoutId)
+      .filter((programWorkoutId): programWorkoutId is string => Boolean(programWorkoutId)),
+    skippedWorkoutIds,
+  };
+};
+
+const maybeAdvanceProgramWeekFromProgress = async (
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  programId: string,
+) => {
+  const program = await transaction.program.findUnique({
+    where: { id: programId },
+    include: {
+      weeks: {
+        orderBy: { weekNumber: "asc" },
+        include: {
+          workouts: {
+            orderBy: { orderIndex: "asc" },
+          },
+        },
+      },
+    },
+  });
+
+  if (!program) {
+    return {
+      advanced: false,
+      newWeek: 1,
+    };
+  }
+
+  const currentWeek = program.weeks.find((week) => week.weekNumber === program.currentWeek);
+  if (!currentWeek) {
+    return {
+      advanced: false,
+      newWeek: program.currentWeek,
+    };
+  }
+
+  const progress = await getProgramWeekProgress(
+    transaction,
+    userId,
+    programId,
+    currentWeek.weekNumber,
+  );
+
+  if (!progress) {
+    return {
+      advanced: false,
+      newWeek: program.currentWeek,
+    };
+  }
+
+  const accountedWorkoutIds = new Set([
+    ...progress.completedWorkoutIds,
+    ...progress.skippedWorkoutIds,
+  ]);
+
+  if (accountedWorkoutIds.size < currentWeek.workouts.length) {
+    return {
+      advanced: false,
+      newWeek: program.currentWeek,
+    };
+  }
+
+  const finalWeekNumber = Math.max(...program.weeks.map((week) => week.weekNumber));
+  const nextWeekNumber = Math.min(program.currentWeek + 1, finalWeekNumber);
+
+  await transaction.program.update({
+    where: { id: programId },
+    data: {
+      currentWeek: nextWeekNumber,
+      adherenceStreak: {
+        increment: 1,
+      },
+    },
+  });
+
+  return {
+    advanced: true,
+    newWeek: nextWeekNumber,
+  };
+};
+
+export const activateProgram = async (
+  userId: string,
+  programId: string,
+  input: ActivateProgramInput = {},
+) => {
   const program = await prisma.program.findFirst({
     where: {
       id: programId,
       userId,
+    },
+    include: {
+      weeks: {
+        include: {
+          workouts: {
+            orderBy: { orderIndex: "asc" },
+          },
+        },
+        orderBy: { weekNumber: "asc" },
+      },
     },
   });
 
@@ -217,29 +378,168 @@ export const activateProgram = async (userId: string, programId: string) => {
     throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
   }
 
-  await prisma.program.updateMany({
-    where: {
-      userId,
-      status: ProgramStatus.ACTIVE,
-      id: {
-        not: programId,
-      },
-    },
-    data: {
-      status: ProgramStatus.PAUSED,
-      pausedAt: new Date(),
-    },
-  });
+  const startWeekNumber =
+    input.startWeekNumber ??
+    (input.startWorkoutId
+      ? program.weeks.find((week) => week.workouts.some((workout) => workout.id === input.startWorkoutId))
+          ?.weekNumber
+      : undefined) ??
+    program.currentWeek;
 
-  return prisma.program.update({
-    where: { id: programId },
-    data: {
-      status: ProgramStatus.ACTIVE,
-      startedAt: program.startedAt ?? new Date(),
-      pausedAt: null,
-    },
+  const targetWeek = program.weeks.find((week) => week.weekNumber === startWeekNumber);
+  if (!targetWeek) {
+    throw new AppError(400, "INVALID_START_WEEK", "That start week is not valid for this program.");
+  }
+
+  if (
+    input.startWorkoutId &&
+    !targetWeek.workouts.some((workout) => workout.id === input.startWorkoutId)
+  ) {
+    throw new AppError(
+      400,
+      "INVALID_START_WORKOUT",
+      "That workout does not belong to the selected week.",
+    );
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    await transaction.program.updateMany({
+      where: {
+        userId,
+        status: ProgramStatus.ACTIVE,
+        id: {
+          not: programId,
+        },
+      },
+      data: {
+        status: ProgramStatus.PAUSED,
+        pausedAt: new Date(),
+      },
+    });
+
+    if (input.startWeekNumber || input.startWorkoutId) {
+      await transaction.program.update({
+        where: { id: programId },
+        data: {
+          skippedWorkouts: {
+            deleteMany: {
+              userId,
+            },
+          },
+        },
+      });
+
+      if (input.startWorkoutId) {
+        const startingWorkout = targetWeek.workouts.find((workout) => workout.id === input.startWorkoutId)!;
+        const skippedWorkouts = targetWeek.workouts.filter(
+          (workout) => workout.orderIndex < startingWorkout.orderIndex,
+        );
+
+        if (skippedWorkouts.length) {
+          await transaction.program.update({
+            where: { id: programId },
+            data: {
+              skippedWorkouts: {
+                create: skippedWorkouts.map((workout) => ({
+                  userId,
+                  programWorkoutId: workout.id,
+                  weekNumber: targetWeek.weekNumber,
+                  reason: "Started program mid-week",
+                })),
+              },
+            },
+          });
+        }
+      }
+    }
+
+    return transaction.program.update({
+      where: { id: programId },
+      data: {
+        status: ProgramStatus.ACTIVE,
+        currentWeek: targetWeek.weekNumber,
+        startedAt: program.startedAt ?? new Date(),
+        pausedAt: null,
+      },
+      include: programInclude,
+    });
   });
 };
+
+export const skipProgramWorkout = async (
+  userId: string,
+  programId: string,
+  programWorkoutId: string,
+) =>
+  prisma.$transaction(async (transaction) => {
+    const program = await transaction.program.findFirst({
+      where: {
+        id: programId,
+        userId,
+      },
+      include: {
+        weeks: {
+          include: {
+            workouts: {
+              orderBy: { orderIndex: "asc" },
+            },
+          },
+          orderBy: { weekNumber: "asc" },
+        },
+      },
+    });
+
+    if (!program) {
+      throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
+    }
+
+    const currentWeek = program.weeks.find((week) => week.weekNumber === program.currentWeek);
+    const workout = currentWeek?.workouts.find((candidate) => candidate.id === programWorkoutId);
+
+    if (!currentWeek || !workout) {
+      throw new AppError(400, "INVALID_PROGRAM_WORKOUT", "That workout is not in the current week.");
+    }
+
+    const completedSession = await transaction.workoutSession.findFirst({
+      where: {
+        userId,
+        programId,
+        programWorkoutId,
+        status: WorkoutStatus.COMPLETED,
+      },
+      select: { id: true },
+    });
+
+    if (completedSession) {
+      throw new AppError(409, "WORKOUT_ALREADY_COMPLETED", "Completed workouts cannot be skipped.");
+    }
+
+    await transaction.program.update({
+      where: { id: programId },
+      data: {
+        skippedWorkouts: {
+          deleteMany: {
+            userId,
+            programWorkoutId,
+            weekNumber: currentWeek.weekNumber,
+          },
+          create: {
+            userId,
+            programWorkoutId,
+            weekNumber: currentWeek.weekNumber,
+            reason: "Skipped by user",
+          },
+        },
+      },
+    });
+
+    await maybeAdvanceProgramWeekFromProgress(transaction, userId, programId);
+
+    return transaction.program.findUniqueOrThrow({
+      where: { id: programId },
+      include: programInclude,
+    });
+  });
 
 export const archiveProgram = async (userId: string, programId: string) => {
   const program = await prisma.program.findFirst({
@@ -320,24 +620,53 @@ export const getActiveProgram = async (userId: string) => {
 
   const currentWeek = program.weeks.find((week) => week.weekNumber === program.currentWeek);
   const currentWorkoutIds = currentWeek?.workouts.map((workout) => workout.id) ?? [];
-  const completedSessions = currentWorkoutIds.length
-    ? await prisma.workoutSession.findMany({
-        where: {
-          userId,
-          programId: program.id,
-          programWorkoutId: {
-            in: currentWorkoutIds,
+  const [completedSessions, currentWeekWithSkips] = await Promise.all([
+    currentWorkoutIds.length
+      ? prisma.workoutSession.findMany({
+          where: {
+            userId,
+            programId: program.id,
+            programWorkoutId: {
+              in: currentWorkoutIds,
+            },
+            status: WorkoutStatus.COMPLETED,
           },
-          status: WorkoutStatus.COMPLETED,
-        },
-        select: {
-          programWorkoutId: true,
-        },
-      })
-    : [];
+          select: {
+            programWorkoutId: true,
+          },
+        })
+      : Promise.resolve([]),
+    currentWeek
+      ? prisma.programWeek.findFirst({
+          where: {
+            id: currentWeek.id,
+          },
+          include: {
+            workouts: {
+              include: {
+                skips: {
+                  where: {
+                    userId,
+                    weekNumber: currentWeek.weekNumber,
+                  },
+                  select: {
+                    programWorkoutId: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : Promise.resolve(null),
+  ]);
   const completedWorkoutIds = completedSessions
-    .map((session) => session.programWorkoutId)
+    .map((session: { programWorkoutId: string | null }) => session.programWorkoutId)
     .filter((programWorkoutId): programWorkoutId is string => Boolean(programWorkoutId));
+  const skippedWorkoutIds =
+    currentWeekWithSkips?.workouts.flatMap((workout) =>
+      workout.skips.map((skip) => skip.programWorkoutId),
+    ) ?? [];
+  const accountedWorkoutIds = new Set([...completedWorkoutIds, ...skippedWorkoutIds]);
   const recommendations = await Promise.all(
     (currentWeek?.workouts ?? []).flatMap((workout) =>
       workout.exercises.map(async (exercise) => {
@@ -361,9 +690,11 @@ export const getActiveProgram = async (userId: string) => {
     currentWeek,
     currentWeekTotal: currentWorkoutIds.length,
     currentWeekCompleted: completedWorkoutIds.length,
+    currentWeekSkipped: skippedWorkoutIds.length,
     currentWeekCompletion:
-      currentWorkoutIds.length === 0 ? 0 : completedWorkoutIds.length / currentWorkoutIds.length,
+      currentWorkoutIds.length === 0 ? 0 : accountedWorkoutIds.size / currentWorkoutIds.length,
     completedWorkoutIds,
+    skippedWorkoutIds,
     graceHours: program.graceHours,
     recommendations: Object.fromEntries(recommendations),
   };

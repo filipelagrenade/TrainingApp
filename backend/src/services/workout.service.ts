@@ -1133,18 +1133,42 @@ const maybeAdvanceProgramWeek = async (
     };
   }
 
-  const completedCount = await transaction.workoutSession.count({
-    where: {
-      userId,
-      programId,
-      programWorkoutId: {
-        in: plannedIds,
+  const [completedCount, currentWeekWithSkips] = await Promise.all([
+    transaction.workoutSession.count({
+      where: {
+        userId,
+        programId,
+        programWorkoutId: {
+          in: plannedIds,
+        },
+        status: WorkoutStatus.COMPLETED,
       },
-      status: WorkoutStatus.COMPLETED,
-    },
-  });
+    }),
+    transaction.programWeek.findFirst({
+      where: {
+        id: currentWeek.id,
+      },
+      include: {
+        workouts: {
+          include: {
+            skips: {
+              where: {
+                userId,
+                weekNumber: currentWeek.weekNumber,
+              },
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+  const skippedCount =
+    currentWeekWithSkips?.workouts.reduce((sum, workout) => sum + workout.skips.length, 0) ?? 0;
 
-  if (completedCount < plannedIds.length) {
+  if (completedCount + skippedCount < plannedIds.length) {
     return {
       advanced: false,
       newWeek: currentProgram.currentWeek,

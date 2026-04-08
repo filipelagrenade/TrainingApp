@@ -13,6 +13,7 @@ import {
   getActiveProgram,
   getProgramById,
   listPrograms,
+  skipProgramWorkout,
   updateProgram,
 } from "../services/program.service";
 
@@ -61,6 +62,11 @@ const programSchema = z.object({
 
 const draftPromptSchema = z.object({
   prompt: z.string().min(4).max(500),
+});
+
+const activateProgramSchema = z.object({
+  startWeekNumber: z.coerce.number().int().min(1).max(16).optional(),
+  startWorkoutId: z.string().min(1).optional(),
 });
 
 programsRouter.use(requireAuth);
@@ -123,9 +129,26 @@ programsRouter.put("/:programId", validateBody(programSchema), async (request, r
   }
 });
 
-programsRouter.post("/:programId/activate", async (request, response, next) => {
+programsRouter.post("/:programId/activate", validateBody(activateProgramSchema.optional()), async (request, response, next) => {
   try {
-    const program = await activateProgram(request.currentUser!.id, request.params.programId);
+    const program = await activateProgram(
+      request.currentUser!.id,
+      String(request.params.programId),
+      request.body ?? {},
+    );
+    sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.post("/:programId/workouts/:workoutId/skip", async (request, response, next) => {
+  try {
+    const program = await skipProgramWorkout(
+      request.currentUser!.id,
+      String(request.params.programId),
+      String(request.params.workoutId),
+    );
     sendSuccess(response, program);
   } catch (error) {
     next(error);

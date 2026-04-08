@@ -110,7 +110,7 @@ export const HistoryScreen = () => {
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <Badge variant="outline">{workout.totalXp} XP</Badge>
-                  <span className="text-sm font-medium text-muted-foreground">Open</span>
+                  <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Review</span>
                 </div>
               </div>
             </Link>
@@ -136,7 +136,7 @@ const MetricCard = ({
   label: string;
   value: string;
 }) => (
-  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+  <div className="flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-background/70 p-4">
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Icon className="h-4 w-4" />
       {label}

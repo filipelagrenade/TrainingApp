@@ -247,8 +247,10 @@ export type ActiveProgram = Program & {
   currentWeek: ProgramWeek | undefined;
   currentWeekTotal: number;
   currentWeekCompleted: number;
+  currentWeekSkipped: number;
   currentWeekCompletion: number;
   completedWorkoutIds: string[];
+  skippedWorkoutIds: string[];
   graceHours: number;
   recommendations: Record<string, ProgressionRecommendation>;
 };

@@ -133,12 +133,20 @@ export const apiClient = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
-  activateProgram: (programId: string) =>
+  activateProgram: (
+    programId: string,
+    payload?: { startWeekNumber?: number; startWorkoutId?: string },
+  ) =>
     request<Program>(`/programs/${programId}/activate`, {
       method: "POST",
+      body: JSON.stringify(payload ?? {}),
     }),
   archiveProgram: (programId: string) =>
     request<Program>(`/programs/${programId}/archive`, {
+      method: "POST",
+    }),
+  skipProgramWorkout: (programId: string, workoutId: string) =>
+    request<Program>(`/programs/${programId}/workouts/${workoutId}/skip`, {
       method: "POST",
     }),
   getRecentWorkouts: (limit?: number) =>

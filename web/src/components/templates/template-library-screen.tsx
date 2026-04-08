@@ -82,14 +82,14 @@ export const TemplateLibraryScreen = () => {
     <div className="space-y-6">
       <Card className="border-border/70 bg-card/95">
         <CardHeader className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle>Template library</CardTitle>
               <CardDescription>
                 Save reusable sessions for travel gyms, swaps, or quick structured training days.
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button onClick={() => setBuilderOpen(true)}>Create template</Button>
               <Button asChild variant="ghost">
                 <Link href="/">Back</Link>
@@ -130,7 +130,7 @@ export const TemplateLibraryScreen = () => {
                     ))}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <Button
                     size="sm"
                     variant="outline"

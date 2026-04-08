@@ -3,17 +3,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, Flame, Layers3 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { ProgramActivationDialog } from "@/components/programs/program-activation-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Program } from "@/lib/types";
 
 export const ProgramLibraryScreen = () => {
   const queryClient = useQueryClient();
+  const [activationProgram, setActivationProgram] = useState<Program | null>(null);
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -26,10 +30,15 @@ export const ProgramLibraryScreen = () => {
   });
 
   const activateMutation = useMutation({
-    mutationFn: apiClient.activateProgram,
+    mutationFn: (payload: { programId: string; startWeekNumber?: number; startWorkoutId?: string }) =>
+      apiClient.activateProgram(payload.programId, {
+        startWeekNumber: payload.startWeekNumber,
+        startWorkoutId: payload.startWorkoutId,
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["programs"] });
       await queryClient.invalidateQueries({ queryKey: ["active-program"] });
+      setActivationProgram(null);
       toast.success("Program activated");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -76,7 +85,7 @@ export const ProgramLibraryScreen = () => {
                 Build blocks, edit them later, and switch the active one without losing the history.
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button asChild variant="ghost">
                 <Link href="/">Back</Link>
               </Button>
@@ -115,12 +124,12 @@ export const ProgramLibraryScreen = () => {
                   />
                   <Metric icon={Flame} label="Streak" value={String(program.adherenceStreak)} />
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/programs/${program.id}/edit`}>Edit</Link>
                   </Button>
                   {program.status !== "ACTIVE" ? (
-                    <Button size="sm" variant="outline" onClick={() => activateMutation.mutate(program.id)}>
+                    <Button size="sm" variant="outline" onClick={() => setActivationProgram(program)}>
                       Activate
                     </Button>
                   ) : null}
@@ -141,6 +150,24 @@ export const ProgramLibraryScreen = () => {
           </Card>
         )}
       </div>
+      <ProgramActivationDialog
+        isPending={activateMutation.isPending}
+        onConfirm={(payload) =>
+          activationProgram
+            ? activateMutation.mutate({
+                programId: activationProgram.id,
+                ...payload,
+              })
+            : undefined
+        }
+        onOpenChange={(open) => {
+          if (!open) {
+            setActivationProgram(null);
+          }
+        }}
+        open={Boolean(activationProgram)}
+        program={activationProgram}
+      />
     </div>
   );
 };
@@ -154,7 +181,7 @@ const Metric = ({
   label: string;
   value: string;
 }) => (
-  <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
+  <div className="flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-background/70 p-3">
     <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
       <Icon className="h-3.5 w-3.5" />
       {label}

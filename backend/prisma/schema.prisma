@@ -107,6 +107,7 @@ model User {
   following            Follow[]             @relation("following")
   followers            Follow[]             @relation("followers")
   challengeEntries     ChallengeParticipant[]
+  skippedProgramWorkouts ProgramWorkoutSkip[]
 }
 
 model AuthIdentity {
@@ -188,6 +189,7 @@ model Program {
   weeks                ProgramWeek[]
   sessions             WorkoutSession[]
   progressionSnapshots ProgressionSnapshot[]
+  skippedWorkouts      ProgramWorkoutSkip[]
 }
 
 model ProgramWeek {
@@ -217,6 +219,7 @@ model ProgramWorkout {
   programWeek      ProgramWeek             @relation(fields: [programWeekId], references: [id], onDelete: Cascade)
   exercises        ProgramWorkoutExercise[]
   workoutSessions  WorkoutSession[]
+  skips            ProgramWorkoutSkip[]
 }
 
 model ProgramWorkoutExercise {
@@ -296,6 +299,21 @@ model WorkoutSession {
   program                  Program?         @relation(fields: [programId], references: [id], onDelete: SetNull)
   programWorkout           ProgramWorkout?  @relation(fields: [programWorkoutId], references: [id], onDelete: SetNull)
   exercises                WorkoutExercise[]
+}
+
+model ProgramWorkoutSkip {
+  id              String         @id @default(cuid())
+  userId          String
+  programId       String
+  programWorkoutId String
+  weekNumber      Int
+  skippedAt       DateTime       @default(now())
+  reason          String?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program         Program        @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programWorkout  ProgramWorkout @relation(fields: [programWorkoutId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, programWorkoutId, weekNumber])
 }
 
 model WorkoutExercise {
