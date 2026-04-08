@@ -258,6 +258,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       return;
     }
 
+    if (completeMutation.isPending) {
+      return;
+    }
+
     latestDraftRef.current = draft;
     saveDraftLocally(sessionId, draft);
     setSyncState("saving");
@@ -301,7 +305,20 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         window.clearTimeout(autosaveTimerRef.current);
       }
     };
-  }, [draft, sessionId]);
+  }, [completeMutation.isPending, draft, sessionId]);
+
+  useEffect(() => {
+    if (!completeMutation.isPending) {
+      return;
+    }
+
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
+    autosaveQueuedRef.current = false;
+  }, [completeMutation.isPending]);
 
   useEffect(() => {
     if (!draft?.exercises.length) {

@@ -7,6 +7,7 @@ import {
 } from "@prisma/client";
 
 import { AppError } from "../lib/errors";
+import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
 import { createXpLedgerEntry, unlockAchievements } from "./gamification.service";
 import {
@@ -480,6 +481,7 @@ export const startWorkout = async (
 };
 
 export const getWorkout = async (userId: string, workoutId: string) => {
+  const startedAt = Date.now();
   const workout = await prisma.workoutSession.findFirst({
     where: {
       id: workoutId,
@@ -503,6 +505,23 @@ export const getWorkout = async (userId: string, workoutId: string) => {
 
   if (!workout) {
     throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
+  }
+
+  if (workout.status !== WorkoutStatus.COMPLETED) {
+    logger.info(
+      {
+        workoutId,
+        userId,
+        status: workout.status,
+        durationMs: Date.now() - startedAt,
+      },
+      "Resolved workout session",
+    );
+
+    return {
+      ...workout,
+      exerciseReviews: [],
+    };
   }
 
   const exerciseReviews = await Promise.all(
@@ -542,6 +561,16 @@ export const getWorkout = async (userId: string, workoutId: string) => {
     }),
   );
 
+  logger.info(
+    {
+      workoutId,
+      userId,
+      status: workout.status,
+      durationMs: Date.now() - startedAt,
+    },
+    "Resolved workout session",
+  );
+
   return {
     ...workout,
     exerciseReviews,
@@ -550,9 +579,10 @@ export const getWorkout = async (userId: string, workoutId: string) => {
 
 export const saveWorkoutDraft = async (userId: string, workoutId: string, draft: WorkoutDraft) =>
   prisma.$transaction(async (transaction) => {
+    const startedAt = Date.now();
     await getOwnedWorkout(userId, workoutId);
 
-    return transaction.workoutSession.update({
+    const updated = await transaction.workoutSession.update({
       where: {
         id: workoutId,
       },
@@ -562,6 +592,18 @@ export const saveWorkoutDraft = async (userId: string, workoutId: string, draft:
         savedDraft: draft,
       },
     });
+
+    logger.info(
+      {
+        workoutId,
+        userId,
+        exerciseCount: draft.exercises.length,
+        durationMs: Date.now() - startedAt,
+      },
+      "Saved workout draft",
+    );
+
+    return updated;
   });
 
 export const applyWorkoutSubstitution = async (
@@ -928,8 +970,10 @@ const maybeAdvanceProgramWeek = async (
   };
 };
 
-export const completeWorkout = async (userId: string, workoutId: string, draft: WorkoutDraft) =>
-  prisma.$transaction(async (transaction) => {
+export const completeWorkout = async (userId: string, workoutId: string, draft: WorkoutDraft) => {
+  const startedAt = Date.now();
+
+  return prisma.$transaction(async (transaction) => {
     const workout = await transaction.workoutSession.findFirst({
       where: {
         id: workoutId,
@@ -1112,4 +1156,19 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
   }, {
     maxWait: 5_000,
     timeout: 20_000,
+  }).then((result) => {
+    logger.info(
+      {
+        workoutId,
+        userId,
+        exerciseCount: draft.exercises.length,
+        prCount: result.prCount,
+        completedWeek: result.completedWeek,
+        durationMs: Date.now() - startedAt,
+      },
+      "Completed workout",
+    );
+
+    return result;
   });
+};
