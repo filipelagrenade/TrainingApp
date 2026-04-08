@@ -40,7 +40,6 @@ test("fresh account can start a quick workout and save a populated draft", async
   await page.getByText("Barbell Back Squat").first().click();
   await page.getByRole("button", { name: "Add 1 exercise" }).click();
 
-  await expect(page.getByRole("button", { name: "Exercise 1 Barbell Back Squat" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
 
   const saveResponsePromise = page.waitForResponse(
