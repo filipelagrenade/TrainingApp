@@ -12,6 +12,8 @@ import type {
   LeaderboardEntry,
   Program,
   ProgramDraft,
+  ProgressOverview,
+  ExerciseProgressDetail,
   SocialUser,
   TemplateDraft,
   User,
@@ -55,6 +57,9 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 export const apiClient = {
   getMe: () => request<{ user: User }>("/auth/me"),
   getAchievements: () => request<AchievementLibraryItem[]>("/achievements"),
+  getProgressOverview: () => request<ProgressOverview>("/progress/overview"),
+  getExerciseProgress: (exerciseId: string) =>
+    request<ExerciseProgressDetail>(`/progress/exercises/${exerciseId}`),
   register: (payload: { email: string; password: string; displayName: string }) =>
     request<{ user: User }>("/auth/register", {
       method: "POST",

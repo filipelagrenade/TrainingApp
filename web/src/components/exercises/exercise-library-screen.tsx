@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dumbbell, Layers3, Link2, Search } from "lucide-react";
+import { Dumbbell, Layers3, Link2, Search, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -195,6 +195,12 @@ export const ExerciseLibraryScreen = () => {
                     ))}
                   </div>
                 </div>
+                <Button asChild className="w-full" size="sm" variant="outline">
+                  <Link href={`/progress/exercises/${exercise.id}`}>
+                    <TrendingUp className="h-4 w-4" />
+                    View history
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           ))

@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, BookOpen, Clock3, Home, Users } from "lucide-react";
+import { BookOpen, ChartColumnBig, Clock3, Home, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,7 +9,7 @@ const navItems = [
   { href: "/library", label: "Library", icon: BookOpen },
   { href: "/history", label: "History", icon: Clock3 },
   { href: "/social", label: "Social", icon: Users },
-  { href: "/achievements", label: "Achievements", icon: Award },
+  { href: "/progress", label: "Progress", icon: ChartColumnBig },
 ];
 
 const isActivePath = (pathname: string, href: string) => {

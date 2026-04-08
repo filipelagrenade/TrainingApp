@@ -13,7 +13,11 @@ test("fresh account can register and reach key app routes", async ({ page }) => 
   await registerWithFreshUser(page);
 
   await expect(page.getByRole("link", { name: "Library" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Progress" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Quick workout" })).toBeVisible();
+
+  await page.goto("/progress");
+  await expect(page.getByText("Strength trends, recent PRs, and weekly training momentum in one place.")).toBeVisible();
 
   await page.goto("/library");
   await expect(page.getByText("Program library")).toBeVisible();

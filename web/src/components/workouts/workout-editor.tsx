@@ -17,6 +17,7 @@ import {
   TimerReset,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -603,25 +604,36 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     </div>
                   </div>
                   {review ? (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <SummaryField label="Volume" value={String(Math.round(review.volume))} />
-                      <SummaryField label="Best set" value={review.bestSetLabel} />
-                      <SummaryField
-                        label="Est. 1RM"
-                        value={
-                          review.estimatedOneRepMax
-                            ? Math.round(review.estimatedOneRepMax).toString()
-                            : "-"
-                        }
-                      />
-                      <SummaryField
-                        label="Vs last"
-                        value={
-                          review.oneRepMaxChange === null
-                            ? "No prior exposure"
-                            : `${review.oneRepMaxChange >= 0 ? "+" : ""}${Math.round(review.oneRepMaxChange)} e1RM`
-                        }
-                      />
+                    <div className="mt-4 space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <SummaryField label="Volume" value={String(Math.round(review.volume))} />
+                        <SummaryField label="Best set" value={review.bestSetLabel} />
+                        <SummaryField
+                          label="Est. 1RM"
+                          value={
+                            review.estimatedOneRepMax
+                              ? Math.round(review.estimatedOneRepMax).toString()
+                              : "-"
+                          }
+                        />
+                        <SummaryField
+                          label="Vs last"
+                          value={
+                            review.oneRepMaxChange === null
+                              ? "No prior exposure"
+                              : `${review.oneRepMaxChange >= 0 ? "+" : ""}${Math.round(review.oneRepMaxChange)} e1RM`
+                          }
+                        />
+                      </div>
+                      {exercise.exerciseId ? (
+                        <div className="flex justify-end">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/progress/exercises/${exercise.exerciseId}`}>
+                              View exercise history
+                            </Link>
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   <div className="mt-4 space-y-3">

@@ -372,3 +372,122 @@ export type AchievementLibraryItem = {
   unlocked: boolean;
   unlockedAt: string | null;
 };
+
+export type ProgressWeeklyExercise = {
+  exerciseId: string;
+  exerciseName: string;
+  volume: number;
+  sessions: number;
+};
+
+export type ProgressWeeklyMuscle = {
+  muscle: string;
+  volume: number;
+};
+
+export type ProgressWeeklySummary = {
+  startDate: string;
+  endDate: string;
+  sessionsCompleted: number;
+  plannedSessionsCompleted: number;
+  unplannedSessionsCompleted: number;
+  xpEarned: number;
+  totalVolume: number;
+  topExercises: ProgressWeeklyExercise[];
+  topMuscleGroups: ProgressWeeklyMuscle[];
+};
+
+export type ProgressActiveProgramSummary = {
+  programId: string;
+  name: string;
+  currentWeek: number;
+  completed: number;
+  total: number;
+  completion: number;
+} | null;
+
+export type ProgressRecentPr = {
+  setId: string;
+  workoutId: string;
+  workoutTitle: string;
+  exerciseId: string | null;
+  exerciseName: string;
+  bestSetLabel: string;
+  estimatedOneRepMax: number | null;
+  previousBest: number | null;
+  improvement: number | null;
+  completedAt: string;
+};
+
+export type ProgressExerciseTrend = {
+  exerciseId: string;
+  exerciseName: string;
+  equipmentType: string;
+  sessionCount: number;
+  totalVolume: number;
+  latestEstimatedOneRepMax: number | null;
+  bestEstimatedOneRepMax: number | null;
+  recentChange: number | null;
+  lastPerformed: string;
+  personalRecordCount: number;
+};
+
+export type ProgressAchievementMilestone = AchievementLibraryItem & {
+  progress: number;
+  remaining: number;
+};
+
+export type ProgressAchievementSummary = {
+  unlockedCount: number;
+  totalCount: number;
+  recentUnlocks: AchievementLibraryItem[];
+  nextMilestones: ProgressAchievementMilestone[];
+};
+
+export type ProgressOverview = {
+  weeklySummary: ProgressWeeklySummary;
+  activeProgramSummary: ProgressActiveProgramSummary;
+  recentPrs: ProgressRecentPr[];
+  exerciseTrends: ProgressExerciseTrend[];
+  achievementSummary: ProgressAchievementSummary;
+};
+
+export type ExerciseProgressExposure = {
+  workoutId: string;
+  workoutTitle: string;
+  completedAt: string;
+  wasPlanned: boolean;
+  volume: number;
+  bestSetLabel: string;
+  estimatedOneRepMax: number | null;
+  personalRecordCount: number;
+};
+
+export type ExerciseProgressSummary = {
+  totalSessions: number;
+  totalVolume: number;
+  bestSetLabel: string | null;
+  bestEstimatedOneRepMax: number | null;
+  lastPerformed: string | null;
+  personalRecordCount: number;
+};
+
+export type ExerciseProgressDetail = {
+  exercise: Exercise;
+  summary: ExerciseProgressSummary;
+  recentSessions: ExerciseProgressExposure[];
+  volumeHistory: Array<{
+    completedAt: string;
+    value: number;
+  }>;
+  estimatedOneRepMaxHistory: Array<{
+    completedAt: string;
+    value: number | null;
+  }>;
+  personalRecordTimeline: Array<{
+    completedAt: string;
+    workoutId: string;
+    workoutTitle: string;
+    count: number;
+  }>;
+};

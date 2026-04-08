@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Copy, Dumbbell, Flame, Layers3, Link2, Play, Search } from "lucide-react";
+import { CalendarRange, Copy, Dumbbell, Flame, Layers3, Link2, Play, Search, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -383,6 +383,12 @@ export const LibraryScreen = () => {
                       <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
                       <InfoRow label="Units" value={exercise.unitMode.toUpperCase()} />
                       <InfoRow label="Attachment" value={exercise.attachment ?? "None"} />
+                      <Button asChild className="w-full" size="sm" variant="outline">
+                        <Link href={`/progress/exercises/${exercise.id}`}>
+                          <TrendingUp className="h-4 w-4" />
+                          View history
+                        </Link>
+                      </Button>
                     </CardContent>
                   </Card>
                 ))
