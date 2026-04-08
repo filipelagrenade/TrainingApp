@@ -168,6 +168,14 @@ export const apiClient = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  pauseWorkout: (workoutId: string) =>
+    request<WorkoutSession>(`/workouts/${workoutId}/pause`, {
+      method: "POST",
+    }),
+  resumeWorkout: (workoutId: string) =>
+    request<WorkoutSession>(`/workouts/${workoutId}/resume`, {
+      method: "POST",
+    }),
   applyWorkoutSubstitution: (
     workoutId: string,
     payload: { exerciseIndex: number; substituteExerciseId: string },

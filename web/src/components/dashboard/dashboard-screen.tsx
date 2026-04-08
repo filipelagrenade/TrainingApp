@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import type { User } from "@/lib/types";
+import { calculateSessionDurationSeconds, formatDuration } from "@/lib/workout-tracking";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,14 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["active-program"] });
       toast.success("Program archived");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const resumeWorkoutMutation = useMutation({
+    mutationFn: (workoutId: string) => apiClient.resumeWorkout(workoutId),
+    onSuccess: async (session) => {
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+      router.push(`/workouts/${session.id}`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -146,11 +155,18 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                   <p className="text-sm text-muted-foreground">Current session</p>
                   <p className="font-semibold text-foreground">{inProgressWorkout.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Jump straight back into the draft you already started.
+                    {inProgressWorkout.pausedAt ? "Paused" : "In progress"} • {formatDuration(calculateSessionDurationSeconds(inProgressWorkout))}
                   </p>
                 </div>
-                <Button variant="outline" onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)}>
-                  Resume
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    inProgressWorkout.pausedAt
+                      ? resumeWorkoutMutation.mutate(inProgressWorkout.id)
+                      : router.push(`/workouts/${inProgressWorkout.id}`)
+                  }
+                >
+                  {inProgressWorkout.pausedAt ? "Resume" : "Open"}
                 </Button>
               </div>
             </div>
@@ -303,6 +319,9 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                     <p className="font-semibold">{workout.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {workout.completedAt ? new Date(workout.completedAt).toLocaleString() : "In progress"}
+                    </p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      {formatDuration(workout.totalDurationSeconds)}
                     </p>
                   </div>
                   <Badge variant="secondary">{workout.totalXp} XP</Badge>

@@ -73,6 +73,8 @@ export type WorkoutDraft = {
   exercises: WorkoutDraftExercise[];
 };
 
+type WorkoutSessionRecord = Prisma.WorkoutSessionGetPayload<Record<string, never>>;
+
 const BASE_WORKOUT_XP = 100;
 const PR_XP = 40;
 const PROGRAM_WEEK_XP = 180;
@@ -348,7 +350,7 @@ const hydrateWorkoutDraft = (workout: {
   };
 };
 
-const getOwnedWorkout = async (userId: string, workoutId: string) => {
+const getOwnedWorkout = async (userId: string, workoutId: string): Promise<WorkoutSessionRecord> => {
   const workout = await prisma.workoutSession.findFirst({
     where: {
       id: workoutId,
@@ -360,7 +362,7 @@ const getOwnedWorkout = async (userId: string, workoutId: string) => {
     throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
   }
 
-  return workout;
+  return workout as WorkoutSessionRecord;
 };
 
 const getVisibleExerciseForUser = async (userId: string, exerciseId: string) => {
@@ -518,6 +520,26 @@ const findPreviousExerciseExposure = async (
   });
 };
 
+const calculateWorkoutDurationSeconds = (
+  workout: {
+    startedAt: Date;
+    pausedAt: Date | null;
+    accumulatedPauseSeconds: number;
+  },
+  endedAt: Date,
+) => {
+  const ongoingPauseSeconds = workout.pausedAt
+    ? Math.max(0, Math.floor((endedAt.getTime() - workout.pausedAt.getTime()) / 1000))
+    : 0;
+
+  return Math.max(
+    0,
+    Math.floor((endedAt.getTime() - workout.startedAt.getTime()) / 1000) -
+      workout.accumulatedPauseSeconds -
+      ongoingPauseSeconds,
+  );
+};
+
 export const listRecentWorkouts = async (userId: string, limit?: number) =>
   prisma.workoutSession.findMany({
     where: {
@@ -600,7 +622,7 @@ export const startWorkout = async (
     const template = await prisma.workoutTemplate.findFirst({
       where: {
         id: input.templateId,
-        userId,
+        OR: [{ userId }, { isSystem: true }],
       },
     });
 
@@ -745,6 +767,53 @@ export const getWorkout = async (userId: string, workoutId: string) => {
     originDraft: hydratedOriginDraft,
     exerciseReviews,
   };
+};
+
+export const pauseWorkout = async (userId: string, workoutId: string) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+
+  if (workout.status !== WorkoutStatus.IN_PROGRESS) {
+    throw new AppError(409, "WORKOUT_NOT_IN_PROGRESS", "Only active workouts can be paused.");
+  }
+
+  if (workout.pausedAt) {
+    return workout;
+  }
+
+  return prisma.workoutSession.update({
+    where: { id: workoutId },
+    data: {
+      pausedAt: new Date(),
+    },
+  });
+};
+
+export const resumeWorkout = async (userId: string, workoutId: string) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+
+  if (workout.status !== WorkoutStatus.IN_PROGRESS) {
+    throw new AppError(409, "WORKOUT_NOT_IN_PROGRESS", "Only active workouts can be resumed.");
+  }
+
+  if (!workout.pausedAt) {
+    return workout;
+  }
+
+  const resumedAt = new Date();
+  const pauseSeconds = Math.max(
+    0,
+    Math.floor((resumedAt.getTime() - workout.pausedAt.getTime()) / 1000),
+  );
+
+  return prisma.workoutSession.update({
+    where: { id: workoutId },
+    data: {
+      pausedAt: null,
+      accumulatedPauseSeconds: {
+        increment: pauseSeconds,
+      },
+    },
+  });
 };
 
 export const saveWorkoutDraft = async (userId: string, workoutId: string, draft: WorkoutDraft) =>
@@ -1406,6 +1475,8 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
     let newWeek = workout.programId ? 1 : 0;
     const completedAt = new Date();
 
+    const totalDurationSeconds = calculateWorkoutDurationSeconds(workout, completedAt);
+
     await transaction.workoutSession.update({
       where: { id: workout.id },
       data: {
@@ -1413,6 +1484,8 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
         notes: draft.notes,
         status: WorkoutStatus.COMPLETED,
         completedAt,
+        pausedAt: null,
+        totalDurationSeconds,
         savedDraft: draft,
       },
     });

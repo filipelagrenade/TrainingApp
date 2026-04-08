@@ -37,16 +37,18 @@ const templateInclude = {
 
 export const listTemplates = async (userId: string) =>
   prisma.workoutTemplate.findMany({
-    where: { userId },
+    where: {
+      OR: [{ userId }, { isSystem: true }],
+    },
     include: templateInclude,
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ isSystem: "desc" }, { updatedAt: "desc" }],
   });
 
 export const getTemplateById = async (userId: string, templateId: string) => {
   const template = await prisma.workoutTemplate.findFirst({
     where: {
       id: templateId,
-      userId,
+      OR: [{ userId }, { isSystem: true }],
     },
     include: templateInclude,
   });
@@ -99,6 +101,7 @@ export const updateTemplate = async (
       where: {
         id: templateId,
         userId,
+        isSystem: false,
       },
       include: {
         exercises: true,
@@ -161,6 +164,7 @@ export const deleteTemplate = async (userId: string, templateId: string) => {
     where: {
       id: templateId,
       userId,
+      isSystem: false,
     },
     select: {
       id: true,

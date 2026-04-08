@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BellRing,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
@@ -64,8 +65,10 @@ import type {
   WorkoutSetType,
 } from "@/lib/types";
 import {
+  applySetTypeBehavior,
   buildDraftSet,
   buildExerciseDraft,
+  calculateSessionDurationSeconds,
   changeExerciseTrackingMode,
   compareExerciseLineup,
   defaultSetTypeForCategory,
@@ -74,6 +77,8 @@ import {
   draftExerciseToTemplateExercise,
   formatDuration,
   formatSetLoad,
+  reindexSets,
+  syncAdvancedSetTracking,
   strengthSetTypeOptions,
   trackingModeOptions,
 } from "@/lib/workout-tracking";
@@ -112,6 +117,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [restDuration, setRestDuration] = useState(90);
   const [restRemaining, setRestRemaining] = useState(90);
   const [restRunning, setRestRunning] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
+  );
   const hydratedRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveQueuedRef = useRef(false);
@@ -255,6 +264,27 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const pauseWorkoutMutation = useMutation({
+    mutationFn: () => apiClient.pauseWorkout(sessionId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workout", sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+      toast.success("Workout paused");
+      router.push("/");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const resumeWorkoutMutation = useMutation({
+    mutationFn: () => apiClient.resumeWorkout(sessionId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workout", sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+      toast.success("Workout resumed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const unpairSupersetMutation = useMutation({
     mutationFn: (supersetGroupId: string) => apiClient.unpairWorkoutSuperset(sessionId, supersetGroupId),
     onSuccess: (nextDraft) => {
@@ -278,7 +308,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         exercises: [],
       };
 
-    setDraft(initialDraft);
+    setDraft({
+      ...initialDraft,
+      exercises: initialDraft.exercises.map((exercise) => syncAdvancedSetTracking(exercise)),
+    });
     hydratedRef.current = true;
   }, [sessionId, sessionQuery.data]);
 
@@ -364,6 +397,15 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }, [activeExerciseIndex]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      return;
+    }
+
+    setNotificationPermission(Notification.permission);
+  }, []);
+
+  useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (session?.status !== "IN_PROGRESS") {
         return;
@@ -377,6 +419,22 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [session?.status]);
 
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    const updateElapsed = () => setElapsedSeconds(calculateSessionDurationSeconds(session));
+    updateElapsed();
+
+    if (session.status !== "IN_PROGRESS") {
+      return;
+    }
+
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [session]);
+
   const updateExercise = (
     exerciseIndex: number,
     updater: (exercise: WorkoutDraftExercise) => WorkoutDraftExercise,
@@ -386,7 +444,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         ? {
             ...current,
             exercises: current.exercises.map((exercise, index) =>
-              index === exerciseIndex ? updater(exercise) : exercise,
+              index === exerciseIndex ? syncAdvancedSetTracking(updater(exercise)) : exercise,
             ),
           }
         : current,
@@ -426,6 +484,24 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     setRestDuration(seconds);
     setRestRemaining(seconds);
     setRestRunning(true);
+  };
+
+  const requestNotificationPermission = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      toast.error("Notifications are not available in this browser.");
+      setNotificationPermission("unsupported");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+
+    if (permission === "granted") {
+      toast.success("Rest timer notifications enabled");
+      return;
+    }
+
+    toast.error("Notifications were not enabled");
   };
 
   const addExerciseToWorkout = (exercise: Exercise) => {
@@ -502,10 +578,30 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       return;
     }
 
+    const activeSet = activeExercise.sets[setIndex];
+    const restTarget =
+      activeExercise.repMax && activeExercise.repMax <= 6 ? 180 : activeExercise.exerciseCategory === "CARDIO" ? 60 : 90;
+
     const nextIncompleteIndex = activeExercise.sets.findIndex(
       (_, candidateIndex) =>
         candidateIndex > setIndex && !completedSetKeySet.has(setKeyFor(activeExerciseIndex, candidateIndex)),
     );
+
+    if (activeExercise.supersetGroupId && activeSupersetPartnerIndex !== null) {
+      if ((activeExercise.supersetPosition ?? 1) === 1) {
+        setActiveExerciseIndex(activeSupersetPartnerIndex);
+        setExpandedSetIndex(
+          Math.min(
+            setIndex,
+            (draft?.exercises[activeSupersetPartnerIndex]?.sets.length ?? 1) - 1,
+          ),
+        );
+      } else {
+        startRestTimer(restTarget);
+      }
+    } else if ((activeSet?.setType ?? "NORMAL") === "DROP" || (activeSet?.setType ?? "NORMAL") === "CLUSTER") {
+      startRestTimer(restTarget);
+    }
 
     setExpandedSetIndex(nextIncompleteIndex >= 0 ? nextIncompleteIndex : -1);
   };
@@ -565,6 +661,19 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           index !== activeExerciseIndex && exercise.supersetGroupId === activeExercise.supersetGroupId,
       ) ?? null
     );
+  }, [activeExercise, activeExerciseIndex, draft]);
+
+  const activeSupersetPartnerIndex = useMemo(() => {
+    if (!activeExercise?.supersetGroupId || !draft) {
+      return null;
+    }
+
+    const partnerIndex = draft.exercises.findIndex(
+      (exercise, index) =>
+        index !== activeExerciseIndex && exercise.supersetGroupId === activeExercise.supersetGroupId,
+    );
+
+    return partnerIndex >= 0 ? partnerIndex : null;
   }, [activeExercise, activeExerciseIndex, draft]);
 
   const filteredSubstitutes = useMemo(() => {
@@ -648,6 +757,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <StatBlock label="Sets" value={String(completedStats.sets)} />
               <StatBlock label="Reps" value={String(completedStats.reps)} />
               <StatBlock label="PRs" value={String(completedStats.prs)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <StatBlock label="Total time" value={formatDuration(session.totalDurationSeconds)} />
+              <StatBlock label="Entry" value={session.entryType.replaceAll("_", " ")} />
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -791,9 +904,15 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             </div>
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/80 px-3 py-2">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
-              <p className="text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
+            <div className="grid flex-1 grid-cols-2 gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Elapsed</p>
+                <p className="text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
+                <p className="text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {[60, 90, 180].map((seconds) => (
@@ -814,6 +933,18 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 onClick={() => setRestRunning((current) => !current)}
               >
                 {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              </Button>
+              <Button
+                size="icon"
+                type="button"
+                variant="ghost"
+                onClick={() =>
+                  session.pausedAt
+                    ? resumeWorkoutMutation.mutate()
+                    : pauseWorkoutMutation.mutate()
+                }
+              >
+                {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -1029,6 +1160,11 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               <p className="text-sm font-semibold text-foreground">
                                 {set.setType?.replaceAll("_", " ") ?? (set.isWorkingSet ? "NORMAL" : "WARMUP")}
                               </p>
+                              {setTrackingData?.autoGenerated ? (
+                                <p className="text-[10px] text-muted-foreground">
+                                  Auto {setTrackingData.dropPhase ? `drop ${setTrackingData.dropPhase}` : "generated"}
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                         </button>
@@ -1182,10 +1318,15 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               <Select
                                 value={set.setType ?? defaultSetTypeForCategory(activeExercise.exerciseCategory)}
                                 onValueChange={(value) =>
-                                  updateSet(activeExerciseIndex, setIndex, (candidate) => ({
-                                    ...candidate,
-                                    setType: value as WorkoutSetType,
-                                  }))
+                                  updateExercise(activeExerciseIndex, (current) =>
+                                    syncAdvancedSetTracking(
+                                      applySetTypeBehavior(
+                                        current,
+                                        setIndex,
+                                        value as WorkoutSetType,
+                                      ),
+                                    ),
+                                  )
                                 }
                               >
                                 <SelectTrigger>
@@ -1203,6 +1344,33 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                                 </SelectContent>
                               </Select>
                             </div>
+                            {set.setType === "CLUSTER" ? (
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Cluster pattern</Label>
+                                <Input
+                                  placeholder="e.g. 4,4,4"
+                                  value={setTrackingData?.clusterPattern ?? ""}
+                                  onChange={(event) =>
+                                    updateExercise(activeExerciseIndex, (current) =>
+                                      syncAdvancedSetTracking({
+                                        ...current,
+                                        sets: current.sets.map((candidate, candidateIndex) =>
+                                          candidateIndex === setIndex
+                                            ? {
+                                                ...candidate,
+                                                trackingData: {
+                                                  ...(candidate.trackingData ?? current.defaultTrackingData ?? {}),
+                                                  clusterPattern: event.target.value,
+                                                },
+                                              }
+                                            : candidate,
+                                        ),
+                                      }),
+                                    )
+                                  }
+                                />
+                              </div>
+                            ) : null}
                             {activeExercise.trackingMode === "BAND_LEVEL" ? (
                               <div className="space-y-1.5">
                                 <Label className="text-xs">Band level</Label>
@@ -1295,16 +1463,19 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                             <Button
                               size="sm"
                               variant="ghost"
-                              disabled={activeExercise.sets.length === 1}
+                              disabled={activeExercise.sets.filter((candidate) => !candidate.trackingData?.autoGenerated).length === 1}
                               onClick={() =>
                                 updateExercise(activeExerciseIndex, (current) => ({
                                   ...current,
-                                  sets: current.sets
-                                    .filter((_, candidateIndex) => candidateIndex !== setIndex)
-                                    .map((candidate, candidateIndex) => ({
-                                      ...candidate,
-                                      setNumber: candidateIndex + 1,
-                                    })),
+                                  sets: reindexSets(
+                                    current.sets.filter((candidate, candidateIndex) => {
+                                      if (candidateIndex === setIndex) {
+                                        return false;
+                                      }
+
+                                      return candidate.trackingData?.generatedFromSetNumber !== set.setNumber;
+                                    }),
+                                  ),
                                 }))
                               }
                             >
@@ -1322,30 +1493,39 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 className="w-full"
                 variant="outline"
                 onClick={() =>
-                  updateExercise(activeExerciseIndex, (current) => ({
-                    ...current,
-                    sets: [
-                      ...current.sets,
-                      {
-                        setNumber: current.sets.length + 1,
-                        weight: current.sets.at(-1)?.weight ?? current.suggestedWeight ?? null,
-                        reps:
-                          current.exerciseCategory === "CARDIO"
-                            ? 0
-                            : current.sets.at(-1)?.reps ?? current.repMin ?? 8,
-                        rpe: current.sets.at(-1)?.rpe ?? null,
-                        setType: current.sets.at(-1)?.setType ?? defaultSetTypeForCategory(current.exerciseCategory),
-                        trackingData:
-                          current.sets.at(-1)?.trackingData ??
-                          current.defaultTrackingData ??
-                          defaultTrackingDataForMode(current.trackingMode, current.unitMode),
-                        isWorkingSet:
-                          current.exerciseCategory === "CARDIO"
-                            ? false
-                            : current.sets.at(-1)?.isWorkingSet ?? true,
-                      },
-                    ],
-                  }))
+                  updateExercise(activeExerciseIndex, (current) =>
+                    (() => {
+                      const previousLoggedSet =
+                        [...current.sets].reverse().find((candidate) => !candidate.trackingData?.autoGenerated) ??
+                        current.sets.at(-1);
+
+                      return syncAdvancedSetTracking({
+                        ...current,
+                        sets: [
+                          ...current.sets,
+                          {
+                            setNumber: current.sets.length + 1,
+                            weight: previousLoggedSet?.weight ?? current.suggestedWeight ?? null,
+                            reps:
+                              current.exerciseCategory === "CARDIO"
+                                ? 0
+                                : previousLoggedSet?.reps ?? current.repMin ?? 8,
+                            rpe: previousLoggedSet?.rpe ?? null,
+                            setType:
+                              previousLoggedSet?.setType ?? defaultSetTypeForCategory(current.exerciseCategory),
+                            trackingData:
+                              previousLoggedSet?.trackingData ??
+                              current.defaultTrackingData ??
+                              defaultTrackingDataForMode(current.trackingMode, current.unitMode),
+                            isWorkingSet:
+                              current.exerciseCategory === "CARDIO"
+                                ? false
+                                : previousLoggedSet?.isWorkingSet ?? true,
+                          },
+                        ],
+                      });
+                    })(),
+                  )
                 }
               >
                 <Plus className="h-4 w-4" />
@@ -1439,6 +1619,16 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   <p className="mt-2 text-2xl font-semibold text-foreground">
                     {formatRestTime(restRemaining)}
                   </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Notifications:{" "}
+                    {notificationPermission === "granted"
+                      ? "On"
+                      : notificationPermission === "denied"
+                        ? "Blocked"
+                        : notificationPermission === "unsupported"
+                          ? "Unavailable"
+                          : "Not enabled"}
+                  </p>
                 </div>
                 <Button
                   size="icon"
@@ -1473,9 +1663,26 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   {restRunning ? "Pause" : "Resume"}
                 </Button>
+                {notificationPermission !== "granted" && notificationPermission !== "unsupported" ? (
+                  <Button size="sm" type="button" variant="outline" onClick={() => void requestNotificationPermission()}>
+                    <BellRing className="h-4 w-4" />
+                    Enable alerts
+                  </Button>
+                ) : null}
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  session.pausedAt
+                    ? resumeWorkoutMutation.mutate()
+                    : pauseWorkoutMutation.mutate()
+                }
+              >
+                {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                {session.pausedAt ? "Resume workout" : "Pause workout"}
+              </Button>
               <Button variant="outline" onClick={() => setBulkSheetOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Bulk add

@@ -174,6 +174,7 @@ model ExerciseEquivalency {
 model Program {
   id                   String               @id @default(cuid())
   userId               String
+  isSystem             Boolean              @default(false)
   name                 String
   goal                 String
   description          String?
@@ -249,6 +250,7 @@ model ProgramWorkoutExercise {
 model WorkoutTemplate {
   id          String             @id @default(cuid())
   userId      String
+  isSystem    Boolean            @default(false)
   name        String
   description String?
   createdAt   DateTime           @default(now())
@@ -288,6 +290,9 @@ model WorkoutSession {
   entryType                WorkoutEntryType
   status                   WorkoutStatus    @default(IN_PROGRESS)
   startedAt                DateTime         @default(now())
+  pausedAt                 DateTime?
+  accumulatedPauseSeconds  Int              @default(0)
+  totalDurationSeconds     Int?
   completedAt              DateTime?
   notes                    String?
   totalXp                  Int              @default(0)

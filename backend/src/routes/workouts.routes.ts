@@ -12,7 +12,9 @@ import {
   getWorkout,
   listRecentWorkouts,
   pairWorkoutSuperset,
+  pauseWorkout,
   removeWorkoutSubstitution,
+  resumeWorkout,
   saveWorkoutDraft,
   startWorkout,
   unpairWorkoutSuperset,
@@ -206,6 +208,36 @@ workoutsRouter.delete("/:workoutId/supersets/:supersetGroupId", async (request, 
     next(error);
   }
 });
+
+workoutsRouter.post(
+  "/:workoutId/pause",
+  async (request, response, next) => {
+    try {
+      const workout = await pauseWorkout(
+        request.currentUser!.id,
+        String(request.params.workoutId),
+      );
+      sendSuccess(response, workout);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+workoutsRouter.post(
+  "/:workoutId/resume",
+  async (request, response, next) => {
+    try {
+      const workout = await resumeWorkout(
+        request.currentUser!.id,
+        String(request.params.workoutId),
+      );
+      sendSuccess(response, workout);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 workoutsRouter.post(
   "/:workoutId/complete",

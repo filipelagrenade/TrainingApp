@@ -109,9 +109,12 @@ export const ProgramLibraryScreen = () => {
                     <CardTitle className="text-lg">{program.name}</CardTitle>
                     <CardDescription>{program.goal}</CardDescription>
                   </div>
-                  <Badge variant={program.status === "ACTIVE" ? "default" : "secondary"}>
-                    {program.status}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant={program.status === "ACTIVE" ? "default" : "secondary"}>
+                      {program.status}
+                    </Badge>
+                    {program.isSystem ? <Badge variant="outline">System</Badge> : null}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -125,15 +128,17 @@ export const ProgramLibraryScreen = () => {
                   <Metric icon={Flame} label="Streak" value={String(program.adherenceStreak)} />
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/programs/${program.id}/edit`}>Edit</Link>
-                  </Button>
+                  {!program.isSystem ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/programs/${program.id}/edit`}>Edit</Link>
+                    </Button>
+                  ) : null}
                   {program.status !== "ACTIVE" ? (
                     <Button size="sm" variant="outline" onClick={() => setActivationProgram(program)}>
                       Activate
                     </Button>
                   ) : null}
-                  {program.status !== "ARCHIVED" ? (
+                  {!program.isSystem && program.status !== "ARCHIVED" ? (
                     <Button size="sm" variant="ghost" onClick={() => archiveMutation.mutate(program.id)}>
                       Archive
                     </Button>

@@ -132,11 +132,73 @@ const buildTemplateCreates = (input: ProgramInput) =>
     },
   }));
 
+type ProgramWithInclude = Prisma.ProgramGetPayload<{
+  include: typeof programInclude;
+}>;
+
+const cloneProgramToUser = async (
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  program: ProgramWithInclude,
+) =>
+  transaction.program.create({
+    data: {
+      userId,
+      name: program.name,
+      goal: program.goal,
+      description: program.description,
+      status: ProgramStatus.PAUSED,
+      currentWeek: program.currentWeek,
+      graceHours: program.graceHours,
+      weeks: {
+        create: program.weeks.map((week) => ({
+          weekNumber: week.weekNumber,
+          label: week.label,
+          isDeload: week.isDeload,
+          workouts: {
+            create: week.workouts.map((workout) => ({
+              dayLabel: workout.dayLabel,
+              title: workout.title,
+              orderIndex: workout.orderIndex,
+              estimatedMinutes: workout.estimatedMinutes,
+              xpReward: workout.xpReward,
+              exercises: {
+                create: workout.exercises.map((exercise) => ({
+                  exerciseId: exercise.exerciseId,
+                  orderIndex: exercise.orderIndex,
+                  sets: exercise.sets,
+                  repMin: exercise.repMin,
+                  repMax: exercise.repMax,
+                  restSeconds: exercise.restSeconds,
+                  startWeight: exercise.startWeight,
+                  increment: exercise.increment,
+                  deloadFactor: exercise.deloadFactor,
+                  targetRpe: exercise.targetRpe,
+                  loadTypeOverride: exercise.loadTypeOverride,
+                  trackingMode: exercise.trackingMode,
+                  defaultTrackingData:
+                    (exercise.defaultTrackingData as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+                  machineOverride: exercise.machineOverride,
+                  attachmentOverride: exercise.attachmentOverride,
+                  unilateral: exercise.unilateral,
+                  notes: exercise.notes,
+                })),
+              },
+            })),
+          },
+        })),
+      },
+    },
+    include: programInclude,
+  });
+
 export const listPrograms = async (userId: string) =>
   prisma.program.findMany({
-    where: { userId },
+    where: {
+      OR: [{ userId }, { isSystem: true }],
+    },
     include: programInclude,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ isSystem: "desc" }, { createdAt: "desc" }],
   });
 
 export const createProgram = async (userId: string, input: ProgramInput) =>
@@ -174,6 +236,7 @@ export const updateProgram = async (userId: string, programId: string, input: Pr
       where: {
         id: programId,
         userId,
+        isSystem: false,
       },
       select: {
         id: true,
@@ -357,43 +420,49 @@ export const activateProgram = async (
   programId: string,
   input: ActivateProgramInput = {},
 ) => {
-  const program = await prisma.program.findFirst({
+  const program = (await prisma.program.findFirst({
     where: {
       id: programId,
-      userId,
+      OR: [{ userId }, { isSystem: true }],
     },
-    include: {
-      weeks: {
-        include: {
-          workouts: {
-            orderBy: { orderIndex: "asc" },
-          },
-        },
-        orderBy: { weekNumber: "asc" },
-      },
-    },
-  });
+    include: programInclude,
+  })) as ProgramWithInclude | null;
 
   if (!program) {
     throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
   }
 
-  const startWeekNumber =
+  const requestedSourceWeek =
     input.startWeekNumber ??
     (input.startWorkoutId
       ? program.weeks.find((week) => week.workouts.some((workout) => workout.id === input.startWorkoutId))
           ?.weekNumber
       : undefined) ??
     program.currentWeek;
+  const requestedSourceWorkout = input.startWorkoutId
+    ? program.weeks
+        .flatMap((week) => week.workouts)
+        .find((workout) => workout.id === input.startWorkoutId) ?? null
+    : null;
+  const targetProgram = program.isSystem
+    ? await prisma.$transaction((transaction) => cloneProgramToUser(transaction, userId, program))
+    : program;
 
-  const targetWeek = program.weeks.find((week) => week.weekNumber === startWeekNumber);
+  const startWeekNumber =
+    requestedSourceWeek;
+
+  const targetWeek = targetProgram.weeks.find((week) => week.weekNumber === startWeekNumber);
   if (!targetWeek) {
     throw new AppError(400, "INVALID_START_WEEK", "That start week is not valid for this program.");
   }
 
+  const resolvedStartWorkoutId = requestedSourceWorkout
+    ? targetWeek.workouts.find((workout) => workout.orderIndex === requestedSourceWorkout.orderIndex)?.id
+    : undefined;
+
   if (
-    input.startWorkoutId &&
-    !targetWeek.workouts.some((workout) => workout.id === input.startWorkoutId)
+    resolvedStartWorkoutId &&
+    !targetWeek.workouts.some((workout) => workout.id === resolvedStartWorkoutId)
   ) {
     throw new AppError(
       400,
@@ -408,7 +477,7 @@ export const activateProgram = async (
         userId,
         status: ProgramStatus.ACTIVE,
         id: {
-          not: programId,
+          not: targetProgram.id,
         },
       },
       data: {
@@ -419,7 +488,7 @@ export const activateProgram = async (
 
     if (input.startWeekNumber || input.startWorkoutId) {
       await transaction.program.update({
-        where: { id: programId },
+        where: { id: targetProgram.id },
         data: {
           skippedWorkouts: {
             deleteMany: {
@@ -429,15 +498,15 @@ export const activateProgram = async (
         },
       });
 
-      if (input.startWorkoutId) {
-        const startingWorkout = targetWeek.workouts.find((workout) => workout.id === input.startWorkoutId)!;
+      if (resolvedStartWorkoutId) {
+        const startingWorkout = targetWeek.workouts.find((workout) => workout.id === resolvedStartWorkoutId)!;
         const skippedWorkouts = targetWeek.workouts.filter(
           (workout) => workout.orderIndex < startingWorkout.orderIndex,
         );
 
         if (skippedWorkouts.length) {
           await transaction.program.update({
-            where: { id: programId },
+            where: { id: targetProgram.id },
             data: {
               skippedWorkouts: {
                 create: skippedWorkouts.map((workout) => ({
@@ -454,11 +523,11 @@ export const activateProgram = async (
     }
 
     return transaction.program.update({
-      where: { id: programId },
+      where: { id: targetProgram.id },
       data: {
         status: ProgramStatus.ACTIVE,
         currentWeek: targetWeek.weekNumber,
-        startedAt: program.startedAt ?? new Date(),
+        startedAt: targetProgram.startedAt ?? new Date(),
         pausedAt: null,
       },
       include: programInclude,
@@ -546,6 +615,7 @@ export const archiveProgram = async (userId: string, programId: string) => {
     where: {
       id: programId,
       userId,
+      isSystem: false,
     },
   });
 
@@ -703,8 +773,8 @@ export const getActiveProgram = async (userId: string) => {
 export const getProgramById = async (userId: string, programId: string) => {
   const program = await prisma.program.findFirst({
     where: {
-      userId,
       id: programId,
+      OR: [{ userId }, { isSystem: true }],
     },
     include: programInclude,
   });

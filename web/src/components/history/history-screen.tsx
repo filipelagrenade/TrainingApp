@@ -13,6 +13,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
 import type { WorkoutSession } from "@/lib/types";
+import { formatDuration } from "@/lib/workout-tracking";
 
 export const HistoryScreen = () => {
   const [query, setQuery] = useState("");
@@ -104,6 +105,9 @@ export const HistoryScreen = () => {
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {workout.completedAt ? new Date(workout.completedAt).toLocaleString() : "In progress"}
+                  </p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    Total time {formatDuration(workout.totalDurationSeconds)}
                   </p>
                   {workout.notes ? (
                     <p className="line-clamp-2 text-sm text-muted-foreground">{workout.notes}</p>

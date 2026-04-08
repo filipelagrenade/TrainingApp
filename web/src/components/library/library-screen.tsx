@@ -226,9 +226,12 @@ export const LibraryScreen = () => {
                           <CardTitle className="text-lg">{program.name}</CardTitle>
                           <CardDescription>{program.goal}</CardDescription>
                         </div>
-                        <Badge variant={program.status === "ACTIVE" ? "default" : "secondary"}>
-                          {program.status}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge variant={program.status === "ACTIVE" ? "default" : "secondary"}>
+                            {program.status}
+                          </Badge>
+                          {program.isSystem ? <Badge variant="outline">System</Badge> : null}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -243,15 +246,17 @@ export const LibraryScreen = () => {
                         <MetricCard icon={Flame} label="Streak" value={String(program.adherenceStreak)} compact />
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/programs/${program.id}/edit`}>Edit</Link>
-                        </Button>
+                        {!program.isSystem ? (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/programs/${program.id}/edit`}>Edit</Link>
+                          </Button>
+                        ) : null}
                         {program.status !== "ACTIVE" ? (
                           <Button size="sm" variant="outline" onClick={() => setActivationProgram(program)}>
                             Activate
                           </Button>
                         ) : null}
-                        {program.status !== "ARCHIVED" ? (
+                        {!program.isSystem && program.status !== "ARCHIVED" ? (
                           <Button size="sm" variant="ghost" onClick={() => archiveProgramMutation.mutate(program.id)}>
                             Archive
                           </Button>
@@ -296,7 +301,10 @@ export const LibraryScreen = () => {
                           <CardTitle className="text-lg">{template.name}</CardTitle>
                           <CardDescription>{template.description || "Reusable workout template"}</CardDescription>
                         </div>
-                        <Badge variant="secondary">{template.exercises.length} exercises</Badge>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge variant="secondary">{template.exercises.length} exercises</Badge>
+                          {template.isSystem ? <Badge variant="outline">System</Badge> : null}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -325,9 +333,11 @@ export const LibraryScreen = () => {
                           <Copy className="h-4 w-4" />
                           Duplicate
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteTemplateMutation.mutate(template.id)}>
-                          Delete
-                        </Button>
+                        {!template.isSystem ? (
+                          <Button size="sm" variant="ghost" onClick={() => deleteTemplateMutation.mutate(template.id)}>
+                            Delete
+                          </Button>
+                        ) : null}
                       </div>
                     </CardContent>
                   </Card>

@@ -1,0 +1,7 @@
+ALTER TABLE "Program" ADD COLUMN "isSystem" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "WorkoutTemplate" ADD COLUMN "isSystem" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "WorkoutSession"
+ADD COLUMN "pausedAt" TIMESTAMP(3),
+ADD COLUMN "accumulatedPauseSeconds" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "totalDurationSeconds" INTEGER;
