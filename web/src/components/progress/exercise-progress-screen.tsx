@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) => {
@@ -62,37 +63,28 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
   );
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <Button asChild size="sm" variant="ghost" className="-ml-2 w-fit">
-                <Link href="/progress">
-                  <ChevronLeft className="h-4 w-4" />
-                  Back to progress
-                </Link>
-              </Button>
-              <div>
-                <CardTitle>{progress.exercise.name}</CardTitle>
-                <CardDescription>
-                  {progress.exercise.equipmentType}
-                  {progress.exercise.attachment ? ` • ${progress.exercise.attachment}` : ""}
-                </CardDescription>
-              </div>
-            </div>
-            <Badge variant={progress.exercise.isSystem ? "secondary" : "default"}>
-              {progress.exercise.isSystem ? "System" : "Custom"}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow={progress.exercise.isSystem ? "System exercise" : "Custom exercise"}
+        title={progress.exercise.name}
+        description={`${progress.exercise.equipmentType}${progress.exercise.attachment ? ` • ${progress.exercise.attachment}` : ""}`}
+        actions={
+          <Button asChild size="sm" variant="ghost" className="-ml-2 w-fit">
+            <Link href="/progress">
+              <ChevronLeft className="h-4 w-4" />
+              Back to progress
+            </Link>
+          </Button>
+        }
+        stats={
+          <>
             <MetricCard icon={CalendarDays} label="Sessions" value={String(progress.summary.totalSessions)} />
             <MetricCard icon={Dumbbell} label="Volume" value={Math.round(progress.summary.totalVolume).toString()} />
             <MetricCard icon={TrendingUp} label="Best e1RM" value={progress.summary.bestEstimatedOneRepMax ? Math.round(progress.summary.bestEstimatedOneRepMax).toString() : "-"} />
             <MetricCard icon={Trophy} label="PRs" value={String(progress.summary.personalRecordCount)} />
-          </div>
-        </CardHeader>
-      </Card>
+          </>
+        }
+      />
 
       <Card>
         <CardHeader>

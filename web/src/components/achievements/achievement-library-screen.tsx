@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const AchievementLibraryScreen = () => {
@@ -49,27 +50,24 @@ export const AchievementLibraryScreen = () => {
     .reduce((sum, achievement) => sum + achievement.xpReward, 0);
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle>Achievement library</CardTitle>
-              <CardDescription>
-                Duolingo-style motivation works better when the milestone ladder is visible.
-              </CardDescription>
-            </div>
-            <Button asChild variant="ghost">
-              <Link href="/">Back</Link>
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow="Achievements"
+        title="Make the ladder feel worth chasing."
+        description="The old app did milestone presentation better, so this screen leans harder into visible progress, earned XP, and what still matters next."
+        actions={
+          <Button asChild variant="ghost">
+            <Link href="/">Back</Link>
+          </Button>
+        }
+        stats={
+          <>
             <MetricCard icon={Award} label="Unlocked" value={`${unlockedCount}/${achievements.length}`} />
             <MetricCard icon={Trophy} label="Achievement XP" value={String(totalXp)} />
             <MetricCard icon={LockKeyhole} label="Still locked" value={String(achievements.length - unlockedCount)} />
-          </div>
-        </CardHeader>
-      </Card>
+          </>
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {achievementsQuery.isLoading ? (

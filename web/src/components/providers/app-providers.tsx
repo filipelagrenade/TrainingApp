@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import { ServiceWorkerRegistration } from "./service-worker-registration";
+import { ThemeProvider } from "./theme-provider";
 
 export const AppProviders = ({ children }: { children: ReactNode }) => {
   const [queryClient] = useState(
@@ -21,9 +22,11 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ServiceWorkerRegistration />
-      {children}
-      <Toaster richColors position="top-right" />
+      <ThemeProvider>
+        <ServiceWorkerRegistration />
+        {children}
+        <Toaster richColors position="top-right" />
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };

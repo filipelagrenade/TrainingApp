@@ -737,8 +737,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   if (session.status === "COMPLETED" && completedStats) {
     return (
-      <div className="space-y-6">
-        <Card className="border-border/70 bg-card/95">
+      <div className="app-grid">
+        <Card>
           <CardHeader className="space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -762,7 +762,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <StatBlock label="Total time" value={formatDuration(session.totalDurationSeconds)} />
               <StatBlock label="Entry" value={session.entryType.replaceAll("_", " ")} />
             </div>
-            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+            <div className="surface-panel p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
                 Estimated volume
               </p>
@@ -787,7 +787,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               );
 
               return (
-                <div key={exercise.id} className="rounded-2xl border border-border/70 bg-card p-4">
+                <div key={exercise.id} className="surface-panel p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-foreground">{exercise.exerciseName}</p>
@@ -845,7 +845,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     {exercise.sets.map((set) => (
                       <div
                         key={set.id}
-                        className="grid grid-cols-4 gap-3 rounded-2xl border border-border/70 bg-background/70 p-3 text-sm"
+                        className="surface-panel-soft grid grid-cols-4 gap-3 p-3 text-sm"
                       >
                         <StatBlock compact label="Set" value={String(set.setNumber)} />
                         <StatBlock
@@ -874,8 +874,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   return (
     <div className="space-y-4 pb-32">
-      <div className="sticky top-0 z-20 -mx-4 bg-[linear-gradient(180deg,rgba(250,247,241,0.98)_0%,rgba(250,247,241,0.95)_78%,rgba(250,247,241,0)_100%)] px-4 pb-3 pt-1 backdrop-blur">
-        <div className="rounded-3xl border border-border/70 bg-card/95 p-3 shadow-sm">
+      <div className="sticky top-0 z-20 -mx-4 bg-[linear-gradient(180deg,hsl(240_29%_8%/0.98)_0%,hsl(240_29%_8%/0.94)_78%,transparent_100%)] px-4 pb-3 pt-1 backdrop-blur-xl">
+        <div className="hero-card p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -903,7 +903,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </Button>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/80 px-3 py-2">
+          <div className="surface-panel flex items-center justify-between gap-3 px-3 py-2">
             <div className="grid flex-1 grid-cols-2 gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Elapsed</p>
@@ -954,10 +954,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           {draft.exercises.map((exercise, index) => (
             <button
               key={`${exercise.exerciseName}-${index}`}
-              className={`min-w-[8.5rem] rounded-2xl border px-3 py-2 text-left transition ${
+              className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
                 index === activeExerciseIndex
-                  ? "border-primary/50 bg-primary/5"
-                  : "border-border/70 bg-background/70"
+                  ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
+                  : "border-border/70 bg-card/72"
               }`}
               onClick={() => setActiveExerciseIndex(index)}
               type="button"
@@ -983,7 +983,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         </div>
       </div>
 
-      <Card className="border-border/70 bg-card/95 shadow-sm">
+      <Card>
         <CardContent className="space-y-4 p-4">
           {activeExercise ? (
             <>
@@ -1031,7 +1031,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             </div>
 
             {activeSupersetPartner ? (
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-2">
+              <div className="surface-panel flex items-center justify-between gap-3 px-3 py-2">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Paired with</p>
                   <p className="text-sm font-semibold text-foreground">{activeSupersetPartner.exerciseName}</p>
@@ -1082,7 +1082,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             </div>
 
             {activeExercise.recommendationReason ? (
-              <div className="rounded-2xl border border-border/70 bg-background/70 px-3 py-2">
+              <div className="surface-panel px-3 py-2">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Why this load</p>
                 <p className="mt-1 text-sm text-foreground">{activeExercise.recommendationReason}</p>
               </div>
@@ -1119,7 +1119,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     <div
                       key={`${activeExercise.exerciseName}-${setIndex}`}
                       className={`rounded-2xl border ${
-                        isDone ? "border-primary/30 bg-primary/5" : "border-border/70 bg-background/70"
+                        isDone ? "border-primary/30 bg-primary/8" : "border-border/70 bg-card/72"
                       }`}
                     >
                       <div className="flex items-center gap-2 px-3 py-3">
@@ -1551,7 +1551,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       </Card>
 
       <div className="sticky bottom-0 z-20 -mx-4 bg-[linear-gradient(180deg,rgba(240,235,227,0)_0%,rgba(240,235,227,0.96)_40%,rgba(240,235,227,1)_100%)] px-4 pb-4 pt-6">
-        <div className="rounded-3xl border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur">
+        <div className="hero-card p-3">
           <div className="flex items-center gap-2">
             <Button
               aria-label="Previous exercise"
@@ -1612,7 +1612,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 }
               />
             </div>
-            <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+            <div className="surface-panel p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Rest timer</p>
@@ -1759,7 +1759,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 filteredSubstitutes.equivalents.map((exercise) => (
                   <button
                     key={exercise.id}
-                    className="w-full rounded-2xl border border-border/70 bg-background/70 p-4 text-left"
+                    className="surface-panel w-full p-4 text-left"
                     onClick={() =>
                       substituteMutation.mutate({
                         exerciseIndex: activeExerciseIndex,
@@ -1776,7 +1776,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   </button>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
                   No approved equivalents yet for this movement.
                 </div>
               )}
@@ -1787,7 +1787,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 filteredSubstitutes.alternatives.map((exercise) => (
                   <button
                     key={exercise.id}
-                    className="w-full rounded-2xl border border-border/70 bg-background/70 p-4 text-left"
+                    className="surface-panel w-full p-4 text-left"
                     onClick={() =>
                       substituteMutation.mutate({
                         exerciseIndex: activeExerciseIndex,
@@ -1803,7 +1803,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   </button>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
                   No close alternatives surfaced from the library.
                 </div>
               )}
@@ -1830,7 +1830,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               .map(({ exercise, index }) => (
                 <button
                   key={`${exercise.exerciseName}-${index}`}
-                  className="w-full rounded-2xl border border-border/70 bg-background/70 p-4 text-left"
+                  className="surface-panel w-full p-4 text-left"
                   onClick={() =>
                     pairSupersetMutation.mutate({
                       exerciseIndexes: [activeExerciseIndex, index],
@@ -1847,7 +1847,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             {draft.exercises.filter(
               (exercise, index) => index !== activeExerciseIndex && !exercise.supersetGroupId,
             ).length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+              <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
                 Add another unpaired exercise to create a superset.
               </div>
             ) : null}
@@ -2139,7 +2139,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 placeholder="Optional note for what changed"
               />
             </div>
-            <div className="space-y-2 rounded-2xl border border-border/70 bg-background/70 p-3">
+            <div className="surface-panel space-y-2 p-3">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Exercises to keep</p>
               <div className="mt-3 space-y-2">
                 {draft?.exercises.map((exercise, index) => (

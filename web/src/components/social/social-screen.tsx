@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const SocialScreen = () => {
@@ -97,20 +98,20 @@ export const SocialScreen = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card/95">
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow="Social"
+        title="Train with some pressure."
+        description="Follow people who keep you honest, jump into weekly challenge loops, and turn the feed into something that actually makes you train."
+        actions={
+          <Button asChild variant="ghost">
+            <Link href="/">Back</Link>
+          </Button>
+        }
+      />
+
+      <Card>
         <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle>Social</CardTitle>
-              <CardDescription>
-                Competition should help the habit. Follow friends, join weekly challenges, and track the feed.
-              </CardDescription>
-            </div>
-            <Button asChild variant="ghost">
-              <Link href="/">Back</Link>
-            </Button>
-          </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -126,7 +127,7 @@ export const SocialScreen = () => {
                 <Skeleton className="h-28" />
               ) : searchResults.length ? (
                 searchResults.map((user) => (
-                <div key={user.id} className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div key={user.id} className="surface-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-semibold text-foreground">{user.displayName}</p>
                       <p className="text-sm text-muted-foreground">
@@ -146,7 +147,7 @@ export const SocialScreen = () => {
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
                   No users found.
                 </div>
               )}
@@ -166,7 +167,7 @@ export const SocialScreen = () => {
               <Skeleton className="h-36" />
             ) : followingQuery.data?.length ? (
               followingQuery.data.map((user) => (
-                <div key={user.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 p-3">
+                <div key={user.id} className="surface-panel-soft flex items-center justify-between gap-3 p-3">
                   <div>
                     <p className="font-semibold">{user.displayName}</p>
                     <p className="text-sm text-muted-foreground">Level {user.level}</p>
@@ -175,7 +176,7 @@ export const SocialScreen = () => {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+              <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
                 Search for people to follow.
               </div>
             )}
@@ -192,7 +193,7 @@ export const SocialScreen = () => {
               <Skeleton className="h-36" />
             ) : (
               leaderboardQuery.data?.map((entry) => (
-                <div key={entry.userId} className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 p-3">
+                <div key={entry.userId} className="surface-panel-soft flex items-center justify-between gap-3 p-3">
                   <div className="flex items-center gap-3">
                     <div className="rounded-full bg-secondary p-2 text-secondary-foreground">
                       <Trophy className="h-4 w-4" />
@@ -221,7 +222,7 @@ export const SocialScreen = () => {
               <Skeleton className="h-36" />
             ) : (
               challengesQuery.data?.map((challenge) => (
-                <div key={challenge.id} className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div key={challenge.id} className="surface-panel p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{challenge.title}</p>
@@ -258,7 +259,7 @@ export const SocialScreen = () => {
               <Skeleton className="h-36" />
             ) : feedQuery.data?.length ? (
               feedQuery.data.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div key={event.id} className="surface-panel p-4">
                   <p className="font-semibold">{event.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {event.user.displayName} • {new Date(event.createdAt).toLocaleString()}
@@ -266,7 +267,7 @@ export const SocialScreen = () => {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+              <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
                 Follow someone to turn this into a real activity feed.
               </div>
             )}

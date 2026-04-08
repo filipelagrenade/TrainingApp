@@ -9,12 +9,12 @@ export const Progress = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>) => (
   <ProgressPrimitive.Root
-    className={cn("relative h-3 w-full overflow-hidden rounded-full bg-secondary", className)}
+    className={cn("relative h-3 w-full overflow-hidden rounded-full bg-secondary/85", className)}
     value={value}
     {...props}
   >
     <ProgressPrimitive.Indicator
-      className="h-full w-full flex-1 bg-primary transition-transform"
+      className="h-full w-full flex-1 bg-[linear-gradient(90deg,hsl(var(--primary))_0%,hsl(var(--accent))_100%)] transition-transform"
       style={{ transform: `translateX(-${100 - (value ?? 0)}%)` }}
     />
   </ProgressPrimitive.Root>

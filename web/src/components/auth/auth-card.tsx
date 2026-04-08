@@ -69,18 +69,18 @@ export const AuthCard = ({ onSuccess }: AuthCardProps) => {
   });
 
   return (
-    <Card className="mx-auto max-w-lg border-border/60 bg-card/95">
+    <Card className="mx-auto max-w-lg overflow-hidden">
       <CardHeader className="space-y-4">
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           <Sparkles className="h-3.5 w-3.5" />
-          LiftIQ Beta
+          LiftIQ Mobile
         </div>
         <div>
           <CardTitle className="text-3xl font-semibold text-foreground">
-            Keep training friction low.
+            Train like it&apos;s an app, not a spreadsheet.
           </CardTitle>
           <CardDescription className="mt-2 text-base">
-            Programs drive progression. XP and streaks keep the momentum without turning workouts into daily busywork.
+            Server-first workout tracking with the faster mobile flow, starter programs, and social pressure when you want it.
           </CardDescription>
         </div>
       </CardHeader>

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
 import type { WorkoutSession } from "@/lib/types";
@@ -63,20 +64,22 @@ export const HistoryScreen = () => {
   const plannedCount = workouts.filter((workout) => workout.wasPlanned).length;
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="space-y-4">
-          <div>
-            <CardTitle>History</CardTitle>
-            <CardDescription>
-              Full workout history with direct access to session stats and reviews.
-            </CardDescription>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow="History"
+        title="Training archive"
+        description="Every completed session, every XP payout, and enough detail to jump back into review without drowning the screen in data."
+        stats={
+          <>
             <MetricCard icon={Clock3} label="Sessions" value={String(workouts.length)} />
             <MetricCard icon={Flame} label="Planned" value={String(plannedCount)} />
             <MetricCard icon={Dumbbell} label="XP earned" value={String(totalXp)} />
-          </div>
+          </>
+        }
+      />
+
+      <Card>
+        <CardHeader className="space-y-4">
           <Input
             placeholder="Search title, entry type, or notes"
             value={query}
@@ -93,7 +96,7 @@ export const HistoryScreen = () => {
             <Link
               key={workout.id}
               href={`/workouts/${workout.id}`}
-              className="block rounded-2xl border border-border/70 bg-card p-4 transition-colors hover:bg-background/70"
+              className="surface-panel-soft block p-4 transition-colors hover:bg-card/90"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-2">

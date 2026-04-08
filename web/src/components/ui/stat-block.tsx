@@ -15,7 +15,7 @@ export const StatBlock = ({
 }) => (
   <div
     className={cn(
-      "flex h-full min-h-[4.75rem] flex-col justify-between rounded-2xl border border-border/70 bg-background/70",
+      "surface-panel flex h-full min-h-[4.75rem] flex-col justify-between",
       compact ? "p-2.5" : "p-3",
       className,
     )}

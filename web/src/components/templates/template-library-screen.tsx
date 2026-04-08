@@ -14,6 +14,7 @@ import { TemplateBuilderSheet } from "@/components/templates/template-builder-sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const TemplateLibraryScreen = () => {
@@ -79,25 +80,20 @@ export const TemplateLibraryScreen = () => {
   const templates = templatesQuery.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle>Template library</CardTitle>
-              <CardDescription>
-                Save reusable sessions for travel gyms, swaps, or quick structured training days.
-              </CardDescription>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button onClick={() => setBuilderOpen(true)}>Create template</Button>
-              <Button asChild variant="ghost">
-                <Link href="/">Back</Link>
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow="Templates"
+        title="Keep your best gym days on standby."
+        description="Starter sessions, travel-day swaps, and your own saved templates should be one tap away when you need structure fast."
+        actions={
+          <>
+            <Button onClick={() => setBuilderOpen(true)}>Create template</Button>
+            <Button asChild variant="ghost">
+              <Link href="/">Back</Link>
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         {templatesQuery.isLoading ? (

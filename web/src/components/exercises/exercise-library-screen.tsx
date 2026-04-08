@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const ExerciseLibraryScreen = () => {
@@ -118,36 +119,38 @@ export const ExerciseLibraryScreen = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle>Exercise library</CardTitle>
-              <CardDescription>
-                Store your gym&apos;s machine names, attachments, and load modes once so logging stays fast.
-              </CardDescription>
-            </div>
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow="Exercises"
+        title="Teach the app your gym once."
+        description="System movements, your own machine names, and equivalent swaps live here so the workout flow stays compact when you’re on the floor."
+        actions={
+          <>
+            <ExerciseCreatorDialog triggerLabel="Add custom exercise" />
             <Button asChild variant="ghost">
               <Link href="/">Back</Link>
             </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          </>
+        }
+        stats={
+          <>
             <MetricCard icon={Dumbbell} label="Total" value={String(exercises.length)} />
             <MetricCard icon={Layers3} label="Custom" value={String(customCount)} />
             <MetricCard icon={Layers3} label="System" value={String(exercises.length - customCount)} />
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Search exercise, machine, attachment, or muscle"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </div>
-            <ExerciseCreatorDialog triggerLabel="Add custom exercise" />
+          </>
+        }
+      />
+
+      <Card>
+        <CardHeader className="space-y-4">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Search exercise, machine, attachment, or muscle"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
         </CardHeader>
       </Card>

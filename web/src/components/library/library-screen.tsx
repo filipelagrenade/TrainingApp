@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
@@ -177,22 +178,19 @@ export const LibraryScreen = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/70 bg-card/95">
-        <CardHeader className="space-y-4">
-          <div>
-            <CardTitle>Library</CardTitle>
-            <CardDescription>
-              Keep programs, templates, and exercise definitions together so the working parts of the app stay tidy.
-            </CardDescription>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow="Library"
+        title="Build once, train faster after."
+        description="Programs, templates, and exercise definitions stay in one place so the live workout flow stays lean once you’re in the gym."
+        stats={
+          <>
             <MetricCard icon={CalendarRange} label="Programs" value={String(programs.length)} />
             <MetricCard icon={Layers3} label="Templates" value={String(templates.length)} />
             <MetricCard icon={Dumbbell} label="Exercises" value={String(exercises.length)} />
-          </div>
-        </CardHeader>
-      </Card>
+          </>
+        }
+      />
 
       <Tabs defaultValue="programs" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">

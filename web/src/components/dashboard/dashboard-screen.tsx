@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
+import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const initialsForName = (name: string) =>
@@ -95,8 +96,41 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-border/70 bg-card/95">
+    <div className="app-grid">
+      <ScreenHero
+        eyebrow="Home"
+        title={`Welcome back, ${user.displayName}`}
+        description="Pick up the current session fast, keep the streak moving, and stay focused on the next useful training action."
+        actions={
+          <>
+            <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
+              Sign out
+            </Button>
+            {inProgressWorkout ? (
+              <Button onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)}>
+                <Dumbbell className="h-4 w-4" />
+                Resume workout
+              </Button>
+            ) : (
+              <Button
+                onClick={() => startWorkoutMutation.mutate({ entryType: "QUICK" })}
+              >
+                <Dumbbell className="h-4 w-4" />
+                Quick workout
+              </Button>
+            )}
+          </>
+        }
+        stats={
+          <>
+            <MetricCard icon={Trophy} label="Level" value={String(user.level)} />
+            <MetricCard icon={Flame} label="Adherence" value={String(activeProgram?.adherenceStreak ?? 0)} />
+            <MetricCard icon={Sparkles} label="Total XP" value={String(user.xpTotal)} />
+          </>
+        }
+      />
+
+      <Card className="overflow-hidden">
         <CardContent className="space-y-5 p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -104,13 +138,10 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                 <AvatarFallback>{initialsForName(user.displayName)}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-sm text-muted-foreground">Welcome back</p>
-                <h1 className="text-2xl font-semibold text-foreground">{user.displayName}</h1>
+                <p className="text-sm text-muted-foreground">Current level loop</p>
+                <h2 className="text-2xl font-semibold text-foreground">{user.displayName}</h2>
               </div>
             </div>
-            <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
-              Sign out
-            </Button>
           </div>
 
           <div className="space-y-2">
@@ -121,27 +152,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
             <Progress value={(currentXpBand / 600) * 100} />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <MetricCard icon={Trophy} label="Level" value={String(user.level)} />
-            <MetricCard icon={Flame} label="Adherence" value={String(activeProgram?.adherenceStreak ?? 0)} />
-            <MetricCard icon={Sparkles} label="Total XP" value={String(user.xpTotal)} />
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-3">
-            {inProgressWorkout ? (
-              <Button className="w-full" onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)}>
-                <Dumbbell className="h-4 w-4" />
-                Resume workout
-              </Button>
-            ) : (
-              <Button
-                className="w-full"
-                onClick={() => startWorkoutMutation.mutate({ entryType: "QUICK" })}
-              >
-                <Dumbbell className="h-4 w-4" />
-                Quick workout
-              </Button>
-            )}
             <Button asChild className="w-full" variant="outline">
               <Link href="/programs/new">Create program</Link>
             </Button>
@@ -149,7 +160,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
           </div>
 
           {inProgressWorkout ? (
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="surface-panel p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm text-muted-foreground">Current session</p>
@@ -187,7 +198,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
         <CardContent className="space-y-3">
           {activeProgram && currentWeek ? (
             <>
-              <div className="rounded-2xl border border-border/70 bg-card p-4">
+              <div className="surface-panel p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm text-muted-foreground">{activeProgram.name}</p>
@@ -232,7 +243,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                 ).length;
 
                 return (
-                  <div key={workout.id} className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                  <div key={workout.id} className="surface-panel-soft p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
@@ -312,7 +323,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
               <Link
                 key={workout.id}
                 href={`/workouts/${workout.id}`}
-                className="block rounded-2xl border border-border/70 bg-background/70 p-4 transition-colors hover:bg-card"
+              className="surface-panel-soft block p-4 transition-colors hover:bg-card/90"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>

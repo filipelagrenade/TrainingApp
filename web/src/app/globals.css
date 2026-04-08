@@ -4,26 +4,58 @@
 
 @layer base {
   :root {
-    --background: 40 33% 96%;
-    --foreground: 25 22% 14%;
+    --background: 240 25% 8%;
+    --foreground: 0 0% 100%;
+    --card: 240 28% 13%;
+    --card-foreground: 0 0% 100%;
+    --popover: 240 30% 12%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 329 100% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 245 25% 22%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 241 24% 17%;
+    --muted-foreground: 240 19% 69%;
+    --accent: 181 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --border: 240 21% 28%;
+    --input: 240 24% 18%;
+    --ring: 329 100% 59%;
+    --success: 152 100% 50%;
+    --warning: 38 100% 61%;
+    --surface-elevated: 240 29% 18%;
+    --surface-hero: 241 32% 16%;
+    --hero-start: 330 100% 60%;
+    --hero-end: 181 100% 48%;
+    --hero-glow: 262 80% 58%;
+    --radius: 1.25rem;
+  }
+
+  [data-theme="warm-lift"] {
+    --background: 25 37% 96%;
+    --foreground: 20 19% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 25 22% 14%;
+    --card-foreground: 20 19% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 25 22% 14%;
-    --primary: 22 82% 40%;
-    --primary-foreground: 30 40% 98%;
-    --secondary: 35 24% 91%;
-    --secondary-foreground: 24 20% 20%;
-    --muted: 40 14% 92%;
-    --muted-foreground: 28 10% 40%;
-    --accent: 146 24% 88%;
-    --accent-foreground: 145 35% 18%;
-    --border: 34 21% 84%;
-    --input: 34 21% 84%;
-    --ring: 22 82% 40%;
-    --success: 146 46% 42%;
-    --warning: 36 88% 55%;
-    --radius: 1rem;
+    --popover-foreground: 20 19% 12%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 58% 90%;
+    --secondary-foreground: 20 19% 12%;
+    --muted: 24 31% 92%;
+    --muted-foreground: 24 10% 42%;
+    --accent: 29 95% 61%;
+    --accent-foreground: 20 19% 12%;
+    --border: 24 20% 83%;
+    --input: 24 20% 86%;
+    --ring: 24 95% 53%;
+    --success: 133 74% 37%;
+    --warning: 36 100% 53%;
+    --surface-elevated: 24 31% 92%;
+    --surface-hero: 19 100% 97%;
+    --hero-start: 24 95% 53%;
+    --hero-end: 16 96% 66%;
+    --hero-glow: 35 98% 62%;
   }
 
   * {
@@ -33,6 +65,12 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body), sans-serif;
+    background-image:
+      radial-gradient(circle at top left, hsl(var(--hero-start) / 0.22), transparent 28%),
+      radial-gradient(circle at top right, hsl(var(--accent) / 0.16), transparent 30%),
+      radial-gradient(circle at 50% 120%, hsl(var(--hero-glow) / 0.18), transparent 42%),
+      linear-gradient(180deg, hsl(240 29% 10%) 0%, hsl(var(--background)) 55%, hsl(241 26% 9%) 100%);
+    background-attachment: fixed;
   }
 
   h1,
@@ -40,5 +78,45 @@
   h3,
   h4 {
     font-family: var(--font-display), sans-serif;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.35);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-[1.75rem] border border-border/80 backdrop-blur-xl;
+    background-color: hsl(var(--card) / 0.88);
+    box-shadow:
+      0 18px 60px hsl(240 45% 3% / 0.42),
+      inset 0 1px 0 hsl(0 0% 100% / 0.04);
+  }
+
+  .surface-panel {
+    @apply rounded-[1.4rem] border border-border/70 backdrop-blur-md;
+    background-color: hsl(var(--surface-elevated) / 0.88);
+  }
+
+  .surface-panel-soft {
+    @apply rounded-[1.2rem] border border-border/60 backdrop-blur-sm;
+    background-color: hsl(var(--background) / 0.45);
+  }
+
+  .hero-card {
+    @apply relative overflow-hidden rounded-[2rem] border border-border/70;
+    background:
+      radial-gradient(circle at top left, hsl(var(--hero-start) / 0.28), transparent 34%),
+      radial-gradient(circle at bottom right, hsl(var(--accent) / 0.2), transparent 28%),
+      linear-gradient(145deg, hsl(var(--surface-hero)) 0%, hsl(var(--card)) 55%, hsl(240 28% 12%) 100%);
+    box-shadow:
+      0 22px 80px hsl(240 45% 3% / 0.5),
+      inset 0 1px 0 hsl(0 0% 100% / 0.04);
+  }
+
+  .app-grid {
+    @apply space-y-6;
   }
 }
