@@ -84,6 +84,8 @@ test("fresh account can complete a finished workout", async ({ page }) => {
   await page.getByRole("button", { name: "Complete workout" }).click();
   await completeResponsePromise;
 
+  await expect(page.getByRole("dialog", { name: "Keep workout changes?" })).toBeVisible();
+  await page.getByRole("button", { name: "Keep none" }).click();
   await page.waitForURL("/");
   await expect(page.getByRole("button", { name: "Quick workout" })).toBeVisible();
   await expect(page.getByText("Something went wrong")).toHaveCount(0);
