@@ -1,53 +1,9 @@
 import "dotenv/config";
 
-import { ChallengeMetric, LoadType, PrismaClient } from "@prisma/client";
+import { ChallengeMetric, PrismaClient } from "@prisma/client";
+import { systemExercises } from "./system-exercises";
 
 const prisma = new PrismaClient();
-
-const systemExercises = [
-  {
-    slug: "barbell-back-squat",
-    name: "Barbell Back Squat",
-    equipmentType: "Barbell",
-    loadType: LoadType.PLATE_TOTAL,
-    primaryMuscles: ["Quads", "Glutes"],
-    secondaryMuscles: ["Core", "Hamstrings"],
-  },
-  {
-    slug: "barbell-bench-press",
-    name: "Barbell Bench Press",
-    equipmentType: "Barbell",
-    loadType: LoadType.PLATE_TOTAL,
-    primaryMuscles: ["Chest", "Triceps"],
-    secondaryMuscles: ["Front Delts"],
-  },
-  {
-    slug: "lat-pulldown",
-    name: "Lat Pulldown",
-    equipmentType: "Cable",
-    loadType: LoadType.CABLE_STACK,
-    primaryMuscles: ["Lats", "Upper Back"],
-    secondaryMuscles: ["Biceps"],
-    attachment: "Wide Bar",
-  },
-  {
-    slug: "romanian-deadlift",
-    name: "Romanian Deadlift",
-    equipmentType: "Barbell",
-    loadType: LoadType.PLATE_TOTAL,
-    primaryMuscles: ["Hamstrings", "Glutes"],
-    secondaryMuscles: ["Lower Back"],
-  },
-  {
-    slug: "leg-press",
-    name: "Leg Press",
-    equipmentType: "Machine",
-    loadType: LoadType.STACK,
-    primaryMuscles: ["Quads", "Glutes"],
-    secondaryMuscles: ["Hamstrings"],
-    machineType: "45 Degree Leg Press",
-  },
-];
 
 const systemEquivalencies = [["barbell-back-squat", "leg-press"]];
 

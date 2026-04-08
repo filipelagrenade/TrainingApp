@@ -10,6 +10,7 @@ import { createBlankDayDraft, generatedTemplateToDayDraft } from "@/lib/programs
 import type { DraftTemplateDay, Exercise } from "@/lib/types";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
+import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,7 @@ export const DayEditorSheet = ({
   const [localDay, setLocalDay] = useState<DraftTemplateDay | null>(day);
   const [prompt, setPrompt] = useState("");
   const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
+  const [exercisePickerIndex, setExercisePickerIndex] = useState<number | null>(null);
 
   useEffect(() => {
     setLocalDay(day);
@@ -186,38 +188,17 @@ export const DayEditorSheet = ({
                 <div className="mt-4 grid gap-4">
                   <div className="space-y-2">
                     <Label>Exercise</Label>
-                    <Select
-                      value={exercise.exerciseId}
-                      onValueChange={(value) =>
-                        setLocalDay((current) =>
-                          current
-                            ? {
-                                ...current,
-                                exercises: current.exercises.map((candidate, index) =>
-                                  index === exerciseIndex
-                                    ? {
-                                        ...candidate,
-                                        exerciseId: value,
-                                        exerciseName: exercises.find((item) => item.id === value)?.name,
-                                      }
-                                    : candidate,
-                                ),
-                              }
-                            : current,
-                        )
-                      }
+                    <Button
+                      className="w-full justify-between"
+                      type="button"
+                      variant="outline"
+                      onClick={() => setExercisePickerIndex(exerciseIndex)}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select exercise" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {exercises.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {option.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <span className="truncate">
+                        {exercise.exerciseName || exercises.find((item) => item.id === exercise.exerciseId)?.name || "Select exercise"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">Search</span>
+                    </Button>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="space-y-2">
@@ -493,6 +474,38 @@ export const DayEditorSheet = ({
         onOpenChange={setBulkSheetOpen}
         open={bulkSheetOpen}
         title="Bulk add exercises"
+      />
+      <ExerciseSearchSheet
+        description="Find the movement quickly by name, machine, or muscle."
+        exercises={exercises}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setExercisePickerIndex(null);
+          }
+        }}
+        onSelect={(selectedExercise) =>
+          setLocalDay((current) =>
+            current && exercisePickerIndex !== null
+              ? {
+                  ...current,
+                  exercises: current.exercises.map((candidate, index) =>
+                    index === exercisePickerIndex
+                      ? {
+                          ...candidate,
+                          exerciseId: selectedExercise.id,
+                          exerciseName: selectedExercise.name,
+                        }
+                      : candidate,
+                  ),
+                }
+              : current,
+          )
+        }
+        open={exercisePickerIndex !== null}
+        selectedExerciseId={
+          exercisePickerIndex !== null ? localDay.exercises[exercisePickerIndex]?.exerciseId ?? null : null
+        }
+        title="Pick exercise"
       />
     </Sheet>
   );

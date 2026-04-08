@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
+import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const ExerciseLibraryScreen = () => {
@@ -28,6 +28,7 @@ export const ExerciseLibraryScreen = () => {
   const [query, setQuery] = useState("");
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [equivalentTargetId, setEquivalentTargetId] = useState("");
+  const [equivalentPickerOpen, setEquivalentPickerOpen] = useState(false);
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -233,18 +234,13 @@ export const ExerciseLibraryScreen = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Select value={equivalentTargetId} onValueChange={setEquivalentTargetId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose an equivalent exercise" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableEquivalentTargets.map((exercise) => (
-                    <SelectItem key={exercise.id} value={exercise.id}>
-                      {exercise.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Button className="w-full justify-between" type="button" variant="outline" onClick={() => setEquivalentPickerOpen(true)}>
+                <span className="truncate">
+                  {availableEquivalentTargets.find((exercise) => exercise.id === equivalentTargetId)?.name ??
+                    "Choose an equivalent exercise"}
+                </span>
+                <span className="text-xs text-muted-foreground">Search</span>
+              </Button>
               <Button
                 className="w-full"
                 disabled={!selectedExerciseId || !equivalentTargetId}
@@ -299,6 +295,15 @@ export const ExerciseLibraryScreen = () => {
           </div>
         </DialogContent>
       </Dialog>
+      <ExerciseSearchSheet
+        description="Search the exercise library to map a progression-safe equivalent."
+        exercises={availableEquivalentTargets}
+        onOpenChange={setEquivalentPickerOpen}
+        onSelect={(exercise) => setEquivalentTargetId(exercise.id)}
+        open={equivalentPickerOpen}
+        selectedExerciseId={equivalentTargetId}
+        title="Choose equivalent"
+      />
     </div>
   );
 };

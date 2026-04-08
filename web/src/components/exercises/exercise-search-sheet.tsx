@@ -1,0 +1,138 @@
+"use client";
+
+import { Search } from "lucide-react";
+import { useMemo, useState } from "react";
+
+import type { Exercise } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+
+export const ExerciseSearchSheet = ({
+  description,
+  exercises,
+  onOpenChange,
+  onSelect,
+  open,
+  selectedExerciseId,
+  title,
+  excludedExerciseIds = [],
+}: {
+  description: string;
+  exercises: Exercise[];
+  onOpenChange: (open: boolean) => void;
+  onSelect: (exercise: Exercise) => void;
+  open: boolean;
+  selectedExerciseId?: string | null;
+  title: string;
+  excludedExerciseIds?: string[];
+}) => {
+  const [query, setQuery] = useState("");
+
+  const filteredExercises = useMemo(() => {
+    const excludedIds = new Set(excludedExerciseIds);
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return exercises
+      .filter((exercise) => !excludedIds.has(exercise.id))
+      .filter((exercise) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [
+          exercise.name,
+          exercise.equipmentType,
+          exercise.machineType ?? "",
+          exercise.attachment ?? "",
+          ...exercise.primaryMuscles,
+          ...exercise.secondaryMuscles,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+      });
+  }, [excludedExerciseIds, exercises, query]);
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        onOpenChange(nextOpen);
+        if (!nextOpen) {
+          setQuery("");
+        }
+      }}
+    >
+      <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
+        <SheetHeader>
+          <SheetTitle>{title}</SheetTitle>
+          <SheetDescription>{description}</SheetDescription>
+        </SheetHeader>
+        <div className="mt-6 space-y-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Search exercise, muscle, machine, or attachment"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            {filteredExercises.length ? (
+              filteredExercises.map((exercise) => {
+                const selected = selectedExerciseId === exercise.id;
+
+                return (
+                  <button
+                    key={exercise.id}
+                    className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                      selected
+                        ? "border-primary/60 bg-primary/5"
+                        : "border-border/70 bg-card hover:bg-background/70"
+                    }`}
+                    onClick={() => {
+                      onSelect(exercise);
+                      onOpenChange(false);
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-foreground">{exercise.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {exercise.equipmentType}
+                          {exercise.machineType ? ` • ${exercise.machineType}` : ""}
+                          {exercise.attachment ? ` • ${exercise.attachment}` : ""}
+                        </p>
+                      </div>
+                      {selected ? <Badge>Selected</Badge> : null}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {exercise.primaryMuscles.slice(0, 3).map((muscle) => (
+                        <Badge key={muscle} variant="outline">
+                          {muscle}
+                        </Badge>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                No exercises match that search.
+              </div>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+};
