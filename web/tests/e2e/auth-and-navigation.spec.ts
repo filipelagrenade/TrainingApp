@@ -17,13 +17,13 @@ test("fresh account can register and reach key app routes", async ({ page }) => 
   await expect(page.getByRole("button", { name: "Quick workout" })).toBeVisible();
 
   await page.goto("/progress");
-  await expect(page.getByRole("heading", { name: "Strength is easier to trust when you can see it." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Progress", exact: true })).toBeVisible();
 
   await page.goto("/library");
-  await expect(page.getByRole("heading", { name: "Build once, train faster after." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible();
 
   await page.goto("/templates");
-  await expect(page.getByRole("heading", { name: "Keep your best gym days on standby." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create template" })).toBeVisible();
 
   await page.goto("/programs/new");
