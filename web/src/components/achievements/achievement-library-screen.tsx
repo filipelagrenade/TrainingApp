@@ -1,13 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Award, LockKeyhole, Trophy } from "lucide-react";
-import Link from "next/link";
+import { Award, Flame, LockKeyhole, Medal, Trophy, Zap } from "lucide-react";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { ScreenHero } from "@/components/ui/screen-hero";
@@ -53,13 +52,8 @@ export const AchievementLibraryScreen = () => {
     <div className="app-grid">
       <ScreenHero
         eyebrow="Achievements"
-        title="Make the ladder feel worth chasing."
-        description="The old app did milestone presentation better, so this screen leans harder into visible progress, earned XP, and what still matters next."
-        actions={
-          <Button asChild variant="ghost">
-            <Link href="/">Back</Link>
-          </Button>
-        }
+        title="Achievements"
+        actions={<BackButton fallbackHref="/progress" />}
         stats={
           <>
             <MetricCard icon={Award} label="Unlocked" value={`${unlockedCount}/${achievements.length}`} />
@@ -77,9 +71,14 @@ export const AchievementLibraryScreen = () => {
             <Card key={achievement.id} className="border-border/70">
               <CardHeader className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="flex items-start gap-3">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${achievement.unlocked ? "bg-primary/12 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <AchievementIcon requirementType={achievement.requirementType} />
+                    </div>
+                    <div>
                     <CardTitle className="text-lg">{achievement.title}</CardTitle>
                     <CardDescription>{achievement.description}</CardDescription>
+                    </div>
                   </div>
                   <Badge variant={achievement.unlocked ? "default" : "secondary"}>
                     {achievement.unlocked ? "Unlocked" : "Locked"}
@@ -121,3 +120,18 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
     <p className="mt-1 font-medium text-foreground">{value}</p>
   </div>
 );
+
+const AchievementIcon = ({ requirementType }: { requirementType: string }) => {
+  switch (requirementType) {
+    case "WORKOUT_COUNT":
+      return <Flame className="h-5 w-5" />;
+    case "PR_COUNT":
+      return <Trophy className="h-5 w-5" />;
+    case "XP_TOTAL":
+      return <Zap className="h-5 w-5" />;
+    case "PROGRAM_WEEK_COUNT":
+      return <Medal className="h-5 w-5" />;
+    default:
+      return <Award className="h-5 w-5" />;
+  }
+};

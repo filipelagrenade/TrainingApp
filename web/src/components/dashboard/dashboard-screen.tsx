@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Dumbbell, Flame, Sparkles, Trophy, SkipForward } from "lucide-react";
+import { CheckCircle2, Dumbbell, Flame, Settings2, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import { apiClient } from "@/lib/api-client";
 import type { User } from "@/lib/types";
 import { calculateSessionDurationSeconds, formatDuration } from "@/lib/workout-tracking";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,13 +17,6 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const initialsForName = (name: string) =>
-  name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 
 export const DashboardScreen = ({ user }: { user: User }) => {
   const queryClient = useQueryClient();
@@ -100,12 +92,8 @@ export const DashboardScreen = ({ user }: { user: User }) => {
       <ScreenHero
         eyebrow="Home"
         title={`Welcome back, ${user.displayName}`}
-        description="Pick up the current session fast, keep the streak moving, and stay focused on the next useful training action."
         actions={
           <>
-            <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
-              Sign out
-            </Button>
             {inProgressWorkout ? (
               <Button onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)}>
                 <Dumbbell className="h-4 w-4" />
@@ -119,54 +107,44 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                 Quick workout
               </Button>
             )}
+            <Button asChild variant="ghost">
+              <Link href="/settings">
+                <Settings2 className="h-4 w-4" />
+                Settings
+              </Link>
+            </Button>
+            <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
+              Sign out
+            </Button>
           </>
         }
         stats={
           <>
-            <MetricCard icon={Trophy} label="Level" value={String(user.level)} />
             <MetricCard icon={Flame} label="Adherence" value={String(activeProgram?.adherenceStreak ?? 0)} />
-            <MetricCard icon={Sparkles} label="Total XP" value={String(user.xpTotal)} />
+            <MetricCard icon={Dumbbell} label="Programs" value={String(activeProgram ? 1 : 0)} />
+            <MetricCard
+              icon={CheckCircle2}
+              label="This week"
+              value={String((activeProgram?.currentWeekCompleted ?? 0) + (activeProgram?.currentWeekSkipped ?? 0))}
+            />
           </>
         }
       />
 
-      <Card className="overflow-hidden">
-        <CardContent className="space-y-5 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-12 w-12 border border-border/70">
-                <AvatarFallback>{initialsForName(user.displayName)}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-sm text-muted-foreground">Current level loop</p>
-                <h2 className="text-2xl font-semibold text-foreground">{user.displayName}</h2>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Level progress</span>
-              <span className="font-medium">{currentXpBand} / 600 XP</span>
-            </div>
-            <Progress value={(currentXpBand / 600) * 100} />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Button asChild className="w-full" variant="outline">
-              <Link href="/programs/new">Create program</Link>
-            </Button>
-            <ExerciseCreatorDialog onCreated={handleExerciseCreated} triggerLabel="Custom exercise" />
-          </div>
-
+      <Card>
+        <CardHeader>
+          <CardTitle>Active program</CardTitle>
+          <CardDescription>{activeProgram ? `Week ${currentWeek?.weekNumber ?? 1}` : "No active program yet."}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
           {inProgressWorkout ? (
             <div className="surface-panel p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm text-muted-foreground">Current session</p>
+                  <p className="text-sm text-muted-foreground">{inProgressWorkout.pausedAt ? "Paused session" : "Current session"}</p>
                   <p className="font-semibold text-foreground">{inProgressWorkout.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {inProgressWorkout.pausedAt ? "Paused" : "In progress"} • {formatDuration(calculateSessionDurationSeconds(inProgressWorkout))}
+                    {formatDuration(calculateSessionDurationSeconds(inProgressWorkout))}
                   </p>
                 </div>
                 <Button
@@ -181,21 +159,14 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                 </Button>
               </div>
             </div>
-          ) : null}
-
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Active program</CardTitle>
-          <CardDescription>
-            {activeProgram
-              ? `Week ${currentWeek?.weekNumber ?? 1}: start any planned day in the order that fits the gym today.`
-              : "No active program yet. Build one from the guided wizard."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button asChild className="w-full" variant="outline">
+                <Link href="/programs/new">Create program</Link>
+              </Button>
+              <ExerciseCreatorDialog onCreated={handleExerciseCreated} triggerLabel="Custom exercise" />
+            </div>
+          )}
           {activeProgram && currentWeek ? (
             <>
               <div className="surface-panel p-4">
@@ -209,12 +180,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                         : ""}{" "}
                       • {activeProgram.currentWeekTotal} total
                     </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {activeProgram.currentWeekSkipped > 0
-                        ? `${activeProgram.currentWeekSkipped} skipped this week. `
-                        : ""}
-                      Finish or skip every planned session this week. {activeProgram.graceHours}-hour rollover keeps rest days sane.
-                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">Finish or skip every planned session this week.</p>
                   </div>
                   <Button
                     size="sm"
@@ -298,49 +264,8 @@ export const DashboardScreen = ({ user }: { user: User }) => {
             </>
           ) : (
             <div className="rounded-2xl border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground">
-              Programs drive progression, streaks, and suggestions. Create one to make this app useful daily.
+              Programs drive progression and suggestions. Create one to make this useful daily.
             </div>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle>Recent workouts</CardTitle>
-              <CardDescription>Your latest completed sessions. Full history lives in the History tab.</CardDescription>
-            </div>
-            <Button asChild variant="ghost">
-              <Link href="/history">See all</Link>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {workoutsQuery.isLoading ? (
-            <Skeleton className="h-40" />
-          ) : workoutsQuery.data?.length ? (
-            workoutsQuery.data.map((workout) => (
-              <Link
-                key={workout.id}
-                href={`/workouts/${workout.id}`}
-              className="surface-panel-soft block p-4 transition-colors hover:bg-card/90"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{workout.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {workout.completedAt ? new Date(workout.completedAt).toLocaleString() : "In progress"}
-                    </p>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                      {formatDuration(workout.totalDurationSeconds)}
-                    </p>
-                  </div>
-                  <Badge variant="secondary">{workout.totalXp} XP</Badge>
-                </div>
-              </Link>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">Complete a workout to populate this feed.</p>
           )}
         </CardContent>
       </Card>

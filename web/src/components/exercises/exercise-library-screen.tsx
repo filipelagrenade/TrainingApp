@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
+import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,14 +123,10 @@ export const ExerciseLibraryScreen = () => {
     <div className="app-grid">
       <ScreenHero
         eyebrow="Exercises"
-        title="Teach the app your gym once."
-        description="System movements, your own machine names, and equivalent swaps live here so the workout flow stays compact when you’re on the floor."
+        title="Exercise library"
         actions={
           <>
-            <ExerciseCreatorDialog triggerLabel="Add custom exercise" />
-            <Button asChild variant="ghost">
-              <Link href="/">Back</Link>
-            </Button>
+            <BackButton />
           </>
         }
         stats={
@@ -143,6 +140,7 @@ export const ExerciseLibraryScreen = () => {
 
       <Card>
         <CardHeader className="space-y-4">
+          <ExerciseCreatorDialog className="w-full" triggerLabel="Add custom exercise" />
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -189,7 +187,6 @@ export const ExerciseLibraryScreen = () => {
               <CardContent className="space-y-3 text-sm">
                 <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
                 <InfoRow label="Units" value={exercise.unitMode.toUpperCase()} />
-                <InfoRow label="Attachment" value={exercise.attachment ?? "None"} />
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Primary muscles</p>
                   <div className="mt-2 flex flex-wrap gap-2">

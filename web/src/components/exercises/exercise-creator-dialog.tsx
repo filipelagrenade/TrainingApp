@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 const defaultState: CreateExerciseInput = {
   name: "",
@@ -35,9 +36,11 @@ const defaultState: CreateExerciseInput = {
 export const ExerciseCreatorDialog = ({
   onCreated,
   triggerLabel = "Create exercise",
+  className,
 }: {
   onCreated?: (exercise: Exercise) => void | Promise<void>;
   triggerLabel?: string;
+  className?: string;
 }) => {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -83,7 +86,7 @@ export const ExerciseCreatorDialog = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button className={cn(className)} variant="outline">
           <Plus className="h-4 w-4" />
           {triggerLabel}
         </Button>

@@ -1,12 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, ChevronLeft, Dumbbell, TrendingUp, Trophy } from "lucide-react";
+import { CalendarDays, Dumbbell, TrendingUp, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,14 +69,7 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
         eyebrow={progress.exercise.isSystem ? "System exercise" : "Custom exercise"}
         title={progress.exercise.name}
         description={`${progress.exercise.equipmentType}${progress.exercise.attachment ? ` • ${progress.exercise.attachment}` : ""}`}
-        actions={
-          <Button asChild size="sm" variant="ghost" className="-ml-2 w-fit">
-            <Link href="/progress">
-              <ChevronLeft className="h-4 w-4" />
-              Back to progress
-            </Link>
-          </Button>
-        }
+        actions={<BackButton fallbackHref="/progress" label="Back to progress" />}
         stats={
           <>
             <MetricCard icon={CalendarDays} label="Sessions" value={String(progress.summary.totalSessions)} />

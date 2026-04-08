@@ -181,8 +181,7 @@ export const LibraryScreen = () => {
     <div className="app-grid">
       <ScreenHero
         eyebrow="Library"
-        title="Build once, train faster after."
-        description="Programs, templates, and exercise definitions stay in one place so the live workout flow stays lean once you’re in the gym."
+        title="Library"
         stats={
           <>
             <MetricCard icon={CalendarRange} label="Programs" value={String(programs.length)} />
@@ -205,7 +204,6 @@ export const LibraryScreen = () => {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <CardTitle>Program library</CardTitle>
-                  <CardDescription>Build blocks, activate them, and archive what is done.</CardDescription>
                 </div>
                 <Button asChild>
                   <Link href="/programs/new">Create program</Link>
@@ -221,7 +219,11 @@ export const LibraryScreen = () => {
                     <CardHeader className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <CardTitle className="text-lg">{program.name}</CardTitle>
+                          <CardTitle className="text-lg">
+                            <Link href={`/programs/${program.id}`} className="transition-colors hover:text-primary">
+                              {program.name}
+                            </Link>
+                          </CardTitle>
                           <CardDescription>{program.goal}</CardDescription>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -237,13 +239,16 @@ export const LibraryScreen = () => {
                         <MetricCard icon={CalendarRange} label="Weeks" value={String(program.weeks.length)} compact />
                         <MetricCard
                           icon={Layers3}
-                          label="Days/week"
+                          label="Days"
                           value={String(program.weeks[0]?.workouts.length ?? 0)}
                           compact
                         />
                         <MetricCard icon={Flame} label="Streak" value={String(program.adherenceStreak)} compact />
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                        <Button asChild size="sm" variant="ghost">
+                          <Link href={`/programs/${program.id}`}>View</Link>
+                        </Button>
                         {!program.isSystem ? (
                           <Button asChild size="sm" variant="outline">
                             <Link href={`/programs/${program.id}/edit`}>Edit</Link>
@@ -280,7 +285,6 @@ export const LibraryScreen = () => {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <CardTitle>Template library</CardTitle>
-                  <CardDescription>Reusable days for quick starts, travel gyms, and substitutions.</CardDescription>
                 </div>
                 <Button asChild>
                   <Link href="/templates">Create template</Link>
@@ -296,7 +300,11 @@ export const LibraryScreen = () => {
                     <CardHeader className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <CardTitle className="text-lg">{template.name}</CardTitle>
+                          <CardTitle className="text-lg">
+                            <Link href={`/templates/${template.id}`} className="transition-colors hover:text-primary">
+                              {template.name}
+                            </Link>
+                          </CardTitle>
                           <CardDescription>{template.description || "Reusable workout template"}</CardDescription>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -314,6 +322,9 @@ export const LibraryScreen = () => {
                         ))}
                       </div>
                       <div className="grid grid-cols-3 gap-2">
+                        <Button asChild size="sm" variant="ghost">
+                          <Link href={`/templates/${template.id}`}>View</Link>
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -335,7 +346,7 @@ export const LibraryScreen = () => {
                           <Button size="sm" variant="ghost" onClick={() => deleteTemplateMutation.mutate(template.id)}>
                             Delete
                           </Button>
-                        ) : null}
+                        ) : <div />}
                       </div>
                     </CardContent>
                   </Card>
@@ -357,10 +368,9 @@ export const LibraryScreen = () => {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <CardTitle>Exercise library</CardTitle>
-                  <CardDescription>Manage machine names, custom movements, and equivalent substitutes.</CardDescription>
                 </div>
-                <ExerciseCreatorDialog triggerLabel="Add custom exercise" />
               </div>
+              <ExerciseCreatorDialog className="w-full" triggerLabel="Add custom exercise" />
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -400,7 +410,6 @@ export const LibraryScreen = () => {
                     <CardContent className="space-y-3 text-sm">
                       <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
                       <InfoRow label="Units" value={exercise.unitMode.toUpperCase()} />
-                      <InfoRow label="Attachment" value={exercise.attachment ?? "None"} />
                       <Button asChild className="w-full" size="sm" variant="outline">
                         <Link href={`/progress/exercises/${exercise.id}`}>
                           <TrendingUp className="h-4 w-4" />

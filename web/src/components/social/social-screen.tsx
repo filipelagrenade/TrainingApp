@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,13 +102,8 @@ export const SocialScreen = () => {
     <div className="app-grid">
       <ScreenHero
         eyebrow="Social"
-        title="Train with some pressure."
-        description="Follow people who keep you honest, jump into weekly challenge loops, and turn the feed into something that actually makes you train."
-        actions={
-          <Button asChild variant="ghost">
-            <Link href="/">Back</Link>
-          </Button>
-        }
+        title="Social"
+        actions={<BackButton />}
       />
 
       <Card>

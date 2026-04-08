@@ -68,7 +68,6 @@ export const HistoryScreen = () => {
       <ScreenHero
         eyebrow="History"
         title="Training archive"
-        description="Every completed session, every XP payout, and enough detail to jump back into review without drowning the screen in data."
         stats={
           <>
             <MetricCard icon={Clock3} label="Sessions" value={String(workouts.length)} />

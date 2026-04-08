@@ -15,7 +15,7 @@ export const StatBlock = ({
 }) => (
   <div
     className={cn(
-      "surface-panel flex h-full min-h-[4.75rem] flex-col justify-between",
+      "surface-panel flex h-full min-h-[4.35rem] flex-col justify-between",
       compact ? "p-2.5" : "p-3",
       className,
     )}
@@ -23,7 +23,7 @@ export const StatBlock = ({
     <p
       className={cn(
         "line-clamp-2 uppercase tracking-[0.18em] text-muted-foreground",
-        compact ? "text-[9px] leading-tight" : "text-[10px] leading-tight",
+        compact ? "text-[9px] leading-tight" : "text-[9px] leading-tight",
       )}
     >
       {label}
@@ -31,7 +31,7 @@ export const StatBlock = ({
     <p
       className={cn(
         "mt-2 break-words font-semibold leading-tight",
-        compact ? "text-xs" : "text-sm",
+        compact ? "text-[11px]" : "text-[13px]",
         highlight ? "text-primary" : "text-foreground",
       )}
     >

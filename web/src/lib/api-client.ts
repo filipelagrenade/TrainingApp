@@ -92,6 +92,7 @@ export const apiClient = {
       method: "DELETE",
     }),
   getTemplates: () => request<WorkoutTemplate[]>("/templates"),
+  getTemplate: (templateId: string) => request<WorkoutTemplate>(`/templates/${templateId}`),
   createTemplate: (payload: CreateTemplateInput) =>
     request<WorkoutTemplate>("/templates", {
       method: "POST",

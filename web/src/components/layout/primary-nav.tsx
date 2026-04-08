@@ -25,7 +25,8 @@ export const PrimaryNav = () => {
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <nav className="mx-auto flex max-w-xl items-center justify-between gap-2 px-4">
+      <nav className="mx-auto max-w-xl px-4">
+        <div className="surface-card grid grid-cols-5 gap-1 rounded-[1.8rem] p-1.5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActivePath(pathname, item.href);
@@ -34,17 +35,18 @@ export const PrimaryNav = () => {
             <Link
               key={item.href}
               href={item.href}
-              className={`surface-card flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-[1.4rem] border px-2 py-2.5 text-[11px] font-medium transition-all ${
+              className={`flex min-w-0 flex-col items-center gap-1 rounded-[1.3rem] px-2 py-2.5 text-[10px] font-medium transition-all ${
                 active
-                  ? "border-primary/25 bg-primary/90 text-primary-foreground shadow-[0_14px_32px_hsl(var(--primary)/0.3)]"
-                  : "border-border/60 bg-card/78 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/20 hover:text-foreground"
+                  ? "bg-primary/95 text-primary-foreground shadow-[0_10px_24px_hsl(var(--primary)/0.28)]"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Icon className="h-4 w-4" />
-              <span className="truncate tracking-[0.16em] uppercase">{item.label}</span>
+              <span className="truncate text-[9px] tracking-[0.14em] uppercase">{item.label}</span>
             </Link>
           );
         })}
+        </div>
       </nav>
     </div>
   );

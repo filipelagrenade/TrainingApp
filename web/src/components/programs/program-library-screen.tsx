@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { BackButton } from "@/components/ui/back-button";
 import { ProgramActivationDialog } from "@/components/programs/program-activation-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,13 +80,10 @@ export const ProgramLibraryScreen = () => {
     <div className="app-grid">
       <ScreenHero
         eyebrow="Programs"
-        title="Starter blocks, custom blocks, and clean progression state."
-        description="Activate a system block, edit your own split later, and keep the week logic tight without losing the training history underneath."
+        title="Programs"
         actions={
           <>
-            <Button asChild variant="ghost">
-              <Link href="/">Back</Link>
-            </Button>
+            <BackButton />
             <Button asChild>
               <Link href="/programs/new">Create program</Link>
             </Button>
@@ -102,7 +100,11 @@ export const ProgramLibraryScreen = () => {
               <CardHeader className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <CardTitle className="text-lg">{program.name}</CardTitle>
+                    <CardTitle className="text-lg">
+                      <Link href={`/programs/${program.id}`} className="transition-colors hover:text-primary">
+                        {program.name}
+                      </Link>
+                    </CardTitle>
                     <CardDescription>{program.goal}</CardDescription>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -118,12 +120,15 @@ export const ProgramLibraryScreen = () => {
                   <Metric icon={CalendarRange} label="Weeks" value={String(program.weeks.length)} />
                   <Metric
                     icon={Layers3}
-                    label="Days/week"
+                    label="Days"
                     value={String(program.weeks[0]?.workouts.length ?? 0)}
                   />
                   <Metric icon={Flame} label="Streak" value={String(program.adherenceStreak)} />
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href={`/programs/${program.id}`}>View</Link>
+                  </Button>
                   {!program.isSystem ? (
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/programs/${program.id}/edit`}>Edit</Link>

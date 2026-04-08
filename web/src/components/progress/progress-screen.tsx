@@ -77,8 +77,7 @@ export const ProgressScreen = () => {
       ) : (
         <ScreenHero
           eyebrow="Progress"
-          title="Strength is easier to trust when you can see it."
-          description="Weekly completion, PR momentum, volume, and the next useful milestone live in one compact feed."
+          title="Progress"
           stats={
             <>
               <MetricCard icon={CalendarRange} label="This week" value={String(overview.weeklySummary.sessionsCompleted)} />
@@ -172,50 +171,45 @@ export const ProgressScreen = () => {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent PRs</CardTitle>
-              <CardDescription>Your latest personal records, with the estimated strength jump that came with them.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {overview.recentPrs.length ? (
-                overview.recentPrs.map((record) => (
-                  <div key={record.setId} className="surface-panel p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent PRs</CardTitle>
+            <CardDescription>Your latest personal records.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {overview.recentPrs.length ? (
+              overview.recentPrs.map((record) => (
+                <Link key={record.setId} href={record.exerciseId ? `/progress/exercises/${record.exerciseId}` : `/workouts/${record.workoutId}`} className="surface-panel block p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-foreground">{record.exerciseName}</p>
-                          {record.exerciseId ? (
-                            <Button asChild size="sm" variant="ghost">
-                              <Link href={`/progress/exercises/${record.exerciseId}`}>History</Link>
-                            </Button>
-                          ) : null}
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">{record.bestSetLabel} • {new Date(record.completedAt).toLocaleDateString()}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{record.workoutTitle}</p>
                       </div>
-                      <Badge>{record.estimatedOneRepMax ? `${Math.round(record.estimatedOneRepMax)} e1RM` : "PR"}</Badge>
+                      <Badge>PR</Badge>
                     </div>
                     <p className="mt-3 text-sm font-medium text-primary">
                       {record.improvement !== null && record.improvement > 0
                         ? `Up ${record.improvement.toFixed(1)} estimated 1RM`
                         : "New top set recorded"}
                     </p>
-                  </div>
-                ))
-              ) : (
-                <EmptyHint copy="Recent personal records will show up here once you start beating previous bests." />
+                </Link>
+              ))
+            ) : (
+              <EmptyHint copy="Recent personal records will show up here once you start beating previous bests." />
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Exercise trends</CardTitle>
-              <CardDescription>Open any movement to inspect recent exposures, best sets, and progression history.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {overview.exerciseTrends.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Exercise trends</CardTitle>
+            <CardDescription>Tap a movement to inspect its history.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {overview.exerciseTrends.length ? (
                 overview.exerciseTrends.map((trend) => (
                   <Link
                     key={trend.exerciseId}
@@ -229,9 +223,6 @@ export const ProgressScreen = () => {
                           {trend.equipmentType} • {trend.sessionCount} sessions
                         </p>
                       </div>
-                      <Badge variant="outline">
-                        {trend.bestEstimatedOneRepMax ? `${Math.round(trend.bestEstimatedOneRepMax)} best e1RM` : `${Math.round(trend.totalVolume)} volume`}
-                      </Badge>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
                       <MiniStat label="Latest" value={trend.latestEstimatedOneRepMax ? Math.round(trend.latestEstimatedOneRepMax).toString() : "-"} />

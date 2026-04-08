@@ -583,22 +583,21 @@ export const skipProgramWorkout = async (
       throw new AppError(409, "WORKOUT_ALREADY_COMPLETED", "Completed workouts cannot be skipped.");
     }
 
-    await transaction.program.update({
-      where: { id: programId },
+    await transaction.programWorkoutSkip.deleteMany({
+      where: {
+        userId,
+        programWorkoutId,
+        weekNumber: currentWeek.weekNumber,
+      },
+    });
+
+    await transaction.programWorkoutSkip.create({
       data: {
-        skippedWorkouts: {
-          deleteMany: {
-            userId,
-            programWorkoutId,
-            weekNumber: currentWeek.weekNumber,
-          },
-          create: {
-            userId,
-            programWorkoutId,
-            weekNumber: currentWeek.weekNumber,
-            reason: "Skipped by user",
-          },
-        },
+        programId,
+        userId,
+        programWorkoutId,
+        weekNumber: currentWeek.weekNumber,
+        reason: "Skipped by user",
       },
     });
 

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { Exercise } from "@/lib/types";
 import { AuthCard } from "@/components/auth/auth-card";
+import { BackButton } from "@/components/ui/back-button";
 import { TemplateBuilderSheet } from "@/components/templates/template-builder-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,14 +84,11 @@ export const TemplateLibraryScreen = () => {
     <div className="app-grid">
       <ScreenHero
         eyebrow="Templates"
-        title="Keep your best gym days on standby."
-        description="Starter sessions, travel-day swaps, and your own saved templates should be one tap away when you need structure fast."
+        title="Templates"
         actions={
           <>
+            <BackButton />
             <Button onClick={() => setBuilderOpen(true)}>Create template</Button>
-            <Button asChild variant="ghost">
-              <Link href="/">Back</Link>
-            </Button>
           </>
         }
       />
@@ -102,12 +100,16 @@ export const TemplateLibraryScreen = () => {
           templates.map((template) => (
             <Card key={template.id} className="border-border/70">
               <CardHeader className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-lg">{template.name}</CardTitle>
-                    <CardDescription>
-                      {template.description || "Reusable workout template"}
-                    </CardDescription>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg">
+                        <Link href={`/templates/${template.id}`} className="transition-colors hover:text-primary">
+                          {template.name}
+                        </Link>
+                      </CardTitle>
+                      <CardDescription>
+                        {template.description || "Reusable workout template"}
+                      </CardDescription>
                   </div>
                   <Badge variant="secondary">{template.exercises.length} exercises</Badge>
                 </div>
@@ -127,6 +129,9 @@ export const TemplateLibraryScreen = () => {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href={`/templates/${template.id}`}>View</Link>
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -144,9 +149,11 @@ export const TemplateLibraryScreen = () => {
                     <Copy className="h-4 w-4" />
                     Duplicate
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(template.id)}>
-                    Delete
-                  </Button>
+                  {!template.isSystem ? (
+                    <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(template.id)}>
+                      Delete
+                    </Button>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

@@ -2,11 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Check,
   BellRing,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  Info,
   Link2,
   MoreHorizontal,
   Pause,
@@ -121,6 +123,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
+  const restNotificationRef = useRef<Notification | null>(null);
   const hydratedRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveQueuedRef = useRef(false);
@@ -406,6 +409,18 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedDefault = Number(window.localStorage.getItem("liftiq-rest-default"));
+    if (Number.isFinite(storedDefault) && storedDefault > 0) {
+      setRestDuration(storedDefault);
+      setRestRemaining(storedDefault);
+    }
+  }, []);
+
+  useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (session?.status !== "IN_PROGRESS") {
         return;
@@ -484,6 +499,9 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     setRestDuration(seconds);
     setRestRemaining(seconds);
     setRestRunning(true);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("liftiq-rest-default", String(seconds));
+    }
   };
 
   const requestNotificationPermission = async () => {
@@ -611,6 +629,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   useEffect(() => {
     if (!restRunning) {
+      restNotificationRef.current?.close();
+      restNotificationRef.current = null;
       return;
     }
 
@@ -619,6 +639,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         if (current <= 1) {
           window.clearInterval(timer);
           setRestRunning(false);
+          restNotificationRef.current?.close();
+          restNotificationRef.current = null;
           if (
             typeof window !== "undefined" &&
             document.hidden &&
@@ -641,6 +663,24 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
     return () => window.clearInterval(timer);
   }, [activeExercise?.exerciseName, restRunning]);
+
+  useEffect(() => {
+    if (
+      !restRunning ||
+      typeof window === "undefined" ||
+      !document.hidden ||
+      notificationPermission !== "granted"
+    ) {
+      return;
+    }
+
+    restNotificationRef.current?.close();
+    restNotificationRef.current = new Notification("Rest timer running", {
+      body: `${formatRestTime(restRemaining)} left${activeExercise?.exerciseName ? ` • ${activeExercise.exerciseName}` : ""}`,
+      tag: "rest-timer",
+      silent: true,
+    });
+  }, [activeExercise?.exerciseName, notificationPermission, restRemaining, restRunning]);
 
   const activeExerciseSummary = useMemo(() => {
     if (!activeExercise) {
@@ -889,9 +929,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant={session.wasPlanned ? "default" : "secondary"}>{session.entryType}</Badge>
               <Badge variant="outline">
-                {syncState === "saving" ? "Saving..." : syncState === "error" ? "Local only" : "Synced"}
+                {syncState === "saving" ? "Saving..." : syncState === "error" ? "Pending" : "Synced"}
               </Badge>
               <Button
                 aria-label="Open workout tools"
@@ -903,18 +942,42 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </Button>
             </div>
           </div>
-          <div className="surface-panel flex items-center justify-between gap-3 px-3 py-2">
-            <div className="grid flex-1 grid-cols-2 gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Elapsed</p>
-                <p className="text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
+          <div className="surface-panel space-y-2 px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="grid flex-1 grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Total time</p>
+                  <p className="text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
+                  <p className="text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
-                <p className="text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setRestRunning((current) => !current)}
+                >
+                  {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  onClick={() =>
+                    session.pausedAt
+                      ? resumeWorkoutMutation.mutate()
+                      : pauseWorkoutMutation.mutate()
+                  }
+                >
+                  {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {[60, 90, 180].map((seconds) => (
                 <Button
                   key={seconds}
@@ -926,25 +989,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
                 </Button>
               ))}
-              <Button
-                size="icon"
-                type="button"
-                variant="ghost"
-                onClick={() => setRestRunning((current) => !current)}
-              >
-                {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              </Button>
-              <Button
-                size="icon"
-                type="button"
-                variant="ghost"
-                onClick={() =>
-                  session.pausedAt
-                    ? resumeWorkoutMutation.mutate()
-                    : pauseWorkoutMutation.mutate()
-                }
-              >
-                {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+              <Button size="icon" type="button" variant="outline" onClick={() => void requestNotificationPermission()}>
+                <BellRing className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -1081,13 +1127,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 </Button>
             </div>
 
-            {activeExercise.recommendationReason ? (
-              <div className="surface-panel px-3 py-2">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Why this load</p>
-                <p className="mt-1 text-sm text-foreground">{activeExercise.recommendationReason}</p>
-              </div>
-            ) : null}
-
             <div className="space-y-2">
                 {activeExercise.sets.map((set, setIndex) => {
                   const setKey = setKeyFor(activeExerciseIndex, setIndex);
@@ -1124,53 +1163,41 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     >
                       <div className="flex items-center gap-2 px-3 py-3">
                         <button
-                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition ${
+                            isDone
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border/70 bg-card text-foreground"
+                          }`}
+                          onClick={() => toggleSetCompleted(setIndex)}
+                          type="button"
+                        >
+                          {isDone ? <Check className="h-4 w-4" /> : set.setNumber}
+                        </button>
+                        <button
+                          className="min-w-0 flex-1 text-left"
                           onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
                           type="button"
                         >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-card text-sm font-semibold text-foreground">
-                            {set.setNumber}
-                          </div>
-                          <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
-                            <div>
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                                {activeExercise.trackingMode === "CARDIO" ? "Cardio" : "Load"}
-                              </p>
-                              <p className="truncate text-sm font-semibold text-foreground">
-                                {formatSetLoad(
-                                  activeExercise.trackingMode,
-                                  activeExercise.unitMode,
-                                  set.weight,
-                                  setTrackingData,
-                                )}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                                {activeExercise.exerciseCategory === "CARDIO" ? "Time" : "Reps"}
-                              </p>
-                              <p className="text-sm font-semibold text-foreground">
-                                {activeExercise.exerciseCategory === "CARDIO"
-                                  ? formatDuration(setDurationSeconds)
-                                  : set.reps}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Type</p>
-                              <p className="text-sm font-semibold text-foreground">
-                                {set.setType?.replaceAll("_", " ") ?? (set.isWorkingSet ? "NORMAL" : "WARMUP")}
-                              </p>
-                              {setTrackingData?.autoGenerated ? (
-                                <p className="text-[10px] text-muted-foreground">
-                                  Auto {setTrackingData.dropPhase ? `drop ${setTrackingData.dropPhase}` : "generated"}
-                                </p>
-                              ) : null}
-                            </div>
-                          </div>
+                          <p className="truncate text-sm font-semibold text-foreground">
+                            {formatSetLoad(
+                              activeExercise.trackingMode,
+                              activeExercise.unitMode,
+                              set.weight,
+                              setTrackingData,
+                            )}
+                            {" · "}
+                            {activeExercise.exerciseCategory === "CARDIO"
+                              ? formatDuration(setDurationSeconds)
+                              : `${set.reps} reps`}
+                            {" · "}
+                            {set.setType?.replaceAll("_", " ") ?? (set.isWorkingSet ? "NORMAL" : "WARMUP")}
+                          </p>
+                          {setTrackingData?.autoGenerated ? (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Auto {setTrackingData.dropPhase ? `drop ${setTrackingData.dropPhase}` : "generated"}
+                            </p>
+                          ) : null}
                         </button>
-                        <Button size="sm" variant={isDone ? "default" : "outline"} onClick={() => toggleSetCompleted(setIndex)}>
-                          {isDone ? "Done" : "Check"}
-                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -1592,6 +1619,19 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
+            {activeExercise?.recommendationReason ? (
+              <div className="surface-panel p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-primary/12 text-primary">
+                    <Info className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Why this load</p>
+                    <p className="mt-1 text-sm text-foreground">{activeExercise.recommendationReason}</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="workout-title">Workout title</Label>
               <Input
