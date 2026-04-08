@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -112,13 +113,9 @@ export const DashboardScreen = ({ user }: { user: User }) => {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <StatPill icon={Trophy} label="Level" value={String(user.level)} />
-            <StatPill
-              icon={Flame}
-              label="Adherence"
-              value={String(activeProgram?.adherenceStreak ?? 0)}
-            />
-            <StatPill icon={Sparkles} label="Total XP" value={String(user.xpTotal)} />
+            <MetricCard icon={Trophy} label="Level" value={String(user.level)} />
+            <MetricCard icon={Flame} label="Adherence" value={String(activeProgram?.adherenceStreak ?? 0)} />
+            <MetricCard icon={Sparkles} label="Total XP" value={String(user.xpTotal)} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
@@ -320,21 +317,3 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     </div>
   );
 };
-
-const StatPill = ({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Trophy;
-  label: string;
-  value: string;
-}) => (
-  <div className="flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-card/80 p-3">
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Icon className="h-4 w-4" />
-      {label}
-    </div>
-    <p className="mt-1 text-xl font-semibold">{value}</p>
-  </div>
-);

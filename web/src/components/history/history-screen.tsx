@@ -9,6 +9,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
 import type { WorkoutSession } from "@/lib/types";
@@ -126,21 +127,3 @@ export const HistoryScreen = () => {
     </div>
   );
 };
-
-const MetricCard = ({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Clock3;
-  label: string;
-  value: string;
-}) => (
-  <div className="flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-background/70 p-4">
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Icon className="h-4 w-4" />
-      {label}
-    </div>
-    <p className="mt-2 text-xl font-semibold text-foreground">{value}</p>
-  </div>
-);

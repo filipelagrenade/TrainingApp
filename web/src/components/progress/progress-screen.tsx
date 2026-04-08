@@ -10,8 +10,10 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatBlock } from "@/components/ui/stat-block";
 
 const formatDateRange = (startDate: string, endDate: string) => {
   const start = new Date(startDate);
@@ -126,8 +128,8 @@ export const ProgressScreen = () => {
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-2 gap-3">
-                <StatCell label="XP earned" value={String(overview.weeklySummary.xpEarned)} />
-                <StatCell label="Quick sessions" value={String(overview.weeklySummary.unplannedSessionsCompleted)} />
+                <StatBlock label="XP earned" value={String(overview.weeklySummary.xpEarned)} />
+                <StatBlock label="Quick sessions" value={String(overview.weeklySummary.unplannedSessionsCompleted)} />
               </div>
               <div className="space-y-3">
                 <SectionLabel>Top movements</SectionLabel>
@@ -251,8 +253,8 @@ export const ProgressScreen = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <StatCell label="Unlocked" value={`${overview.achievementSummary.unlockedCount}/${overview.achievementSummary.totalCount}`} />
-                <StatCell label="Recent unlocks" value={String(overview.achievementSummary.recentUnlocks.length)} />
+                <StatBlock label="Unlocked" value={`${overview.achievementSummary.unlockedCount}/${overview.achievementSummary.totalCount}`} />
+                <StatBlock label="Recent unlocks" value={String(overview.achievementSummary.recentUnlocks.length)} />
               </div>
               <div className="space-y-3">
                 <SectionLabel>Recent unlocks</SectionLabel>
@@ -304,31 +306,6 @@ export const ProgressScreen = () => {
     </div>
   );
 };
-
-const MetricCard = ({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof CalendarRange;
-  label: string;
-  value: string;
-}) => (
-  <div className="flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-background/70 p-4">
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Icon className="h-4 w-4" />
-      {label}
-    </div>
-    <p className="mt-2 text-xl font-semibold text-foreground">{value}</p>
-  </div>
-);
-
-const StatCell = ({ label, value }: { label: string; value: string }) => (
-  <div className="flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-background/70 p-4">
-    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-    <p className="mt-2 text-lg font-semibold text-foreground">{value}</p>
-  </div>
-);
 
 const MiniStat = ({ label, value }: { label: string; value: string }) => (
   <div>

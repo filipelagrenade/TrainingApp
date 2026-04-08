@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
@@ -524,26 +525,6 @@ export const LibraryScreen = () => {
     </div>
   );
 };
-
-const MetricCard = ({
-  icon: Icon,
-  label,
-  value,
-  compact = false,
-}: {
-  icon: typeof CalendarRange;
-  label: string;
-  value: string;
-  compact?: boolean;
-}) => (
-  <div className={`flex h-full flex-col justify-between rounded-2xl border border-border/70 bg-background/70 ${compact ? "p-3" : "p-4"}`}>
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
-      {label}
-    </div>
-    <p className={`mt-2 font-semibold text-foreground ${compact ? "" : "text-xl"}`}>{value}</p>
-  </div>
-);
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
   <div>
