@@ -35,8 +35,8 @@ test("fresh account can start a quick workout and save a populated draft", async
   await page.getByRole("button", { name: "Quick workout" }).click();
   await page.waitForURL(/\/workouts\//);
 
-  await expect(page.getByText("Quick Workout")).toBeVisible();
-  await page.getByRole("button", { name: "Bulk add" }).click();
+  await expect(page.getByRole("heading", { name: "Quick Workout" })).toBeVisible();
+  await page.getByRole("button", { name: "Add exercises" }).click();
   await page.getByText("Barbell Back Squat").first().click();
   await page.getByRole("button", { name: "Add 1 exercise" }).click();
 
@@ -51,6 +51,7 @@ test("fresh account can start a quick workout and save a populated draft", async
       response.status() === 200,
   );
 
+  await page.getByRole("button", { name: "Open workout tools" }).click();
   await page.getByRole("button", { name: "Save now" }).click();
   await saveResponsePromise;
 
@@ -63,7 +64,7 @@ test("fresh account can complete a finished workout", async ({ page }) => {
   await page.getByRole("button", { name: "Quick workout" }).click();
   await page.waitForURL(/\/workouts\//);
 
-  await page.getByRole("button", { name: "Bulk add" }).click();
+  await page.getByRole("button", { name: "Add exercises" }).click();
   await page.getByText("Barbell Back Squat").first().click();
   await page.getByRole("button", { name: "Add 1 exercise" }).click();
 

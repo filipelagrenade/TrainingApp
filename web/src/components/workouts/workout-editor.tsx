@@ -674,7 +674,12 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <Badge variant="outline">
                 {syncState === "saving" ? "Saving..." : syncState === "error" ? "Local only" : "Synced"}
               </Badge>
-              <Button size="icon" variant="outline" onClick={() => setShowSessionMeta(true)}>
+              <Button
+                aria-label="Open workout tools"
+                size="icon"
+                variant="outline"
+                onClick={() => setShowSessionMeta(true)}
+              >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </div>
@@ -1058,8 +1063,18 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </Button>
             </>
           ) : (
-            <div className="rounded-2xl border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground">
-              Add an exercise to start logging.
+            <div className="rounded-2xl border border-dashed border-border/80 p-5 text-center">
+              <p className="text-sm text-muted-foreground">Add an exercise to start logging.</p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button onClick={() => setBulkSheetOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Add exercises
+                </Button>
+                <ExerciseCreatorDialog
+                  onCreated={(exercise) => addExerciseToWorkout(exercise)}
+                  triggerLabel="Custom exercise"
+                />
+              </div>
             </div>
           )}
         </CardContent>
@@ -1069,6 +1084,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         <div className="rounded-3xl border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur">
           <div className="flex items-center gap-2">
             <Button
+              aria-label="Previous exercise"
               size="icon"
               disabled={activeExerciseIndex === 0 || draft.exercises.length === 0}
               onClick={() => setActiveExerciseIndex((current) => Math.max(0, current - 1))}
@@ -1085,6 +1101,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               {completeMutation.isPending ? "Completing..." : "Complete workout"}
             </Button>
             <Button
+              aria-label="Next exercise"
               size="icon"
               disabled={activeExerciseIndex >= draft.exercises.length - 1 || draft.exercises.length === 0}
               onClick={() => setActiveExerciseIndex((current) => Math.min(draft.exercises.length - 1, current + 1))}
