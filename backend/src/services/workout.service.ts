@@ -1086,4 +1086,7 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
       unlockedAchievements,
       nextWeek: newWeek,
     };
+  }, {
+    maxWait: 5_000,
+    timeout: 20_000,
   });
