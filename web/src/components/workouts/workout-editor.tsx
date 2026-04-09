@@ -15,7 +15,6 @@ import {
   Save,
   Search,
   Shuffle,
-  TimerReset,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -997,14 +996,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     size="icon"
                     type="button"
                     variant="ghost"
-                    onClick={() => setRestRunning((current) => !current)}
-                  >
-                    {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    size="icon"
-                    type="button"
-                    variant="ghost"
                     onClick={() =>
                       session.pausedAt
                         ? resumeWorkoutMutation.mutate()
@@ -1603,24 +1594,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
           <SheetHeader>
             <SheetTitle>Workout tools</SheetTitle>
-            <SheetDescription>
-              Keep the session surface compact and move setup actions into one place.
-            </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
-            {activeExercise?.recommendationReason ? (
-              <div className="surface-panel p-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-primary/12 text-primary">
-                    <Info className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Why this load</p>
-                    <p className="mt-1 text-sm text-foreground">{activeExercise.recommendationReason}</p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
             <div className="space-y-2">
               <Label htmlFor="workout-title">Workout title</Label>
               <Input
@@ -1641,65 +1616,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 }
               />
             </div>
-            <div className="surface-panel p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Rest timer</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">
-                    {formatRestTime(restRemaining)}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Notifications:{" "}
-                    {notificationPermission === "granted"
-                      ? "On"
-                      : notificationPermission === "denied"
-                        ? "Blocked"
-                        : notificationPermission === "unsupported"
-                          ? "Unavailable"
-                          : "Not enabled"}
-                  </p>
-                </div>
-                <Button
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setRestRunning(false);
-                    setRestRemaining(restDuration);
-                  }}
-                >
-                  <TimerReset className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {[60, 90, 120, 180].map((seconds) => (
-                  <Button
-                    key={seconds}
-                    size="sm"
-                    type="button"
-                    variant={restDuration === seconds ? "default" : "outline"}
-                    onClick={() => startRestTimer(seconds)}
-                  >
-                    {seconds < 120 ? `${seconds}s` : `${seconds / 60} min`}
-                  </Button>
-                ))}
-                <Button
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setRestRunning((current) => !current)}
-                >
-                  {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {restRunning ? "Pause" : "Resume"}
-                </Button>
-                {notificationPermission !== "granted" && notificationPermission !== "unsupported" ? (
-                  <Button size="sm" type="button" variant="outline" onClick={() => void requestNotificationPermission()}>
-                    <BellRing className="h-4 w-4" />
-                    Enable alerts
-                  </Button>
-                ) : null}
-              </div>
-            </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <Button
                 variant="outline"
@@ -1715,14 +1631,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <Button variant="outline" onClick={() => setBulkSheetOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Bulk add
-              </Button>
-              <ExerciseCreatorDialog
-                onCreated={(exercise) => addExerciseToWorkout(exercise)}
-                triggerLabel="Custom exercise"
-              />
-              <Button variant="outline" onClick={() => saveNow()}>
-                <Save className="h-4 w-4" />
-                Save now
               </Button>
               <Button variant="outline" onClick={() => setCancelWorkoutOpen(true)}>
                 <Trash2 className="h-4 w-4" />
