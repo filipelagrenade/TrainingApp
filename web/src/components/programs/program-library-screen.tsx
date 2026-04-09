@@ -187,13 +187,13 @@ const Metric = ({
   label: string;
   value: string;
 }) => (
-  <div className="surface-panel flex h-full flex-col justify-between p-3">
-    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-      <div className="flex h-7 w-7 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-        <Icon className="h-3.5 w-3.5" />
+  <div className="surface-panel flex h-full min-h-[3.9rem] flex-col justify-between overflow-hidden p-2">
+    <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.1em] text-muted-foreground">
+      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+        <Icon className="h-3 w-3" />
       </div>
-      {label}
+      <span className="truncate">{label}</span>
     </div>
-    <p className="mt-2 font-semibold text-foreground">{value}</p>
+    <p className="mt-1 truncate text-[13px] font-semibold text-foreground">{value}</p>
   </div>
 );

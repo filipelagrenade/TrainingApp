@@ -15,23 +15,23 @@ export const StatBlock = ({
 }) => (
   <div
     className={cn(
-      "surface-panel flex h-full min-h-[4.35rem] flex-col justify-between",
-      compact ? "p-2.5" : "p-3",
+      "surface-panel flex h-full min-h-[3.5rem] flex-col justify-between overflow-hidden",
+      compact ? "p-2" : "p-2.5",
       className,
     )}
   >
     <p
       className={cn(
-        "line-clamp-2 uppercase tracking-[0.18em] text-muted-foreground",
-        compact ? "text-[9px] leading-tight" : "text-[9px] leading-tight",
+        "truncate uppercase tracking-[0.1em] text-muted-foreground",
+        compact ? "text-[7px] leading-tight" : "text-[8px] leading-tight",
       )}
     >
       {label}
     </p>
     <p
       className={cn(
-        "mt-2 break-words font-semibold leading-tight",
-        compact ? "text-[11px]" : "text-[13px]",
+        "mt-1 truncate font-semibold leading-tight",
+        compact ? "text-[10px]" : "text-xs",
         highlight ? "text-primary" : "text-foreground",
       )}
     >

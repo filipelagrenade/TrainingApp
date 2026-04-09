@@ -1,4 +1,4 @@
-const CACHE_NAME = "liftiq-static-v2";
+const CACHE_NAME = "liftiq-static-v3";
 const STATIC_PATHS = new Set(["/icon.svg", "/manifest.webmanifest"]);
 
 self.addEventListener("install", (event) => {
@@ -38,7 +38,7 @@ const isStaticAsset = (request) => {
     return false;
   }
 
-  return url.pathname.startsWith("/_next/static/") || STATIC_PATHS.has(url.pathname);
+  return STATIC_PATHS.has(url.pathname);
 };
 
 self.addEventListener("fetch", (event) => {

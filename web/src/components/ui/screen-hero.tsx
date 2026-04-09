@@ -35,7 +35,7 @@ export const ScreenHero = ({
         </div>
         {actions ? <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">{actions}</div> : null}
       </div>
-      {stats ? <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 lg:grid-cols-4">{stats}</div> : null}
+      {stats ? <div className="grid grid-cols-3 gap-1.5 sm:gap-2 lg:grid-cols-4">{stats}</div> : null}
     </div>
   </section>
 );

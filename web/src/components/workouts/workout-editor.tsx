@@ -944,14 +944,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           </div>
           <div className="surface-panel space-y-2 px-3 py-2">
             <div className="flex items-center justify-between gap-3">
-              <div className="grid flex-1 grid-cols-2 gap-3">
-                <div>
+              <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+                <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Total time</p>
-                  <p className="text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
-                  <p className="text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -981,6 +981,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               {[60, 90, 180].map((seconds) => (
                 <Button
                   key={seconds}
+                  className="h-8 rounded-xl px-0 text-xs"
                   size="sm"
                   type="button"
                   variant={restDuration === seconds ? "default" : "outline"}
@@ -989,7 +990,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
                 </Button>
               ))}
-              <Button size="icon" type="button" variant="outline" onClick={() => void requestNotificationPermission()}>
+              <Button
+                className="h-8 w-8 rounded-xl"
+                size="icon"
+                type="button"
+                variant="outline"
+                onClick={() => void requestNotificationPermission()}
+              >
                 <BellRing className="h-4 w-4" />
               </Button>
             </div>
@@ -1208,12 +1215,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                       </div>
                       {isExpanded ? (
                         <div className="border-t border-border/70 px-3 py-3">
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          <div className="grid grid-cols-3 gap-2">
                             <div className="space-y-1.5">
                               <Label className="text-xs">
                                 {activeExercise.trackingMode === "CARDIO" ? "Duration" : "Load"}
                               </Label>
                               <NullableNumberInput
+                                className="h-9 px-2 text-sm"
                                 value={
                                   activeExercise.trackingMode === "CARDIO"
                                     ? (setDurationSeconds === null ? null : setDurationSeconds / 60)
@@ -1284,6 +1292,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               </Label>
                               {activeExercise.exerciseCategory === "CARDIO" ? (
                                 <NullableNumberInput
+                                  className="h-9 px-2 text-sm"
                                   value={setDistance}
                                   onChange={(value) =>
                                     updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => ({
@@ -1297,6 +1306,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                                 />
                               ) : (
                                 <NullableNumberInput
+                                  className="h-9 px-2 text-sm"
                                   value={set.reps}
                                   onChange={(value) =>
                                     updateSet(activeExerciseIndex, setIndex, (candidate) => ({
@@ -1313,6 +1323,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               </Label>
                               {activeExercise.exerciseCategory === "CARDIO" ? (
                                 <NullableNumberInput
+                                  className="h-9 px-2 text-sm"
                                   step={0.5}
                                   value={setIncline}
                                   onChange={(value) =>
@@ -1327,6 +1338,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                                 />
                               ) : (
                                 <NullableNumberInput
+                                  className="h-9 px-2 text-sm"
                                   step={0.5}
                                   value={set.rpe}
                                   onChange={(value) =>
@@ -1428,26 +1440,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                             ) : null}
                           </div>
                           <div className="mt-3 flex flex-wrap items-center gap-2">
-                            {activeExercise.exerciseCategory !== "CARDIO" ? (
-                              <div className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1.5">
-                                <Checkbox
-                                  checked={set.isWorkingSet ?? true}
-                                  id={`working-set-${setIndex}`}
-                                  onCheckedChange={(checked) =>
-                                    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
-                                      ...candidate,
-                                      isWorkingSet: checked === true,
-                                    }))
-                                  }
-                                />
-                                <Label
-                                  className="text-xs font-normal text-muted-foreground"
-                                  htmlFor={`working-set-${setIndex}`}
-                                >
-                                  Working set
-                                </Label>
-                              </div>
-                            ) : null}
                             <Button
                               size="sm"
                               type="button"
