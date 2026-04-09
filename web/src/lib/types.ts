@@ -346,6 +346,7 @@ export type WorkoutDraftSet = {
   weight: number | null;
   reps: number;
   rpe: number | null;
+  completed?: boolean;
   setType?: WorkoutSetType;
   trackingData?: WorkoutSetTrackingData | null;
   isWorkingSet?: boolean;

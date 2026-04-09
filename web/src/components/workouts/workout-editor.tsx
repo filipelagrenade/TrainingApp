@@ -114,7 +114,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [cancelWorkoutOpen, setCancelWorkoutOpen] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(true);
   const [expandedSetIndex, setExpandedSetIndex] = useState(0);
-  const [completedSetKeys, setCompletedSetKeys] = useState<string[]>([]);
   const [restDuration, setRestDuration] = useState(90);
   const [restRemaining, setRestRemaining] = useState(90);
   const [restRunning, setRestRunning] = useState(false);
@@ -406,7 +405,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   useEffect(() => {
     setExpandedSetIndex(0);
-    setCompletedSetKeys([]);
   }, [activeExerciseIndex]);
 
   useEffect(() => {
@@ -592,20 +590,18 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     completeMutation.mutate(draft);
   };
 
-  const setKeyFor = (exerciseIndex: number, setIndex: number) => `${exerciseIndex}-${setIndex}`;
-
   const toggleSetCompleted = (setIndex: number) => {
     if (!activeExercise) {
       return;
     }
 
     ensureWorkoutResumed();
-    const key = setKeyFor(activeExerciseIndex, setIndex);
-    const isCompleted = completedSetKeySet.has(key);
+    const isCompleted = activeExercise.sets[setIndex]?.completed === true;
 
-    setCompletedSetKeys((current) =>
-      isCompleted ? current.filter((candidate) => candidate !== key) : [...current, key],
-    );
+    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
+      ...candidate,
+      completed: !isCompleted,
+    }));
 
     if (isCompleted) {
       setExpandedSetIndex(setIndex);
@@ -617,8 +613,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       activeExercise.repMax && activeExercise.repMax <= 6 ? 180 : activeExercise.exerciseCategory === "CARDIO" ? 60 : 90;
 
     const nextIncompleteIndex = activeExercise.sets.findIndex(
-      (_, candidateIndex) =>
-        candidateIndex > setIndex && !completedSetKeySet.has(setKeyFor(activeExerciseIndex, candidateIndex)),
+      (candidate, candidateIndex) => candidateIndex > setIndex && candidate.completed !== true,
     );
 
     if (activeExercise.supersetGroupId && activeSupersetPartnerIndex !== null) {
@@ -788,9 +783,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     };
   }, [session]);
 
-  const completedSetKeySet = new Set(completedSetKeys);
   const activeExerciseCompletedSets = activeExercise
-    ? activeExercise.sets.filter((_, index) => completedSetKeySet.has(setKeyFor(activeExerciseIndex, index))).length
+    ? activeExercise.sets.filter((set) => set.completed === true).length
     : 0;
   const activeExerciseTotalSets = activeExercise?.sets.length ?? 0;
 
@@ -1177,8 +1171,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
             <div className="space-y-2">
                 {activeExercise.sets.map((set, setIndex) => {
-                  const setKey = setKeyFor(activeExerciseIndex, setIndex);
-                  const isDone = completedSetKeySet.has(setKey);
+                  const isDone = set.completed === true;
                   const isExpanded = expandedSetIndex === setIndex;
                   const setTrackingData = (set.trackingData ??
                     activeExercise.defaultTrackingData ??
