@@ -980,113 +980,111 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
           ) : (
-            <>
-              <div className="surface-panel mt-3 space-y-2 px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Total time</p>
-                      <p className="truncate text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
-                      <p className="truncate text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
-                    </div>
+            <div className="surface-panel mt-3 space-y-2 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Total time</p>
+                    <p className="truncate text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="icon"
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setRestRunning((current) => !current)}
-                    >
-                      {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      size="icon"
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        session.pausedAt
-                          ? resumeWorkoutMutation.mutate()
-                          : pauseWorkoutMutation.mutate()
-                      }
-                    >
-                      {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                    </Button>
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
+                    <p className="truncate text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {[60, 90, 180].map((seconds) => (
-                    <Button
-                      key={seconds}
-                      className="h-8 rounded-xl px-0 text-xs"
-                      size="sm"
-                      type="button"
-                      variant={restDuration === seconds ? "default" : "outline"}
-                      onClick={() => startRestTimer(seconds)}
-                    >
-                      {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
-                    </Button>
-                  ))}
+                <div className="flex items-center gap-2">
                   <Button
-                    className="h-8 w-8 rounded-xl"
                     size="icon"
                     type="button"
-                    variant="outline"
-                    onClick={() => void requestNotificationPermission()}
+                    variant="ghost"
+                    onClick={() => setRestRunning((current) => !current)}
                   >
-                    <BellRing className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button className="h-10" variant="outline" onClick={() => setBulkSheetOpen(true)}>
-                    <Plus className="h-4 w-4" />
-                    Add exercise
+                    {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   </Button>
                   <Button
-                    className="h-10"
-                    onClick={handleCompleteWorkout}
-                    disabled={completeMutation.isPending || draft.exercises.length === 0}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      session.pausedAt
+                        ? resumeWorkoutMutation.mutate()
+                        : pauseWorkoutMutation.mutate()
+                    }
                   >
-                    {completeMutation.isPending ? "Completing..." : "Complete workout"}
+                    {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
-
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                {draft.exercises.map((exercise, index) => (
-                  <button
-                    key={`${exercise.exerciseName}-${index}`}
-                    className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
-                      index === activeExerciseIndex
-                        ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
-                        : "border-border/70 bg-card/72"
-                    }`}
-                    onClick={() => setActiveExerciseIndex(index)}
+              <div className="grid grid-cols-4 gap-2">
+                {[60, 90, 180].map((seconds) => (
+                  <Button
+                    key={seconds}
+                    className="h-8 rounded-xl px-0 text-xs"
+                    size="sm"
                     type="button"
+                    variant={restDuration === seconds ? "default" : "outline"}
+                    onClick={() => startRestTimer(seconds)}
                   >
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                      {index + 1}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {exercise.supersetGroupId ? (
-                        <Badge variant="outline" className="px-2 py-0 text-[10px]">
-                          Pair
-                        </Badge>
-                      ) : null}
-                      {exercise.substitutedFromExerciseName ? (
-                        <Badge variant="secondary" className="px-2 py-0 text-[10px]">
-                          Swap
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </button>
+                    {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
+                  </Button>
                 ))}
+                <Button
+                  className="h-8 w-8 rounded-xl"
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                  onClick={() => void requestNotificationPermission()}
+                >
+                  <BellRing className="h-4 w-4" />
+                </Button>
               </div>
-            </>
+              <div className="grid grid-cols-2 gap-2">
+                <Button className="h-10" variant="outline" onClick={() => setBulkSheetOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Add exercise
+                </Button>
+                <Button
+                  className="h-10"
+                  onClick={handleCompleteWorkout}
+                  disabled={completeMutation.isPending || draft.exercises.length === 0}
+                >
+                  {completeMutation.isPending ? "Completing..." : "Complete workout"}
+                </Button>
+              </div>
+            </div>
           )}
+
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {draft.exercises.map((exercise, index) => (
+              <button
+                key={`${exercise.exerciseName}-${index}`}
+                className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
+                  index === activeExerciseIndex
+                    ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
+                    : "border-border/70 bg-card/72"
+                }`}
+                onClick={() => setActiveExerciseIndex(index)}
+                type="button"
+              >
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  {index + 1}
+                </p>
+                <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {exercise.supersetGroupId ? (
+                    <Badge variant="outline" className="px-2 py-0 text-[10px]">
+                      Pair
+                    </Badge>
+                  ) : null}
+                  {exercise.substitutedFromExerciseName ? (
+                    <Badge variant="secondary" className="px-2 py-0 text-[10px]">
+                      Swap
+                    </Badge>
+                  ) : null}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
