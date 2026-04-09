@@ -28,6 +28,8 @@
     --hero-start: 330 100% 60%;
     --hero-end: 181 100% 48%;
     --hero-glow: 262 80% 58%;
+    --progress-start: 329 100% 59%;
+    --progress-end: 181 100% 50%;
     --page-start: 240 29% 10%;
     --page-end: 241 26% 9%;
     --hero-base-end: 240 28% 12%;
@@ -60,6 +62,8 @@
     --hero-start: 191 100% 50%;
     --hero-end: 261 72% 57%;
     --hero-glow: 191 100% 50%;
+    --progress-start: 191 100% 50%;
+    --progress-end: 261 72% 57%;
     --page-start: 240 24% 8%;
     --page-end: 238 24% 7%;
     --hero-base-end: 240 24% 11%;
@@ -91,6 +95,8 @@
     --hero-start: 24 95% 53%;
     --hero-end: 16 96% 66%;
     --hero-glow: 35 98% 62%;
+    --progress-start: 24 95% 53%;
+    --progress-end: 35 98% 62%;
     --page-start: 24 68% 97%;
     --page-end: 32 44% 93%;
     --hero-base-end: 24 50% 95%;
@@ -122,6 +128,8 @@
     --hero-start: 0 72% 49%;
     --hero-end: 0 0% 78%;
     --hero-glow: 0 72% 49%;
+    --progress-start: 0 72% 49%;
+    --progress-end: 0 0% 0%;
     --page-start: 0 0% 99%;
     --page-end: 0 0% 92%;
     --hero-base-end: 0 0% 90%;
@@ -153,6 +161,8 @@
     --hero-start: 215 19% 47%;
     --hero-end: 84 73% 46%;
     --hero-glow: 210 35% 85%;
+    --progress-start: 215 19% 47%;
+    --progress-end: 84 73% 46%;
     --page-start: 210 33% 99%;
     --page-end: 210 27% 95%;
     --hero-base-end: 210 27% 96%;
