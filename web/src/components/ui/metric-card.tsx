@@ -17,7 +17,7 @@ export const MetricCard = ({
 }) => (
   <div
     className={cn(
-      "surface-panel flex h-full min-h-[4.35rem] flex-col justify-between overflow-hidden",
+      "surface-panel flex h-full min-h-[4.35rem] flex-col overflow-hidden",
       compact ? "p-2" : "p-2.5",
       className,
     )}
@@ -35,7 +35,7 @@ export const MetricCard = ({
     </div>
     <p
       className={cn(
-        "mt-2 truncate font-semibold leading-tight tracking-tight text-foreground",
+        "mt-2 text-center font-semibold leading-tight tracking-tight text-foreground",
         compact ? "text-[13px]" : "text-sm",
       )}
     >

@@ -15,7 +15,7 @@ export const StatBlock = ({
 }) => (
   <div
     className={cn(
-      "surface-panel flex h-full min-h-[3.5rem] flex-col justify-between overflow-hidden",
+      "surface-panel flex h-full min-h-[3.5rem] flex-col overflow-hidden",
       compact ? "p-2" : "p-2.5",
       className,
     )}
@@ -30,7 +30,7 @@ export const StatBlock = ({
     </p>
     <p
       className={cn(
-        "mt-1 truncate font-semibold leading-tight",
+        "mt-1 text-center font-semibold leading-tight",
         compact ? "text-[10px]" : "text-xs",
         highlight ? "text-primary" : "text-foreground",
       )}
