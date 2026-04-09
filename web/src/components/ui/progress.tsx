@@ -9,7 +9,10 @@ export const Progress = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>) => (
   <ProgressPrimitive.Root
-    className={cn("relative h-3 w-full overflow-hidden rounded-full bg-secondary/85", className)}
+    className={cn(
+      "relative h-3 w-full overflow-hidden rounded-full border border-border/60 bg-foreground/[0.06]",
+      className,
+    )}
     value={value}
     {...props}
   >
