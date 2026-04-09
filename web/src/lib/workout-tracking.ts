@@ -48,10 +48,6 @@ export const defaultTrackingModeForExercise = (exercise: Pick<Exercise, "exercis
     return "BAND_LEVEL";
   }
 
-  if (exercise.loadType === "PLATE_TOTAL") {
-    return "PLATES_PER_SIDE";
-  }
-
   return "ABSOLUTE_WEIGHT";
 };
 

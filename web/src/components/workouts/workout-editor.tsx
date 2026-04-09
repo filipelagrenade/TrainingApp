@@ -1984,16 +1984,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   </Select>
                 </div>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Load type</Label>
-                  <Input value={activeExercise.loadType.replaceAll("_", " ")} disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label>Exercise type</Label>
-                  <Input value={activeExercise.exerciseCategory === "CARDIO" ? "Cardio" : "Strength"} disabled />
-                </div>
-              </div>
               {usesAttachment ? (
                 <div className="space-y-2">
                   <Label>Grip / attachment</Label>

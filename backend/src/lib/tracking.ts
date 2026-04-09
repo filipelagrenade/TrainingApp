@@ -42,10 +42,6 @@ export const deriveTrackingMode = (input: {
     return TrackingMode.BAND_LEVEL;
   }
 
-  if (input.loadType === "PLATE_TOTAL") {
-    return TrackingMode.PLATES_PER_SIDE;
-  }
-
   return TrackingMode.ABSOLUTE_WEIGHT;
 };
 
