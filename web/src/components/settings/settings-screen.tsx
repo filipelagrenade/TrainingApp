@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellRing, MoonStar, Palette, TimerReset } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { AuthCard } from "@/components/auth/auth-card";
 import { useTheme, themes } from "@/components/providers/theme-provider";
@@ -20,10 +21,21 @@ const REST_DEFAULTS = [60, 90, 120, 180];
 export const SettingsScreen = () => {
   const { theme, setTheme } = useTheme();
   const [restDefault, setRestDefault] = useState("90");
+  const queryClient = useQueryClient();
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
     retry: false,
+  });
+  const preferencesMutation = useMutation({
+    mutationFn: apiClient.updatePreferences,
+    onSuccess: ({ user }) => {
+      queryClient.setQueryData(["me"], { user });
+      toast.success(`Units set to ${user.preferredUnit.toUpperCase()}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
   });
   const notificationState =
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported";
@@ -83,6 +95,35 @@ export const SettingsScreen = () => {
                     {option.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MoonStar className="h-4 w-4 text-primary" />
+            Units
+          </CardTitle>
+          <CardDescription>Volume is stored in kilograms and shown in your preferred display unit.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="unit-select">Preferred display unit</Label>
+            <Select
+              value={meQuery.data.user.preferredUnit}
+              onValueChange={(value) =>
+                preferencesMutation.mutate({ preferredUnit: value as "kg" | "lb" })
+              }
+            >
+              <SelectTrigger id="unit-select" disabled={preferencesMutation.isPending}>
+                <SelectValue placeholder="Choose a unit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                <SelectItem value="lb">Pounds (lb)</SelectItem>
               </SelectContent>
             </Select>
           </div>

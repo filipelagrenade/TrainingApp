@@ -18,6 +18,7 @@ export type User = {
   id: string;
   email: string;
   displayName: string;
+  preferredUnit: "kg" | "lb";
   xpTotal: number;
   level: number;
   avatarConfig: Record<string, unknown> | null;

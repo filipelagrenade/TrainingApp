@@ -87,6 +87,7 @@ model User {
   id                   String               @id @default(cuid())
   email                String               @unique
   displayName          String
+  preferredUnit        String               @default("kg")
   xpTotal              Int                  @default(0)
   level                Int                  @default(1)
   avatarConfig         Json?

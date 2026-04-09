@@ -15,6 +15,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatVolume } from "@/lib/units";
 
 export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) => {
   const meQuery = useQuery({
@@ -57,6 +58,7 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
   }
 
   const progress = progressQuery.data;
+  const preferredUnit = meQuery.data.user.preferredUnit;
   const bestVolume = Math.max(...progress.volumeHistory.map((point) => point.value), 1);
   const bestOneRepMax = Math.max(
     ...progress.estimatedOneRepMaxHistory.map((point) => point.value ?? 0),
@@ -73,7 +75,7 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
         stats={
           <>
             <MetricCard icon={CalendarDays} label="Sessions" value={String(progress.summary.totalSessions)} />
-            <MetricCard icon={Dumbbell} label="Volume" value={Math.round(progress.summary.totalVolume).toString()} />
+            <MetricCard icon={Dumbbell} label="Volume" value={formatVolume(progress.summary.totalVolume, preferredUnit, { compact: true })} />
             <MetricCard icon={TrendingUp} label="Best e1RM" value={progress.summary.bestEstimatedOneRepMax ? Math.round(progress.summary.bestEstimatedOneRepMax).toString() : "-"} />
             <MetricCard icon={Trophy} label="PRs" value={String(progress.summary.personalRecordCount)} />
           </>
@@ -110,7 +112,7 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
                 <TrendRow
                   key={`volume-${point.completedAt}`}
                   label={new Date(point.completedAt).toLocaleDateString()}
-                  value={Math.round(point.value).toString()}
+                  value={formatVolume(point.value, preferredUnit)}
                   progressValue={(point.value / bestVolume) * 100}
                 />
               ))
@@ -149,7 +151,7 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
                 <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
                   <MiniStat label="Best set" value={session.bestSetLabel} />
                   <MiniStat label="e1RM" value={session.estimatedOneRepMax ? Math.round(session.estimatedOneRepMax).toString() : "-"} />
-                  <MiniStat label="Volume" value={Math.round(session.volume).toString()} />
+                  <MiniStat label="Volume" value={formatVolume(session.volume, preferredUnit)} />
                 </div>
               </Link>
             ))

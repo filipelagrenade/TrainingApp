@@ -15,6 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatBlock } from "@/components/ui/stat-block";
+import { formatVolume } from "@/lib/units";
 
 const formatDateRange = (startDate: string, endDate: string) => {
   const start = new Date(startDate);
@@ -25,12 +26,6 @@ const formatDateRange = (startDate: string, endDate: string) => {
     { month: "short", day: "numeric" },
   )}`;
 };
-
-const formatCompactNumber = (value: number) =>
-  Intl.NumberFormat(undefined, {
-    notation: "compact",
-    maximumFractionDigits: value >= 100 ? 0 : 1,
-  }).format(value);
 
 export const ProgressScreen = () => {
   const meQuery = useQuery({
@@ -86,7 +81,11 @@ export const ProgressScreen = () => {
             <>
               <MetricCard icon={CalendarRange} label="This week" value={String(overview.weeklySummary.sessionsCompleted)} />
               <MetricCard icon={Flame} label="Planned" value={String(overview.weeklySummary.plannedSessionsCompleted)} />
-              <MetricCard icon={TrendingUp} label="Volume" value={formatCompactNumber(Math.round(overview.weeklySummary.totalVolume))} />
+              <MetricCard
+                icon={TrendingUp}
+                label="Volume"
+                value={formatVolume(overview.weeklySummary.totalVolume, user.preferredUnit, { compact: true })}
+              />
               <MetricCard icon={Award} label="Unlocked" value={`${overview.achievementSummary.unlockedCount}/${overview.achievementSummary.totalCount}`} />
             </>
           }
@@ -167,7 +166,7 @@ export const ProgressScreen = () => {
                       <div>
                         <p className="font-medium text-foreground">{exercise.exerciseName}</p>
                         <p className="text-sm text-muted-foreground">
-                          {exercise.sessions} session{exercise.sessions === 1 ? "" : "s"} • {Math.round(exercise.volume)} volume
+                          {exercise.sessions} session{exercise.sessions === 1 ? "" : "s"} • {formatVolume(exercise.volume, user.preferredUnit)}
                         </p>
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -184,7 +183,7 @@ export const ProgressScreen = () => {
                     <div key={muscle.muscle} className="surface-panel-soft space-y-2 px-4 py-3">
                       <div className="flex items-center justify-between gap-3 text-sm">
                         <span className="font-medium text-foreground">{muscle.muscle}</span>
-                        <span className="text-muted-foreground">{Math.round(muscle.volume)} volume</span>
+                        <span className="text-muted-foreground">{formatVolume(muscle.volume, user.preferredUnit)}</span>
                       </div>
                       <Progress value={overview.weeklySummary.totalVolume > 0 ? (muscle.volume / overview.weeklySummary.totalVolume) * 100 : 0} />
                     </div>

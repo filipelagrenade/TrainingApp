@@ -63,6 +63,7 @@ import type {
   WorkoutSetTrackingData,
   WorkoutSetType,
 } from "@/lib/types";
+import { formatVolume, sumVolumeInKilograms } from "@/lib/units";
 import {
   applySetTypeBehavior,
   buildDraftSet,
@@ -171,12 +172,18 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     queryKey: ["workout", sessionId],
     queryFn: () => apiClient.getWorkout(sessionId),
   });
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: apiClient.getMe,
+    retry: false,
+  });
   const exercisesQuery = useQuery({
     queryKey: ["exercises"],
     queryFn: apiClient.getExercises,
   });
 
   const session = sessionQuery.data;
+  const preferredUnit = meQuery.data?.user.preferredUnit ?? "kg";
   const availableExercises = exercisesQuery.data ?? [];
 
   const substitutionSourceExerciseId =
@@ -815,7 +822,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       exercises: exercises.length,
       sets: sets.length,
       reps: sets.reduce((sum, set) => sum + set.reps, 0),
-      volume: sets.reduce((sum, set) => sum + (set.weight ?? 0) * set.reps, 0),
+      volume: exercises.reduce(
+        (sum, exercise) => sum + sumVolumeInKilograms(exercise.sets, exercise.unitMode),
+        0,
+      ),
       prs: sets.filter((set) => set.isPersonalRecord).length,
     };
   }, [session]);
@@ -867,7 +877,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 Estimated volume
               </p>
               <p className="mt-2 text-2xl font-semibold text-foreground">
-                {Math.round(completedStats.volume)} kg/lb moved
+                {formatVolume(completedStats.volume, preferredUnit)} moved
               </p>
             </div>
           </CardHeader>
@@ -911,7 +921,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   {review ? (
                     <div className="mt-4 space-y-3">
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <StatBlock label="Volume" value={String(Math.round(review.volume))} />
+                        <StatBlock label="Volume" value={formatVolume(review.volume, preferredUnit)} />
                         <StatBlock label="Best set" value={review.bestSetLabel} />
                         <StatBlock
                           label="Best e1RM"

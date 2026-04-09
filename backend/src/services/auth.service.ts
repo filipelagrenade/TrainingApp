@@ -118,3 +118,16 @@ export const logoutUser = async (token: string | undefined): Promise<void> => {
     },
   });
 };
+
+export const updateUserPreferences = async (
+  userId: string,
+  input: {
+    preferredUnit: "kg" | "lb";
+  },
+): Promise<User> =>
+  prisma.user.update({
+    where: { id: userId },
+    data: {
+      preferredUnit: input.preferredUnit,
+    },
+  });

@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ADD COLUMN "preferredUnit" TEXT NOT NULL DEFAULT 'kg';

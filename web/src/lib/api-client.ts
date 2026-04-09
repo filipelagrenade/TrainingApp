@@ -70,6 +70,11 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  updatePreferences: (payload: { preferredUnit: "kg" | "lb" }) =>
+    request<{ user: User }>("/auth/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   logout: () =>
     request<{ ok: boolean }>("/auth/logout", {
       method: "POST",

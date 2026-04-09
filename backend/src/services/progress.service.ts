@@ -3,6 +3,7 @@ import { ActivityType, WorkoutStatus } from "@prisma/client";
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
 import type { Exercise } from "@prisma/client";
+import { sumVolumeInKilograms } from "../lib/units";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -25,10 +26,11 @@ const summarizeSets = (
     isWorkingSet: boolean;
     isPersonalRecord?: boolean;
   }>,
+  unitMode: string,
 ) => {
   const workingSets = sets.filter((set) => set.isWorkingSet);
   const sourceSets = workingSets.length ? workingSets : sets;
-  const volume = sourceSets.reduce((sum, set) => sum + (set.weight ?? 0) * set.reps, 0);
+  const volume = sumVolumeInKilograms(sourceSets, unitMode);
 
   const bestSet = sourceSets.reduce<{
     label: string;
@@ -131,7 +133,7 @@ export const getProgressOverview = async (userId: string) => {
 
   for (const session of weeklySessions) {
     for (const exercise of session.exercises) {
-      const summary = summarizeSets(exercise.sets);
+      const summary = summarizeSets(exercise.sets, exercise.unitMode);
       totalVolume += summary.volume;
 
       if (exercise.exerciseId) {
@@ -249,7 +251,7 @@ export const getProgressOverview = async (userId: string) => {
         workoutTitle: set.workoutExercise.session.title,
         exerciseId,
         exerciseName: set.workoutExercise.exerciseName,
-        bestSetLabel: buildBestSetLabel(set.weight, set.reps),
+    bestSetLabel: buildBestSetLabel(set.weight, set.reps),
         estimatedOneRepMax: currentEstimate,
         previousBest,
         improvement,
@@ -306,7 +308,7 @@ export const getProgressOverview = async (userId: string) => {
       continue;
     }
 
-    const summary = summarizeSets(exercise.sets);
+    const summary = summarizeSets(exercise.sets, exercise.unitMode);
     const current = trendMap.get(exercise.exerciseId) ?? {
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exerciseName,
@@ -524,7 +526,7 @@ export const getExerciseProgress = async (userId: string, exerciseId: string) =>
   const recentSessions = workoutExercises
     .filter((entry) => entry.session.completedAt)
     .map((entry) => {
-      const summary = summarizeSets(entry.sets);
+      const summary = summarizeSets(entry.sets, entry.unitMode);
 
       return {
         workoutId: entry.session.id,

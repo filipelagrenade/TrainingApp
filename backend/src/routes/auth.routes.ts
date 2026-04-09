@@ -5,7 +5,7 @@ import { env } from "../config/env";
 import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
-import { loginUser, logoutUser, registerUser } from "../services/auth.service";
+import { loginUser, logoutUser, registerUser, updateUserPreferences } from "../services/auth.service";
 
 const authRouter = Router();
 
@@ -13,6 +13,10 @@ const authSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   displayName: z.string().min(2).max(40).optional(),
+});
+
+const preferencesSchema = z.object({
+  preferredUnit: z.enum(["kg", "lb"]),
 });
 
 const cookieOptions = {
@@ -71,5 +75,22 @@ authRouter.post("/logout", async (request, response, next) => {
 authRouter.get("/me", requireAuth, (request, response) => {
   sendSuccess(response, { user: request.currentUser });
 });
+
+authRouter.patch(
+  "/preferences",
+  requireAuth,
+  validateBody(preferencesSchema),
+  async (request, response, next) => {
+    try {
+      const user = await updateUserPreferences(request.currentUser!.id, {
+        preferredUnit: request.body.preferredUnit,
+      });
+      request.currentUser = user;
+      sendSuccess(response, { user });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 export { authRouter };

@@ -22,6 +22,7 @@ import {
   normalizeTrackingData,
   normalizeWeightForTrackingMode,
 } from "../lib/tracking";
+import { sumVolumeInKilograms } from "../lib/units";
 import { createXpLedgerEntry, unlockAchievements } from "./gamification.service";
 import {
   calculateProgressionRecommendation,
@@ -417,7 +418,7 @@ const summarizeWorkingSets = (
 ) => {
   const workingSets = sets.filter((set) => set.isWorkingSet);
   const sourceSets = workingSets.length ? workingSets : sets;
-  const volume = sourceSets.reduce((sum, set) => sum + (set.weight ?? 0) * set.reps, 0);
+  const volume = sumVolumeInKilograms(sourceSets, exercise.unitMode);
   const cardioDurationSeconds = sourceSets.reduce((sum, set) => {
     const trackingData = normalizeTrackingData(set.trackingData);
     return sum + (typeof trackingData?.durationSeconds === "number" ? trackingData.durationSeconds : 0);
