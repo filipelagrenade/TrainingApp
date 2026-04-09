@@ -112,6 +112,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [templateDescription, setTemplateDescription] = useState("");
   const [postCompleteSelection, setPostCompleteSelection] = useState<number[]>([]);
   const [showSessionMeta, setShowSessionMeta] = useState(false);
+  const [cancelWorkoutOpen, setCancelWorkoutOpen] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(true);
   const [expandedSetIndex, setExpandedSetIndex] = useState(0);
   const [completedSetKeys, setCompletedSetKeys] = useState<string[]>([]);
   const [restDuration, setRestDuration] = useState(90);
@@ -282,6 +284,17 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       await queryClient.invalidateQueries({ queryKey: ["workout", sessionId] });
       await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
       toast.success("Workout resumed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const cancelWorkoutMutation = useMutation({
+    mutationFn: () => apiClient.cancelWorkout(sessionId),
+    onSuccess: async () => {
+      clearDraft(sessionId);
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
+      toast.success("Workout cancelled");
+      router.push("/");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -931,6 +944,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 {syncState === "saving" ? "Saving..." : syncState === "error" ? "Pending" : "Synced"}
               </Badge>
               <Button
+                aria-label={headerCollapsed ? "Expand workout header" : "Collapse workout header"}
+                size="icon"
+                variant="outline"
+                onClick={() => setHeaderCollapsed((current) => !current)}
+              >
+                {headerCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              </Button>
+              <Button
                 aria-label="Open workout tools"
                 size="icon"
                 variant="outline"
@@ -940,104 +961,132 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </Button>
             </div>
           </div>
-          <div className="surface-panel space-y-2 px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Total time</p>
-                  <p className="truncate text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
-                  <p className="truncate text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setRestRunning((current) => !current)}
-                >
-                  {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-                <Button
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                  onClick={() =>
-                    session.pausedAt
-                      ? resumeWorkoutMutation.mutate()
-                      : pauseWorkoutMutation.mutate()
-                  }
-                >
-                  {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {[60, 90, 180].map((seconds) => (
-                <Button
-                  key={seconds}
-                  className="h-8 rounded-xl px-0 text-xs"
-                  size="sm"
-                  type="button"
-                  variant={restDuration === seconds ? "default" : "outline"}
-                  onClick={() => startRestTimer(seconds)}
-                >
-                  {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
-                </Button>
-              ))}
-              <Button
-                className="h-8 w-8 rounded-xl"
-                size="icon"
-                type="button"
-                variant="outline"
-                onClick={() => void requestNotificationPermission()}
-              >
-                <BellRing className="h-4 w-4" />
-              </Button>
-            </div>
-            <Button
-              className="h-10 w-full"
-              onClick={handleCompleteWorkout}
-              disabled={completeMutation.isPending || draft.exercises.length === 0}
-            >
-              {completeMutation.isPending ? "Completing..." : "Complete workout"}
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {draft.exercises.map((exercise, index) => (
+          {headerCollapsed ? (
             <button
-              key={`${exercise.exerciseName}-${index}`}
-              className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
-                index === activeExerciseIndex
-                  ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
-                  : "border-border/70 bg-card/72"
-              }`}
-              onClick={() => setActiveExerciseIndex(index)}
+              className="surface-panel mt-3 flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+              onClick={() => setHeaderCollapsed(false)}
               type="button"
             >
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                {index + 1}
-              </p>
-              <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {exercise.supersetGroupId ? (
-                  <Badge variant="outline" className="px-2 py-0 text-[10px]">
-                    Pair
-                  </Badge>
-                ) : null}
-                {exercise.substitutedFromExerciseName ? (
-                  <Badge variant="secondary" className="px-2 py-0 text-[10px]">
-                    Swap
-                  </Badge>
-                ) : null}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {draft.exercises.length
+                    ? `${activeExerciseIndex + 1}/${draft.exercises.length} • ${activeExercise?.exerciseName ?? "Workout"}`
+                    : "No exercises yet"}
+                </p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {formatDuration(elapsedSeconds)} total • {formatRestTime(restRemaining)} rest
+                </p>
               </div>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
-          ))}
+          ) : (
+            <>
+              <div className="surface-panel mt-3 space-y-2 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Total time</p>
+                      <p className="truncate text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
+                      <p className="truncate text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setRestRunning((current) => !current)}
+                    >
+                      {restRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                      onClick={() =>
+                        session.pausedAt
+                          ? resumeWorkoutMutation.mutate()
+                          : pauseWorkoutMutation.mutate()
+                      }
+                    >
+                      {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[60, 90, 180].map((seconds) => (
+                    <Button
+                      key={seconds}
+                      className="h-8 rounded-xl px-0 text-xs"
+                      size="sm"
+                      type="button"
+                      variant={restDuration === seconds ? "default" : "outline"}
+                      onClick={() => startRestTimer(seconds)}
+                    >
+                      {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
+                    </Button>
+                  ))}
+                  <Button
+                    className="h-8 w-8 rounded-xl"
+                    size="icon"
+                    type="button"
+                    variant="outline"
+                    onClick={() => void requestNotificationPermission()}
+                  >
+                    <BellRing className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="h-10" variant="outline" onClick={() => setBulkSheetOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                    Add exercise
+                  </Button>
+                  <Button
+                    className="h-10"
+                    onClick={handleCompleteWorkout}
+                    disabled={completeMutation.isPending || draft.exercises.length === 0}
+                  >
+                    {completeMutation.isPending ? "Completing..." : "Complete workout"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {draft.exercises.map((exercise, index) => (
+                  <button
+                    key={`${exercise.exerciseName}-${index}`}
+                    className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
+                      index === activeExerciseIndex
+                        ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
+                        : "border-border/70 bg-card/72"
+                    }`}
+                    onClick={() => setActiveExerciseIndex(index)}
+                    type="button"
+                  >
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {index + 1}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {exercise.supersetGroupId ? (
+                        <Badge variant="outline" className="px-2 py-0 text-[10px]">
+                          Pair
+                        </Badge>
+                      ) : null}
+                      {exercise.substitutedFromExerciseName ? (
+                        <Badge variant="secondary" className="px-2 py-0 text-[10px]">
+                          Swap
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1111,32 +1160,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </div>
             ) : null}
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <Button
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    updateExercise(activeExerciseIndex, (current) => ({
-                      ...current,
-                      sets: current.sets.map((set) =>
-                        set.weight === null &&
-                        current.suggestedWeight !== null &&
-                        current.suggestedWeight !== undefined
-                          ? { ...set, weight: current.suggestedWeight }
-                          : set,
-                      ),
-                    }))
-                  }
-                >
-                  Fill load
-                </Button>
-                <Button size="sm" type="button" variant="outline" onClick={() => startRestTimer(90)}>
-                  Start rest
-                </Button>
-                <Button size="sm" type="button" variant="outline" onClick={() => setBulkSheetOpen(true)}>
-                  Add exercise
-                </Button>
+            <div className="grid grid-cols-1 gap-2">
+              <Button size="sm" type="button" variant="outline" onClick={() => startRestTimer(90)}>
+                Start rest
+              </Button>
             </div>
 
             <div className="space-y-2">
@@ -1699,6 +1726,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 <Save className="h-4 w-4" />
                 Save now
               </Button>
+              <Button variant="outline" onClick={() => setCancelWorkoutOpen(true)}>
+                <Trash2 className="h-4 w-4" />
+                Cancel workout
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1719,6 +1750,25 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={cancelWorkoutOpen} onOpenChange={setCancelWorkoutOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel this workout?</DialogTitle>
+            <DialogDescription>
+              This will discard the active session and return you home. Use pause if you plan to come back later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button type="button" variant="outline" onClick={() => setCancelWorkoutOpen(false)}>
+              Keep workout
+            </Button>
+            <Button type="button" onClick={() => cancelWorkoutMutation.mutate()} disabled={cancelWorkoutMutation.isPending}>
+              {cancelWorkoutMutation.isPending ? "Cancelling..." : "Cancel workout"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ExerciseBulkPickerSheet
         description="Queue multiple exercises, then drop them into the workout together."

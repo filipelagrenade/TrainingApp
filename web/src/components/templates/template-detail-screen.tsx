@@ -4,9 +4,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Play, Rows3 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { AuthCard } from "@/components/auth/auth-card";
+import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +19,7 @@ import { apiClient } from "@/lib/api-client";
 
 export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => {
   const router = useRouter();
+  const [guardOpen, setGuardOpen] = useState(false);
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -27,6 +30,11 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
     queryFn: () => apiClient.getTemplate(templateId),
     enabled: meQuery.isSuccess,
   });
+  const inProgressWorkoutQuery = useQuery({
+    queryKey: ["in-progress-workout"],
+    queryFn: apiClient.getInProgressWorkout,
+    enabled: meQuery.isSuccess,
+  });
   const startMutation = useMutation({
     mutationFn: () =>
       apiClient.startWorkout({
@@ -34,6 +42,13 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
         templateId,
       }),
     onSuccess: (session) => router.push(`/workouts/${session.id}`),
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const cancelWorkoutMutation = useMutation({
+    mutationFn: apiClient.cancelWorkout,
+    onSuccess: async () => {
+      await inProgressWorkoutQuery.refetch();
+    },
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -56,6 +71,16 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
   }
 
   const template = templateQuery.data;
+  const inProgressWorkout = inProgressWorkoutQuery.data;
+
+  const handleStart = () => {
+    if (inProgressWorkout?.id) {
+      setGuardOpen(true);
+      return;
+    }
+
+    startMutation.mutate();
+  };
 
   return (
     <div className="app-grid">
@@ -65,7 +90,7 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
         actions={
           <>
             <BackButton fallbackHref="/templates" />
-            <Button onClick={() => startMutation.mutate()}>
+            <Button onClick={handleStart}>
               <Play className="h-4 w-4" />
               Start
             </Button>
@@ -99,6 +124,27 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
           ))}
         </CardContent>
       </Card>
+      {inProgressWorkout ? (
+        <ActiveWorkoutGuardDialog
+          activeWorkoutTitle={inProgressWorkout.title}
+          isPending={cancelWorkoutMutation.isPending || startMutation.isPending}
+          onCancelAndStart={async () => {
+            try {
+              await cancelWorkoutMutation.mutateAsync(inProgressWorkout.id);
+              setGuardOpen(false);
+              startMutation.mutate();
+            } catch {
+              return;
+            }
+          }}
+          onKeepCurrent={() => {
+            setGuardOpen(false);
+            router.push(`/workouts/${inProgressWorkout.id}`);
+          }}
+          onOpenChange={setGuardOpen}
+          open={guardOpen}
+        />
+      ) : null}
     </div>
   );
 };

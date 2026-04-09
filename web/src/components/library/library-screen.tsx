@@ -11,6 +11,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { ProgramActivationDialog } from "@/components/programs/program-activation-dialog";
+import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,7 @@ export const LibraryScreen = () => {
   const [equivalentTargetId, setEquivalentTargetId] = useState("");
   const [equivalentPickerOpen, setEquivalentPickerOpen] = useState(false);
   const [activationProgram, setActivationProgram] = useState<Program | null>(null);
+  const [pendingStart, setPendingStart] = useState<{ entryType: "TEMPLATE"; templateId: string } | null>(null);
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -58,6 +60,11 @@ export const LibraryScreen = () => {
     queryFn: apiClient.getExercises,
     enabled: meQuery.isSuccess,
   });
+  const inProgressWorkoutQuery = useQuery({
+    queryKey: ["in-progress-workout"],
+    queryFn: apiClient.getInProgressWorkout,
+    enabled: meQuery.isSuccess,
+  });
   const substitutesQuery = useQuery({
     queryKey: ["exercise-substitutes", selectedExerciseId],
     queryFn: () => apiClient.getExerciseSubstitutes(selectedExerciseId!),
@@ -67,6 +74,13 @@ export const LibraryScreen = () => {
   const startWorkoutMutation = useMutation({
     mutationFn: apiClient.startWorkout,
     onSuccess: (session) => router.push(`/workouts/${session.id}`),
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const cancelWorkoutMutation = useMutation({
+    mutationFn: apiClient.cancelWorkout,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+    },
     onError: (error: Error) => toast.error(error.message),
   });
   const activateProgramMutation = useMutation({
@@ -129,6 +143,7 @@ export const LibraryScreen = () => {
   });
 
   const exercises = exercisesQuery.data ?? [];
+  const inProgressWorkout = inProgressWorkoutQuery.data;
   const filteredExercises = useMemo(() => {
     const normalizedQuery = exerciseQuery.trim().toLowerCase();
     if (!normalizedQuery) {
@@ -176,6 +191,29 @@ export const LibraryScreen = () => {
       exercise.id !== selectedExerciseId &&
       !substitutesQuery.data?.equivalents.some((candidate) => candidate.id === exercise.id),
   );
+
+  const requestStartWorkout = (payload: { entryType: "TEMPLATE"; templateId: string }) => {
+    if (inProgressWorkout?.id) {
+      setPendingStart(payload);
+      return;
+    }
+
+    startWorkoutMutation.mutate(payload);
+  };
+
+  const handleCancelAndStart = async () => {
+    if (!pendingStart || !inProgressWorkout?.id) {
+      return;
+    }
+
+    try {
+      await cancelWorkoutMutation.mutateAsync(inProgressWorkout.id);
+      startWorkoutMutation.mutate(pendingStart);
+      setPendingStart(null);
+    } catch {
+      return;
+    }
+  };
 
   return (
     <div className="app-grid">
@@ -329,7 +367,7 @@ export const LibraryScreen = () => {
                           size="sm"
                           variant="outline"
                           onClick={() =>
-                            startWorkoutMutation.mutate({
+                            requestStartWorkout({
                               entryType: "TEMPLATE",
                               templateId: template.id,
                             })
@@ -539,6 +577,23 @@ export const LibraryScreen = () => {
         open={Boolean(activationProgram)}
         program={activationProgram}
       />
+      {inProgressWorkout ? (
+        <ActiveWorkoutGuardDialog
+          activeWorkoutTitle={inProgressWorkout.title}
+          isPending={cancelWorkoutMutation.isPending || startWorkoutMutation.isPending}
+          onCancelAndStart={() => void handleCancelAndStart()}
+          onKeepCurrent={() => {
+            setPendingStart(null);
+            router.push(`/workouts/${inProgressWorkout.id}`);
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPendingStart(null);
+            }
+          }}
+          open={Boolean(pendingStart)}
+        />
+      ) : null}
     </div>
   );
 };

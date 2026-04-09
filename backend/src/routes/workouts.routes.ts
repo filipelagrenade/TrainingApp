@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
 import {
   applyWorkoutSubstitution,
+  cancelWorkout,
   completeWorkout,
   getInProgressWorkout,
   getWorkout,
@@ -208,6 +209,21 @@ workoutsRouter.delete("/:workoutId/supersets/:supersetGroupId", async (request, 
     next(error);
   }
 });
+
+workoutsRouter.post(
+  "/:workoutId/cancel",
+  async (request, response, next) => {
+    try {
+      const result = await cancelWorkout(
+        request.currentUser!.id,
+        String(request.params.workoutId),
+      );
+      sendSuccess(response, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 workoutsRouter.post(
   "/:workoutId/pause",

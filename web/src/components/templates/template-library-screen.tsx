@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { Exercise } from "@/lib/types";
 import { AuthCard } from "@/components/auth/auth-card";
+import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
 import { BackButton } from "@/components/ui/back-button";
 import { TemplateBuilderSheet } from "@/components/templates/template-builder-sheet";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ export const TemplateLibraryScreen = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -37,10 +39,22 @@ export const TemplateLibraryScreen = () => {
     queryFn: apiClient.getExercises,
     enabled: meQuery.isSuccess,
   });
+  const inProgressWorkoutQuery = useQuery({
+    queryKey: ["in-progress-workout"],
+    queryFn: apiClient.getInProgressWorkout,
+    enabled: meQuery.isSuccess,
+  });
 
   const startMutation = useMutation({
     mutationFn: apiClient.startWorkout,
     onSuccess: (session) => router.push(`/workouts/${session.id}`),
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const cancelWorkoutMutation = useMutation({
+    mutationFn: apiClient.cancelWorkout,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+    },
     onError: (error: Error) => toast.error(error.message),
   });
   const duplicateMutation = useMutation({
@@ -79,6 +93,19 @@ export const TemplateLibraryScreen = () => {
   }
 
   const templates = templatesQuery.data ?? [];
+  const inProgressWorkout = inProgressWorkoutQuery.data;
+
+  const requestStartTemplate = (templateId: string) => {
+    if (inProgressWorkout?.id) {
+      setPendingTemplateId(templateId);
+      return;
+    }
+
+    startMutation.mutate({
+      entryType: "TEMPLATE",
+      templateId,
+    });
+  };
 
   return (
     <div className="app-grid">
@@ -135,12 +162,7 @@ export const TemplateLibraryScreen = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() =>
-                      startMutation.mutate({
-                        entryType: "TEMPLATE",
-                        templateId: template.id,
-                      })
-                    }
+                    onClick={() => requestStartTemplate(template.id)}
                   >
                     <Play className="h-4 w-4" />
                     Start
@@ -172,6 +194,38 @@ export const TemplateLibraryScreen = () => {
         onOpenChange={setBuilderOpen}
         open={builderOpen}
       />
+      {inProgressWorkout ? (
+        <ActiveWorkoutGuardDialog
+          activeWorkoutTitle={inProgressWorkout.title}
+          isPending={cancelWorkoutMutation.isPending || startMutation.isPending}
+          onCancelAndStart={async () => {
+            if (!pendingTemplateId) {
+              return;
+            }
+
+            try {
+              await cancelWorkoutMutation.mutateAsync(inProgressWorkout.id);
+              startMutation.mutate({
+                entryType: "TEMPLATE",
+                templateId: pendingTemplateId,
+              });
+              setPendingTemplateId(null);
+            } catch {
+              return;
+            }
+          }}
+          onKeepCurrent={() => {
+            setPendingTemplateId(null);
+            router.push(`/workouts/${inProgressWorkout.id}`);
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPendingTemplateId(null);
+            }
+          }}
+          open={Boolean(pendingTemplateId)}
+        />
+      ) : null}
     </div>
   );
 };

@@ -816,6 +816,20 @@ export const resumeWorkout = async (userId: string, workoutId: string) => {
   });
 };
 
+export const cancelWorkout = async (userId: string, workoutId: string) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+
+  if (workout.status !== WorkoutStatus.IN_PROGRESS) {
+    throw new AppError(409, "WORKOUT_NOT_IN_PROGRESS", "Only active workouts can be cancelled.");
+  }
+
+  await prisma.workoutSession.delete({
+    where: { id: workoutId },
+  });
+
+  return { ok: true };
+};
+
 export const saveWorkoutDraft = async (userId: string, workoutId: string, draft: WorkoutDraft) =>
   prisma.$transaction(async (transaction) => {
     const startedAt = Date.now();

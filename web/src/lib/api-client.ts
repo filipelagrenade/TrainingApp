@@ -173,6 +173,10 @@ export const apiClient = {
     request<WorkoutSession>(`/workouts/${workoutId}/pause`, {
       method: "POST",
     }),
+  cancelWorkout: (workoutId: string) =>
+    request<{ ok: boolean }>(`/workouts/${workoutId}/cancel`, {
+      method: "POST",
+    }),
   resumeWorkout: (workoutId: string) =>
     request<WorkoutSession>(`/workouts/${workoutId}/resume`, {
       method: "POST",

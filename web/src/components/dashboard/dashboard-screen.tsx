@@ -4,12 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Dumbbell, Settings2, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import type { User } from "@/lib/types";
 import { calculateSessionDurationSeconds, formatDuration } from "@/lib/workout-tracking";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
+import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +22,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const DashboardScreen = ({ user }: { user: User }) => {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [pendingStart, setPendingStart] = useState<
+    { entryType: "QUICK"; programWorkoutId?: undefined } | { entryType: "PROGRAM"; programWorkoutId: string } | null
+  >(null);
 
   const activeProgramQuery = useQuery({
     queryKey: ["active-program"],
@@ -67,6 +72,13 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const cancelWorkoutMutation = useMutation({
+    mutationFn: apiClient.cancelWorkout,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const skipWorkoutMutation = useMutation({
     mutationFn: (payload: { programId: string; workoutId: string }) =>
       apiClient.skipProgramWorkout(payload.programId, payload.workoutId),
@@ -85,6 +97,29 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     await queryClient.invalidateQueries({ queryKey: ["exercises"] });
   };
 
+  const requestStartWorkout = (payload: { entryType: "QUICK" } | { entryType: "PROGRAM"; programWorkoutId: string }) => {
+    if (inProgressWorkout?.id) {
+      setPendingStart(payload);
+      return;
+    }
+
+    startWorkoutMutation.mutate(payload);
+  };
+
+  const handleCancelAndStart = async () => {
+    if (!pendingStart || !inProgressWorkout?.id) {
+      return;
+    }
+
+    try {
+      await cancelWorkoutMutation.mutateAsync(inProgressWorkout.id);
+      startWorkoutMutation.mutate(pendingStart);
+      setPendingStart(null);
+    } catch {
+      return;
+    }
+  };
+
   return (
     <div className="app-grid">
       <ScreenHero
@@ -99,7 +134,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
               </Button>
             ) : (
               <Button
-                onClick={() => startWorkoutMutation.mutate({ entryType: "QUICK" })}
+                onClick={() => requestStartWorkout({ entryType: "QUICK" })}
               >
                 <Dumbbell className="h-4 w-4" />
                 Quick workout
@@ -220,7 +255,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                           size="sm"
                           disabled={isCompleted || isSkipped}
                           onClick={() =>
-                            startWorkoutMutation.mutate({
+                            requestStartWorkout({
                               entryType: "PROGRAM",
                               programWorkoutId: workout.id,
                             })
@@ -256,6 +291,23 @@ export const DashboardScreen = ({ user }: { user: User }) => {
           )}
         </CardContent>
       </Card>
+      {inProgressWorkout ? (
+        <ActiveWorkoutGuardDialog
+          activeWorkoutTitle={inProgressWorkout.title}
+          isPending={cancelWorkoutMutation.isPending || startWorkoutMutation.isPending}
+          onCancelAndStart={() => void handleCancelAndStart()}
+          onKeepCurrent={() => {
+            setPendingStart(null);
+            router.push(`/workouts/${inProgressWorkout.id}`);
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPendingStart(null);
+            }
+          }}
+          open={Boolean(pendingStart)}
+        />
+      ) : null}
     </div>
   );
 };
