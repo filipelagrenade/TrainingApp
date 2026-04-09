@@ -68,7 +68,7 @@ export const SettingsScreen = () => {
             <Palette className="h-4 w-4 text-primary" />
             Theme
           </CardTitle>
-          <CardDescription>Switch between the darker gym theme and the warmer old-app palette.</CardDescription>
+          <CardDescription>Use the original LiftIQ themes from the old app and keep the palette consistent across screens.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">

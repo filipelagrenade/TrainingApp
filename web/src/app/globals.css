@@ -28,7 +28,42 @@
     --hero-start: 330 100% 60%;
     --hero-end: 181 100% 48%;
     --hero-glow: 262 80% 58%;
+    --page-start: 240 29% 10%;
+    --page-end: 241 26% 9%;
+    --hero-base-end: 240 28% 12%;
+    --shadow-color: 240 45% 3%;
     --radius: 1.25rem;
+  }
+
+  [data-theme="midnight-surge"] {
+    --background: 240 22% 6%;
+    --foreground: 0 0% 100%;
+    --card: 240 23% 12%;
+    --card-foreground: 0 0% 100%;
+    --popover: 240 24% 11%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 191 100% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 261 72% 57%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 22% 15%;
+    --muted-foreground: 235 12% 72%;
+    --accent: 191 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --border: 240 18% 22%;
+    --input: 240 19% 15%;
+    --ring: 191 100% 50%;
+    --success: 142 71% 58%;
+    --warning: 40 96% 59%;
+    --surface-elevated: 240 23% 14%;
+    --surface-hero: 240 26% 10%;
+    --hero-start: 191 100% 50%;
+    --hero-end: 261 72% 57%;
+    --hero-glow: 191 100% 50%;
+    --page-start: 240 24% 8%;
+    --page-end: 238 24% 7%;
+    --hero-base-end: 240 24% 11%;
+    --shadow-color: 240 50% 2%;
   }
 
   [data-theme="warm-lift"] {
@@ -56,6 +91,72 @@
     --hero-start: 24 95% 53%;
     --hero-end: 16 96% 66%;
     --hero-glow: 35 98% 62%;
+    --page-start: 24 68% 97%;
+    --page-end: 32 44% 93%;
+    --hero-base-end: 24 50% 95%;
+    --shadow-color: 24 40% 70%;
+  }
+
+  [data-theme="iron-brutalist"] {
+    --background: 0 0% 99%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 96%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 0 72% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 0%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 32%;
+    --accent: 0 72% 49%;
+    --accent-foreground: 0 0% 100%;
+    --border: 0 0% 0%;
+    --input: 0 0% 95%;
+    --ring: 0 72% 49%;
+    --success: 140 67% 25%;
+    --warning: 27 96% 45%;
+    --surface-elevated: 0 0% 92%;
+    --surface-hero: 0 0% 95%;
+    --hero-start: 0 72% 49%;
+    --hero-end: 0 0% 78%;
+    --hero-glow: 0 72% 49%;
+    --page-start: 0 0% 99%;
+    --page-end: 0 0% 92%;
+    --hero-base-end: 0 0% 90%;
+    --shadow-color: 0 0% 60%;
+  }
+
+  [data-theme="clean-slate"] {
+    --background: 210 33% 98%;
+    --foreground: 215 28% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 18%;
+    --primary: 215 19% 47%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 84 73% 46%;
+    --secondary-foreground: 215 28% 18%;
+    --muted: 210 27% 94%;
+    --muted-foreground: 215 18% 56%;
+    --accent: 84 73% 46%;
+    --accent-foreground: 215 28% 18%;
+    --border: 214 27% 88%;
+    --input: 214 27% 90%;
+    --ring: 215 19% 47%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --surface-elevated: 210 27% 95%;
+    --surface-hero: 0 0% 100%;
+    --hero-start: 215 19% 47%;
+    --hero-end: 84 73% 46%;
+    --hero-glow: 210 35% 85%;
+    --page-start: 210 33% 99%;
+    --page-end: 210 27% 95%;
+    --hero-base-end: 210 27% 96%;
+    --shadow-color: 215 30% 78%;
   }
 
   * {
@@ -69,7 +170,7 @@
       radial-gradient(circle at top left, hsl(var(--hero-start) / 0.22), transparent 28%),
       radial-gradient(circle at top right, hsl(var(--accent) / 0.16), transparent 30%),
       radial-gradient(circle at 50% 120%, hsl(var(--hero-glow) / 0.18), transparent 42%),
-      linear-gradient(180deg, hsl(240 29% 10%) 0%, hsl(var(--background)) 55%, hsl(241 26% 9%) 100%);
+      linear-gradient(180deg, hsl(var(--page-start)) 0%, hsl(var(--background)) 55%, hsl(var(--page-end)) 100%);
     background-attachment: fixed;
   }
 
@@ -91,7 +192,7 @@
     @apply rounded-[1.75rem] border border-border/80 backdrop-blur-xl;
     background-color: hsl(var(--card) / 0.88);
     box-shadow:
-      0 18px 60px hsl(240 45% 3% / 0.42),
+      0 18px 60px hsl(var(--shadow-color) / 0.24),
       inset 0 1px 0 hsl(0 0% 100% / 0.04);
   }
 
@@ -110,9 +211,9 @@
     background:
       radial-gradient(circle at top left, hsl(var(--hero-start) / 0.28), transparent 34%),
       radial-gradient(circle at bottom right, hsl(var(--accent) / 0.2), transparent 28%),
-      linear-gradient(145deg, hsl(var(--surface-hero)) 0%, hsl(var(--card)) 55%, hsl(240 28% 12%) 100%);
+      linear-gradient(145deg, hsl(var(--surface-hero)) 0%, hsl(var(--card)) 55%, hsl(var(--hero-base-end)) 100%);
     box-shadow:
-      0 22px 80px hsl(240 45% 3% / 0.5),
+      0 22px 80px hsl(var(--shadow-color) / 0.32),
       inset 0 1px 0 hsl(0 0% 100% / 0.04);
   }
 

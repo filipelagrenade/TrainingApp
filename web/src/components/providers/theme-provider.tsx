@@ -13,8 +13,11 @@ import {
 const STORAGE_KEY = "liftiq-theme";
 const DEFAULT_THEME = "neon-gym";
 export const themes = [
+  { value: "midnight-surge", label: "Midnight Surge" },
   { value: "neon-gym", label: "Neon Gym" },
   { value: "warm-lift", label: "Warm Lift" },
+  { value: "iron-brutalist", label: "Iron Brutalist" },
+  { value: "clean-slate", label: "Clean Slate" },
 ] as const;
 type ThemeValue = (typeof themes)[number]["value"];
 
