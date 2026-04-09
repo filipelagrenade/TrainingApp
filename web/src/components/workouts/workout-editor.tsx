@@ -127,6 +127,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveQueuedRef = useRef(false);
   const autosaveRunningRef = useRef(false);
+  const autoResumeRequestedRef = useRef(false);
   const latestDraftRef = useRef<WorkoutDraft | null>(null);
   const pendingCompletionLineupRef = useRef<ReturnType<typeof compareExerciseLineup> | null>(null);
   const [syncState, setSyncState] = useState<"saving" | "synced" | "error">("synced");
@@ -272,7 +273,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       await queryClient.invalidateQueries({ queryKey: ["workout", sessionId] });
       await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
       toast.success("Workout paused");
-      router.push("/");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -464,6 +464,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     exerciseIndex: number,
     updater: (exercise: WorkoutDraftExercise) => WorkoutDraftExercise,
   ) => {
+    ensureWorkoutResumed();
     setDraft((current) =>
       current
         ? {
@@ -535,6 +536,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const addExerciseToWorkout = (exercise: Exercise) => {
     const nextIndex = draft?.exercises.length ?? 0;
 
+    ensureWorkoutResumed();
     setDraft((current) =>
       current
         ? {
@@ -550,6 +552,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const addExercisesToWorkout = (exercises: Exercise[]) => {
     const nextIndex = draft?.exercises.length ?? 0;
 
+    ensureWorkoutResumed();
     setDraft((current) =>
       current
         ? {
@@ -568,6 +571,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     }
 
     try {
+      ensureWorkoutResumed();
       setSyncState("saving");
       await apiClient.saveWorkoutDraft(sessionId, draft);
       setSyncState("synced");
@@ -583,6 +587,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       return;
     }
 
+    ensureWorkoutResumed();
     pendingCompletionLineupRef.current = compareExerciseLineup(draft, session.originDraft);
     completeMutation.mutate(draft);
   };
@@ -594,6 +599,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       return;
     }
 
+    ensureWorkoutResumed();
     const key = setKeyFor(activeExerciseIndex, setIndex);
     const isCompleted = completedSetKeySet.has(key);
 
@@ -636,6 +642,19 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   const activeExercise = draft?.exercises[activeExerciseIndex];
   const usesAttachment = activeExercise ? equipmentTypesWithAttachments.has(activeExercise.equipmentType) : false;
+
+  useEffect(() => {
+    autoResumeRequestedRef.current = false;
+  }, [session?.pausedAt]);
+
+  const ensureWorkoutResumed = () => {
+    if (!session?.pausedAt || resumeWorkoutMutation.isPending || autoResumeRequestedRef.current) {
+      return;
+    }
+
+    autoResumeRequestedRef.current = true;
+    resumeWorkoutMutation.mutate();
+  };
 
   useEffect(() => {
     if (!restRunning) {
@@ -924,7 +943,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   return (
     <div className="space-y-4 pb-8">
-      <div className="sticky top-0 z-20 -mx-4 bg-[linear-gradient(180deg,hsl(240_29%_8%/0.98)_0%,hsl(240_29%_8%/0.94)_78%,transparent_100%)] px-4 pb-3 pt-1 backdrop-blur-xl">
+      <div className="-mx-4 px-4 pt-1">
         <div className="hero-card p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1044,38 +1063,39 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </div>
             </div>
           )}
-
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            {draft.exercises.map((exercise, index) => (
-              <button
-                key={`${exercise.exerciseName}-${index}`}
-                className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
-                  index === activeExerciseIndex
-                    ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
-                    : "border-border/70 bg-card/72"
-                }`}
-                onClick={() => setActiveExerciseIndex(index)}
-                type="button"
-              >
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  {index + 1}
-                </p>
-                <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {exercise.supersetGroupId ? (
-                    <Badge variant="outline" className="px-2 py-0 text-[10px]">
-                      Pair
-                    </Badge>
-                  ) : null}
-                  {exercise.substitutedFromExerciseName ? (
-                    <Badge variant="secondary" className="px-2 py-0 text-[10px]">
-                      Swap
-                    </Badge>
-                  ) : null}
-                </div>
-              </button>
-            ))}
-          </div>
+        </div>
+      </div>
+      <div className="sticky top-0 z-20 -mx-4 bg-[linear-gradient(180deg,hsl(240_29%_8%/0.98)_0%,hsl(240_29%_8%/0.94)_78%,transparent_100%)] px-4 pb-3 pt-3 backdrop-blur-xl">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {draft.exercises.map((exercise, index) => (
+            <button
+              key={`${exercise.exerciseName}-${index}`}
+              className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
+                index === activeExerciseIndex
+                  ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
+                  : "border-border/70 bg-card/72"
+              }`}
+              onClick={() => setActiveExerciseIndex(index)}
+              type="button"
+            >
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {index + 1}
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {exercise.supersetGroupId ? (
+                  <Badge variant="outline" className="px-2 py-0 text-[10px]">
+                    Pair
+                  </Badge>
+                ) : null}
+                {exercise.substitutedFromExerciseName ? (
+                  <Badge variant="secondary" className="px-2 py-0 text-[10px]">
+                    Swap
+                  </Badge>
+                ) : null}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1601,9 +1621,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <Input
                 id="workout-title"
                 value={draft.title}
-                onChange={(event) =>
-                  setDraft((current) => (current ? { ...current, title: event.target.value } : current))
-                }
+                onChange={(event) => {
+                  ensureWorkoutResumed();
+                  setDraft((current) => (current ? { ...current, title: event.target.value } : current));
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -1611,9 +1632,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <Textarea
                 id="workout-notes"
                 value={draft.notes ?? ""}
-                onChange={(event) =>
-                  setDraft((current) => (current ? { ...current, notes: event.target.value } : current))
-                }
+                onChange={(event) => {
+                  ensureWorkoutResumed();
+                  setDraft((current) => (current ? { ...current, notes: event.target.value } : current));
+                }}
               />
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
