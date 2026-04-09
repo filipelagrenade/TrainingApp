@@ -20,7 +20,6 @@ export const createExercise = async (
     machineType?: string;
     attachment?: string;
     loadType: LoadType;
-    unitMode: string;
     primaryMuscles: string[];
     secondaryMuscles?: string[];
   },
@@ -35,7 +34,7 @@ export const createExercise = async (
       machineType: input.machineType,
       attachment: input.attachment,
       loadType: input.loadType,
-      unitMode: input.unitMode,
+      unitMode: "kg",
       primaryMuscles: input.primaryMuscles,
       secondaryMuscles: input.secondaryMuscles ?? [],
       isSystem: false,

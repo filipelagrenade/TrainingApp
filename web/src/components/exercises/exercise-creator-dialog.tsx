@@ -11,7 +11,6 @@ import {
   equipmentTypeOptions,
   equipmentTypesWithAttachments,
   muscleGroupOptions,
-  unitModeOptions,
 } from "@/lib/exercise-options";
 import type { CreateExerciseInput, Exercise } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +27,6 @@ const defaultState: CreateExerciseInput = {
   equipmentType: "Dumbbell",
   attachment: "",
   loadType: "FIXED_WEIGHT",
-  unitMode: "kg",
   primaryMuscles: ["Chest"],
   secondaryMuscles: [],
 };
@@ -183,21 +181,6 @@ export const ExerciseCreatorDialog = ({
             </div>
           ) : null}
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>Unit mode</Label>
-              <Select value={form.unitMode} onValueChange={(value) => updateField("unitMode", value as "kg" | "lb")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Units" />
-                </SelectTrigger>
-                <SelectContent>
-                  {unitModeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-                </Select>
-              </div>
               <div className="grid gap-2">
                 <Label>Primary muscle</Label>
                 <Select

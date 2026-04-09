@@ -186,7 +186,6 @@ export const ExerciseLibraryScreen = () => {
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
-                <InfoRow label="Units" value={exercise.unitMode.toUpperCase()} />
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Primary muscles</p>
                   <div className="mt-2 flex flex-wrap gap-2">

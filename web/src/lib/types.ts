@@ -388,7 +388,6 @@ export type CreateExerciseInput = {
   machineType?: string;
   attachment?: string;
   loadType: LoadType;
-  unitMode: "kg" | "lb";
   primaryMuscles: string[];
   secondaryMuscles?: string[];
 };

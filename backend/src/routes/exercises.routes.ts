@@ -22,7 +22,6 @@ const createExerciseSchema = z.object({
   machineType: z.string().max(60).optional(),
   attachment: z.string().max(60).optional(),
   loadType: z.nativeEnum(LoadType),
-  unitMode: z.enum(["kg", "lb"]),
   primaryMuscles: z.array(z.string().min(2)).min(1),
   secondaryMuscles: z.array(z.string().min(2)).optional(),
 });

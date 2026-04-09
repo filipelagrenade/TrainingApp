@@ -447,7 +447,6 @@ export const LibraryScreen = () => {
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm">
                       <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
-                      <InfoRow label="Units" value={exercise.unitMode.toUpperCase()} />
                       <Button asChild className="w-full" size="sm" variant="outline">
                         <Link href={`/progress/exercises/${exercise.id}`}>
                           <TrendingUp className="h-4 w-4" />

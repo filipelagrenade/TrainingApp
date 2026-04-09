@@ -22,7 +22,13 @@ import {
   normalizeTrackingData,
   normalizeWeightForTrackingMode,
 } from "../lib/tracking";
-import { sumVolumeInKilograms } from "../lib/units";
+import {
+  convertTrackingDataToKilograms,
+  convertTrackingDataToPreferredUnit,
+  sumVolumeInKilograms,
+  toKilograms,
+  toPreferredUnit,
+} from "../lib/units";
 import { createXpLedgerEntry, unlockAchievements } from "./gamification.service";
 import {
   calculateProgressionRecommendation,
@@ -80,6 +86,7 @@ type WorkoutSessionRecord = Prisma.WorkoutSessionGetPayload<Record<string, never
 const BASE_WORKOUT_XP = 100;
 const PR_XP = 40;
 const PROGRAM_WEEK_XP = 180;
+const DEFAULT_UNIT = "kg";
 
 type WorkoutCompletionCoreResult = {
   workoutId: string;
@@ -134,7 +141,11 @@ const buildExposureSnapshots = async (
   });
 };
 
-const buildProgramDraft = async (userId: string, programWorkoutId: string): Promise<WorkoutDraft> => {
+const buildProgramDraft = async (
+  userId: string,
+  programWorkoutId: string,
+  preferredUnit: "kg" | "lb",
+): Promise<WorkoutDraft> => {
   const workout = await prisma.programWorkout.findUnique({
     where: { id: programWorkoutId },
     include: {
@@ -170,6 +181,16 @@ const buildProgramDraft = async (userId: string, programWorkoutId: string): Prom
           trackingMode: exercise.trackingMode,
           defaultTrackingData: exercise.defaultTrackingData,
         });
+        const displayDefaultTrackingData =
+          convertTrackingDataToPreferredUnit(
+            normalizeTrackingData(tracking.defaultTrackingData),
+            preferredUnit,
+          ) ??
+          buildDefaultSetTrackingData({
+            exerciseCategory: tracking.exerciseCategory,
+            trackingMode: tracking.trackingMode,
+            unitMode: preferredUnit,
+          });
 
         return {
           exerciseId: exercise.exercise.id,
@@ -180,8 +201,8 @@ const buildProgramDraft = async (userId: string, programWorkoutId: string): Prom
           attachment: exercise.attachmentOverride ?? exercise.exercise.attachment,
           loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
           trackingMode: tracking.trackingMode,
-          defaultTrackingData: tracking.defaultTrackingData,
-          unitMode: exercise.exercise.unitMode,
+          defaultTrackingData: displayDefaultTrackingData,
+          unitMode: preferredUnit,
           unilateral: exercise.unilateral,
           notes: exercise.notes ?? undefined,
           prescribedSetCount: exercise.sets,
@@ -202,12 +223,12 @@ const buildProgramDraft = async (userId: string, programWorkoutId: string): Prom
             reps: tracking.exerciseCategory === ExerciseCategory.CARDIO ? 0 : exercise.repMin,
             rpe: exercise.targetRpe ?? null,
             setType: defaultSetTypeForCategory(tracking.exerciseCategory),
-            trackingData: buildDefaultSetTrackingData({
-              exerciseCategory: tracking.exerciseCategory,
-              trackingMode: tracking.trackingMode,
-              unitMode: exercise.exercise.unitMode,
-              defaultTrackingData: tracking.defaultTrackingData,
-            }),
+              trackingData: buildDefaultSetTrackingData({
+                exerciseCategory: tracking.exerciseCategory,
+                trackingMode: tracking.trackingMode,
+                unitMode: preferredUnit,
+                defaultTrackingData: displayDefaultTrackingData,
+              }),
             isWorkingSet: tracking.exerciseCategory !== ExerciseCategory.CARDIO,
           })),
         };
@@ -216,7 +237,10 @@ const buildProgramDraft = async (userId: string, programWorkoutId: string): Prom
   };
 };
 
-const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => {
+const buildTemplateDraft = async (
+  templateId: string,
+  preferredUnit: "kg" | "lb",
+): Promise<WorkoutDraft> => {
   const template = await prisma.workoutTemplate.findUnique({
     where: { id: templateId },
     include: {
@@ -246,6 +270,16 @@ const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => 
           trackingMode: exercise.trackingMode,
           defaultTrackingData: exercise.defaultTrackingData,
         });
+        const displayDefaultTrackingData =
+          convertTrackingDataToPreferredUnit(
+            normalizeTrackingData(tracking.defaultTrackingData),
+            preferredUnit,
+          ) ??
+          buildDefaultSetTrackingData({
+            exerciseCategory: tracking.exerciseCategory,
+            trackingMode: tracking.trackingMode,
+            unitMode: preferredUnit,
+          });
 
         return {
       exerciseId: exercise.exercise.id,
@@ -256,8 +290,8 @@ const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => 
       attachment: exercise.attachmentOverride ?? exercise.exercise.attachment,
       loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
       trackingMode: tracking.trackingMode,
-      defaultTrackingData: tracking.defaultTrackingData,
-      unitMode: exercise.exercise.unitMode,
+      defaultTrackingData: displayDefaultTrackingData,
+      unitMode: preferredUnit,
       unilateral: exercise.unilateral,
       notes: exercise.notes ?? undefined,
       prescribedSetCount: exercise.sets,
@@ -281,8 +315,8 @@ const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => 
         trackingData: buildDefaultSetTrackingData({
           exerciseCategory: tracking.exerciseCategory,
           trackingMode: tracking.trackingMode,
-          unitMode: exercise.exercise.unitMode,
-          defaultTrackingData: tracking.defaultTrackingData,
+          unitMode: preferredUnit,
+          defaultTrackingData: displayDefaultTrackingData,
         }),
         isWorkingSet: tracking.exerciseCategory !== ExerciseCategory.CARDIO,
       })),
@@ -292,11 +326,52 @@ const buildTemplateDraft = async (templateId: string): Promise<WorkoutDraft> => 
   };
 };
 
+const convertDraftToStorageUnit = (draft: WorkoutDraft): WorkoutDraft => ({
+  ...draft,
+  exercises: draft.exercises.map((exercise) => ({
+    ...exercise,
+    unitMode: "kg",
+    suggestedWeight:
+      typeof exercise.suggestedWeight === "number" ? toKilograms(exercise.suggestedWeight, exercise.unitMode) : exercise.suggestedWeight ?? null,
+    defaultTrackingData: convertTrackingDataToKilograms(
+      normalizeTrackingData(exercise.defaultTrackingData),
+      exercise.unitMode,
+    ),
+    sets: exercise.sets.map((set) => ({
+      ...set,
+      weight: typeof set.weight === "number" ? toKilograms(set.weight, exercise.unitMode) : set.weight,
+      trackingData: convertTrackingDataToKilograms(normalizeTrackingData(set.trackingData), exercise.unitMode),
+    })),
+  })),
+});
+
+const convertDraftToPreferredUnit = (
+  draft: WorkoutDraft,
+  preferredUnit: "kg" | "lb",
+): WorkoutDraft => ({
+  ...draft,
+  exercises: draft.exercises.map((exercise) => ({
+    ...exercise,
+    unitMode: preferredUnit,
+    suggestedWeight:
+      typeof exercise.suggestedWeight === "number" ? toPreferredUnit(exercise.suggestedWeight, preferredUnit) : exercise.suggestedWeight ?? null,
+    defaultTrackingData: convertTrackingDataToPreferredUnit(
+      normalizeTrackingData(exercise.defaultTrackingData),
+      preferredUnit,
+    ),
+    sets: exercise.sets.map((set) => ({
+      ...set,
+      weight: typeof set.weight === "number" ? toPreferredUnit(set.weight, preferredUnit) : set.weight,
+      trackingData: convertTrackingDataToPreferredUnit(normalizeTrackingData(set.trackingData), preferredUnit),
+    })),
+  })),
+});
+
 const hydrateWorkoutDraft = (workout: {
   title: string;
   notes: string | null;
   savedDraft: Prisma.JsonValue | null;
-}): WorkoutDraft => {
+}, preferredUnit: "kg" | "lb"): WorkoutDraft => {
   const savedDraft = workout.savedDraft as WorkoutDraft | null;
 
   const baseDraft =
@@ -306,7 +381,7 @@ const hydrateWorkoutDraft = (workout: {
       exercises: [],
     };
 
-  return {
+  const normalizedDraft = {
     ...baseDraft,
     notes: baseDraft.notes ?? "",
     exercises: baseDraft.exercises.map((exercise) => {
@@ -323,11 +398,12 @@ const hydrateWorkoutDraft = (workout: {
         buildDefaultSetTrackingData({
           exerciseCategory,
           trackingMode,
-          unitMode: exercise.unitMode,
+          unitMode: DEFAULT_UNIT,
         });
 
       return {
         ...exercise,
+        unitMode: DEFAULT_UNIT,
         exerciseCategory,
         trackingMode,
         defaultTrackingData,
@@ -339,7 +415,7 @@ const hydrateWorkoutDraft = (workout: {
             buildDefaultSetTrackingData({
               exerciseCategory,
               trackingMode,
-              unitMode: exercise.unitMode,
+              unitMode: DEFAULT_UNIT,
               defaultTrackingData,
             }),
           isWorkingSet:
@@ -347,9 +423,11 @@ const hydrateWorkoutDraft = (workout: {
               ? set.isWorkingSet
               : exerciseCategory !== ExerciseCategory.CARDIO,
         })),
-      };
+        };
     }),
   };
+
+  return convertDraftToPreferredUnit(normalizedDraft, preferredUnit);
 };
 
 const getOwnedWorkout = async (userId: string, workoutId: string): Promise<WorkoutSessionRecord> => {
@@ -365,6 +443,15 @@ const getOwnedWorkout = async (userId: string, workoutId: string): Promise<Worko
   }
 
   return workout as WorkoutSessionRecord;
+};
+
+const getPreferredUnitForUser = async (userId: string): Promise<"kg" | "lb"> => {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { preferredUnit: true },
+  });
+
+  return user.preferredUnit as "kg" | "lb";
 };
 
 const getVisibleExerciseForUser = async (userId: string, exerciseId: string) => {
@@ -542,6 +629,39 @@ const calculateWorkoutDurationSeconds = (
   );
 };
 
+const convertCompletedExerciseToPreferredUnit = <
+  T extends {
+    suggestedWeight: number | null;
+    unitMode: string;
+    defaultTrackingData: Prisma.JsonValue | null;
+    sets: Array<{
+      weight: number | null;
+      trackingData: Prisma.JsonValue | null;
+    }>;
+  },
+>(
+  exercise: T,
+  preferredUnit: "kg" | "lb",
+): T => ({
+  ...exercise,
+  unitMode: preferredUnit,
+  suggestedWeight:
+    typeof exercise.suggestedWeight === "number"
+      ? toPreferredUnit(exercise.suggestedWeight, preferredUnit)
+      : exercise.suggestedWeight,
+  defaultTrackingData: convertTrackingDataToPreferredUnit(
+    normalizeTrackingData(exercise.defaultTrackingData),
+    preferredUnit,
+  ) ?? Prisma.JsonNull,
+  sets: exercise.sets.map((set) => ({
+    ...set,
+    weight: typeof set.weight === "number" ? toPreferredUnit(set.weight, preferredUnit) : set.weight,
+    trackingData:
+      convertTrackingDataToPreferredUnit(normalizeTrackingData(set.trackingData), preferredUnit) ??
+      Prisma.JsonNull,
+  })),
+});
+
 export const listRecentWorkouts = async (userId: string, limit?: number) =>
   prisma.workoutSession.findMany({
     where: {
@@ -570,6 +690,7 @@ export const startWorkout = async (
     title?: string;
   },
 ) => {
+  const preferredUnit = await getPreferredUnitForUser(userId);
   let savedDraft: WorkoutDraft = {
     title: input.title ?? "Quick Workout",
     exercises: [],
@@ -610,7 +731,11 @@ export const startWorkout = async (
       throw new AppError(404, "PROGRAM_WORKOUT_NOT_FOUND", "That planned workout could not be found.");
     }
 
-    savedDraft = await buildProgramDraft(userId, input.programWorkoutId);
+    savedDraft = await buildProgramDraft(
+      userId,
+      input.programWorkoutId,
+      preferredUnit,
+    );
     programId = workout.programWeek.programId;
     programWorkoutId = workout.id;
     wasPlanned = true;
@@ -632,8 +757,10 @@ export const startWorkout = async (
       throw new AppError(404, "TEMPLATE_NOT_FOUND", "That template could not be found.");
     }
 
-    savedDraft = await buildTemplateDraft(input.templateId);
+    savedDraft = await buildTemplateDraft(input.templateId, preferredUnit);
   }
+
+  const persistedDraft = convertDraftToStorageUnit(savedDraft);
 
   return prisma.workoutSession.create({
     data: {
@@ -641,17 +768,18 @@ export const startWorkout = async (
       programId,
       programWorkoutId,
       templateId: input.entryType === WorkoutEntryType.TEMPLATE ? input.templateId ?? null : null,
-      title: savedDraft.title,
+      title: persistedDraft.title,
       entryType: input.entryType,
       status: WorkoutStatus.IN_PROGRESS,
       wasPlanned,
-      savedDraft,
-      originDraft: savedDraft,
+      savedDraft: persistedDraft,
+      originDraft: persistedDraft,
     },
   });
 };
 
 export const getWorkout = async (userId: string, workoutId: string) => {
+  const preferredUnit = await getPreferredUnitForUser(userId);
   const startedAt = Date.now();
   const workout = await prisma.workoutSession.findFirst({
     where: {
@@ -682,14 +810,17 @@ export const getWorkout = async (userId: string, workoutId: string) => {
     title: workout.title,
     notes: workout.notes,
     savedDraft: workout.savedDraft,
-  });
+  }, preferredUnit);
   const hydratedOriginDraft = workout.originDraft
     ? hydrateWorkoutDraft({
         title: workout.title,
         notes: workout.notes,
         savedDraft: workout.originDraft,
-      })
+      }, preferredUnit)
     : null;
+  const convertedExercises = workout.exercises.map((exercise) =>
+    convertCompletedExerciseToPreferredUnit(exercise, preferredUnit),
+  );
 
   if (workout.status !== WorkoutStatus.COMPLETED) {
     logger.info(
@@ -706,12 +837,13 @@ export const getWorkout = async (userId: string, workoutId: string) => {
       ...workout,
       savedDraft: hydratedSavedDraft,
       originDraft: hydratedOriginDraft,
+      exercises: convertedExercises,
       exerciseReviews: [],
     };
   }
 
   const exerciseReviews = await Promise.all(
-    workout.exercises.map(async (exercise) => {
+    convertedExercises.map(async (exercise) => {
       const currentSummary = summarizeWorkingSets(exercise.sets, {
         trackingMode: exercise.trackingMode,
         unitMode: exercise.unitMode,
@@ -726,10 +858,13 @@ export const getWorkout = async (userId: string, workoutId: string) => {
         workout.completedAt,
       );
       const previousSummary = previousExposure
-        ? summarizeWorkingSets(previousExposure.sets, {
+        ? summarizeWorkingSets(
+            convertCompletedExerciseToPreferredUnit(previousExposure, preferredUnit).sets,
+            {
             trackingMode: previousExposure.trackingMode,
-            unitMode: previousExposure.unitMode,
-          })
+              unitMode: preferredUnit,
+            },
+          )
         : null;
 
       return {
@@ -767,6 +902,7 @@ export const getWorkout = async (userId: string, workoutId: string) => {
     ...workout,
     savedDraft: hydratedSavedDraft,
     originDraft: hydratedOriginDraft,
+    exercises: convertedExercises,
     exerciseReviews,
   };
 };
@@ -836,15 +972,16 @@ export const saveWorkoutDraft = async (userId: string, workoutId: string, draft:
   prisma.$transaction(async (transaction) => {
     const startedAt = Date.now();
     await getOwnedWorkout(userId, workoutId);
+    const persistedDraft = convertDraftToStorageUnit(draft);
 
     const updated = await transaction.workoutSession.update({
       where: {
         id: workoutId,
       },
       data: {
-        title: draft.title,
-        notes: draft.notes,
-        savedDraft: draft,
+        title: persistedDraft.title,
+        notes: persistedDraft.notes,
+        savedDraft: persistedDraft,
       },
     });
 
@@ -852,7 +989,7 @@ export const saveWorkoutDraft = async (userId: string, workoutId: string, draft:
       {
         workoutId,
         userId,
-        exerciseCount: draft.exercises.length,
+        exerciseCount: persistedDraft.exercises.length,
         durationMs: Date.now() - startedAt,
       },
       "Saved workout draft",
@@ -871,7 +1008,7 @@ export const applyWorkoutSubstitution = async (
 ) => {
   const workout = await getOwnedWorkout(userId, workoutId);
   const substituteExercise = await getVisibleExerciseForUser(userId, input.substituteExerciseId);
-  const draft = hydrateWorkoutDraft(workout);
+  const draft = hydrateWorkoutDraft(workout, await getPreferredUnitForUser(userId));
 
   if (!draft.exercises[input.exerciseIndex]) {
     throw new AppError(400, "INVALID_EXERCISE_INDEX", "That workout exercise could not be found.");
@@ -894,7 +1031,7 @@ export const applyWorkoutSubstitution = async (
   const defaultTrackingData = buildDefaultSetTrackingData({
     exerciseCategory: substituteExercise.exerciseCategory,
     trackingMode,
-    unitMode: substituteExercise.unitMode,
+    unitMode: currentExercise.unitMode,
   });
 
   const nextDraft: WorkoutDraft = {
@@ -912,7 +1049,7 @@ export const applyWorkoutSubstitution = async (
             loadType: substituteExercise.loadType,
             trackingMode,
             defaultTrackingData,
-            unitMode: substituteExercise.unitMode,
+            unitMode: currentExercise.unitMode,
             substitutedFromExerciseId:
               originalExerciseId && originalExerciseId !== substituteExercise.id ? originalExerciseId : null,
             substitutedFromExerciseName:
@@ -934,7 +1071,7 @@ export const applyWorkoutSubstitution = async (
                 buildDefaultSetTrackingData({
                   exerciseCategory: substituteExercise.exerciseCategory,
                   trackingMode,
-                  unitMode: substituteExercise.unitMode,
+                  unitMode: currentExercise.unitMode,
                   defaultTrackingData,
                 }),
             })),
@@ -961,7 +1098,7 @@ export const removeWorkoutSubstitution = async (
   exerciseIndex: number,
 ) => {
   const workout = await getOwnedWorkout(userId, workoutId);
-  const draft = hydrateWorkoutDraft(workout);
+  const draft = hydrateWorkoutDraft(workout, await getPreferredUnitForUser(userId));
   const currentExercise = draft.exercises[exerciseIndex];
 
   if (!currentExercise) {
@@ -984,7 +1121,7 @@ export const removeWorkoutSubstitution = async (
   const defaultTrackingData = buildDefaultSetTrackingData({
     exerciseCategory: originalExercise.exerciseCategory,
     trackingMode,
-    unitMode: originalExercise.unitMode,
+    unitMode: currentExercise.unitMode,
   });
 
   const nextDraft: WorkoutDraft = {
@@ -1002,7 +1139,7 @@ export const removeWorkoutSubstitution = async (
             loadType: originalExercise.loadType,
             trackingMode,
             defaultTrackingData,
-            unitMode: originalExercise.unitMode,
+            unitMode: currentExercise.unitMode,
             substitutedFromExerciseId: null,
             substitutedFromExerciseName: null,
             substitutionMode: null,
@@ -1015,7 +1152,7 @@ export const removeWorkoutSubstitution = async (
                 buildDefaultSetTrackingData({
                   exerciseCategory: originalExercise.exerciseCategory,
                   trackingMode,
-                  unitMode: originalExercise.unitMode,
+                  unitMode: currentExercise.unitMode,
                   defaultTrackingData,
                 }),
             })),
@@ -1044,7 +1181,7 @@ export const pairWorkoutSuperset = async (
   },
 ) => {
   const workout = await getOwnedWorkout(userId, workoutId);
-  const draft = hydrateWorkoutDraft(workout);
+  const draft = hydrateWorkoutDraft(workout, await getPreferredUnitForUser(userId));
   const [firstIndex, secondIndex] = input.exerciseIndexes;
 
   if (
@@ -1097,7 +1234,7 @@ export const unpairWorkoutSuperset = async (
   supersetGroupId: string,
 ) => {
   const workout = await getOwnedWorkout(userId, workoutId);
-  const draft = hydrateWorkoutDraft(workout);
+  const draft = hydrateWorkoutDraft(workout, await getPreferredUnitForUser(userId));
 
   const nextDraft: WorkoutDraft = {
     ...draft,
@@ -1380,6 +1517,7 @@ const runPostWorkoutEffects = async (
 
 export const completeWorkout = async (userId: string, workoutId: string, draft: WorkoutDraft) => {
   const startedAt = Date.now();
+  const persistedDraft = convertDraftToStorageUnit(draft);
 
   return prisma.$transaction(async (transaction) => {
     const workout = await transaction.workoutSession.findFirst({
@@ -1404,14 +1542,14 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
     });
 
     let prCount = 0;
-    const trackedExerciseIds = [...new Set(draft.exercises.flatMap((exercise) => exercise.exerciseId ? [exercise.exerciseId] : []))];
+    const trackedExerciseIds = [...new Set(persistedDraft.exercises.flatMap((exercise) => exercise.exerciseId ? [exercise.exerciseId] : []))];
     const personalRecordBenchmarks = await getPersonalRecordBenchmarks(
       transaction,
       userId,
       trackedExerciseIds,
     );
 
-    for (const [exerciseIndex, exercise] of draft.exercises.entries()) {
+    for (const [exerciseIndex, exercise] of persistedDraft.exercises.entries()) {
       const createdExercise = await transaction.workoutExercise.create({
         data: {
           sessionId: workout.id,
@@ -1424,7 +1562,7 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
           loadType: exercise.loadType,
           trackingMode: exercise.trackingMode,
           defaultTrackingData: normalizeTrackingData(exercise.defaultTrackingData) ?? Prisma.JsonNull,
-          unitMode: exercise.unitMode,
+          unitMode: DEFAULT_UNIT,
           unilateral: exercise.unilateral ?? false,
           orderIndex: exerciseIndex,
           notes: exercise.notes,
@@ -1496,13 +1634,13 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
     await transaction.workoutSession.update({
       where: { id: workout.id },
       data: {
-        title: draft.title,
-        notes: draft.notes,
+        title: persistedDraft.title,
+        notes: persistedDraft.notes,
         status: WorkoutStatus.COMPLETED,
         completedAt,
         pausedAt: null,
         totalDurationSeconds,
-        savedDraft: draft,
+        savedDraft: persistedDraft,
       },
     });
 
@@ -1532,7 +1670,7 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
 
       return {
       workoutId,
-      workoutTitle: draft.title,
+        workoutTitle: persistedDraft.title,
       wasPlanned: workout.wasPlanned,
       xpAwarded,
       prCount,
@@ -1548,7 +1686,7 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
       {
         workoutId,
         userId,
-        exerciseCount: draft.exercises.length,
+        exerciseCount: persistedDraft.exercises.length,
         prCount: result.prCount,
         completedWeek: result.completedWeek,
         durationMs: Date.now() - startedAt,

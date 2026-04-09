@@ -51,7 +51,6 @@ import {
   defaultLoadTypeByEquipment,
   equipmentTypeOptions,
   equipmentTypesWithAttachments,
-  unitModeOptions,
 } from "@/lib/exercise-options";
 import type {
   Exercise,
@@ -584,7 +583,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       current
         ? {
             ...current,
-            exercises: [...current.exercises, buildExerciseDraft(exercise)],
+            exercises: [...current.exercises, buildExerciseDraft(exercise, preferredUnit)],
           }
         : current,
     );
@@ -600,7 +599,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       current
         ? {
             ...current,
-            exercises: [...current.exercises, ...exercises.map(buildExerciseDraft)],
+            exercises: [...current.exercises, ...exercises.map((exercise) => buildExerciseDraft(exercise, preferredUnit))],
           }
         : current,
     );
@@ -2010,29 +2009,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               ) : null}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Units</Label>
-                  <Select
-                    value={activeExercise.unitMode}
-                    onValueChange={(value) =>
-                      updateExercise(activeExerciseIndex, (current) => ({
-                        ...current,
-                        unitMode: value as "kg" | "lb",
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Units" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {unitModeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
                   <Label>{activeExercise.exerciseCategory === "CARDIO" ? "Default duration (min)" : "Suggested weight"}</Label>
                   {activeExercise.exerciseCategory === "CARDIO" ? (
                     <NullableNumberInput
@@ -2058,6 +2034,9 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                       }
                     />
                   )}
+                  {activeExercise.exerciseCategory !== "CARDIO" ? (
+                    <p className="text-xs text-muted-foreground">Displayed in {preferredUnit.toUpperCase()}</p>
+                  ) : null}
                 </div>
               </div>
               <div className="space-y-2">

@@ -9,6 +9,7 @@ import type {
   WorkoutSetTrackingData,
   WorkoutSetType,
 } from "./types";
+import { convertValueToKilograms } from "./units";
 
 const numberValue = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
@@ -102,9 +103,12 @@ export const buildDraftSet = (exercise: {
   isWorkingSet: exercise.exerciseCategory !== "CARDIO",
 });
 
-export const buildExerciseDraft = (exercise: Exercise): WorkoutDraftExercise => {
+export const buildExerciseDraft = (
+  exercise: Exercise,
+  preferredUnit: "kg" | "lb" = exercise.unitMode,
+): WorkoutDraftExercise => {
   const trackingMode = defaultTrackingModeForExercise(exercise);
-  const defaultTrackingData = defaultTrackingDataForMode(trackingMode, exercise.unitMode);
+  const defaultTrackingData = defaultTrackingDataForMode(trackingMode, preferredUnit);
 
   return {
     exerciseId: exercise.id,
@@ -116,7 +120,7 @@ export const buildExerciseDraft = (exercise: Exercise): WorkoutDraftExercise => 
     loadType: exercise.loadType,
     trackingMode,
     defaultTrackingData,
-    unitMode: exercise.unitMode,
+    unitMode: preferredUnit,
     unilateral: false,
     notes: "",
     prescribedSetCount: 3,
@@ -133,7 +137,7 @@ export const buildExerciseDraft = (exercise: Exercise): WorkoutDraftExercise => 
     sets: [buildDraftSet({
       exerciseCategory: exercise.exerciseCategory,
       trackingMode,
-      unitMode: exercise.unitMode,
+      unitMode: preferredUnit,
       repMin: exercise.exerciseCategory === "CARDIO" ? 0 : 8,
       suggestedWeight: null,
       defaultTrackingData,
@@ -465,9 +469,15 @@ export const draftExerciseToTemplateExercise = (exercise: WorkoutDraftExercise):
     repMax: exercise.repMax ?? 0,
     restSeconds: 90,
     startWeight:
-      exercise.suggestedWeight ??
-      exercise.sets.find((set) => deriveNormalizedWeight(exercise.trackingMode, set.weight, set.trackingData) !== null)?.weight ??
-      null,
+      (() => {
+        const displayWeight =
+          exercise.suggestedWeight ??
+          exercise.sets.find((set) => deriveNormalizedWeight(exercise.trackingMode, set.weight, set.trackingData) !== null)?.weight ??
+          null;
+        return typeof displayWeight === "number"
+          ? convertValueToKilograms(displayWeight, exercise.unitMode)
+          : null;
+      })(),
     loadTypeOverride: exercise.loadType,
     trackingMode: exercise.trackingMode,
     defaultTrackingData: exercise.defaultTrackingData ?? null,
