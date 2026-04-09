@@ -21,6 +21,27 @@ export const themes = [
 ] as const;
 type ThemeValue = (typeof themes)[number]["value"];
 
+const readStoredTheme = (): ThemeValue => {
+  if (typeof window === "undefined") {
+    return DEFAULT_THEME;
+  }
+
+  try {
+    const storedTheme = window.localStorage.getItem(STORAGE_KEY) as ThemeValue | null;
+    return storedTheme ?? DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+};
+
+const applyThemeToDocument = (theme: ThemeValue) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.documentElement.dataset.theme = theme;
+};
+
 const ThemeContext = createContext<{
   theme: ThemeValue;
   setTheme: (theme: ThemeValue) => void;
@@ -32,16 +53,19 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const setTheme = useCallback((nextTheme: ThemeValue) => {
     setThemeState(nextTheme);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, nextTheme);
+      try {
+        window.localStorage.setItem(STORAGE_KEY, nextTheme);
+      } catch {
+        // Ignore storage write issues in installed/private contexts.
+      }
     }
-    document.documentElement.dataset.theme = nextTheme;
+    applyThemeToDocument(nextTheme);
   }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    const storedTheme = (window.localStorage.getItem(STORAGE_KEY) as ThemeValue | null) ?? DEFAULT_THEME;
+    const storedTheme = readStoredTheme();
     setThemeState(storedTheme);
-    root.dataset.theme = storedTheme;
+    applyThemeToDocument(storedTheme);
   }, []);
 
   const value = useMemo(

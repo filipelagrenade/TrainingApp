@@ -90,6 +90,42 @@ const formatRestTime = (seconds: number) => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 };
 
+const getNotificationPermission = (): NotificationPermission | "unsupported" => {
+  if (typeof window === "undefined" || typeof Notification === "undefined") {
+    return "unsupported";
+  }
+
+  try {
+    return Notification.permission;
+  } catch {
+    return "unsupported";
+  }
+};
+
+const closeNotificationSafely = (notification: Notification | null) => {
+  if (!notification) {
+    return;
+  }
+
+  try {
+    notification.close();
+  } catch {
+    // Ignore browsers/PWAs that do not allow programmatic close on resume.
+  }
+};
+
+const showNotificationSafely = (title: string, options?: NotificationOptions) => {
+  if (typeof window === "undefined" || typeof Notification === "undefined") {
+    return null;
+  }
+
+  try {
+    return new Notification(title, options);
+  } catch {
+    return null;
+  }
+};
+
 const toTemplateExercises = (exercises: WorkoutDraftExercise[]) =>
   exercises
     .map(draftExerciseToTemplateExercise)
@@ -119,7 +155,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [restRunning, setRestRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
-    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
+    getNotificationPermission(),
   );
   const restNotificationRef = useRef<Notification | null>(null);
   const hydratedRef = useRef(false);
@@ -408,12 +444,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }, [activeExerciseIndex]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      setNotificationPermission("unsupported");
-      return;
-    }
-
-    setNotificationPermission(Notification.permission);
+    setNotificationPermission(getNotificationPermission());
   }, []);
 
   useEffect(() => {
@@ -514,13 +545,20 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   };
 
   const requestNotificationPermission = async () => {
-    if (typeof window === "undefined" || !("Notification" in window)) {
+    if (typeof window === "undefined" || typeof Notification === "undefined") {
       toast.error("Notifications are not available in this browser.");
       setNotificationPermission("unsupported");
       return;
     }
 
-    const permission = await Notification.requestPermission();
+    let permission: NotificationPermission;
+    try {
+      permission = await Notification.requestPermission();
+    } catch {
+      toast.error("Notifications could not be enabled on this device.");
+      setNotificationPermission("unsupported");
+      return;
+    }
     setNotificationPermission(permission);
 
     if (permission === "granted") {
@@ -653,7 +691,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   useEffect(() => {
     if (!restRunning) {
-      restNotificationRef.current?.close();
+      closeNotificationSafely(restNotificationRef.current);
       restNotificationRef.current = null;
       return;
     }
@@ -663,15 +701,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         if (current <= 1) {
           window.clearInterval(timer);
           setRestRunning(false);
-          restNotificationRef.current?.close();
+          closeNotificationSafely(restNotificationRef.current);
           restNotificationRef.current = null;
           if (
             typeof window !== "undefined" &&
             document.hidden &&
-            "Notification" in window &&
-            Notification.permission === "granted"
+            getNotificationPermission() === "granted"
           ) {
-            new Notification("Rest timer done", {
+            showNotificationSafely("Rest timer done", {
               body: activeExercise?.exerciseName
                 ? `Back to ${activeExercise.exerciseName}`
                 : "Jump back into your workout.",
@@ -698,8 +735,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       return;
     }
 
-    restNotificationRef.current?.close();
-    restNotificationRef.current = new Notification("Rest timer running", {
+    closeNotificationSafely(restNotificationRef.current);
+    restNotificationRef.current = showNotificationSafely("Rest timer running", {
       body: `${formatRestTime(restRemaining)} left${activeExercise?.exerciseName ? ` • ${activeExercise.exerciseName}` : ""}`,
       tag: "rest-timer",
       silent: true,

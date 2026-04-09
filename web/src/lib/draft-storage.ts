@@ -7,12 +7,12 @@ export const loadDraft = (sessionId: string): WorkoutDraft | null => {
     return null;
   }
 
-  const raw = window.localStorage.getItem(keyForSession(sessionId));
-  if (!raw) {
-    return null;
-  }
-
   try {
+    const raw = window.localStorage.getItem(keyForSession(sessionId));
+    if (!raw) {
+      return null;
+    }
+
     return JSON.parse(raw) as WorkoutDraft;
   } catch {
     return null;
@@ -24,7 +24,11 @@ export const saveDraftLocally = (sessionId: string, draft: WorkoutDraft) => {
     return;
   }
 
-  window.localStorage.setItem(keyForSession(sessionId), JSON.stringify(draft));
+  try {
+    window.localStorage.setItem(keyForSession(sessionId), JSON.stringify(draft));
+  } catch {
+    // Ignore storage write failures in constrained browser contexts.
+  }
 };
 
 export const clearDraft = (sessionId: string) => {
@@ -32,5 +36,9 @@ export const clearDraft = (sessionId: string) => {
     return;
   }
 
-  window.localStorage.removeItem(keyForSession(sessionId));
+  try {
+    window.localStorage.removeItem(keyForSession(sessionId));
+  } catch {
+    // Ignore storage removal failures in constrained browser contexts.
+  }
 };
