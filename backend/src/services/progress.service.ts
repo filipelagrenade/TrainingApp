@@ -455,6 +455,7 @@ export const getProgressOverview = async (userId: string) => {
         remaining: Math.max(0, achievement.requirementTarget - progress),
       };
     })
+    .filter((achievement) => achievement.remaining > 0)
     .sort((left, right) => left.remaining - right.remaining)
     .slice(0, 3);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Dumbbell, Flame, Settings2, SkipForward } from "lucide-react";
+import { CheckCircle2, Dumbbell, Settings2, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -13,7 +13,6 @@ import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-d
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -80,7 +79,6 @@ export const DashboardScreen = ({ user }: { user: User }) => {
 
   const activeProgram = activeProgramQuery.data;
   const currentWeek = activeProgram?.currentWeek;
-  const currentXpBand = user.xpTotal % 600;
   const inProgressWorkout = inProgressWorkoutQuery.data;
 
   const handleExerciseCreated = async () => {
@@ -116,17 +114,6 @@ export const DashboardScreen = ({ user }: { user: User }) => {
             <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
               Sign out
             </Button>
-          </>
-        }
-        stats={
-          <>
-            <MetricCard icon={Flame} label="Adherence" value={String(activeProgram?.adherenceStreak ?? 0)} />
-            <MetricCard icon={Dumbbell} label="Programs" value={String(activeProgram ? 1 : 0)} />
-            <MetricCard
-              icon={CheckCircle2}
-              label="This week"
-              value={String((activeProgram?.currentWeekCompleted ?? 0) + (activeProgram?.currentWeekSkipped ?? 0))}
-            />
           </>
         }
       />

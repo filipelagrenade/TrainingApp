@@ -6,8 +6,6 @@ import {
   BellRing,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   Info,
   Link2,
   MoreHorizontal,
@@ -913,7 +911,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }
 
   return (
-    <div className="space-y-4 pb-32">
+    <div className="space-y-4 pb-8">
       <div className="sticky top-0 z-20 -mx-4 bg-[linear-gradient(180deg,hsl(240_29%_8%/0.98)_0%,hsl(240_29%_8%/0.94)_78%,transparent_100%)] px-4 pb-3 pt-1 backdrop-blur-xl">
         <div className="hero-card p-3">
           <div className="flex items-start justify-between gap-3">
@@ -1000,6 +998,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 <BellRing className="h-4 w-4" />
               </Button>
             </div>
+            <Button
+              className="h-10 w-full"
+              onClick={handleCompleteWorkout}
+              disabled={completeMutation.isPending || draft.exercises.length === 0}
+            >
+              {completeMutation.isPending ? "Completing..." : "Complete workout"}
+            </Button>
           </div>
         </div>
 
@@ -1568,39 +1573,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           )}
         </CardContent>
       </Card>
-
-      <div className="sticky bottom-0 z-20 -mx-4 bg-[linear-gradient(180deg,rgba(240,235,227,0)_0%,rgba(240,235,227,0.96)_40%,rgba(240,235,227,1)_100%)] px-4 pb-4 pt-6">
-        <div className="hero-card p-3">
-          <div className="flex items-center gap-2">
-            <Button
-              aria-label="Previous exercise"
-              size="icon"
-              disabled={activeExerciseIndex === 0 || draft.exercises.length === 0}
-              onClick={() => setActiveExerciseIndex((current) => Math.max(0, current - 1))}
-              variant="outline"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              className="flex-1"
-              size="lg"
-              onClick={handleCompleteWorkout}
-              disabled={completeMutation.isPending || draft.exercises.length === 0}
-            >
-              {completeMutation.isPending ? "Completing..." : "Complete workout"}
-            </Button>
-            <Button
-              aria-label="Next exercise"
-              size="icon"
-              disabled={activeExerciseIndex >= draft.exercises.length - 1 || draft.exercises.length === 0}
-              onClick={() => setActiveExerciseIndex((current) => Math.min(draft.exercises.length - 1, current + 1))}
-              variant="outline"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
 
       <Sheet open={showSessionMeta} onOpenChange={setShowSessionMeta}>
         <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">

@@ -63,6 +63,10 @@ export const ProgressScreen = () => {
   }
 
   const overview = overviewQuery.data;
+  const user = meQuery.data.user;
+  const xpBandSize = 600;
+  const currentXpBand = user ? user.xpTotal % xpBandSize : 0;
+  const xpProgress = user ? (currentXpBand / xpBandSize) * 100 : 0;
 
   return (
     <div className="app-grid">
@@ -97,6 +101,27 @@ export const ProgressScreen = () => {
         </div>
       ) : (
         <>
+          <Card>
+            <CardHeader className="space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Level {user.level}</CardTitle>
+                  <CardDescription>{user.xpTotal} XP total</CardDescription>
+                </div>
+                <Badge variant="secondary">{xpBandSize - currentXpBand} XP to next</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Progress to Level {user.level + 1}</span>
+                <span className="font-medium text-foreground">
+                  {currentXpBand}/{xpBandSize}
+                </span>
+              </div>
+              <Progress value={xpProgress} />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="space-y-3">
               <div className="flex items-start justify-between gap-4">
