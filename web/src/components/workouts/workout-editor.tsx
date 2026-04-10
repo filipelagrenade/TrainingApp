@@ -2104,14 +2104,15 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       </Dialog>
 
       <Dialog open={keepChangesOpen} onOpenChange={setKeepChangesOpen}>
-        <DialogContent>
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-lg flex-col overflow-hidden rounded-3xl p-0 sm:w-full">
+          <div className="flex-1 overflow-y-auto p-6">
           <DialogHeader>
             <DialogTitle>Keep workout changes?</DialogTitle>
             <DialogDescription>
               You changed the exercise lineup for this session. Keep the useful parts without rebuilding them later.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="mt-4 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="post-complete-template-name">Template name</Label>
               <Input
@@ -2157,7 +2158,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </div>
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          </div>
+          <DialogFooter className="gap-2 border-t border-border/60 bg-background px-6 py-4 sm:justify-between sm:space-x-0">
             <Button variant="ghost" onClick={applyCompletionSuccess}>
               Keep none
             </Button>
