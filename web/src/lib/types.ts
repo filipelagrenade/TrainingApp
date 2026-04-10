@@ -83,6 +83,13 @@ export type WorkoutSetType =
   | "CARDIO";
 
 export type WorkoutSetTrackingData = {
+  unilateral?: boolean | null;
+  leftWeight?: number | null;
+  rightWeight?: number | null;
+  leftReps?: number | null;
+  rightReps?: number | null;
+  leftRpe?: number | null;
+  rightRpe?: number | null;
   plateCount?: number | null;
   plateWeight?: number | null;
   barWeight?: number | null;

@@ -72,11 +72,20 @@ export const normalizeWeightForTrackingMode = (
   weight: number | null,
   trackingData?: TrackingData,
 ) => {
+  const normalized = normalizeTrackingData(trackingData);
+
+  if (normalized?.unilateral === true) {
+    const leftWeight = numberValue(normalized.leftWeight);
+    const rightWeight = numberValue(normalized.rightWeight);
+
+    if (leftWeight !== null && rightWeight !== null) {
+      return leftWeight + rightWeight;
+    }
+  }
+
   if (weight !== null && Number.isFinite(weight)) {
     return weight;
   }
-
-  const normalized = normalizeTrackingData(trackingData);
 
   switch (trackingMode) {
     case TrackingMode.PLATES_PER_SIDE: {

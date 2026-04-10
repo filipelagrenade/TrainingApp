@@ -80,6 +80,7 @@ import {
   syncAdvancedSetTracking,
   strengthSetTypeOptions,
   trackingModeOptions,
+  toggleSetUnilateral,
 } from "@/lib/workout-tracking";
 
 const formatRestTime = (seconds: number) => {
@@ -1150,11 +1151,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 </p>
                 <h2 className="truncate text-xl font-semibold text-foreground">{activeExercise.exerciseName}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{activeExerciseSummary}</p>
-                {activeExercise.unilateral ? (
-                  <Badge variant="secondary" className="mt-2">
-                    Unilateral
-                  </Badge>
-                ) : null}
                 {activeExercise.substitutedFromExerciseName ? (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Replacing {activeExercise.substitutedFromExerciseName} •{" "}
@@ -1245,6 +1241,19 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     typeof setTrackingData?.incline === "number" ? setTrackingData.incline : null;
                   const setBandLevel =
                     typeof setTrackingData?.bandLevel === "string" ? setTrackingData.bandLevel : "MEDIUM";
+                  const isUnilateral = setTrackingData?.unilateral === true;
+                  const leftWeight =
+                    typeof setTrackingData?.leftWeight === "number" ? setTrackingData.leftWeight : null;
+                  const rightWeight =
+                    typeof setTrackingData?.rightWeight === "number" ? setTrackingData.rightWeight : null;
+                  const leftReps =
+                    typeof setTrackingData?.leftReps === "number" ? setTrackingData.leftReps : null;
+                  const rightReps =
+                    typeof setTrackingData?.rightReps === "number" ? setTrackingData.rightReps : null;
+                  const leftRpe =
+                    typeof setTrackingData?.leftRpe === "number" ? setTrackingData.leftRpe : null;
+                  const rightRpe =
+                    typeof setTrackingData?.rightRpe === "number" ? setTrackingData.rightRpe : null;
 
                   return (
                     <div
@@ -1280,6 +1289,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                             {" · "}
                             {activeExercise.exerciseCategory === "CARDIO"
                               ? formatDuration(setDurationSeconds)
+                              : isUnilateral
+                                ? `L ${leftReps ?? "--"} / R ${rightReps ?? "--"} reps`
                               : `${set.reps} reps`}
                             {" · "}
                             {set.setType?.replaceAll("_", " ") ?? (set.isWorkingSet ? "NORMAL" : "WARMUP")}
@@ -1300,6 +1311,184 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                       </div>
                       {isExpanded ? (
                         <div className="border-t border-border/70 px-3 py-3">
+                          {isUnilateral && activeExercise.exerciseCategory !== "CARDIO" ? (
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="rounded-2xl border border-border/70 p-3">
+                                <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                  Left
+                                </p>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Load</Label>
+                                    <NullableNumberInput
+                                      className="h-9 px-2 text-sm"
+                                      value={leftWeight}
+                                      onChange={(value) =>
+                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
+                                          syncAdvancedSetTracking({
+                                            ...exercise,
+                                            sets: exercise.sets.map((entry, entryIndex) =>
+                                              entryIndex === setIndex
+                                                ? {
+                                                    ...candidate,
+                                                    trackingData: {
+                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                                      unilateral: true,
+                                                      leftWeight: value,
+                                                    },
+                                                  }
+                                                : entry,
+                                            ),
+                                          }).sets[setIndex],
+                                        )
+                                      }
+                                      placeholder={activeExercise.unitMode}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Reps</Label>
+                                    <NullableNumberInput
+                                      className="h-9 px-2 text-sm"
+                                      value={leftReps}
+                                      onChange={(value) =>
+                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
+                                          syncAdvancedSetTracking({
+                                            ...exercise,
+                                            sets: exercise.sets.map((entry, entryIndex) =>
+                                              entryIndex === setIndex
+                                                ? {
+                                                    ...candidate,
+                                                    trackingData: {
+                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                                      unilateral: true,
+                                                      leftReps: value,
+                                                    },
+                                                  }
+                                                : entry,
+                                            ),
+                                          }).sets[setIndex],
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">RPE</Label>
+                                    <NullableNumberInput
+                                      className="h-9 px-2 text-sm"
+                                      step={0.5}
+                                      value={leftRpe}
+                                      onChange={(value) =>
+                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
+                                          syncAdvancedSetTracking({
+                                            ...exercise,
+                                            sets: exercise.sets.map((entry, entryIndex) =>
+                                              entryIndex === setIndex
+                                                ? {
+                                                    ...candidate,
+                                                    trackingData: {
+                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                                      unilateral: true,
+                                                      leftRpe: value,
+                                                    },
+                                                  }
+                                                : entry,
+                                            ),
+                                          }).sets[setIndex],
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="rounded-2xl border border-border/70 p-3">
+                                <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                  Right
+                                </p>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Load</Label>
+                                    <NullableNumberInput
+                                      className="h-9 px-2 text-sm"
+                                      value={rightWeight}
+                                      onChange={(value) =>
+                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
+                                          syncAdvancedSetTracking({
+                                            ...exercise,
+                                            sets: exercise.sets.map((entry, entryIndex) =>
+                                              entryIndex === setIndex
+                                                ? {
+                                                    ...candidate,
+                                                    trackingData: {
+                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                                      unilateral: true,
+                                                      rightWeight: value,
+                                                    },
+                                                  }
+                                                : entry,
+                                            ),
+                                          }).sets[setIndex],
+                                        )
+                                      }
+                                      placeholder={activeExercise.unitMode}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Reps</Label>
+                                    <NullableNumberInput
+                                      className="h-9 px-2 text-sm"
+                                      value={rightReps}
+                                      onChange={(value) =>
+                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
+                                          syncAdvancedSetTracking({
+                                            ...exercise,
+                                            sets: exercise.sets.map((entry, entryIndex) =>
+                                              entryIndex === setIndex
+                                                ? {
+                                                    ...candidate,
+                                                    trackingData: {
+                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                                      unilateral: true,
+                                                      rightReps: value,
+                                                    },
+                                                  }
+                                                : entry,
+                                            ),
+                                          }).sets[setIndex],
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">RPE</Label>
+                                    <NullableNumberInput
+                                      className="h-9 px-2 text-sm"
+                                      step={0.5}
+                                      value={rightRpe}
+                                      onChange={(value) =>
+                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
+                                          syncAdvancedSetTracking({
+                                            ...exercise,
+                                            sets: exercise.sets.map((entry, entryIndex) =>
+                                              entryIndex === setIndex
+                                                ? {
+                                                    ...candidate,
+                                                    trackingData: {
+                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
+                                                      unilateral: true,
+                                                      rightRpe: value,
+                                                    },
+                                                  }
+                                                : entry,
+                                            ),
+                                          }).sets[setIndex],
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
                           <div className="grid grid-cols-3 gap-2">
                             <div className="space-y-1.5">
                               <Label className="text-xs">
@@ -1436,6 +1625,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               )}
                             </div>
                           </div>
+                          )}
                           <div className="mt-3 grid gap-2 sm:grid-cols-2">
                             <div className="space-y-1.5">
                               <Label className="text-xs">Set type</Label>
@@ -1545,6 +1735,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                                             weight: previousSet.weight,
                                             reps: previousSet.reps,
                                             rpe: previousSet.rpe,
+                                            trackingData: previousSet.trackingData,
                                             isWorkingSet: previousSet.isWorkingSet,
                                           }
                                         : candidate,
@@ -1563,6 +1754,18 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               onClick={() => startRestTimer(activeExercise.repMax && activeExercise.repMax <= 6 ? 180 : 90)}
                             >
                               Start rest
+                            </Button>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant={isUnilateral ? "default" : "ghost"}
+                              onClick={() =>
+                                updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
+                                  toggleSetUnilateral(candidate, exercise),
+                                )
+                              }
+                            >
+                              {isUnilateral ? "Bilateral" : "Unilateral"}
                             </Button>
                             <Button
                               size="sm"
@@ -1891,26 +2094,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           </SheetHeader>
           {activeExercise ? (
             <div className="mt-6 space-y-4">
-              <div className="surface-panel flex items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">Unilateral logging</p>
-                  <p className="text-xs text-muted-foreground">
-                    Mark this movement as one side at a time for this workout.
-                  </p>
-                </div>
-                <Button
-                  variant={activeExercise.unilateral ? "default" : "outline"}
-                  onClick={() => {
-                    ensureWorkoutResumed();
-                    updateExercise(activeExerciseIndex, (current) => ({
-                      ...current,
-                      unilateral: !current.unilateral,
-                    }));
-                  }}
-                >
-                  {activeExercise.unilateral ? "Enabled" : "Enable"}
-                </Button>
-              </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setSubstituteSheetOpen(true)}>
                   <Shuffle className="h-4 w-4" />

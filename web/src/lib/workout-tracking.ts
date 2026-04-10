@@ -13,6 +13,86 @@ import { convertValueToKilograms } from "./units";
 
 const numberValue = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
+const buildUnilateralTrackingData = (
+  trackingData: WorkoutSetTrackingData | null | undefined,
+  set: Pick<WorkoutDraftSet, "weight" | "reps" | "rpe">,
+): WorkoutSetTrackingData => {
+  if (trackingData?.unilateral === true) {
+    return trackingData;
+  }
+
+  return {
+    ...(trackingData ?? {}),
+    unilateral: true,
+    leftWeight: typeof set.weight === "number" ? set.weight / 2 : null,
+    rightWeight: typeof set.weight === "number" ? set.weight / 2 : null,
+    leftReps: typeof set.reps === "number" ? set.reps : null,
+    rightReps: typeof set.reps === "number" ? set.reps : null,
+    leftRpe: typeof set.rpe === "number" ? set.rpe : null,
+    rightRpe: typeof set.rpe === "number" ? set.rpe : null,
+  };
+};
+
+export const syncUnilateralSet = (
+  set: WorkoutDraftSet,
+  exercise: Pick<WorkoutDraftExercise, "trackingMode" | "defaultTrackingData" | "unitMode">,
+): WorkoutDraftSet => {
+  const trackingData = set.trackingData ?? exercise.defaultTrackingData ?? null;
+
+  if (trackingData?.unilateral !== true) {
+    return set;
+  }
+
+  const leftWeight = numberValue(trackingData.leftWeight);
+  const rightWeight = numberValue(trackingData.rightWeight);
+  const leftReps = numberValue(trackingData.leftReps);
+  const rightReps = numberValue(trackingData.rightReps);
+  const leftRpe = numberValue(trackingData.leftRpe);
+  const rightRpe = numberValue(trackingData.rightRpe);
+
+  return {
+    ...set,
+    trackingData,
+    weight: leftWeight !== null && rightWeight !== null ? leftWeight + rightWeight : null,
+    reps: leftReps !== null && rightReps !== null ? Math.min(leftReps, rightReps) : set.reps,
+    rpe:
+      leftRpe !== null && rightRpe !== null
+        ? Number(((leftRpe + rightRpe) / 2).toFixed(1))
+        : leftRpe ?? rightRpe ?? set.rpe,
+  };
+};
+
+export const toggleSetUnilateral = (
+  set: WorkoutDraftSet,
+  exercise: Pick<WorkoutDraftExercise, "trackingMode" | "defaultTrackingData" | "unitMode">,
+): WorkoutDraftSet => {
+  const trackingData = set.trackingData ?? exercise.defaultTrackingData ?? null;
+
+  if (trackingData?.unilateral === true) {
+    return {
+      ...set,
+      trackingData: {
+        ...(trackingData ?? {}),
+        unilateral: false,
+        leftWeight: null,
+        rightWeight: null,
+        leftReps: null,
+        rightReps: null,
+        leftRpe: null,
+        rightRpe: null,
+      },
+    };
+  }
+
+  return syncUnilateralSet(
+    {
+      ...set,
+      trackingData: buildUnilateralTrackingData(trackingData, set),
+    },
+    exercise,
+  );
+};
+
 export const trackingModeOptions: Array<{ value: TrackingMode; label: string }> = [
   { value: "ABSOLUTE_WEIGHT", label: "Weight" },
   { value: "PLATES_PER_SIDE", label: "Plates / side" },
@@ -287,17 +367,17 @@ export const syncAdvancedSetTracking = (exercise: WorkoutDraftExercise): Workout
       const dropPercent =
         typeof set.trackingData?.dropPercent === "number" ? set.trackingData.dropPercent : 20;
 
-      return {
+      return syncUnilateralSet({
         ...set,
         weight:
           typeof parentWeight === "number"
             ? Number(Math.max(0, parentWeight * (1 - dropPercent / 100)).toFixed(1))
             : set.weight,
-      };
+      }, exercise);
     }
 
     if (set.setType !== "CLUSTER") {
-      return set;
+      return syncUnilateralSet(set, exercise);
     }
 
     const pattern =
@@ -310,14 +390,14 @@ export const syncAdvancedSetTracking = (exercise: WorkoutDraftExercise): Workout
       .filter((segment) => Number.isFinite(segment) && segment > 0)
       .reduce((sum, segment) => sum + segment, 0);
 
-    return {
+    return syncUnilateralSet({
       ...set,
       reps: clusterTotal || set.reps,
       trackingData: {
         ...(set.trackingData ?? {}),
         clusterPattern: pattern,
       },
-    };
+    }, exercise);
   });
 
   return {
@@ -353,6 +433,14 @@ export const formatSetLoad = (
   weight: number | null,
   trackingData?: WorkoutSetTrackingData | null,
 ) => {
+  if (trackingData?.unilateral === true) {
+    const leftWeight = numberValue(trackingData.leftWeight);
+    const rightWeight = numberValue(trackingData.rightWeight);
+    if (leftWeight !== null || rightWeight !== null) {
+      return `L ${leftWeight ?? "--"} / R ${rightWeight ?? "--"} ${unitMode}`;
+    }
+  }
+
   switch (trackingMode) {
     case "PLATES_PER_SIDE": {
       const plateCount = numberValue(trackingData?.plateCount);
@@ -390,11 +478,15 @@ export const syncSetWithTrackingMode = (
   unitMode: "kg" | "lb",
 ) => {
   const trackingData = set.trackingData ?? defaultTrackingDataForMode(trackingMode, unitMode);
-  return {
+  return syncUnilateralSet({
     ...set,
     weight: deriveNormalizedWeight(trackingMode, set.weight, trackingData),
     trackingData,
-  };
+  }, {
+    trackingMode,
+    unitMode,
+    defaultTrackingData: trackingData,
+  });
 };
 
 export const changeExerciseTrackingMode = (

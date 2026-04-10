@@ -12,10 +12,30 @@ export const sumVolumeInKilograms = (
   sets: Array<{
     weight: number | null;
     reps: number;
+    trackingData?: Record<string, boolean | number | string | null | undefined> | null;
   }>,
   unit: PreferredUnit,
 ) =>
   sets.reduce((sum, set) => {
+    if (set.trackingData?.unilateral === true) {
+      const leftWeight = typeof set.trackingData.leftWeight === "number" ? set.trackingData.leftWeight : null;
+      const rightWeight = typeof set.trackingData.rightWeight === "number" ? set.trackingData.rightWeight : null;
+      const leftReps = typeof set.trackingData.leftReps === "number" ? set.trackingData.leftReps : null;
+      const rightReps = typeof set.trackingData.rightReps === "number" ? set.trackingData.rightReps : null;
+
+      if (leftWeight !== null && leftReps !== null) {
+        sum += convertValueToKilograms(leftWeight, unit) * leftReps;
+      }
+
+      if (rightWeight !== null && rightReps !== null) {
+        sum += convertValueToKilograms(rightWeight, unit) * rightReps;
+      }
+
+      if (leftWeight !== null || rightWeight !== null) {
+        return sum;
+      }
+    }
+
     if (typeof set.weight !== "number") {
       return sum;
     }
