@@ -1150,6 +1150,11 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 </p>
                 <h2 className="truncate text-xl font-semibold text-foreground">{activeExercise.exerciseName}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{activeExerciseSummary}</p>
+                {activeExercise.unilateral ? (
+                  <Badge variant="secondary" className="mt-2">
+                    Unilateral
+                  </Badge>
+                ) : null}
                 {activeExercise.substitutedFromExerciseName ? (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Replacing {activeExercise.substitutedFromExerciseName} •{" "}
@@ -1886,6 +1891,26 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           </SheetHeader>
           {activeExercise ? (
             <div className="mt-6 space-y-4">
+              <div className="surface-panel flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">Unilateral logging</p>
+                  <p className="text-xs text-muted-foreground">
+                    Mark this movement as one side at a time for this workout.
+                  </p>
+                </div>
+                <Button
+                  variant={activeExercise.unilateral ? "default" : "outline"}
+                  onClick={() => {
+                    ensureWorkoutResumed();
+                    updateExercise(activeExerciseIndex, (current) => ({
+                      ...current,
+                      unilateral: !current.unilateral,
+                    }));
+                  }}
+                >
+                  {activeExercise.unilateral ? "Enabled" : "Enable"}
+                </Button>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setSubstituteSheetOpen(true)}>
                   <Shuffle className="h-4 w-4" />

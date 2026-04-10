@@ -1425,7 +1425,7 @@ const runPostWorkoutEffects = async (
   const effectsStartedAt = Date.now();
 
   try {
-    await prisma.$transaction(async (transaction) => {
+    const achievementContext = await prisma.$transaction(async (transaction) => {
       if (result.prCount > 0) {
         await transaction.activityEvent.create({
           data: {
@@ -1481,19 +1481,58 @@ const runPostWorkoutEffects = async (
         },
       });
 
+      const totalPrCount = await transaction.workoutSet.count({
+        where: {
+          isPersonalRecord: true,
+          workoutExercise: {
+            session: {
+              userId,
+              status: WorkoutStatus.COMPLETED,
+            },
+          },
+        },
+      });
+
+      const completedWeekCount = await transaction.activityEvent.count({
+        where: {
+          userId,
+          type: ActivityType.PROGRAM_WEEK_COMPLETED,
+        },
+      });
+
       const updatedUser = await transaction.user.findUniqueOrThrow({
         where: {
           id: userId,
         },
       });
 
-      await unlockAchievements(transaction, {
-        user: updatedUser,
+      return {
+        updatedUser,
         workoutCompletedCount,
-        prCount: result.prCount,
-        completedWeek: result.completedWeek,
-      });
+        totalPrCount,
+        completedWeekCount,
+      };
     });
+
+    try {
+      await prisma.$transaction(async (transaction) => {
+        await unlockAchievements(transaction, {
+          user: achievementContext.updatedUser,
+          workoutCompletedCount: achievementContext.workoutCompletedCount,
+          totalPrCount: achievementContext.totalPrCount,
+          completedWeekCount: achievementContext.completedWeekCount,
+        });
+      });
+    } catch (achievementError) {
+      logger.error(
+        {
+          err: achievementError,
+          workoutId: result.workoutId,
+          userId,
+        },
+        "Failed to unlock achievements after workout completion",
+      );
+    }
 
     logger.info(
       {

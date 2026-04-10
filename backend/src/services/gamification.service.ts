@@ -1,4 +1,4 @@
-import { ActivityType, type Prisma, type Program, type User } from "@prisma/client";
+import { ActivityType, type Prisma, type User } from "@prisma/client";
 
 export const levelFromXp = (xpTotal: number): number => Math.max(1, Math.floor(xpTotal / 600) + 1);
 
@@ -80,10 +80,9 @@ export const unlockAchievements = async (
   transaction: Prisma.TransactionClient,
   input: {
     user: User;
-    program?: Program | null;
     workoutCompletedCount: number;
-    prCount: number;
-    completedWeek: boolean;
+    totalPrCount: number;
+    completedWeekCount: number;
   },
 ): Promise<string[]> => {
   const definitions = await transaction.achievement.findMany();
@@ -112,11 +111,11 @@ export const unlockAchievements = async (
       achieved = true;
     }
 
-    if (definition.requirementType === "prs" && input.prCount >= definition.requirementTarget) {
+    if (definition.requirementType === "prs" && input.totalPrCount >= definition.requirementTarget) {
       achieved = true;
     }
 
-    if (definition.requirementType === "weeks" && input.completedWeek) {
+    if (definition.requirementType === "weeks" && input.completedWeekCount >= definition.requirementTarget) {
       achieved = true;
     }
 

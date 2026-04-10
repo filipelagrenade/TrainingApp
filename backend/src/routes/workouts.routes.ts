@@ -63,6 +63,7 @@ const draftSchema = z.object({
           weight: z.coerce.number().nonnegative().nullable(),
           reps: z.coerce.number().int().min(0).max(100),
           rpe: z.coerce.number().min(1).max(10).nullable(),
+          completed: z.boolean().optional(),
           setType: z.nativeEnum(WorkoutSetType).optional(),
           trackingData: trackingDataSchema.nullable().optional(),
           isWorkingSet: z.boolean().optional(),

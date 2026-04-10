@@ -43,6 +43,167 @@ const buildExercises = (group: ExerciseGroup): SeedExercise[] =>
     secondaryMuscles: group.secondaryMuscles,
   }));
 
+const allowedMuscles = new Set([
+  "Chest",
+  "Upper Chest",
+  "Back",
+  "Lats",
+  "Upper Back",
+  "Traps",
+  "Front Delts",
+  "Side Delts",
+  "Rear Delts",
+  "Biceps",
+  "Triceps",
+  "Forearms",
+  "Quads",
+  "Hamstrings",
+  "Glutes",
+  "Calves",
+  "Abs",
+  "Core",
+  "Lower Back",
+]);
+
+const uniqueMuscles = (muscles: string[]) => [...new Set(muscles.filter((muscle) => allowedMuscles.has(muscle)))];
+
+const profile = (primary: string[], secondary: string[] = []) => {
+  const cleanedPrimary = uniqueMuscles(primary);
+  return {
+    primaryMuscles: cleanedPrimary,
+    secondaryMuscles: uniqueMuscles(secondary.filter((muscle) => !cleanedPrimary.includes(muscle))),
+  };
+};
+
+const matchesAny = (value: string, parts: string[]) => parts.some((part) => value.includes(part));
+
+const resolveMuscleProfile = (exercise: SeedExercise) => {
+  const lowerName = exercise.name.toLowerCase();
+
+  if (exercise.exerciseCategory === ExerciseCategory.CARDIO) {
+    if (matchesAny(lowerName, ["treadmill", "stair"])) {
+      return profile(["Quads", "Glutes"], ["Calves", "Core"]);
+    }
+    if (matchesAny(lowerName, ["bike", "ride"])) {
+      return profile(["Quads"], ["Glutes", "Calves"]);
+    }
+    if (matchesAny(lowerName, ["row"])) {
+      return profile(["Lats", "Quads"], ["Upper Back", "Core"]);
+    }
+
+    return profile(["Quads", "Glutes"], ["Core"]);
+  }
+
+  if (matchesAny(lowerName, ["crunch", "sit up", "plank", "dead bug", "leg raise", "knee raise", "toe touch", "flutter", "bicycle", "wood chop", "pallof", "rotation", "twist", "v-up", "mountain climber", "hollow", "oblique"])) {
+    return profile(["Abs", "Core"]);
+  }
+
+  if (matchesAny(lowerName, ["calf"])) {
+    return profile(["Calves"]);
+  }
+
+  if (matchesAny(lowerName, ["hip thrust", "glute bridge", "glute drive", "glute kickback"])) {
+    return profile(["Glutes"], ["Hamstrings", "Core"]);
+  }
+
+  if (matchesAny(lowerName, ["adductor"])) {
+    return profile(["Glutes"], ["Quads", "Core"]);
+  }
+
+  if (matchesAny(lowerName, ["abductor"])) {
+    return profile(["Glutes"], ["Core"]);
+  }
+
+  if (matchesAny(lowerName, ["leg extension"])) {
+    return profile(["Quads"]);
+  }
+
+  if (matchesAny(lowerName, ["leg curl", "nordic"])) {
+    return profile(["Hamstrings"], ["Glutes"]);
+  }
+
+  if (matchesAny(lowerName, ["good morning", "romanian deadlift", "stiff leg deadlift", "deadlift", "reverse hyper", "back extension"])) {
+    return profile(["Hamstrings", "Glutes"], ["Lower Back"]);
+  }
+
+  if (matchesAny(lowerName, ["squat", "lunge", "step up", "split squat", "leg press", "hack squat", "pendulum squat", "belt squat", "walking lunge", "reverse lunge", "pistol squat", "wall ball"])) {
+    return profile(["Quads", "Glutes"], ["Hamstrings", "Core"]);
+  }
+
+  if (matchesAny(lowerName, ["curl"])) {
+    if (matchesAny(lowerName, ["reverse curl", "wrist curl"])) {
+      return profile(["Forearms"], ["Biceps"]);
+    }
+
+    return profile(["Biceps"], ["Forearms"]);
+  }
+
+  if (matchesAny(lowerName, ["pushdown", "skull crusher", "triceps extension", "kickback", "jm press", "crossbody triceps", "overhead rope extension"])) {
+    return profile(["Triceps"], ["Front Delts"]);
+  }
+
+  if (matchesAny(lowerName, ["lateral raise", "y raise"])) {
+    return profile(["Side Delts"], ["Front Delts"]);
+  }
+
+  if (matchesAny(lowerName, ["rear delt", "reverse fly"])) {
+    return profile(["Rear Delts"], ["Upper Back"]);
+  }
+
+  if (matchesAny(lowerName, ["front raise"])) {
+    return profile(["Front Delts"], ["Side Delts"]);
+  }
+
+  if (matchesAny(lowerName, ["shoulder press", "overhead press", "arnold press", "push press", "viking press"])) {
+    return profile(["Front Delts"], ["Triceps", "Side Delts"]);
+  }
+
+  if (matchesAny(lowerName, ["bench press", "chest press", "fly", "pec deck", "hex press", "floor press", "push up", "dip"])) {
+    return profile(
+      [matchesAny(lowerName, ["incline"]) ? "Upper Chest" : "Chest"],
+      ["Triceps", "Front Delts"],
+    );
+  }
+
+  if (matchesAny(lowerName, ["pulldown", "pull up", "chin up", "pullover"])) {
+    return profile(["Lats"], ["Biceps", "Upper Back"]);
+  }
+
+  if (matchesAny(lowerName, ["shrug"])) {
+    return profile(["Traps"], ["Upper Back"]);
+  }
+
+  if (matchesAny(lowerName, ["upright row"])) {
+    return profile(["Traps", "Side Delts"], ["Upper Back"]);
+  }
+
+  if (matchesAny(lowerName, ["row", "meadows row", "high pull", "clean pull", "rack pull"])) {
+    return profile(["Upper Back", "Lats"], ["Rear Delts", "Biceps"]);
+  }
+
+  if (matchesAny(lowerName, ["carry", "farmer", "suitcase"])) {
+    return profile(["Traps", "Core"], ["Forearms"]);
+  }
+
+  if (matchesAny(lowerName, ["sled", "sandbag", "medicine ball", "burpee", "bear crawl", "turkish get up", "windmill", "thruster", "clean and press", "clean", "snatch", "swing"])) {
+    return profile(["Glutes", "Core"], ["Quads", "Upper Back"]);
+  }
+
+  if (exercise.machineType === "Upper Push") {
+    return profile(["Chest"], ["Triceps", "Front Delts"]);
+  }
+
+  if (exercise.machineType === "Upper Pull") {
+    return profile(["Upper Back", "Lats"], ["Biceps"]);
+  }
+
+  if (exercise.machineType === "Lower Body") {
+    return profile(["Quads", "Glutes"], ["Hamstrings"]);
+  }
+
+  return profile(exercise.primaryMuscles, exercise.secondaryMuscles);
+};
+
 const exerciseGroups: ExerciseGroup[] = [
   {
     exerciseCategory: ExerciseCategory.CARDIO,
@@ -601,7 +762,10 @@ const exerciseGroups: ExerciseGroup[] = [
   },
 ];
 
-const rawExercises = exerciseGroups.flatMap(buildExercises);
+const rawExercises = exerciseGroups.flatMap(buildExercises).map((exercise) => ({
+  ...exercise,
+  ...resolveMuscleProfile(exercise),
+}));
 const seenSlugs = new Set<string>();
 
 for (const exercise of rawExercises) {

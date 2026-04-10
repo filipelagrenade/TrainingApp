@@ -63,7 +63,8 @@ export const ExerciseBulkPickerSheet = ({
         }
       }}
     >
-      <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
+      <SheetContent side="bottom" className="flex max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
+        <div className="flex-1 overflow-y-auto px-6 pb-4 pt-6">
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
@@ -167,6 +168,9 @@ export const ExerciseBulkPickerSheet = ({
             )}
           </div>
 
+        </div>
+        </div>
+        <div className="border-t border-border/70 bg-background/95 px-6 py-4 backdrop-blur">
           <Button
             className="w-full"
             disabled={selected.length === 0}

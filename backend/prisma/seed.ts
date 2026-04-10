@@ -381,6 +381,8 @@ async function main() {
           loadType: exercise.loadType,
           machineType: exercise.machineType ?? null,
           attachment: exercise.attachment ?? null,
+          primaryMuscles: exercise.primaryMuscles,
+          secondaryMuscles: exercise.secondaryMuscles,
         },
       });
       continue;
