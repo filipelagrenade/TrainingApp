@@ -68,6 +68,14 @@ export const ExerciseLibraryScreen = () => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const deleteExerciseMutation = useMutation({
+    mutationFn: apiClient.deleteExercise,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["exercises"] });
+      toast.success("Exercise deleted");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const filteredExercises = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -202,6 +210,16 @@ export const ExerciseLibraryScreen = () => {
                     View history
                   </Link>
                 </Button>
+                {!exercise.isSystem ? (
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => deleteExerciseMutation.mutate(exercise.id)}
+                  >
+                    Delete exercise
+                  </Button>
+                ) : null}
               </CardContent>
             </Card>
           ))
@@ -228,7 +246,7 @@ export const ExerciseLibraryScreen = () => {
             <DialogTitle>Manage equivalents</DialogTitle>
             <DialogDescription>
               {selectedExercise
-                ? `Map approved substitutes for ${selectedExercise.name}. These swaps can preserve progression.`
+                ? `Map quick substitutes for ${selectedExercise.name}.`
                 : "Map approved substitutes for this exercise."}
             </DialogDescription>
           </DialogHeader>

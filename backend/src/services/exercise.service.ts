@@ -182,3 +182,56 @@ export const deleteExerciseEquivalency = async (
 
   return { ok: true };
 };
+
+export const deleteExercise = async (userId: string, exerciseId: string) => {
+  const exercise = await prisma.exercise.findFirst({
+    where: {
+      id: exerciseId,
+      userId,
+      isSystem: false,
+    },
+  });
+
+  if (!exercise) {
+    throw new AppError(404, "EXERCISE_NOT_FOUND", "That exercise could not be found.");
+  }
+
+  const [programUsageCount, templateUsageCount] = await Promise.all([
+    prisma.programWorkoutExercise.count({
+      where: {
+        exerciseId,
+        programWorkout: {
+          programWeek: {
+            program: {
+              userId,
+            },
+          },
+        },
+      },
+    }),
+    prisma.templateExercise.count({
+      where: {
+        exerciseId,
+        template: {
+          userId,
+        },
+      },
+    }),
+  ]);
+
+  if (programUsageCount > 0 || templateUsageCount > 0) {
+    throw new AppError(
+      409,
+      "EXERCISE_IN_USE",
+      "Remove this exercise from your programs and templates before deleting it.",
+    );
+  }
+
+  await prisma.exercise.delete({
+    where: {
+      id: exerciseId,
+    },
+  });
+
+  return { ok: true };
+};

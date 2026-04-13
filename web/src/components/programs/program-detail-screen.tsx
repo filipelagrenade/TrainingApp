@@ -42,6 +42,16 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const deleteMutation = useMutation({
+    mutationFn: apiClient.deleteProgram,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["programs"] });
+      await queryClient.invalidateQueries({ queryKey: ["active-program"] });
+      toast.success("Program deleted");
+      window.location.href = "/programs";
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   if (meQuery.isLoading || programQuery.isLoading) {
     return (
@@ -77,6 +87,11 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
             {!program.isSystem ? (
               <Button asChild variant="outline">
                 <Link href={`/programs/${program.id}/edit`}>Edit</Link>
+              </Button>
+            ) : null}
+            {!program.isSystem ? (
+              <Button variant="ghost" onClick={() => deleteMutation.mutate(program.id)}>
+                Delete
               </Button>
             ) : null}
           </>

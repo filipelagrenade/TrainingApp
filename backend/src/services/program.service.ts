@@ -631,6 +631,28 @@ export const archiveProgram = async (userId: string, programId: string) => {
   });
 };
 
+export const deleteProgram = async (userId: string, programId: string) => {
+  const program = await prisma.program.findFirst({
+    where: {
+      id: programId,
+      userId,
+      isSystem: false,
+    },
+  });
+
+  if (!program) {
+    throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
+  }
+
+  await prisma.program.delete({
+    where: {
+      id: programId,
+    },
+  });
+
+  return { ok: true };
+};
+
 const buildExposureSnapshots = async (
   userId: string,
   programExerciseId: string,

@@ -469,26 +469,6 @@ const getVisibleExerciseForUser = async (userId: string, exerciseId: string) => 
   return exercise;
 };
 
-const isEquivalentSubstitute = async (
-  userId: string,
-  sourceExerciseId: string,
-  targetExerciseId: string,
-) => {
-  if (sourceExerciseId === targetExerciseId) {
-    return true;
-  }
-
-  const equivalency = await prisma.exerciseEquivalency.findFirst({
-    where: {
-      sourceExerciseId,
-      targetExerciseId,
-      OR: [{ userId: null }, { userId }],
-    },
-  });
-
-  return Boolean(equivalency);
-};
-
 const summarizeWorkingSets = (
   sets: Array<{
     weight: number | null;
@@ -998,6 +978,20 @@ export const saveWorkoutDraft = async (userId: string, workoutId: string, draft:
     return updated;
   });
 
+export const deleteCompletedWorkout = async (userId: string, workoutId: string) => {
+  const workout = await getOwnedWorkout(userId, workoutId);
+
+  if (workout.status !== WorkoutStatus.COMPLETED) {
+    throw new AppError(409, "WORKOUT_NOT_COMPLETED", "Only completed workouts can be deleted.");
+  }
+
+  await prisma.workoutSession.delete({
+    where: { id: workoutId },
+  });
+
+  return { ok: true };
+};
+
 export const applyWorkoutSubstitution = async (
   userId: string,
   workoutId: string,
@@ -1019,10 +1013,6 @@ export const applyWorkoutSubstitution = async (
     currentExercise.substitutedFromExerciseId ?? currentExercise.exerciseId ?? null;
   const originalExerciseName =
     currentExercise.substitutedFromExerciseName ?? currentExercise.exerciseName;
-  const isEquivalent =
-    originalExerciseId === null
-      ? false
-      : await isEquivalentSubstitute(userId, originalExerciseId, substituteExercise.id);
   const trackingMode = deriveTrackingMode({
     exerciseCategory: substituteExercise.exerciseCategory,
     equipmentType: substituteExercise.equipmentType,
@@ -1056,13 +1046,10 @@ export const applyWorkoutSubstitution = async (
               originalExerciseId && originalExerciseId !== substituteExercise.id ? originalExerciseName : null,
             substitutionMode:
               originalExerciseId && originalExerciseId !== substituteExercise.id
-                ? isEquivalent
-                  ? "EQUIVALENT"
-                  : "ALTERNATE"
+                ? "ALTERNATE"
                 : null,
-            countsForProgression: currentExercise.sourceProgramExerciseId
-              ? isEquivalent
-              : true,
+            sourceProgramExerciseId: null,
+            countsForProgression: true,
             sets: exercise.sets.map((set) => ({
               ...set,
               setType: defaultSetTypeForCategory(substituteExercise.exerciseCategory),
@@ -1265,6 +1252,7 @@ const getPersonalRecordBenchmarks = async (
   transaction: Prisma.TransactionClient,
   userId: string,
   exerciseIds: string[],
+  excludeWorkoutId?: string,
 ) => {
   if (!exerciseIds.length) {
     return new Map<string, number>();
@@ -1279,10 +1267,15 @@ const getPersonalRecordBenchmarks = async (
         exerciseId: {
           in: exerciseIds,
         },
-        session: {
-          userId,
-          status: WorkoutStatus.COMPLETED,
-        },
+          session: {
+            id: excludeWorkoutId
+              ? {
+                  not: excludeWorkoutId,
+                }
+              : undefined,
+            userId,
+            status: WorkoutStatus.COMPLETED,
+          },
       },
     },
     select: {
@@ -1736,5 +1729,139 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
     void runPostWorkoutEffects(userId, result);
 
     return result;
+  });
+};
+
+export const updateCompletedWorkout = async (
+  userId: string,
+  workoutId: string,
+  draft: WorkoutDraft,
+) => {
+  const startedAt = Date.now();
+  const persistedDraft = convertDraftToStorageUnit(draft);
+
+  return prisma.$transaction(async (transaction) => {
+    const workout = await transaction.workoutSession.findFirst({
+      where: {
+        id: workoutId,
+        userId,
+      },
+    });
+
+    if (!workout) {
+      throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
+    }
+
+    if (workout.status !== WorkoutStatus.COMPLETED) {
+      throw new AppError(409, "WORKOUT_NOT_COMPLETED", "Only completed workouts can be edited.");
+    }
+
+    await transaction.workoutExercise.deleteMany({
+      where: {
+        sessionId: workout.id,
+      },
+    });
+
+    const trackedExerciseIds = [
+      ...new Set(
+        persistedDraft.exercises.flatMap((exercise) => (exercise.exerciseId ? [exercise.exerciseId] : [])),
+      ),
+    ];
+    const personalRecordBenchmarks = await getPersonalRecordBenchmarks(
+      transaction,
+      userId,
+      trackedExerciseIds,
+      workout.id,
+    );
+
+    for (const [exerciseIndex, exercise] of persistedDraft.exercises.entries()) {
+      const createdExercise = await transaction.workoutExercise.create({
+        data: {
+          sessionId: workout.id,
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          exerciseCategory: exercise.exerciseCategory,
+          equipmentType: exercise.equipmentType,
+          machineType: exercise.machineType ?? null,
+          attachment: exercise.attachment ?? null,
+          loadType: exercise.loadType,
+          trackingMode: exercise.trackingMode,
+          defaultTrackingData: normalizeTrackingData(exercise.defaultTrackingData) ?? Prisma.JsonNull,
+          unitMode: DEFAULT_UNIT,
+          unilateral: exercise.unilateral ?? false,
+          orderIndex: exerciseIndex,
+          notes: exercise.notes,
+          prescribedSetCount: exercise.prescribedSetCount,
+          repMin: exercise.repMin,
+          repMax: exercise.repMax,
+          suggestedWeight: exercise.suggestedWeight,
+          sourceProgramExerciseId:
+            exercise.countsForProgression === false ? null : exercise.sourceProgramExerciseId,
+          substitutedFromExerciseId: exercise.substitutedFromExerciseId ?? null,
+          substitutedFromExerciseName: exercise.substitutedFromExerciseName ?? null,
+          substitutionMode: exercise.substitutionMode ?? null,
+          countsForProgression: exercise.countsForProgression ?? true,
+          supersetGroupId: exercise.supersetGroupId ?? null,
+          supersetPosition: exercise.supersetPosition ?? null,
+        },
+      });
+
+      const createdSets = exercise.sets.map((set) => {
+        const normalizedWeight = normalizeWeightForTrackingMode(
+          exercise.trackingMode,
+          set.weight,
+          set.trackingData,
+        );
+        let personalRecord = false;
+
+        if (exercise.exerciseId && typeof normalizedWeight === "number") {
+          const estimate = estimateOneRepMax(normalizedWeight, set.reps);
+          const bestPrevious = personalRecordBenchmarks.get(exercise.exerciseId) ?? 0;
+          if (estimate > bestPrevious) {
+            personalRecord = true;
+            personalRecordBenchmarks.set(exercise.exerciseId, estimate);
+          }
+        }
+
+        return {
+          workoutExerciseId: createdExercise.id,
+          setNumber: set.setNumber,
+          weight: normalizedWeight,
+          reps: set.reps,
+          rpe: set.rpe,
+          setType: set.setType ?? defaultSetTypeForCategory(exercise.exerciseCategory),
+          trackingData: normalizeTrackingData(set.trackingData) ?? Prisma.JsonNull,
+          isWorkingSet: set.isWorkingSet ?? true,
+          isPersonalRecord: personalRecord,
+        };
+      });
+
+      if (createdSets.length) {
+        await transaction.workoutSet.createMany({
+          data: createdSets,
+        });
+      }
+    }
+
+    const updated = await transaction.workoutSession.update({
+      where: { id: workout.id },
+      data: {
+        title: persistedDraft.title,
+        notes: persistedDraft.notes,
+        savedDraft: persistedDraft,
+      },
+    });
+
+    logger.info(
+      {
+        workoutId,
+        userId,
+        exerciseCount: persistedDraft.exercises.length,
+        durationMs: Date.now() - startedAt,
+      },
+      "Updated completed workout",
+    );
+
+    return updated;
   });
 };

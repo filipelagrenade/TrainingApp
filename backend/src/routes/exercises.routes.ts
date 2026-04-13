@@ -8,6 +8,7 @@ import { validateBody } from "../middleware/validation";
 import {
   createExercise,
   createExerciseEquivalency,
+  deleteExercise,
   deleteExerciseEquivalency,
   listExerciseSubstitutes,
   listExercises,
@@ -90,5 +91,14 @@ exercisesRouter.delete(
     }
   },
 );
+
+exercisesRouter.delete("/:exerciseId", async (request, response, next) => {
+  try {
+    const result = await deleteExercise(request.currentUser!.id, String(request.params.exerciseId));
+    sendSuccess(response, result);
+  } catch (error) {
+    next(error);
+  }
+});
 
 export { exercisesRouter };

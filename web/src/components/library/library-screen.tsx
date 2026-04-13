@@ -106,6 +106,15 @@ export const LibraryScreen = () => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const deleteProgramMutation = useMutation({
+    mutationFn: apiClient.deleteProgram,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["programs"] });
+      await queryClient.invalidateQueries({ queryKey: ["active-program"] });
+      toast.success("Program deleted");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const duplicateTemplateMutation = useMutation({
     mutationFn: apiClient.duplicateTemplate,
     onSuccess: async () => {
@@ -138,6 +147,14 @@ export const LibraryScreen = () => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["exercise-substitutes", selectedExerciseId] });
       toast.success("Equivalent removed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const deleteExerciseMutation = useMutation({
+    mutationFn: apiClient.deleteExercise,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["exercises"] });
+      toast.success("Exercise deleted");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -302,6 +319,11 @@ export const LibraryScreen = () => {
                             Archive
                           </Button>
                         ) : null}
+                        {!program.isSystem ? (
+                          <Button size="sm" variant="ghost" onClick={() => deleteProgramMutation.mutate(program.id)}>
+                            Delete
+                          </Button>
+                        ) : null}
                       </div>
                     </CardContent>
                   </Card>
@@ -447,6 +469,16 @@ export const LibraryScreen = () => {
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm">
                       <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
+                      {!exercise.isSystem ? (
+                        <Button
+                          className="w-full"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteExerciseMutation.mutate(exercise.id)}
+                        >
+                          Delete exercise
+                        </Button>
+                      ) : null}
                       <Button asChild className="w-full" size="sm" variant="outline">
                         <Link href={`/progress/exercises/${exercise.id}`}>
                           <TrendingUp className="h-4 w-4" />
@@ -482,7 +514,7 @@ export const LibraryScreen = () => {
             <DialogTitle>Manage equivalents</DialogTitle>
             <DialogDescription>
               {selectedExercise
-                ? `Map approved substitutes for ${selectedExercise.name}. These swaps can preserve progression.`
+                ? `Map quick substitutes for ${selectedExercise.name}.`
                 : "Map approved substitutes for this exercise."}
             </DialogDescription>
           </DialogHeader>

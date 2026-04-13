@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   BellRing,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   Info,
@@ -16,6 +18,7 @@ import {
   Search,
   Shuffle,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -149,6 +152,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [postCompleteSelection, setPostCompleteSelection] = useState<number[]>([]);
   const [showSessionMeta, setShowSessionMeta] = useState(false);
   const [cancelWorkoutOpen, setCancelWorkoutOpen] = useState(false);
+  const [deleteWorkoutOpen, setDeleteWorkoutOpen] = useState(false);
+  const [completedEditMode, setCompletedEditMode] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(true);
   const [expandedSetIndex, setExpandedSetIndex] = useState(0);
   const [restDuration, setRestDuration] = useState(90);
@@ -194,7 +199,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const substitutesQuery = useQuery({
     queryKey: ["exercise-substitutes", substitutionSourceExerciseId],
     queryFn: () => apiClient.getExerciseSubstitutes(substitutionSourceExerciseId),
-    enabled: substituteSheetOpen && substitutionSourceExerciseId.length > 0,
+    enabled: substitutionSourceExerciseId.length > 0,
   });
 
   const completeMutation = useMutation({
@@ -339,6 +344,27 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const updateCompletedWorkoutMutation = useMutation({
+    mutationFn: (payload: WorkoutDraft) => apiClient.updateCompletedWorkout(sessionId, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workout", sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
+      await queryClient.invalidateQueries({ queryKey: ["progress-overview"] });
+      toast.success("Workout updated");
+      setCompletedEditMode(false);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const deleteCompletedWorkoutMutation = useMutation({
+    mutationFn: () => apiClient.deleteWorkout(sessionId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
+      await queryClient.invalidateQueries({ queryKey: ["progress-overview"] });
+      toast.success("Workout deleted");
+      router.push("/history");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const unpairSupersetMutation = useMutation({
     mutationFn: (supersetGroupId: string) => apiClient.unpairWorkoutSuperset(sessionId, supersetGroupId),
@@ -371,7 +397,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   }, [sessionId, sessionQuery.data]);
 
   useEffect(() => {
-    if (!draft || !hydratedRef.current) {
+    if (!draft || !hydratedRef.current || session?.status !== "IN_PROGRESS") {
       return;
     }
 
@@ -422,7 +448,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         window.clearTimeout(autosaveTimerRef.current);
       }
     };
-  }, [completeMutation.isPending, draft, sessionId]);
+  }, [completeMutation.isPending, draft, session?.status, sessionId]);
 
   useEffect(() => {
     if (!completeMutation.isPending) {
@@ -608,21 +634,27 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     setBulkSheetOpen(false);
   };
 
-  const saveNow = async () => {
-    if (!draft) {
+  const moveExercise = (fromIndex: number, toIndex: number) => {
+    if (!draft || toIndex < 0 || toIndex >= draft.exercises.length || fromIndex === toIndex) {
       return;
     }
 
-    try {
-      ensureWorkoutResumed();
-      setSyncState("saving");
-      await apiClient.saveWorkoutDraft(sessionId, draft);
-      setSyncState("synced");
-      toast.success("Workout saved");
-    } catch (error) {
-      setSyncState("error");
-      toast.error(error instanceof Error ? error.message : "Could not save workout");
-    }
+    ensureWorkoutResumed();
+    setDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextExercises = [...current.exercises];
+      const [movedExercise] = nextExercises.splice(fromIndex, 1);
+      nextExercises.splice(toIndex, 0, movedExercise);
+
+      return {
+        ...current,
+        exercises: nextExercises,
+      };
+    });
+    setActiveExerciseIndex(toIndex);
   };
 
   const handleCompleteWorkout = () => {
@@ -633,6 +665,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     ensureWorkoutResumed();
     pendingCompletionLineupRef.current = compareExerciseLineup(draft, session.originDraft);
     completeMutation.mutate(draft);
+  };
+
+  const handleSaveCompletedWorkout = () => {
+    if (!draft) {
+      return;
+    }
+
+    updateCompletedWorkoutMutation.mutate(draft);
   };
 
   const toggleSetCompleted = (setIndex: number) => {
@@ -845,7 +885,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     );
   }
 
-  if (session.status === "COMPLETED" && completedStats) {
+  if (session.status === "COMPLETED" && completedStats && !completedEditMode) {
     return (
       <div className="app-grid">
         <Card>
@@ -857,9 +897,19 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   Completed {session.completedAt ? new Date(session.completedAt).toLocaleString() : "recently"}
                 </CardDescription>
               </div>
-              <Button variant="outline" onClick={() => router.push("/")}>
-                Back home
-              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" onClick={() => setCompletedEditMode(true)}>
+                  <Pencil className="h-4 w-4" />
+                  Edit workout
+                </Button>
+                <Button variant="outline" onClick={() => setDeleteWorkoutOpen(true)}>
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+                <Button variant="outline" onClick={() => router.push("/")}>
+                  Back home
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               <StatBlock label="XP" value={String(session.totalXp)} />
@@ -1092,14 +1142,24 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <div className="grid grid-cols-2 gap-2">
                 <Button className="h-10" variant="outline" onClick={() => setBulkSheetOpen(true)}>
                   <Plus className="h-4 w-4" />
-                  Add exercise
+                  Bulk add
                 </Button>
                 <Button
                   className="h-10"
-                  onClick={handleCompleteWorkout}
-                  disabled={completeMutation.isPending || draft.exercises.length === 0}
+                  onClick={session.status === "COMPLETED" ? handleSaveCompletedWorkout : handleCompleteWorkout}
+                  disabled={
+                    session.status === "COMPLETED"
+                      ? updateCompletedWorkoutMutation.isPending || draft.exercises.length === 0
+                      : completeMutation.isPending || draft.exercises.length === 0
+                  }
                 >
-                  {completeMutation.isPending ? "Completing..." : "Complete workout"}
+                  {session.status === "COMPLETED"
+                    ? updateCompletedWorkoutMutation.isPending
+                      ? "Saving..."
+                      : "Save changes"
+                    : completeMutation.isPending
+                      ? "Completing..."
+                      : "Complete workout"}
                 </Button>
               </div>
             </div>
@@ -1158,9 +1218,29 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   </p>
                 ) : null}
               </div>
-              <Button variant="outline" size="sm" onClick={() => setDetailsSheetOpen(true)}>
-                Manage
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                  disabled={activeExerciseIndex === 0}
+                  onClick={() => moveExercise(activeExerciseIndex, activeExerciseIndex - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                  disabled={activeExerciseIndex >= draft.exercises.length - 1}
+                  onClick={() => moveExercise(activeExerciseIndex, activeExerciseIndex + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setDetailsSheetOpen(true)}>
+                  Manage
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -1897,10 +1977,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
                 {session.pausedAt ? "Resume workout" : "Pause workout"}
               </Button>
-              <Button variant="outline" onClick={() => setBulkSheetOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Bulk add
-              </Button>
               <Button variant="outline" onClick={() => setCancelWorkoutOpen(true)}>
                 <Trash2 className="h-4 w-4" />
                 Cancel workout
@@ -1945,6 +2021,29 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={deleteWorkoutOpen} onOpenChange={setDeleteWorkoutOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this workout?</DialogTitle>
+            <DialogDescription>
+              This removes the completed workout from your history permanently.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button type="button" variant="outline" onClick={() => setDeleteWorkoutOpen(false)}>
+              Keep workout
+            </Button>
+            <Button
+              type="button"
+              onClick={() => deleteCompletedWorkoutMutation.mutate()}
+              disabled={deleteCompletedWorkoutMutation.isPending}
+            >
+              {deleteCompletedWorkoutMutation.isPending ? "Deleting..." : "Delete workout"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ExerciseBulkPickerSheet
         description="Queue multiple exercises, then drop them into the workout together."
         exercises={availableExercises}
@@ -1959,7 +2058,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           <SheetHeader>
             <SheetTitle>Swap exercise</SheetTitle>
             <SheetDescription>
-              Use an equivalent when equipment is taken. Approved equivalents keep progression on track.
+              Pick the movement you actually want to run today.
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
@@ -1981,7 +2080,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </Button>
             ) : null}
             <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Equivalent substitutes</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Suggested swaps</p>
               {substitutesQuery.isLoading ? (
                 <Skeleton className="h-24" />
               ) : filteredSubstitutes.equivalents.length ? (
@@ -2006,12 +2105,12 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 ))
               ) : (
                 <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
-                  No approved equivalents yet for this movement.
+                  No suggested swaps yet for this movement.
                 </div>
               )}
             </div>
             <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Alternatives</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">More options</p>
               {filteredSubstitutes.alternatives.length ? (
                 filteredSubstitutes.alternatives.map((exercise) => (
                   <button
@@ -2027,7 +2126,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   >
                     <p className="font-semibold text-foreground">{exercise.name}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Logs today cleanly, but won&apos;t push the planned progression unless you map it as an equivalent.
+                      Swap straight into this movement for today&apos;s session.
                     </p>
                   </button>
                 ))

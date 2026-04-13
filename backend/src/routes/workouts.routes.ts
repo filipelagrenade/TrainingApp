@@ -9,6 +9,7 @@ import {
   applyWorkoutSubstitution,
   cancelWorkout,
   completeWorkout,
+  deleteCompletedWorkout,
   getInProgressWorkout,
   getWorkout,
   listRecentWorkouts,
@@ -19,6 +20,7 @@ import {
   saveWorkoutDraft,
   startWorkout,
   unpairWorkoutSuperset,
+  updateCompletedWorkout,
 } from "../services/workout.service";
 
 const workoutsRouter = Router();
@@ -272,5 +274,34 @@ workoutsRouter.post(
     }
   },
 );
+
+workoutsRouter.patch(
+  "/:workoutId/completed",
+  validateBody(draftSchema),
+  async (request, response, next) => {
+    try {
+      const workout = await updateCompletedWorkout(
+        request.currentUser!.id,
+        String(request.params.workoutId),
+        request.body,
+      );
+      sendSuccess(response, workout);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+workoutsRouter.delete("/:workoutId", async (request, response, next) => {
+  try {
+    const result = await deleteCompletedWorkout(
+      request.currentUser!.id,
+      String(request.params.workoutId),
+    );
+    sendSuccess(response, result);
+  } catch (error) {
+    next(error);
+  }
+});
 
 export { workoutsRouter };

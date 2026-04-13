@@ -55,6 +55,15 @@ export const ProgramLibraryScreen = () => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const deleteMutation = useMutation({
+    mutationFn: apiClient.deleteProgram,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["programs"] });
+      await queryClient.invalidateQueries({ queryKey: ["active-program"] });
+      toast.success("Program deleted");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   if (meQuery.isLoading) {
     return (
@@ -142,6 +151,11 @@ export const ProgramLibraryScreen = () => {
                   {!program.isSystem && program.status !== "ARCHIVED" ? (
                     <Button size="sm" variant="ghost" onClick={() => archiveMutation.mutate(program.id)}>
                       Archive
+                    </Button>
+                  ) : null}
+                  {!program.isSystem ? (
+                    <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(program.id)}>
+                      Delete
                     </Button>
                   ) : null}
                 </div>

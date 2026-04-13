@@ -87,6 +87,10 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  deleteExercise: (exerciseId: string) =>
+    request<{ ok: boolean }>(`/exercises/${exerciseId}`, {
+      method: "DELETE",
+    }),
   createExerciseEquivalency: (payload: { sourceExerciseId: string; targetExerciseId: string }) =>
     request<ExerciseSubstitutes>("/exercises/equivalencies", {
       method: "POST",
@@ -151,6 +155,10 @@ export const apiClient = {
     request<Program>(`/programs/${programId}/archive`, {
       method: "POST",
     }),
+  deleteProgram: (programId: string) =>
+    request<{ ok: boolean }>(`/programs/${programId}`, {
+      method: "DELETE",
+    }),
   skipProgramWorkout: (programId: string, workoutId: string) =>
     request<Program>(`/programs/${programId}/workouts/${workoutId}/skip`, {
       method: "POST",
@@ -171,6 +179,11 @@ export const apiClient = {
   getWorkout: (workoutId: string) => request<WorkoutSessionDetail>(`/workouts/${workoutId}`),
   saveWorkoutDraft: (workoutId: string, payload: WorkoutDraft) =>
     request<WorkoutSession>(`/workouts/${workoutId}/draft`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  updateCompletedWorkout: (workoutId: string, payload: WorkoutDraft) =>
+    request<WorkoutSession>(`/workouts/${workoutId}/completed`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
@@ -218,6 +231,10 @@ export const apiClient = {
     }>(`/workouts/${workoutId}/complete`, {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  deleteWorkout: (workoutId: string) =>
+    request<{ ok: boolean }>(`/workouts/${workoutId}`, {
+      method: "DELETE",
     }),
   getLeaderboard: () => request<LeaderboardEntry[]>("/social/leaderboard"),
   getChallenges: () => request<Challenge[]>("/social/challenges"),

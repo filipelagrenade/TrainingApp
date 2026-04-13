@@ -9,6 +9,7 @@ import {
   activateProgram,
   archiveProgram,
   createProgram,
+  deleteProgram,
   generateProgramDraftForUser,
   getActiveProgram,
   getProgramById,
@@ -159,6 +160,15 @@ programsRouter.post("/:programId/archive", async (request, response, next) => {
   try {
     const program = await archiveProgram(request.currentUser!.id, request.params.programId);
     sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.delete("/:programId", async (request, response, next) => {
+  try {
+    const result = await deleteProgram(request.currentUser!.id, request.params.programId);
+    sendSuccess(response, result);
   } catch (error) {
     next(error);
   }
