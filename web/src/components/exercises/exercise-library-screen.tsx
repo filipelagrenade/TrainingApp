@@ -426,8 +426,10 @@ export const ExerciseLibraryScreen = () => {
         description="Pick a replacement exercise for your programs and templates, or skip this if you just want it removed."
         exercises={availableDeleteReplacementTargets}
         onOpenChange={setDeleteReplacementPickerOpen}
-        onSelect={(exercise) => setDeleteReplacementExerciseId(exercise.id)}
-        closeOnSelect={false}
+        onSelect={(exercise) => {
+          setDeleteReplacementExerciseId(exercise.id);
+          setDeleteReplacementPickerOpen(false);
+        }}
         open={deleteReplacementPickerOpen}
         selectedExerciseId={deleteReplacementExerciseId ?? ""}
         title="Choose replacement"
