@@ -38,14 +38,27 @@ class HttpError extends Error {
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
+    cache: "no-store",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-cache, no-store, max-age=0",
+      Pragma: "no-cache",
       ...(init?.headers ?? {}),
     },
   });
 
-  const json = (await response.json()) as ApiResponse<T>;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const rawBody = await response.text();
+
+  if (!rawBody) {
+    throw new HttpError("Empty response from server");
+  }
+
+  const json = JSON.parse(rawBody) as ApiResponse<T>;
 
   if (!response.ok || !json.success) {
     const error = json.success ? new HttpError("Request failed") : new HttpError(json.error.message, json.error.code);

@@ -322,6 +322,9 @@ export const syncUserChallengesInTransaction = async (
 export const syncUserChallenges = async (userId: string) =>
   prisma.$transaction(async (transaction) => {
     await syncUserChallengesInTransaction(transaction, userId);
+  }, {
+    timeout: 20_000,
+    maxWait: 10_000,
   });
 
 const buildChallengeReadModel = async (userId: string) => {
@@ -481,12 +484,10 @@ const buildChallengeReadModel = async (userId: string) => {
 };
 
 export const getChallengeLibrary = async (userId: string) => {
-  await syncUserChallenges(userId);
   return buildChallengeReadModel(userId);
 };
 
 export const getChallengeSummary = async (userId: string) => {
-  await syncUserChallenges(userId);
   const library = await buildChallengeReadModel(userId);
 
   return {
@@ -500,7 +501,6 @@ export const getChallengeSummary = async (userId: string) => {
 };
 
 export const getChallengeShowcase = async (userId: string) => {
-  await syncUserChallenges(userId);
   const library = await buildChallengeReadModel(userId);
 
   const featuredFamilies = library.families

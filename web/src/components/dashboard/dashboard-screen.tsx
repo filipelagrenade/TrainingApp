@@ -153,6 +153,15 @@ export const DashboardScreen = ({ user }: { user: User }) => {
         }
       />
 
+      <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+        <Button asChild variant="outline">
+          <Link href="/achievements">Challenges</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/profile">Profile</Link>
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Active program</CardTitle>
