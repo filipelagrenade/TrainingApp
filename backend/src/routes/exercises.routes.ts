@@ -32,6 +32,10 @@ const createEquivalencySchema = z.object({
   targetExerciseId: z.string().min(1),
 });
 
+const deleteExerciseSchema = z.object({
+  replacementExerciseId: z.string().min(1).nullable().optional(),
+});
+
 exercisesRouter.use(requireAuth);
 
 exercisesRouter.get("/", async (request, response, next) => {
@@ -92,9 +96,26 @@ exercisesRouter.delete(
   },
 );
 
+exercisesRouter.post(
+  "/:exerciseId/delete",
+  validateBody(deleteExerciseSchema.optional()),
+  async (request, response, next) => {
+    try {
+      const result = await deleteExercise(
+        request.currentUser!.id,
+        String(request.params.exerciseId),
+        request.body?.replacementExerciseId ?? null,
+      );
+      sendSuccess(response, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 exercisesRouter.delete("/:exerciseId", async (request, response, next) => {
   try {
-    const result = await deleteExercise(request.currentUser!.id, String(request.params.exerciseId));
+    const result = await deleteExercise(request.currentUser!.id, String(request.params.exerciseId), null);
     sendSuccess(response, result);
   } catch (error) {
     next(error);

@@ -183,7 +183,11 @@ export const deleteExerciseEquivalency = async (
   return { ok: true };
 };
 
-export const deleteExercise = async (userId: string, exerciseId: string) => {
+export const deleteExercise = async (
+  userId: string,
+  exerciseId: string,
+  replacementExerciseId?: string | null,
+) => {
   const exercise = await prisma.exercise.findFirst({
     where: {
       id: exerciseId,
@@ -196,41 +200,82 @@ export const deleteExercise = async (userId: string, exerciseId: string) => {
     throw new AppError(404, "EXERCISE_NOT_FOUND", "That exercise could not be found.");
   }
 
-  const [programUsageCount, templateUsageCount] = await Promise.all([
-    prisma.programWorkoutExercise.count({
-      where: {
-        exerciseId,
-        programWorkout: {
-          programWeek: {
-            program: {
-              userId,
-            },
-          },
-        },
-      },
-    }),
-    prisma.templateExercise.count({
-      where: {
-        exerciseId,
-        template: {
-          userId,
-        },
-      },
-    }),
-  ]);
-
-  if (programUsageCount > 0 || templateUsageCount > 0) {
+  if (replacementExerciseId && replacementExerciseId === exerciseId) {
     throw new AppError(
-      409,
-      "EXERCISE_IN_USE",
-      "Remove this exercise from your programs and templates before deleting it.",
+      400,
+      "INVALID_REPLACEMENT_EXERCISE",
+      "Choose a different exercise to replace this one.",
     );
   }
 
-  await prisma.exercise.delete({
-    where: {
-      id: exerciseId,
-    },
+  const replacementExercise = replacementExerciseId
+    ? await getVisibleExercise(userId, replacementExerciseId)
+    : null;
+
+  await prisma.$transaction(async (transaction) => {
+    if (replacementExercise) {
+      await transaction.programWorkoutExercise.updateMany({
+        where: {
+          exerciseId,
+          programWorkout: {
+            programWeek: {
+              program: {
+                userId,
+              },
+            },
+          },
+        },
+        data: {
+          exerciseId: replacementExercise.id,
+          machineOverride: replacementExercise.machineType,
+          attachmentOverride: replacementExercise.attachment,
+          loadTypeOverride: replacementExercise.loadType,
+        },
+      });
+
+      await transaction.templateExercise.updateMany({
+        where: {
+          exerciseId,
+          template: {
+            userId,
+          },
+        },
+        data: {
+          exerciseId: replacementExercise.id,
+          machineOverride: replacementExercise.machineType,
+          attachmentOverride: replacementExercise.attachment,
+          loadTypeOverride: replacementExercise.loadType,
+        },
+      });
+    } else {
+      await transaction.programWorkoutExercise.deleteMany({
+        where: {
+          exerciseId,
+          programWorkout: {
+            programWeek: {
+              program: {
+                userId,
+              },
+            },
+          },
+        },
+      });
+
+      await transaction.templateExercise.deleteMany({
+        where: {
+          exerciseId,
+          template: {
+            userId,
+          },
+        },
+      });
+    }
+
+    await transaction.exercise.delete({
+      where: {
+        id: exerciseId,
+      },
+    });
   });
 
   return { ok: true };

@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -37,6 +38,9 @@ export const LibraryScreen = () => {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [equivalentTargetId, setEquivalentTargetId] = useState("");
   const [equivalentPickerOpen, setEquivalentPickerOpen] = useState(false);
+  const [deleteExerciseId, setDeleteExerciseId] = useState<string | null>(null);
+  const [deleteReplacementExerciseId, setDeleteReplacementExerciseId] = useState<string | null>(null);
+  const [deleteReplacementPickerOpen, setDeleteReplacementPickerOpen] = useState(false);
   const [activationProgram, setActivationProgram] = useState<Program | null>(null);
   const [pendingStart, setPendingStart] = useState<{ entryType: "TEMPLATE"; templateId: string } | null>(null);
 
@@ -151,10 +155,15 @@ export const LibraryScreen = () => {
     onError: (error: Error) => toast.error(error.message),
   });
   const deleteExerciseMutation = useMutation({
-    mutationFn: apiClient.deleteExercise,
+    mutationFn: (payload: { exerciseId: string; replacementExerciseId?: string | null }) =>
+      apiClient.deleteExercise(payload.exerciseId, {
+        replacementExerciseId: payload.replacementExerciseId ?? null,
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["exercises"] });
       toast.success("Exercise deleted");
+      setDeleteExerciseId(null);
+      setDeleteReplacementExerciseId(null);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -203,10 +212,14 @@ export const LibraryScreen = () => {
   const programs = programsQuery.data ?? [];
   const templates = templatesQuery.data ?? [];
   const selectedExercise = exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
+  const deleteExerciseTarget = exercises.find((exercise) => exercise.id === deleteExerciseId) ?? null;
   const availableEquivalentTargets = exercises.filter(
     (exercise) =>
       exercise.id !== selectedExerciseId &&
       !substitutesQuery.data?.equivalents.some((candidate) => candidate.id === exercise.id),
+  );
+  const availableDeleteReplacementTargets = exercises.filter(
+    (exercise) => exercise.id !== deleteExerciseId,
   );
 
   const requestStartWorkout = (payload: { entryType: "TEMPLATE"; templateId: string }) => {
@@ -474,7 +487,10 @@ export const LibraryScreen = () => {
                           className="w-full"
                           size="sm"
                           variant="ghost"
-                          onClick={() => deleteExerciseMutation.mutate(exercise.id)}
+                          onClick={() => {
+                            setDeleteExerciseId(exercise.id);
+                            setDeleteReplacementExerciseId(null);
+                          }}
                         >
                           Delete exercise
                         </Button>
@@ -589,6 +605,78 @@ export const LibraryScreen = () => {
         open={equivalentPickerOpen}
         selectedExerciseId={equivalentTargetId}
         title="Choose equivalent"
+      />
+      <Dialog
+        open={Boolean(deleteExerciseId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteExerciseId(null);
+            setDeleteReplacementExerciseId(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete custom exercise</DialogTitle>
+            <DialogDescription>
+              {deleteExerciseTarget
+                ? `Choose a replacement for ${deleteExerciseTarget.name}, or leave it blank to remove it from your programs and templates before deleting it.`
+                : "Choose a replacement exercise, or leave it blank to remove references before deleting."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Button
+              className="w-full justify-between"
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteReplacementPickerOpen(true)}
+            >
+              <span className="truncate">
+                {availableDeleteReplacementTargets.find((exercise) => exercise.id === deleteReplacementExerciseId)
+                  ?.name ?? "No replacement selected"}
+              </span>
+              <span className="text-xs text-muted-foreground">Search</span>
+            </Button>
+            {deleteReplacementExerciseId ? (
+              <Button
+                className="w-full"
+                type="button"
+                variant="ghost"
+                onClick={() => setDeleteReplacementExerciseId(null)}
+              >
+                Remove replacement
+              </Button>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button type="button" variant="outline" onClick={() => setDeleteExerciseId(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() =>
+                deleteExerciseId
+                  ? deleteExerciseMutation.mutate({
+                      exerciseId: deleteExerciseId,
+                      replacementExerciseId: deleteReplacementExerciseId,
+                    })
+                  : undefined
+              }
+              disabled={deleteExerciseMutation.isPending}
+            >
+              {deleteExerciseMutation.isPending ? "Deleting..." : "Delete exercise"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <ExerciseSearchSheet
+        description="Pick a replacement exercise for your programs and templates, or skip this if you just want it removed."
+        exercises={availableDeleteReplacementTargets}
+        onOpenChange={setDeleteReplacementPickerOpen}
+        onSelect={(exercise) => setDeleteReplacementExerciseId(exercise.id)}
+        open={deleteReplacementPickerOpen}
+        selectedExerciseId={deleteReplacementExerciseId ?? ""}
+        title="Choose replacement"
       />
       <ProgramActivationDialog
         isPending={activateProgramMutation.isPending}

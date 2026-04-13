@@ -87,9 +87,12 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  deleteExercise: (exerciseId: string) =>
-    request<{ ok: boolean }>(`/exercises/${exerciseId}`, {
-      method: "DELETE",
+  deleteExercise: (exerciseId: string, payload?: { replacementExerciseId?: string | null }) =>
+    request<{ ok: boolean }>(`/exercises/${exerciseId}/delete`, {
+      method: "POST",
+      body: JSON.stringify({
+        replacementExerciseId: payload?.replacementExerciseId ?? null,
+      }),
     }),
   createExerciseEquivalency: (payload: { sourceExerciseId: string; targetExerciseId: string }) =>
     request<ExerciseSubstitutes>("/exercises/equivalencies", {
