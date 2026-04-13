@@ -1,15 +1,16 @@
 import type {
   ActiveProgram,
   ActivityEvent,
-  AchievementLibraryItem,
   ApiResponse,
   Challenge,
+  ChallengeLibrary,
   CreateProgramInput,
   CreateTemplateInput,
   CreateExerciseInput,
   Exercise,
   ExerciseSubstitutes,
   LeaderboardEntry,
+  ProfileView,
   Program,
   ProgramDraft,
   ProgressOverview,
@@ -56,10 +57,20 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
 export const apiClient = {
   getMe: () => request<{ user: User }>("/auth/me"),
-  getAchievements: () => request<AchievementLibraryItem[]>("/achievements"),
+  getAchievements: () => request<ChallengeLibrary>("/achievements"),
   getProgressOverview: () => request<ProgressOverview>("/progress/overview"),
   getExerciseProgress: (exerciseId: string) =>
     request<ExerciseProgressDetail>(`/progress/exercises/${exerciseId}`),
+  getMyProfile: () => request<ProfileView>("/profile/me"),
+  getProfile: (userId: string) => request<ProfileView>(`/profile/${userId}`),
+  updateProfileShowcase: (payload: {
+    selectedTitleKey?: string | null;
+    selectedBadgeKey?: string | null;
+  }) =>
+    request<{ user: User }>("/profile/showcase", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   register: (payload: { email: string; password: string; displayName: string }) =>
     request<{ user: User }>("/auth/register", {
       method: "POST",

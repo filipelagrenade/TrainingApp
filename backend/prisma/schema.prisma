@@ -71,9 +71,28 @@ enum ActivityType {
   PR_HIT
   LEVEL_UP
   ACHIEVEMENT_UNLOCKED
+  CHALLENGE_TIER_UNLOCKED
   STREAK_EXTENDED
   CHALLENGE_JOINED
   PROGRAM_WEEK_COMPLETED
+}
+
+enum ChallengeCategory {
+  CONSISTENCY
+  STRENGTH
+  PROGRESSION
+  PROGRAMS
+  SOCIAL
+}
+
+enum ChallengeRank {
+  ROOKIE
+  REGULAR
+  DEDICATED
+  SERIOUS
+  SAVAGE
+  TITAN
+  GOD
 }
 
 enum ChallengeMetric {
@@ -90,6 +109,11 @@ model User {
   preferredUnit        String               @default("kg")
   xpTotal              Int                  @default(0)
   level                Int                  @default(1)
+  challengeMigrationVersion Int            @default(0)
+  selectedTitleKey     String?
+  selectedTitleLabel   String?
+  selectedBadgeKey     String?
+  selectedBadgeLabel   String?
   avatarConfig         Json?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
@@ -103,6 +127,8 @@ model User {
   progressionSnapshots ProgressionSnapshot[]
   xpLedgerEntries      XpLedger[]
   userAchievements     UserAchievement[]
+  challengeProgresses  UserChallengeProgress[]
+  challengeTierUnlocks UserChallengeTierUnlock[]
   avatarInventory      UserAvatarItem[]
   activityEvents       ActivityEvent[]
   following            Follow[]             @relation("following")
@@ -411,6 +437,60 @@ model UserAchievement {
   achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
 
   @@unique([userId, achievementId])
+}
+
+model ChallengeFamily {
+  id          String                @id @default(cuid())
+  key         String                @unique
+  category    ChallengeCategory
+  metricKey   String
+  iconKey     String
+  title       String
+  description String
+  sortOrder   Int                   @default(0)
+  isActive    Boolean               @default(true)
+  tiers       ChallengeTier[]
+  progresses  UserChallengeProgress[]
+}
+
+model ChallengeTier {
+  id               String                  @id @default(cuid())
+  familyId         String
+  rank             ChallengeRank
+  threshold        Int
+  xpReward         Int                     @default(0)
+  titleRewardKey   String?
+  titleRewardLabel String?
+  badgeRewardKey   String?
+  badgeRewardLabel String?
+  family           ChallengeFamily         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  unlocks          UserChallengeTierUnlock[]
+
+  @@unique([familyId, rank])
+  @@unique([familyId, threshold])
+}
+
+model UserChallengeProgress {
+  id        String         @id @default(cuid())
+  userId    String
+  familyId  String
+  progress  Int            @default(0)
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family    ChallengeFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, familyId])
+}
+
+model UserChallengeTierUnlock {
+  id         String        @id @default(cuid())
+  userId     String
+  tierId     String
+  unlockedAt DateTime      @default(now())
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier       ChallengeTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tierId])
 }
 
 model AvatarItem {

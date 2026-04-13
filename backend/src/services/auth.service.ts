@@ -36,6 +36,7 @@ export const registerUser = async (input: {
       data: {
         email: input.email.toLowerCase(),
         displayName: input.displayName,
+        challengeMigrationVersion: 1,
       },
     });
 

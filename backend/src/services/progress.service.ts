@@ -1,9 +1,10 @@
-import { ActivityType, WorkoutStatus } from "@prisma/client";
+import { WorkoutStatus } from "@prisma/client";
 
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
 import type { Exercise } from "@prisma/client";
 import { sumVolumeInKilograms } from "../lib/units";
+import { getChallengeSummary } from "./challenge.service";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -362,104 +363,7 @@ export const getProgressOverview = async (userId: string) => {
     })
     .slice(0, 6);
 
-  const [achievements, unlockedAchievements, completedWorkoutCount, totalPrCount, completedWeekCount] =
-    await Promise.all([
-      prisma.achievement.findMany({
-        orderBy: {
-          requirementTarget: "asc",
-        },
-      }),
-      prisma.userAchievement.findMany({
-        where: {
-          userId,
-        },
-        include: {
-          achievement: true,
-        },
-        orderBy: {
-          unlockedAt: "desc",
-        },
-      }),
-      prisma.workoutSession.count({
-        where: {
-          userId,
-          status: WorkoutStatus.COMPLETED,
-        },
-      }),
-      prisma.workoutSet.count({
-        where: {
-          isPersonalRecord: true,
-          workoutExercise: {
-            session: {
-              userId,
-              status: WorkoutStatus.COMPLETED,
-            },
-          },
-        },
-      }),
-      prisma.activityEvent.count({
-        where: {
-          userId,
-          type: ActivityType.PROGRAM_WEEK_COMPLETED,
-        },
-      }),
-    ]);
-
-  const user = await prisma.user.findUniqueOrThrow({
-    where: {
-      id: userId,
-    },
-  });
-
-  const unlockedIdSet = new Set(unlockedAchievements.map((achievement) => achievement.achievementId));
-  const recentUnlocks = unlockedAchievements.slice(0, 3).map((entry) => ({
-    id: entry.achievement.id,
-    key: entry.achievement.key,
-    title: entry.achievement.title,
-    description: entry.achievement.description,
-    xpReward: entry.achievement.xpReward,
-    requirementType: entry.achievement.requirementType,
-    requirementTarget: entry.achievement.requirementTarget,
-    unlocked: true,
-    unlockedAt: entry.unlockedAt.toISOString(),
-  }));
-
-  const progressForRequirement = (requirementType: string) => {
-    switch (requirementType) {
-      case "workouts":
-        return completedWorkoutCount;
-      case "prs":
-        return totalPrCount;
-      case "weeks":
-        return completedWeekCount;
-      case "level":
-        return user.level;
-      default:
-        return 0;
-    }
-  };
-
-  const nextMilestones = achievements
-    .filter((achievement) => !unlockedIdSet.has(achievement.id))
-    .map((achievement) => {
-      const progress = progressForRequirement(achievement.requirementType);
-      return {
-        id: achievement.id,
-        key: achievement.key,
-        title: achievement.title,
-        description: achievement.description,
-        xpReward: achievement.xpReward,
-        requirementType: achievement.requirementType,
-        requirementTarget: achievement.requirementTarget,
-        unlocked: false,
-        unlockedAt: null,
-        progress,
-        remaining: Math.max(0, achievement.requirementTarget - progress),
-      };
-    })
-    .filter((achievement) => achievement.remaining > 0)
-    .sort((left, right) => left.remaining - right.remaining)
-    .slice(0, 3);
+  const challengeSummary = await getChallengeSummary(userId);
 
   return {
     weeklySummary: {
@@ -481,12 +385,7 @@ export const getProgressOverview = async (userId: string) => {
     activeProgramSummary,
     recentPrs,
     exerciseTrends,
-    achievementSummary: {
-      unlockedCount: unlockedIdSet.size,
-      totalCount: achievements.length,
-      recentUnlocks,
-      nextMilestones,
-    },
+    challengeSummary,
   };
 };
 

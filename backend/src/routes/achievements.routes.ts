@@ -2,7 +2,7 @@ import { Router } from "express";
 
 import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
-import { listAchievementLibrary } from "../services/achievement.service";
+import { getChallengeLibrary } from "../services/challenge.service";
 
 const achievementsRouter = Router();
 
@@ -10,8 +10,8 @@ achievementsRouter.use(requireAuth);
 
 achievementsRouter.get("/", async (request, response, next) => {
   try {
-    const achievements = await listAchievementLibrary(request.currentUser!.id);
-    sendSuccess(response, achievements);
+    const challenges = await getChallengeLibrary(request.currentUser!.id);
+    sendSuccess(response, challenges);
   } catch (error) {
     next(error);
   }

@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { ChallengeMetric, PrismaClient } from "@prisma/client";
+import { challengeFamilies } from "./challenge-families";
 import { systemExercises } from "./system-exercises";
 
 const prisma = new PrismaClient();
@@ -355,9 +356,11 @@ async function main() {
     create: {
       email: "system@liftiq.local",
       displayName: "LiftIQ System",
+      challengeMigrationVersion: 1,
     },
     update: {
       displayName: "LiftIQ System",
+      challengeMigrationVersion: 1,
     },
   });
   const createdExercises = new Map<string, string>();
@@ -452,6 +455,64 @@ async function main() {
       create: achievement,
       update: achievement,
     });
+  }
+
+  for (const family of challengeFamilies) {
+    await prisma.challengeFamily.upsert({
+      where: { key: family.key },
+      create: {
+        key: family.key,
+        category: family.category,
+        metricKey: family.metricKey,
+        iconKey: family.iconKey,
+        title: family.title,
+        description: family.description,
+        sortOrder: family.sortOrder,
+        isActive: true,
+      },
+      update: {
+        category: family.category,
+        metricKey: family.metricKey,
+        iconKey: family.iconKey,
+        title: family.title,
+        description: family.description,
+        sortOrder: family.sortOrder,
+        isActive: true,
+      },
+    });
+
+    const persistedFamily = await prisma.challengeFamily.findUniqueOrThrow({
+      where: { key: family.key },
+    });
+
+    for (const tier of family.tiers) {
+      await prisma.challengeTier.upsert({
+        where: {
+          familyId_rank: {
+            familyId: persistedFamily.id,
+            rank: tier.rank,
+          },
+        },
+        create: {
+          familyId: persistedFamily.id,
+          rank: tier.rank,
+          threshold: tier.threshold,
+          xpReward: tier.xpReward,
+          titleRewardKey: tier.titleRewardKey,
+          titleRewardLabel: tier.titleRewardLabel,
+          badgeRewardKey: tier.badgeRewardKey,
+          badgeRewardLabel: tier.badgeRewardLabel,
+        },
+        update: {
+          threshold: tier.threshold,
+          xpReward: tier.xpReward,
+          titleRewardKey: tier.titleRewardKey,
+          titleRewardLabel: tier.titleRewardLabel,
+          badgeRewardKey: tier.badgeRewardKey,
+          badgeRewardLabel: tier.badgeRewardLabel,
+        },
+      });
+    }
   }
 
   for (const item of avatarItems) {

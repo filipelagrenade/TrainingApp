@@ -21,6 +21,10 @@ export type User = {
   preferredUnit: "kg" | "lb";
   xpTotal: number;
   level: number;
+  selectedTitleKey?: string | null;
+  selectedTitleLabel?: string | null;
+  selectedBadgeKey?: string | null;
+  selectedBadgeLabel?: string | null;
   avatarConfig: Record<string, unknown> | null;
 };
 
@@ -30,6 +34,8 @@ export type SocialUser = {
   displayName: string;
   level: number;
   xpTotal: number;
+  selectedTitleLabel?: string | null;
+  selectedBadgeLabel?: string | null;
   isFollowing: boolean;
 };
 
@@ -417,6 +423,8 @@ export type LeaderboardEntry = {
   displayName: string;
   level: number;
   xp: number;
+  selectedTitleLabel?: string | null;
+  selectedBadgeLabel?: string | null;
 };
 
 export type Challenge = {
@@ -440,16 +448,109 @@ export type ActivityEvent = {
   user: Pick<User, "id" | "displayName" | "level">;
 };
 
-export type AchievementLibraryItem = {
-  id: string;
+export type ChallengeCategory =
+  | "CONSISTENCY"
+  | "STRENGTH"
+  | "PROGRESSION"
+  | "PROGRAMS"
+  | "SOCIAL";
+
+export type ChallengeRank =
+  | "ROOKIE"
+  | "REGULAR"
+  | "DEDICATED"
+  | "SERIOUS"
+  | "SAVAGE"
+  | "TITAN"
+  | "GOD";
+
+export type ChallengeTierReward = {
   key: string;
-  title: string;
-  description: string;
+  label: string;
+};
+
+export type ChallengeTier = {
+  id: string;
+  rank: ChallengeRank;
+  threshold: number;
   xpReward: number;
-  requirementType: string;
-  requirementTarget: number;
   unlocked: boolean;
   unlockedAt: string | null;
+  titleRewardKey: string | null;
+  titleRewardLabel: string | null;
+  badgeRewardKey: string | null;
+  badgeRewardLabel: string | null;
+};
+
+export type ChallengeFamily = {
+  id: string;
+  key: string;
+  category: ChallengeCategory;
+  categoryLabel: string;
+  iconKey: string;
+  title: string;
+  description: string;
+  progress: number;
+  currentRank: ChallengeRank | null;
+  nextTier:
+    | {
+        id: string;
+        rank: ChallengeRank;
+        threshold: number;
+        xpReward: number;
+        remaining: number;
+        titleRewardKey: string | null;
+        titleRewardLabel: string | null;
+        badgeRewardKey: string | null;
+        badgeRewardLabel: string | null;
+      }
+    | null;
+  tiers: ChallengeTier[];
+};
+
+export type ChallengeCategorySection = {
+  key: ChallengeCategory;
+  label: string;
+  families: ChallengeFamily[];
+};
+
+export type ChallengeUnlock = {
+  familyId: string;
+  familyKey: string;
+  familyTitle: string;
+  iconKey: string;
+  rank: ChallengeRank;
+  threshold: number;
+  xpReward: number;
+  unlockedAt: string;
+  titleRewardKey: string | null;
+  titleRewardLabel: string | null;
+  badgeRewardKey: string | null;
+  badgeRewardLabel: string | null;
+};
+
+export type ChallengeRewardItem = {
+  key: string;
+  label: string;
+  familyKey: string;
+  familyTitle: string;
+  rank: ChallengeRank;
+  unlockedAt: string;
+};
+
+export type ChallengeLibrary = {
+  categories: ChallengeCategorySection[];
+  families: ChallengeFamily[];
+  summary: {
+    unlockedTierCount: number;
+    totalTierCount: number;
+    unlockedFamilyCount: number;
+    totalFamilyCount: number;
+    recentUnlocks: ChallengeUnlock[];
+    closestNext: ChallengeFamily[];
+    unlockedTitles: ChallengeRewardItem[];
+    unlockedBadges: ChallengeRewardItem[];
+  };
 };
 
 export type ProgressWeeklyExercise = {
@@ -511,16 +612,13 @@ export type ProgressExerciseTrend = {
   personalRecordCount: number;
 };
 
-export type ProgressAchievementMilestone = AchievementLibraryItem & {
-  progress: number;
-  remaining: number;
-};
-
-export type ProgressAchievementSummary = {
-  unlockedCount: number;
-  totalCount: number;
-  recentUnlocks: AchievementLibraryItem[];
-  nextMilestones: ProgressAchievementMilestone[];
+export type ProgressChallengeSummary = {
+  unlockedTierCount: number;
+  totalTierCount: number;
+  unlockedFamilyCount: number;
+  totalFamilyCount: number;
+  recentUnlocks: ChallengeUnlock[];
+  closestNext: ChallengeFamily[];
 };
 
 export type ProgressOverview = {
@@ -528,7 +626,7 @@ export type ProgressOverview = {
   activeProgramSummary: ProgressActiveProgramSummary;
   recentPrs: ProgressRecentPr[];
   exerciseTrends: ProgressExerciseTrend[];
-  achievementSummary: ProgressAchievementSummary;
+  challengeSummary: ProgressChallengeSummary;
 };
 
 export type ExerciseProgressExposure = {
@@ -569,4 +667,18 @@ export type ExerciseProgressDetail = {
     workoutTitle: string;
     count: number;
   }>;
+};
+
+export type ProfileShowcase = {
+  featuredFamilies: ChallengeFamily[];
+  unlockedTitles: ChallengeRewardItem[];
+  unlockedBadges: ChallengeRewardItem[];
+  recentUnlocks: ChallengeUnlock[];
+};
+
+export type ProfileView = {
+  user: User;
+  showcase: ProfileShowcase;
+  editable: boolean;
+  isFollowing?: boolean;
 };

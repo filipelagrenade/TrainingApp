@@ -1,6 +1,7 @@
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
 import { startOfWeek } from "../utils/date";
+import { syncUserChallenges } from "./challenge.service";
 
 export const getLeaderboard = async () => {
   const weekStart = startOfWeek(new Date());
@@ -39,6 +40,8 @@ export const getLeaderboard = async () => {
       displayName: user?.displayName ?? "Unknown",
       level: user?.level ?? 1,
       xp: entry._sum.amount ?? 0,
+      selectedTitleLabel: user?.selectedTitleLabel ?? null,
+      selectedBadgeLabel: user?.selectedBadgeLabel ?? null,
     };
   });
 };
@@ -107,6 +110,8 @@ export const listFollowing = async (userId: string) => {
     email: follow.following.email,
     level: follow.following.level,
     xpTotal: follow.following.xpTotal,
+    selectedTitleLabel: follow.following.selectedTitleLabel,
+    selectedBadgeLabel: follow.following.selectedBadgeLabel,
     isFollowing: true,
   }));
 };
@@ -122,7 +127,7 @@ export const joinChallenge = async (userId: string, challengeId: string) => {
     throw new AppError(404, "CHALLENGE_NOT_FOUND", "That challenge could not be found.");
   }
 
-  return prisma.challengeParticipant.upsert({
+  const participant = await prisma.challengeParticipant.upsert({
     where: {
       challengeId_userId: {
         challengeId,
@@ -135,6 +140,10 @@ export const joinChallenge = async (userId: string, challengeId: string) => {
     },
     update: {},
   });
+
+  await syncUserChallenges(userId);
+
+  return participant;
 };
 
 export const followUser = async (followerId: string, followingId: string) => {
@@ -142,7 +151,7 @@ export const followUser = async (followerId: string, followingId: string) => {
     throw new AppError(400, "INVALID_FOLLOW", "You cannot follow yourself.");
   }
 
-  return prisma.follow.upsert({
+  const follow = await prisma.follow.upsert({
     where: {
       followerId_followingId: {
         followerId,
@@ -155,15 +164,24 @@ export const followUser = async (followerId: string, followingId: string) => {
     },
     update: {},
   });
+
+  await syncUserChallenges(followerId);
+
+  return follow;
 };
 
-export const unfollowUser = async (followerId: string, followingId: string) =>
-  prisma.follow.deleteMany({
+export const unfollowUser = async (followerId: string, followingId: string) => {
+  const result = await prisma.follow.deleteMany({
     where: {
       followerId,
       followingId,
     },
   });
+
+  await syncUserChallenges(followerId);
+
+  return result;
+};
 
 export const searchUsers = async (userId: string, query: string) =>
   prisma.$transaction(async (transaction) => {

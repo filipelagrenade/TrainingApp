@@ -29,7 +29,8 @@ import {
   toKilograms,
   toPreferredUnit,
 } from "../lib/units";
-import { createXpLedgerEntry, unlockAchievements } from "./gamification.service";
+import { createXpLedgerEntry } from "./gamification.service";
+import { syncUserChallenges } from "./challenge.service";
 import {
   calculateProgressionRecommendation,
   estimateOneRepMax,
@@ -1418,7 +1419,7 @@ const runPostWorkoutEffects = async (
   const effectsStartedAt = Date.now();
 
   try {
-    const achievementContext = await prisma.$transaction(async (transaction) => {
+    await prisma.$transaction(async (transaction) => {
       if (result.prCount > 0) {
         await transaction.activityEvent.create({
           data: {
@@ -1467,55 +1468,11 @@ const runPostWorkoutEffects = async (
         },
       });
 
-      const workoutCompletedCount = await transaction.workoutSession.count({
-        where: {
-          userId,
-          status: WorkoutStatus.COMPLETED,
-        },
-      });
-
-      const totalPrCount = await transaction.workoutSet.count({
-        where: {
-          isPersonalRecord: true,
-          workoutExercise: {
-            session: {
-              userId,
-              status: WorkoutStatus.COMPLETED,
-            },
-          },
-        },
-      });
-
-      const completedWeekCount = await transaction.activityEvent.count({
-        where: {
-          userId,
-          type: ActivityType.PROGRAM_WEEK_COMPLETED,
-        },
-      });
-
-      const updatedUser = await transaction.user.findUniqueOrThrow({
-        where: {
-          id: userId,
-        },
-      });
-
-      return {
-        updatedUser,
-        workoutCompletedCount,
-        totalPrCount,
-        completedWeekCount,
-      };
+      return { ok: true };
     });
 
     try {
-      await prisma.$transaction(async (transaction) => {
-        await unlockAchievements(transaction, {
-          user: achievementContext.updatedUser,
-          workoutCompletedCount: achievementContext.workoutCompletedCount,
-          totalPrCount: achievementContext.totalPrCount,
-          completedWeekCount: achievementContext.completedWeekCount,
-        });
-      });
+      await syncUserChallenges(userId);
     } catch (achievementError) {
       logger.error(
         {
@@ -1523,7 +1480,7 @@ const runPostWorkoutEffects = async (
           workoutId: result.workoutId,
           userId,
         },
-        "Failed to unlock achievements after workout completion",
+        "Failed to sync challenges after workout completion",
       );
     }
 

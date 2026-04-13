@@ -103,7 +103,14 @@ export const SocialScreen = () => {
       <ScreenHero
         eyebrow="Social"
         title="Social"
-        actions={<BackButton />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Link href="/profile">
+              <Button size="sm" variant="outline">Profile</Button>
+            </Link>
+            <BackButton />
+          </div>
+        }
       />
 
       <Card>
@@ -125,10 +132,18 @@ export const SocialScreen = () => {
                 searchResults.map((user) => (
                 <div key={user.id} className="surface-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="font-semibold text-foreground">{user.displayName}</p>
+                      <Link href={`/profile/${user.id}`} className="font-semibold text-foreground hover:text-primary">
+                        {user.displayName}
+                      </Link>
                       <p className="text-sm text-muted-foreground">
                         Level {user.level} • {user.xpTotal} XP
                       </p>
+                      {user.selectedTitleLabel || user.selectedBadgeLabel ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
+                          {user.selectedBadgeLabel ? <Badge variant="outline">{user.selectedBadgeLabel}</Badge> : null}
+                        </div>
+                      ) : null}
                     </div>
                     {user.isFollowing ? (
                       <Button size="sm" variant="ghost" onClick={() => unfollowMutation.mutate(user.id)}>
@@ -165,8 +180,16 @@ export const SocialScreen = () => {
               followingQuery.data.map((user) => (
                 <div key={user.id} className="surface-panel-soft flex items-center justify-between gap-3 p-3">
                   <div>
-                    <p className="font-semibold">{user.displayName}</p>
+                    <Link href={`/profile/${user.id}`} className="font-semibold hover:text-primary">
+                      {user.displayName}
+                    </Link>
                     <p className="text-sm text-muted-foreground">Level {user.level}</p>
+                    {user.selectedTitleLabel || user.selectedBadgeLabel ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
+                        {user.selectedBadgeLabel ? <Badge variant="outline">{user.selectedBadgeLabel}</Badge> : null}
+                      </div>
+                    ) : null}
                   </div>
                   <Badge>{user.xpTotal} XP</Badge>
                 </div>
@@ -195,8 +218,16 @@ export const SocialScreen = () => {
                       <Trophy className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="font-semibold">#{entry.rank} {entry.displayName}</p>
+                      <Link href={`/profile/${entry.userId}`} className="font-semibold hover:text-primary">
+                        #{entry.rank} {entry.displayName}
+                      </Link>
                       <p className="text-sm text-muted-foreground">Level {entry.level}</p>
+                      {entry.selectedTitleLabel || entry.selectedBadgeLabel ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {entry.selectedTitleLabel ? <Badge variant="secondary">{entry.selectedTitleLabel}</Badge> : null}
+                          {entry.selectedBadgeLabel ? <Badge variant="outline">{entry.selectedBadgeLabel}</Badge> : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <Badge>{entry.xp} XP</Badge>

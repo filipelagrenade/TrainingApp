@@ -16,6 +16,7 @@ import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatBlock } from "@/components/ui/stat-block";
 import { formatVolume } from "@/lib/units";
+import { ChallengeRankBadge, getChallengeIcon, getChallengeRankLabel } from "@/components/challenges/challenge-ui";
 
 const formatDateRange = (startDate: string, endDate: string) => {
   const start = new Date(startDate);
@@ -86,7 +87,11 @@ export const ProgressScreen = () => {
                 label="Volume"
                 value={formatVolume(overview.weeklySummary.totalVolume, user.preferredUnit, { compact: true })}
               />
-              <MetricCard icon={Award} label="Unlocked" value={`${overview.achievementSummary.unlockedCount}/${overview.achievementSummary.totalCount}`} />
+              <MetricCard
+                icon={Award}
+                label="Tier unlocks"
+                value={`${overview.challengeSummary.unlockedTierCount}/${overview.challengeSummary.totalTierCount}`}
+              />
             </>
           }
         />
@@ -107,8 +112,19 @@ export const ProgressScreen = () => {
                   <CardTitle>Level {user.level}</CardTitle>
                   <CardDescription>{user.xpTotal} XP total</CardDescription>
                 </div>
-                <Badge variant="secondary">{xpBandSize - currentXpBand} XP to next</Badge>
+                <div className="flex flex-col items-end gap-2">
+                  <Badge variant="secondary">{xpBandSize - currentXpBand} XP to next</Badge>
+                  <Link href="/profile">
+                    <Button size="sm" variant="outline">Profile</Button>
+                  </Link>
+                </div>
               </div>
+              {user.selectedTitleLabel || user.selectedBadgeLabel ? (
+                <div className="flex flex-wrap gap-2">
+                  {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
+                  {user.selectedBadgeLabel ? <Badge variant="outline">{user.selectedBadgeLabel}</Badge> : null}
+                </div>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between gap-3 text-sm">
@@ -262,56 +278,85 @@ export const ProgressScreen = () => {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Achievements</CardTitle>
-              <CardDescription>Milestones stay visible here, but the focus is on what is closest next.</CardDescription>
+            <CardHeader className="space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Challenges</CardTitle>
+                  <CardDescription>Tier ladders replace the old flat achievement checklist.</CardDescription>
+                </div>
+                <Link href="/achievements">
+                  <Button size="sm" variant="outline">Open library</Button>
+                </Link>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <StatBlock label="Unlocked" value={`${overview.achievementSummary.unlockedCount}/${overview.achievementSummary.totalCount}`} />
-                <StatBlock label="Recent unlocks" value={String(overview.achievementSummary.recentUnlocks.length)} />
+                <StatBlock
+                  label="Tier unlocks"
+                  value={`${overview.challengeSummary.unlockedTierCount}/${overview.challengeSummary.totalTierCount}`}
+                />
+                <StatBlock
+                  label="Families ranked"
+                  value={`${overview.challengeSummary.unlockedFamilyCount}/${overview.challengeSummary.totalFamilyCount}`}
+                />
               </div>
               <div className="space-y-3">
-                <SectionLabel>Recent unlocks</SectionLabel>
-                {overview.achievementSummary.recentUnlocks.length ? (
-                  overview.achievementSummary.recentUnlocks.map((achievement) => (
-                    <div key={achievement.id} className="surface-panel-soft p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-foreground">{achievement.title}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{achievement.description}</p>
+                <SectionLabel>Recent tier-ups</SectionLabel>
+                {overview.challengeSummary.recentUnlocks.length ? (
+                  overview.challengeSummary.recentUnlocks.map((unlock) => {
+                    const Icon = getChallengeIcon(unlock.iconKey);
+
+                    return (
+                      <div key={`${unlock.familyId}-${unlock.rank}`} className="surface-panel-soft flex items-center justify-between gap-3 p-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground">{unlock.familyTitle}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Reached {getChallengeRankLabel(unlock.rank)}
+                            </p>
+                          </div>
                         </div>
-                        <Badge>{achievement.xpReward} XP</Badge>
+                        <ChallengeRankBadge rank={unlock.rank} />
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
-                  <EmptyHint copy="Unlock your first milestone and it will show up here." />
+                  <EmptyHint copy="Your first tier-ups will show up here once you start pushing through the ladder." />
                 )}
               </div>
               <div className="space-y-3">
-                <SectionLabel>Closest next milestones</SectionLabel>
-                {overview.achievementSummary.nextMilestones.length ? (
-                  overview.achievementSummary.nextMilestones.map((milestone) => (
-                    <div key={milestone.id} className="surface-panel-soft p-4">
+                <SectionLabel>Closest next ranks</SectionLabel>
+                {overview.challengeSummary.closestNext.length ? (
+                  overview.challengeSummary.closestNext.map((family) => (
+                    <div key={family.id} className="surface-panel-soft p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-foreground">{milestone.title}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{milestone.description}</p>
+                          <p className="font-semibold text-foreground">{family.title}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {family.progress}/{family.nextTier?.threshold ?? family.progress}
+                          </p>
                         </div>
-                        <Badge variant="secondary">{milestone.xpReward} XP</Badge>
+                        <Badge variant="secondary">
+                          {family.nextTier
+                            ? `${family.nextTier.remaining} to ${getChallengeRankLabel(family.nextTier.rank)}`
+                            : "Complete"}
+                        </Badge>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                        <span className="text-muted-foreground">
-                          {milestone.progress}/{milestone.requirementTarget} {milestone.requirementType}
-                        </span>
-                        <span className="font-medium text-foreground">{milestone.remaining} to go</span>
-                      </div>
-                      <Progress className="mt-2" value={(milestone.progress / milestone.requirementTarget) * 100} />
+                      <Progress
+                        className="mt-3"
+                        value={
+                          family.nextTier?.threshold
+                            ? (family.progress / Math.max(family.nextTier.threshold, 1)) * 100
+                            : 100
+                        }
+                      />
                     </div>
                   ))
                 ) : (
-                  <EmptyHint copy="You are caught up on the currently seeded achievement ladder." />
+                  <EmptyHint copy="You are caught up on every currently seeded challenge family." />
                 )}
               </div>
             </CardContent>
