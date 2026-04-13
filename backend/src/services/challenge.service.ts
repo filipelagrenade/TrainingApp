@@ -9,6 +9,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { createXpLedgerEntry } from "./gamification.service";
 import { prisma } from "../lib/prisma";
+import { sumVolumeInKilograms } from "../lib/units";
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 type ChallengeFamilyWithTiers = Prisma.ChallengeFamilyGetPayload<{
@@ -51,41 +52,39 @@ const metricValue = (
   metricKey: string,
 ): number => metrics[metricKey] ?? 0;
 
+const estimateOneRepMax = (weight: number, reps: number) =>
+  Number((weight * (1 + reps / 30)).toFixed(1));
+
 const getUserChallengeMetrics = async (db: DbClient, userId: string) => {
   const [
     user,
-    completedWorkouts,
-    plannedWorkouts,
-    quickWorkouts,
+    completedSessions,
     personalRecords,
     programWeeksCompleted,
     programsCompleted,
     templatesCreated,
     followingCount,
+    followersCount,
     joinedSocialChallenges,
-    distinctExercises,
+    programsStarted,
+    customExercisesCreated,
+    challengeTierUnlocks,
+    completedExercises,
   ] = await Promise.all([
     db.user.findUniqueOrThrow({
       where: { id: userId },
     }),
-    db.workoutSession.count({
+    db.workoutSession.findMany({
       where: {
         userId,
         status: WorkoutStatus.COMPLETED,
       },
-    }),
-    db.workoutSession.count({
-      where: {
-        userId,
-        status: WorkoutStatus.COMPLETED,
+      select: {
+        id: true,
+        entryType: true,
         wasPlanned: true,
-      },
-    }),
-    db.workoutSession.count({
-      where: {
-        userId,
-        status: WorkoutStatus.COMPLETED,
-        entryType: WorkoutEntryType.QUICK,
+        completedAt: true,
+        totalDurationSeconds: true,
       },
     }),
     db.workoutSet.count({
@@ -123,7 +122,32 @@ const getUserChallengeMetrics = async (db: DbClient, userId: string) => {
         followerId: userId,
       },
     }),
+    db.follow.count({
+      where: {
+        followingId: userId,
+      },
+    }),
     db.challengeParticipant.count({
+      where: {
+        userId,
+      },
+    }),
+    db.program.count({
+      where: {
+        userId,
+        isSystem: false,
+        startedAt: {
+          not: null,
+        },
+      },
+    }),
+    db.exercise.count({
+      where: {
+        userId,
+        isSystem: false,
+      },
+    }),
+    db.userChallengeTierUnlock.count({
       where: {
         userId,
       },
@@ -139,28 +163,146 @@ const getUserChallengeMetrics = async (db: DbClient, userId: string) => {
         },
       },
       select: {
+        sessionId: true,
         exerciseId: true,
+        exerciseCategory: true,
+        unitMode: true,
+        sets: {
+          select: {
+            weight: true,
+            reps: true,
+            isPersonalRecord: true,
+            trackingData: true,
+          },
+        },
       },
-      distinct: ["exerciseId"],
     }),
   ]);
 
+  const usedExerciseIds = [
+    ...new Set(
+      completedExercises.flatMap((exercise) =>
+        exercise.exerciseId ? [exercise.exerciseId] : [],
+      ),
+    ),
+  ];
+
+  const exerciseLookup = usedExerciseIds.length
+    ? new Map(
+        (
+          await db.exercise.findMany({
+            where: {
+              id: {
+                in: usedExerciseIds,
+              },
+            },
+            select: {
+              id: true,
+              slug: true,
+            },
+          })
+        ).map((exercise) => [exercise.id, exercise.slug]),
+      )
+    : new Map<string, string>();
+
+  const activeDays = new Set<string>();
+  const strengthSessionIds = new Set<string>();
+  const cardioSessionIds = new Set<string>();
+  const exerciseSessionCounts = new Map<string, number>();
+  const exercisePrCounts = new Map<string, number>();
+  const exerciseBestOneRepMax = new Map<string, number>();
+
+  let totalTrainingMinutes = 0;
+  let totalSetsLogged = 0;
+  let totalRepsLogged = 0;
+  let totalVolumeKg = 0;
+
+  for (const session of completedSessions) {
+    if (session.completedAt) {
+      activeDays.add(session.completedAt.toISOString().slice(0, 10));
+    }
+
+    totalTrainingMinutes += Math.round((session.totalDurationSeconds ?? 0) / 60);
+  }
+
+  for (const exercise of completedExercises) {
+    if (!exercise.exerciseId) {
+      continue;
+    }
+
+    const slug = exerciseLookup.get(exercise.exerciseId);
+    if (!slug) {
+      continue;
+    }
+
+    exerciseSessionCounts.set(slug, (exerciseSessionCounts.get(slug) ?? 0) + 1);
+
+    if (exercise.exerciseCategory === "CARDIO") {
+      cardioSessionIds.add(exercise.sessionId);
+    } else {
+      strengthSessionIds.add(exercise.sessionId);
+    }
+
+    totalSetsLogged += exercise.sets.length;
+    totalRepsLogged += exercise.sets.reduce((sum, set) => sum + set.reps, 0);
+    totalVolumeKg += sumVolumeInKilograms(exercise.sets, exercise.unitMode);
+
+    for (const set of exercise.sets) {
+      if (set.isPersonalRecord) {
+        exercisePrCounts.set(slug, (exercisePrCounts.get(slug) ?? 0) + 1);
+      }
+
+      if (typeof set.weight === "number") {
+        const estimate = estimateOneRepMax(set.weight, set.reps);
+        if (estimate > (exerciseBestOneRepMax.get(slug) ?? 0)) {
+          exerciseBestOneRepMax.set(slug, estimate);
+        }
+      }
+    }
+  }
+
+  const metrics: Record<string, number> = {
+    completed_workouts: completedSessions.length,
+    planned_workouts: completedSessions.filter((session) => session.wasPlanned).length,
+    quick_workouts: completedSessions.filter((session) => session.entryType === WorkoutEntryType.QUICK).length,
+    personal_records: personalRecords,
+    program_weeks_completed: programWeeksCompleted,
+    programs_completed: programsCompleted,
+    programs_started: programsStarted,
+    templates_created: templatesCreated,
+    custom_exercises_created: customExercisesCreated,
+    following_count: followingCount,
+    followers_count: followersCount,
+    social_challenges_joined: joinedSocialChallenges,
+    distinct_exercises: usedExerciseIds.length,
+    xp_total: user.xpTotal,
+    level_reached: user.level,
+    active_days: activeDays.size,
+    total_sets_logged: totalSetsLogged,
+    total_reps_logged: totalRepsLogged,
+    total_volume_kg: Math.round(totalVolumeKg),
+    total_training_minutes: totalTrainingMinutes,
+    strength_sessions: strengthSessionIds.size,
+    cardio_sessions: cardioSessionIds.size,
+    template_sessions_completed: completedSessions.filter((session) => session.entryType === WorkoutEntryType.TEMPLATE).length,
+    challenge_tier_unlocks: challengeTierUnlocks,
+  };
+
+  for (const [slug, count] of exerciseSessionCounts.entries()) {
+    metrics[`exercise_sessions:${slug}`] = count;
+  }
+
+  for (const [slug, count] of exercisePrCounts.entries()) {
+    metrics[`exercise_prs:${slug}`] = count;
+  }
+
+  for (const [slug, value] of exerciseBestOneRepMax.entries()) {
+    metrics[`exercise_e1rm:${slug}`] = value;
+  }
+
   return {
     user,
-    metrics: {
-      completed_workouts: completedWorkouts,
-      planned_workouts: plannedWorkouts,
-      quick_workouts: quickWorkouts,
-      personal_records: personalRecords,
-      program_weeks_completed: programWeeksCompleted,
-      programs_completed: programsCompleted,
-      templates_created: templatesCreated,
-      following_count: followingCount,
-      social_challenges_joined: joinedSocialChallenges,
-      distinct_exercises: distinctExercises.length,
-      xp_total: user.xpTotal,
-      level_reached: user.level,
-    },
+    metrics,
   };
 };
 
