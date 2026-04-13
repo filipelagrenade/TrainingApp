@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ExerciseBulkPickerSheetProps = {
   exercises: Exercise[];
@@ -29,26 +30,39 @@ export const ExerciseBulkPickerSheet = ({
 }: ExerciseBulkPickerSheetProps) => {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Exercise[]>([]);
+  const [scope, setScope] = useState<"all" | "system" | "custom">("all");
 
   const filteredExercises = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return exercises;
-    }
+    return exercises
+      .filter((exercise) => {
+        if (scope === "system") {
+          return exercise.isSystem;
+        }
 
-    return exercises.filter((exercise) =>
-      [
-        exercise.name,
-        exercise.equipmentType,
-        exercise.attachment ?? "",
-        ...exercise.primaryMuscles,
-        ...exercise.secondaryMuscles,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery),
-    );
-  }, [exercises, query]);
+        if (scope === "custom") {
+          return !exercise.isSystem;
+        }
+
+        return true;
+      })
+      .filter((exercise) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [
+          exercise.name,
+          exercise.equipmentType,
+          exercise.attachment ?? "",
+          ...exercise.primaryMuscles,
+          ...exercise.secondaryMuscles,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+      });
+  }, [exercises, query, scope]);
 
   const selectedIds = new Set(selected.map((exercise) => exercise.id));
 
@@ -60,6 +74,7 @@ export const ExerciseBulkPickerSheet = ({
         if (!nextOpen) {
           setQuery("");
           setSelected([]);
+          setScope("all");
         }
       }}
     >
@@ -70,6 +85,13 @@ export const ExerciseBulkPickerSheet = ({
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-4">
+          <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="system">System</TabsTrigger>
+              <TabsTrigger value="custom">Custom</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="space-y-2">
             <Label htmlFor="bulk-exercise-search">Exercise library</Label>
             <div className="relative">
@@ -149,7 +171,12 @@ export const ExerciseBulkPickerSheet = ({
                           {exercise.attachment ? ` • ${exercise.attachment}` : ""}
                         </p>
                       </div>
-                      {isSelected ? <Badge variant="default">Queued</Badge> : null}
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge variant={exercise.isSystem ? "secondary" : "default"}>
+                          {exercise.isSystem ? "System" : "Custom"}
+                        </Badge>
+                        {isSelected ? <Badge variant="default">Queued</Badge> : null}
+                      </div>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {exercise.primaryMuscles.slice(0, 2).map((muscle) => (

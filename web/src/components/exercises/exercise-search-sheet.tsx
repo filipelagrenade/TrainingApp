@@ -13,6 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const ExerciseSearchSheet = ({
   description,
@@ -23,6 +24,7 @@ export const ExerciseSearchSheet = ({
   selectedExerciseId,
   title,
   excludedExerciseIds = [],
+  closeOnSelect = true,
 }: {
   description: string;
   exercises: Exercise[];
@@ -32,8 +34,10 @@ export const ExerciseSearchSheet = ({
   selectedExerciseId?: string | null;
   title: string;
   excludedExerciseIds?: string[];
+  closeOnSelect?: boolean;
 }) => {
   const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<"all" | "system" | "custom">("all");
 
   const filteredExercises = useMemo(() => {
     const excludedIds = new Set(excludedExerciseIds);
@@ -41,6 +45,17 @@ export const ExerciseSearchSheet = ({
 
     return exercises
       .filter((exercise) => !excludedIds.has(exercise.id))
+      .filter((exercise) => {
+        if (scope === "system") {
+          return exercise.isSystem;
+        }
+
+        if (scope === "custom") {
+          return !exercise.isSystem;
+        }
+
+        return true;
+      })
       .filter((exercise) => {
         if (!normalizedQuery) {
           return true;
@@ -58,7 +73,7 @@ export const ExerciseSearchSheet = ({
           .toLowerCase()
           .includes(normalizedQuery);
       });
-  }, [excludedExerciseIds, exercises, query]);
+  }, [excludedExerciseIds, exercises, query, scope]);
 
   return (
     <Sheet
@@ -67,6 +82,7 @@ export const ExerciseSearchSheet = ({
         onOpenChange(nextOpen);
         if (!nextOpen) {
           setQuery("");
+          setScope("all");
         }
       }}
     >
@@ -76,6 +92,13 @@ export const ExerciseSearchSheet = ({
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-4">
+          <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="system">System</TabsTrigger>
+              <TabsTrigger value="custom">Custom</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -100,7 +123,9 @@ export const ExerciseSearchSheet = ({
                     }`}
                     onClick={() => {
                       onSelect(exercise);
-                      onOpenChange(false);
+                      if (closeOnSelect) {
+                        onOpenChange(false);
+                      }
                     }}
                     type="button"
                   >
@@ -113,7 +138,12 @@ export const ExerciseSearchSheet = ({
                           {exercise.attachment ? ` • ${exercise.attachment}` : ""}
                         </p>
                       </div>
-                      {selected ? <Badge>Selected</Badge> : null}
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge variant={exercise.isSystem ? "secondary" : "default"}>
+                          {exercise.isSystem ? "System" : "Custom"}
+                        </Badge>
+                        {selected ? <Badge>Selected</Badge> : null}
+                      </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {exercise.primaryMuscles.slice(0, 3).map((muscle) => (

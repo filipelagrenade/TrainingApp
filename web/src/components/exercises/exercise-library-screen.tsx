@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const ExerciseLibraryScreen = () => {
   const queryClient = useQueryClient();
@@ -36,6 +37,7 @@ export const ExerciseLibraryScreen = () => {
   const [deleteExerciseId, setDeleteExerciseId] = useState<string | null>(null);
   const [deleteReplacementExerciseId, setDeleteReplacementExerciseId] = useState<string | null>(null);
   const [deleteReplacementPickerOpen, setDeleteReplacementPickerOpen] = useState(false);
+  const [scope, setScope] = useState<"all" | "system" | "custom">("all");
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -94,20 +96,32 @@ export const ExerciseLibraryScreen = () => {
       return exercises;
     }
 
-    return exercises.filter((exercise) =>
-      [
-        exercise.name,
-        exercise.equipmentType,
-        exercise.machineType ?? "",
-        exercise.attachment ?? "",
-        ...exercise.primaryMuscles,
-        ...exercise.secondaryMuscles,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery),
-    );
-  }, [exercisesQuery.data, query]);
+    return exercises
+      .filter((exercise) => {
+        if (scope === "system") {
+          return exercise.isSystem;
+        }
+
+        if (scope === "custom") {
+          return !exercise.isSystem;
+        }
+
+        return true;
+      })
+      .filter((exercise) =>
+        [
+          exercise.name,
+          exercise.equipmentType,
+          exercise.machineType ?? "",
+          exercise.attachment ?? "",
+          ...exercise.primaryMuscles,
+          ...exercise.secondaryMuscles,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery),
+      );
+  }, [exercisesQuery.data, query, scope]);
 
   if (meQuery.isLoading) {
     return (
@@ -162,6 +176,13 @@ export const ExerciseLibraryScreen = () => {
       <Card>
         <CardHeader className="space-y-4">
           <ExerciseCreatorDialog className="w-full" triggerLabel="Add custom exercise" />
+          <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="system">System</TabsTrigger>
+              <TabsTrigger value="custom">Custom</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -406,6 +427,7 @@ export const ExerciseLibraryScreen = () => {
         exercises={availableDeleteReplacementTargets}
         onOpenChange={setDeleteReplacementPickerOpen}
         onSelect={(exercise) => setDeleteReplacementExerciseId(exercise.id)}
+        closeOnSelect={false}
         open={deleteReplacementPickerOpen}
         selectedExerciseId={deleteReplacementExerciseId ?? ""}
         title="Choose replacement"
