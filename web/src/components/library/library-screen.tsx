@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Copy, Dumbbell, Flame, Layers3, Link2, Play, Search, TrendingUp } from "lucide-react";
+import { CalendarRange, Copy, Dumbbell, Flame, Layers3, Play, Search, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -35,10 +35,8 @@ export const LibraryScreen = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [exerciseQuery, setExerciseQuery] = useState("");
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
-  const [equivalentTargetId, setEquivalentTargetId] = useState("");
-  const [equivalentPickerOpen, setEquivalentPickerOpen] = useState(false);
   const [deleteExerciseId, setDeleteExerciseId] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteReplacementExerciseId, setDeleteReplacementExerciseId] = useState<string | null>(null);
   const [deleteReplacementPickerOpen, setDeleteReplacementPickerOpen] = useState(false);
   const [exerciseScope, setExerciseScope] = useState<"all" | "system" | "custom">("all");
@@ -69,11 +67,6 @@ export const LibraryScreen = () => {
     queryKey: ["in-progress-workout"],
     queryFn: apiClient.getInProgressWorkout,
     enabled: meQuery.isSuccess,
-  });
-  const substitutesQuery = useQuery({
-    queryKey: ["exercise-substitutes", selectedExerciseId],
-    queryFn: () => apiClient.getExerciseSubstitutes(selectedExerciseId!),
-    enabled: meQuery.isSuccess && Boolean(selectedExerciseId),
   });
 
   const startWorkoutMutation = useMutation({
@@ -136,25 +129,6 @@ export const LibraryScreen = () => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const createEquivalencyMutation = useMutation({
-    mutationFn: (payload: { sourceExerciseId: string; targetExerciseId: string }) =>
-      apiClient.createExerciseEquivalency(payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["exercise-substitutes", selectedExerciseId] });
-      setEquivalentTargetId("");
-      toast.success("Equivalent added");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  const deleteEquivalencyMutation = useMutation({
-    mutationFn: (payload: { sourceExerciseId: string; targetExerciseId: string }) =>
-      apiClient.deleteExerciseEquivalency(payload.sourceExerciseId, payload.targetExerciseId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["exercise-substitutes", selectedExerciseId] });
-      toast.success("Equivalent removed");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
   const deleteExerciseMutation = useMutation({
     mutationFn: (payload: { exerciseId: string; replacementExerciseId?: string | null }) =>
       apiClient.deleteExercise(payload.exerciseId, {
@@ -164,6 +138,7 @@ export const LibraryScreen = () => {
       await queryClient.invalidateQueries({ queryKey: ["exercises"] });
       toast.success("Exercise deleted");
       setDeleteExerciseId(null);
+      setDeleteConfirmOpen(false);
       setDeleteReplacementExerciseId(null);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -224,13 +199,7 @@ export const LibraryScreen = () => {
 
   const programs = programsQuery.data ?? [];
   const templates = templatesQuery.data ?? [];
-  const selectedExercise = exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
   const deleteExerciseTarget = exercises.find((exercise) => exercise.id === deleteExerciseId) ?? null;
-  const availableEquivalentTargets = exercises.filter(
-    (exercise) =>
-      exercise.id !== selectedExerciseId &&
-      !substitutesQuery.data?.equivalents.some((candidate) => candidate.id === exercise.id),
-  );
   const availableDeleteReplacementTargets = exercises.filter(
     (exercise) => exercise.id !== deleteExerciseId,
   );
@@ -493,10 +462,6 @@ export const LibraryScreen = () => {
                           <Badge variant={exercise.isSystem ? "secondary" : "default"}>
                             {exercise.isSystem ? "System" : "Custom"}
                           </Badge>
-                          <Button size="sm" variant="ghost" onClick={() => setSelectedExerciseId(exercise.id)}>
-                            <Link2 className="h-4 w-4" />
-                            Equivalents
-                          </Button>
                         </div>
                       </div>
                     </CardHeader>
@@ -509,6 +474,7 @@ export const LibraryScreen = () => {
                           variant="ghost"
                           onClick={() => {
                             setDeleteExerciseId(exercise.id);
+                            setDeleteConfirmOpen(true);
                             setDeleteReplacementExerciseId(null);
                           }}
                         >
@@ -537,99 +503,10 @@ export const LibraryScreen = () => {
       </Tabs>
 
       <Dialog
-        open={Boolean(selectedExerciseId)}
+        open={deleteConfirmOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setSelectedExerciseId(null);
-            setEquivalentTargetId("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manage equivalents</DialogTitle>
-            <DialogDescription>
-              {selectedExercise
-                ? `Map quick substitutes for ${selectedExercise.name}.`
-                : "Map approved substitutes for this exercise."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Button className="w-full justify-between" type="button" variant="outline" onClick={() => setEquivalentPickerOpen(true)}>
-                <span className="truncate">
-                  {availableEquivalentTargets.find((exercise) => exercise.id === equivalentTargetId)?.name ??
-                    "Choose an equivalent exercise"}
-                </span>
-                <span className="text-xs text-muted-foreground">Search</span>
-              </Button>
-              <Button
-                className="w-full"
-                disabled={!selectedExerciseId || !equivalentTargetId}
-                onClick={() =>
-                  selectedExerciseId
-                    ? createEquivalencyMutation.mutate({
-                        sourceExerciseId: selectedExerciseId,
-                        targetExerciseId: equivalentTargetId,
-                      })
-                    : undefined
-                }
-              >
-                Add equivalent
-              </Button>
-            </div>
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Current equivalents</p>
-              {substitutesQuery.isLoading ? (
-                <Skeleton className="h-24" />
-              ) : substitutesQuery.data?.equivalents.length ? (
-                substitutesQuery.data.equivalents.map((exercise) => (
-                  <div
-                    key={exercise.id}
-                    className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/70 p-3"
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">{exercise.name}</p>
-                      <p className="text-sm text-muted-foreground">{exercise.equipmentType}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        selectedExerciseId
-                          ? deleteEquivalencyMutation.mutate({
-                              sourceExerciseId: selectedExerciseId,
-                              targetExerciseId: exercise.id,
-                            })
-                          : undefined
-                      }
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
-                  No equivalents mapped yet.
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <ExerciseSearchSheet
-        description="Search the exercise library to map a progression-safe equivalent."
-        exercises={availableEquivalentTargets}
-        onOpenChange={setEquivalentPickerOpen}
-        onSelect={(exercise) => setEquivalentTargetId(exercise.id)}
-        open={equivalentPickerOpen}
-        selectedExerciseId={equivalentTargetId}
-        title="Choose equivalent"
-      />
-      <Dialog
-        open={Boolean(deleteExerciseId)}
-        onOpenChange={(open) => {
-          if (!open) {
+            setDeleteConfirmOpen(false);
             setDeleteExerciseId(null);
             setDeleteReplacementExerciseId(null);
           }
@@ -649,7 +526,10 @@ export const LibraryScreen = () => {
               className="w-full justify-between"
               type="button"
               variant="outline"
-              onClick={() => setDeleteReplacementPickerOpen(true)}
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setDeleteReplacementPickerOpen(true);
+              }}
             >
               <span className="truncate">
                 {availableDeleteReplacementTargets.find((exercise) => exercise.id === deleteReplacementExerciseId)
@@ -692,10 +572,16 @@ export const LibraryScreen = () => {
       <ExerciseSearchSheet
         description="Pick a replacement exercise for your programs and templates, or skip this if you just want it removed."
         exercises={availableDeleteReplacementTargets}
-        onOpenChange={setDeleteReplacementPickerOpen}
+        onOpenChange={(open) => {
+          setDeleteReplacementPickerOpen(open);
+          if (!open && deleteExerciseId) {
+            setDeleteConfirmOpen(true);
+          }
+        }}
         onSelect={(exercise) => {
           setDeleteReplacementExerciseId(exercise.id);
           setDeleteReplacementPickerOpen(false);
+          setDeleteConfirmOpen(true);
         }}
         open={deleteReplacementPickerOpen}
         selectedExerciseId={deleteReplacementExerciseId ?? ""}
