@@ -55,10 +55,20 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const rawBody = await response.text();
 
   if (!rawBody) {
+    if (response.ok) {
+      return undefined as T;
+    }
+
     throw new HttpError("Empty response from server");
   }
 
-  const json = JSON.parse(rawBody) as ApiResponse<T>;
+  let json: ApiResponse<T>;
+
+  try {
+    json = JSON.parse(rawBody) as ApiResponse<T>;
+  } catch {
+    throw new HttpError(response.ok ? "Invalid response from server" : "Request failed");
+  }
 
   if (!response.ok || !json.success) {
     const error = json.success ? new HttpError("Request failed") : new HttpError(json.error.message, json.error.code);

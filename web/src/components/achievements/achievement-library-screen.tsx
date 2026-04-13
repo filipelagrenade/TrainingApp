@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Award, BadgeCheck, ChevronRight, Sparkles, Trophy } from "lucide-react";
 import Link from "next/link";
@@ -76,10 +76,10 @@ export const AchievementLibraryScreen = () => {
   const categories = library.categories;
   const activeCategory = categories.find((item) => item.key === category) ?? categories[0];
 
-  const featuredRewards = useMemo(
-    () => [...library.summary.unlockedTitles.slice(0, 2), ...library.summary.unlockedBadges.slice(0, 2)],
-    [library.summary.unlockedBadges, library.summary.unlockedTitles],
-  );
+  const featuredRewards = [
+    ...library.summary.unlockedTitles.slice(0, 2),
+    ...library.summary.unlockedBadges.slice(0, 2),
+  ];
 
   return (
     <div className="app-grid">
