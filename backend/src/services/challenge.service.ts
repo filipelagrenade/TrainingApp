@@ -368,26 +368,24 @@ export const syncUserChallengesInTransaction = async (
     const { user, metrics } = await getUserChallengeMetrics(db, userId);
     const isMigrationBackfill = user.challengeMigrationVersion === 0;
 
-    await Promise.all(
-      families.map((family) =>
-        db.userChallengeProgress.upsert({
-          where: {
-            userId_familyId: {
-              userId,
-              familyId: family.id,
-            },
-          },
-          create: {
+    for (const family of families) {
+      await db.userChallengeProgress.upsert({
+        where: {
+          userId_familyId: {
             userId,
             familyId: family.id,
-            progress: metricValue(metrics, family.metricKey),
           },
-          update: {
-            progress: metricValue(metrics, family.metricKey),
-          },
-        }),
-      ),
-    );
+        },
+        create: {
+          userId,
+          familyId: family.id,
+          progress: metricValue(metrics, family.metricKey),
+        },
+        update: {
+          progress: metricValue(metrics, family.metricKey),
+        },
+      });
+    }
 
     const existingUnlocks = await db.userChallengeTierUnlock.findMany({
       where: {
