@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
-import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,9 @@ export const ExerciseLibraryScreen = () => {
   const [deleteExerciseId, setDeleteExerciseId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteReplacementExerciseId, setDeleteReplacementExerciseId] = useState<string | null>(null);
-  const [deleteReplacementPickerOpen, setDeleteReplacementPickerOpen] = useState(false);
+  const [deleteReplacementChooserOpen, setDeleteReplacementChooserOpen] = useState(false);
+  const [deleteReplacementQuery, setDeleteReplacementQuery] = useState("");
+  const [deleteReplacementScope, setDeleteReplacementScope] = useState<"all" | "system" | "custom">("all");
   const [scope, setScope] = useState<"all" | "system" | "custom">("all");
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -120,6 +121,39 @@ export const ExerciseLibraryScreen = () => {
   const availableDeleteReplacementTargets = exercises.filter(
     (exercise) => exercise.id !== deleteExerciseId,
   );
+  const filteredDeleteReplacementTargets = useMemo(() => {
+    const normalizedQuery = deleteReplacementQuery.trim().toLowerCase();
+
+    return availableDeleteReplacementTargets
+      .filter((exercise) => {
+        if (deleteReplacementScope === "system") {
+          return exercise.isSystem;
+        }
+
+        if (deleteReplacementScope === "custom") {
+          return !exercise.isSystem;
+        }
+
+        return true;
+      })
+      .filter((exercise) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [
+          exercise.name,
+          exercise.equipmentType,
+          exercise.machineType ?? "",
+          exercise.attachment ?? "",
+          ...exercise.primaryMuscles,
+          ...exercise.secondaryMuscles,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+      });
+  }, [availableDeleteReplacementTargets, deleteReplacementQuery, deleteReplacementScope]);
 
   return (
     <div className="app-grid">
@@ -235,6 +269,9 @@ export const ExerciseLibraryScreen = () => {
             setDeleteConfirmOpen(false);
             setDeleteExerciseId(null);
             setDeleteReplacementExerciseId(null);
+            setDeleteReplacementChooserOpen(false);
+            setDeleteReplacementQuery("");
+            setDeleteReplacementScope("all");
           }
         }}
       >
@@ -247,33 +284,94 @@ export const ExerciseLibraryScreen = () => {
                 : "Choose a replacement exercise, or leave it blank to remove references before deleting."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <Button
-              className="w-full justify-between"
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setDeleteConfirmOpen(false);
-                setDeleteReplacementPickerOpen(true);
-              }}
-            >
-              <span className="truncate">
-                {availableDeleteReplacementTargets.find((exercise) => exercise.id === deleteReplacementExerciseId)
-                  ?.name ?? "No replacement selected"}
-              </span>
-              <span className="text-xs text-muted-foreground">Search</span>
-            </Button>
-            {deleteReplacementExerciseId ? (
-              <Button
-                className="w-full"
-                type="button"
-                variant="ghost"
-                onClick={() => setDeleteReplacementExerciseId(null)}
+          {deleteReplacementChooserOpen ? (
+            <div className="space-y-4">
+              <Tabs
+                value={deleteReplacementScope}
+                onValueChange={(value) => setDeleteReplacementScope(value as "all" | "system" | "custom")}
               >
-                Remove replacement
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="system">System</TabsTrigger>
+                  <TabsTrigger value="custom">Custom</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search replacement exercise"
+                  value={deleteReplacementQuery}
+                  onChange={(event) => setDeleteReplacementQuery(event.target.value)}
+                />
+              </div>
+              <div className="max-h-72 space-y-2 overflow-y-auto">
+                {filteredDeleteReplacementTargets.length ? (
+                  filteredDeleteReplacementTargets.map((exercise) => (
+                    <button
+                      key={exercise.id}
+                      className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                        deleteReplacementExerciseId === exercise.id
+                          ? "border-primary/60 bg-primary/5"
+                          : "border-border/70 bg-card hover:bg-background/70"
+                      }`}
+                      onClick={() => {
+                        setDeleteReplacementExerciseId(exercise.id);
+                        setDeleteReplacementChooserOpen(false);
+                      }}
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-foreground">{exercise.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {exercise.equipmentType}
+                            {exercise.machineType ? ` • ${exercise.machineType}` : ""}
+                            {exercise.attachment ? ` • ${exercise.attachment}` : ""}
+                          </p>
+                        </div>
+                        <Badge variant={exercise.isSystem ? "secondary" : "default"}>
+                          {exercise.isSystem ? "System" : "Custom"}
+                        </Badge>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                    No exercises match that search.
+                  </div>
+                )}
+              </div>
+              <Button type="button" variant="outline" onClick={() => setDeleteReplacementChooserOpen(false)}>
+                Back
               </Button>
-            ) : null}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Button
+                className="w-full justify-between"
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteReplacementChooserOpen(true)}
+              >
+                <span className="truncate">
+                  {availableDeleteReplacementTargets.find((exercise) => exercise.id === deleteReplacementExerciseId)
+                    ?.name ?? "No replacement selected"}
+                </span>
+                <span className="text-xs text-muted-foreground">Search</span>
+              </Button>
+              {deleteReplacementExerciseId ? (
+                <Button
+                  className="w-full"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setDeleteReplacementExerciseId(null)}
+                >
+                  Remove replacement
+                </Button>
+              ) : null}
+            </div>
+          )}
           <DialogFooter className="gap-2 sm:justify-start">
             <Button type="button" variant="outline" onClick={() => setDeleteExerciseId(null)}>
               Cancel
@@ -295,24 +393,6 @@ export const ExerciseLibraryScreen = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ExerciseSearchSheet
-        description="Pick a replacement exercise for your programs and templates, or skip this if you just want it removed."
-        exercises={availableDeleteReplacementTargets}
-        onOpenChange={(open) => {
-          setDeleteReplacementPickerOpen(open);
-          if (!open && deleteExerciseId) {
-            setDeleteConfirmOpen(true);
-          }
-        }}
-        onSelect={(exercise) => {
-          setDeleteReplacementExerciseId(exercise.id);
-          setDeleteReplacementPickerOpen(false);
-          setDeleteConfirmOpen(true);
-        }}
-        open={deleteReplacementPickerOpen}
-        selectedExerciseId={deleteReplacementExerciseId ?? ""}
-        title="Choose replacement"
-      />
     </div>
   );
 };
