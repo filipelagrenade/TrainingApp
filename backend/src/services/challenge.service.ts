@@ -476,12 +476,7 @@ export const syncUserChallengesInTransaction = async (
 };
 
 export const syncUserChallenges = async (userId: string) =>
-  prisma.$transaction(async (transaction) => {
-    await syncUserChallengesInTransaction(transaction, userId);
-  }, {
-    timeout: 20_000,
-    maxWait: 10_000,
-  });
+  syncUserChallengesInTransaction(prisma, userId);
 
 const buildChallengeReadModel = async (userId: string) => {
   const [families, progressRows, unlocks] = await Promise.all([
@@ -642,7 +637,19 @@ const buildChallengeReadModel = async (userId: string) => {
 };
 
 export const getChallengeLibrary = async (userId: string) => {
-  return buildChallengeReadModel(userId);
+  const library = await buildChallengeReadModel(userId);
+
+  return {
+    categories: library.categories,
+    summary: {
+      unlockedTierCount: library.summary.unlockedTierCount,
+      totalTierCount: library.summary.totalTierCount,
+      unlockedFamilyCount: library.summary.unlockedFamilyCount,
+      totalFamilyCount: library.summary.totalFamilyCount,
+      unlockedTitles: library.summary.unlockedTitles,
+      unlockedBadges: library.summary.unlockedBadges,
+    },
+  };
 };
 
 export const getChallengeSummary = async (userId: string) => {

@@ -542,14 +542,11 @@ export type ChallengeRewardItem = {
 
 export type ChallengeLibrary = {
   categories: ChallengeCategorySection[];
-  families: ChallengeFamily[];
   summary: {
     unlockedTierCount: number;
     totalTierCount: number;
     unlockedFamilyCount: number;
     totalFamilyCount: number;
-    recentUnlocks: ChallengeUnlock[];
-    closestNext: ChallengeFamily[];
     unlockedTitles: ChallengeRewardItem[];
     unlockedBadges: ChallengeRewardItem[];
   };

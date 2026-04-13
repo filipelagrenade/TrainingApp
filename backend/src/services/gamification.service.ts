@@ -1,9 +1,11 @@
-import { ActivityType, type Prisma, type User } from "@prisma/client";
+import { ActivityType, type Prisma, type PrismaClient, type User } from "@prisma/client";
+
+type DbClient = Prisma.TransactionClient | PrismaClient;
 
 export const levelFromXp = (xpTotal: number): number => Math.max(1, Math.floor(xpTotal / 600) + 1);
 
 export const createXpLedgerEntry = async (
-  transaction: Prisma.TransactionClient,
+  transaction: DbClient,
   userId: string,
   amount: number,
   reason: string,
