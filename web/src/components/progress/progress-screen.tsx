@@ -16,7 +16,12 @@ import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatBlock } from "@/components/ui/stat-block";
 import { formatVolume } from "@/lib/units";
-import { ChallengeRankBadge, getChallengeIcon, getChallengeRankLabel } from "@/components/challenges/challenge-ui";
+import {
+  ChallengeRankBadge,
+  formatChallengeUnit,
+  getChallengeIcon,
+  getChallengeRankLabel,
+} from "@/components/challenges/challenge-ui";
 
 const formatDateRange = (startDate: string, endDate: string) => {
   const start = new Date(startDate);
@@ -336,7 +341,17 @@ export const ProgressScreen = () => {
                         <div>
                           <p className="font-semibold text-foreground">{family.title}</p>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            {family.progress}/{family.nextTier?.threshold ?? family.progress}
+                            {formatChallengeUnit(
+                              family.progress,
+                              family.unitSingular,
+                              family.unitPlural,
+                            )}{" "}
+                            /{" "}
+                            {formatChallengeUnit(
+                              family.nextTier?.threshold ?? family.progress,
+                              family.unitSingular,
+                              family.unitPlural,
+                            )}
                           </p>
                         </div>
                         <Badge variant="secondary">

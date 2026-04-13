@@ -490,6 +490,8 @@ export type ChallengeFamily = {
   iconKey: string;
   title: string;
   description: string;
+  unitSingular: string;
+  unitPlural: string;
   progress: number;
   currentRank: ChallengeRank | null;
   nextTier:

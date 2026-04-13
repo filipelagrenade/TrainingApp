@@ -11,6 +11,7 @@ import { AuthCard } from "@/components/auth/auth-card";
 import {
   ChallengeRankBadge,
   ChallengeToken,
+  formatChallengeUnit,
   getChallengeIcon,
   getChallengeRankLabel,
 } from "@/components/challenges/challenge-ui";
@@ -171,9 +172,13 @@ export const AchievementLibraryScreen = () => {
                       </div>
                       <div className="w-full space-y-2">
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>{family.progress}</span>
+                          <span>{formatChallengeUnit(family.progress, family.unitSingular, family.unitPlural)}</span>
                           <span>
-                            {family.nextTier ? family.nextTier.threshold : family.progress}
+                            {formatChallengeUnit(
+                              family.nextTier ? family.nextTier.threshold : family.progress,
+                              family.unitSingular,
+                              family.unitPlural,
+                            )}
                           </span>
                         </div>
                         <Progress
@@ -250,7 +255,15 @@ const ChallengeFamilySheet = ({
               <SummaryCell label="Rank" value={getChallengeRankLabel(family.currentRank)} />
               <SummaryCell
                 label="Next"
-                value={family.nextTier ? String(family.nextTier.threshold) : "Maxed"}
+                value={
+                  family.nextTier
+                    ? formatChallengeUnit(
+                        family.nextTier.threshold,
+                        family.unitSingular,
+                        family.unitPlural,
+                      )
+                    : "Maxed"
+                }
               />
             </div>
 
@@ -263,7 +276,15 @@ const ChallengeFamilySheet = ({
                 </span>
                 <span className="font-medium text-foreground">
                   {family.nextTier
-                    ? `${family.progress}/${family.nextTier.threshold}`
+                    ? `${formatChallengeUnit(
+                        family.progress,
+                        family.unitSingular,
+                        family.unitPlural,
+                      )} / ${formatChallengeUnit(
+                        family.nextTier.threshold,
+                        family.unitSingular,
+                        family.unitPlural,
+                      )}`
                     : "Completed"}
                 </span>
               </div>
@@ -272,7 +293,7 @@ const ChallengeFamilySheet = ({
 
             <div className="space-y-3">
               {family.tiers.map((tier) => (
-                <TierRow key={tier.id} tier={tier} />
+                <TierRow key={tier.id} family={family} tier={tier} />
               ))}
             </div>
           </div>
@@ -282,17 +303,25 @@ const ChallengeFamilySheet = ({
   );
 };
 
-const TierRow = ({ tier }: { tier: ChallengeTier }) => (
+const TierRow = ({
+  family,
+  tier,
+}: {
+  family: ChallengeFamily;
+  tier: ChallengeTier;
+}) => (
   <div
     className={`surface-panel-soft flex items-center justify-between gap-3 px-4 py-3 ${
       tier.unlocked ? "border-primary/25 bg-primary/8" : ""
     }`}
   >
     <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <ChallengeRankBadge rank={tier.rank} />
-        <span className="text-sm text-muted-foreground">{tier.threshold} target</span>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ChallengeRankBadge rank={tier.rank} />
+        <span className="text-sm text-muted-foreground">
+          {formatChallengeUnit(tier.threshold, family.unitSingular, family.unitPlural)}
+        </span>
+        </div>
       <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
         <span>{tier.xpReward} XP</span>
         {tier.titleRewardLabel ? <span>Title: {tier.titleRewardLabel}</span> : null}

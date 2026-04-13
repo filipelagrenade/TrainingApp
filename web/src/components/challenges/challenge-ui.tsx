@@ -70,6 +70,12 @@ export const getChallengeIcon = (iconKey: string): LucideIcon => iconMap[iconKey
 export const getChallengeRankLabel = (rank: ChallengeRank | null) =>
   rank ? rankLabelMap[rank] : "Unranked";
 
+export const formatChallengeUnit = (
+  value: number,
+  unitSingular: string,
+  unitPlural: string,
+) => `${value} ${value === 1 ? unitSingular : unitPlural}`;
+
 export const getChallengeTokenClasses = (rank: ChallengeRank | null) =>
   rank
     ? rankTokenClassMap[rank]

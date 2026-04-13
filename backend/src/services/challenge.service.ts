@@ -11,6 +11,20 @@ import { createXpLedgerEntry } from "./gamification.service";
 import { prisma } from "../lib/prisma";
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
+type ChallengeFamilyWithTiers = Prisma.ChallengeFamilyGetPayload<{
+  include: {
+    tiers: true;
+  };
+}>;
+type UserChallengeUnlockWithTier = Prisma.UserChallengeTierUnlockGetPayload<{
+  include: {
+    tier: {
+      include: {
+        family: true;
+      };
+    };
+  };
+}>;
 
 const categoryLabels: Record<ChallengeCategory, string> = {
   CONSISTENCY: "Consistency",
@@ -188,7 +202,7 @@ export const syncUserChallengesInTransaction = async (
   db: Prisma.TransactionClient,
   userId: string,
 ) => {
-  const families = await db.challengeFamily.findMany({
+  const families: ChallengeFamilyWithTiers[] = await db.challengeFamily.findMany({
     where: {
       isActive: true,
     },
@@ -341,7 +355,7 @@ const buildChallengeReadModel = async (userId: string) => {
         },
       },
       orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
-    }),
+    }) as Promise<ChallengeFamilyWithTiers[]>,
     prisma.userChallengeProgress.findMany({
       where: {
         userId,
@@ -361,7 +375,7 @@ const buildChallengeReadModel = async (userId: string) => {
       orderBy: {
         unlockedAt: "desc",
       },
-    }),
+    }) as Promise<UserChallengeUnlockWithTier[]>,
   ]);
 
   const progressByFamilyId = new Map(
@@ -385,6 +399,8 @@ const buildChallengeReadModel = async (userId: string) => {
       iconKey: family.iconKey,
       title: family.title,
       description: family.description,
+      unitSingular: family.unitSingular,
+      unitPlural: family.unitPlural,
       progress,
       currentRank: currentTier?.rank ?? null,
       nextTier: nextTier
