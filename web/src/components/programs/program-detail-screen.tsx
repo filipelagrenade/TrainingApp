@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, ChevronDown, Flame, Layers3 } from "lucide-react";
+import { CalendarRange, Flame, Layers3 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -12,15 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScreenHero } from "@/components/ui/screen-hero";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
-import type { Program } from "@/lib/types";
+import type { Program, ProgramWorkout } from "@/lib/types";
 import { useState } from "react";
 
 export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
   const queryClient = useQueryClient();
   const [activationProgram, setActivationProgram] = useState<Program | null>(null);
-  const [expandedWorkoutIds, setExpandedWorkoutIds] = useState<string[]>([]);
+  const [previewWorkout, setPreviewWorkout] = useState<ProgramWorkout | null>(null);
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -73,13 +74,6 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
   }
 
   const program = programQuery.data;
-  const toggleWorkoutExpanded = (workoutId: string) => {
-    setExpandedWorkoutIds((current) =>
-      current.includes(workoutId)
-        ? current.filter((id) => id !== workoutId)
-        : [...current, workoutId],
-    );
-  };
 
   return (
     <div className="app-grid">
@@ -121,12 +115,8 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
           </CardHeader>
           <CardContent className="space-y-3">
             {week.workouts.map((workout) => (
-              <div key={workout.id} className="surface-panel-soft overflow-hidden">
-                <button
-                  className="flex w-full items-start justify-between gap-3 p-4 text-left"
-                  onClick={() => toggleWorkoutExpanded(workout.id)}
-                  type="button"
-                >
+              <div key={workout.id} className="surface-panel-soft p-4">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-foreground">{workout.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -135,43 +125,13 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{workout.xpReward} XP</Badge>
-                    <ChevronDown
-                      className={`h-4 w-4 text-muted-foreground transition-transform ${
-                        expandedWorkoutIds.includes(workout.id) ? "rotate-180" : ""
-                      }`}
-                    />
                   </div>
-                </button>
-                {expandedWorkoutIds.includes(workout.id) ? (
-                  <div className="border-t border-border/60 px-4 pb-4 pt-3">
-                    <div className="space-y-2">
-                      {workout.exercises.map((exercise, index) => (
-                        <div
-                          key={exercise.id}
-                          className="flex items-start justify-between gap-3 rounded-2xl border border-border/60 bg-background/40 px-3 py-2"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground">
-                              {index + 1}. {exercise.exercise.name}
-                            </p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {exercise.sets} sets
-                              {exercise.exercise.exerciseCategory === "STRENGTH"
-                                ? ` • ${exercise.repMin}-${exercise.repMax} reps`
-                                : ""}
-                              {exercise.restSeconds ? ` • ${exercise.restSeconds}s rest` : ""}
-                            </p>
-                          </div>
-                          {exercise.notes ? (
-                            <Badge className="shrink-0" variant="secondary">
-                              Notes
-                            </Badge>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                </div>
+                <div className="mt-4">
+                  <Button type="button" variant="outline" onClick={() => setPreviewWorkout(workout)}>
+                    View exercises
+                  </Button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -189,6 +149,52 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
         open={Boolean(activationProgram)}
         program={activationProgram}
       />
+      <Sheet
+        open={Boolean(previewWorkout)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewWorkout(null);
+          }
+        }}
+      >
+        <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto rounded-t-3xl">
+          {previewWorkout ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>{previewWorkout.title}</SheetTitle>
+                <SheetDescription>
+                  {previewWorkout.dayLabel} • {previewWorkout.exercises.length} exercises •{" "}
+                  {previewWorkout.estimatedMinutes} min
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 space-y-3">
+                {previewWorkout.exercises.map((exercise, index) => (
+                  <div
+                    key={exercise.id}
+                    className="rounded-2xl border border-border/60 bg-background/40 px-3 py-3"
+                  >
+                    <p className="text-sm font-medium text-foreground">
+                      {index + 1}. {exercise.exercise.name}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {exercise.sets} sets
+                      {exercise.exercise.exerciseCategory === "STRENGTH"
+                        ? ` • ${exercise.repMin}-${exercise.repMax} reps`
+                        : ""}
+                      {exercise.restSeconds ? ` • ${exercise.restSeconds}s rest` : ""}
+                    </p>
+                    {exercise.notes ? (
+                      <Badge className="mt-3" variant="secondary">
+                        {exercise.notes}
+                      </Badge>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
