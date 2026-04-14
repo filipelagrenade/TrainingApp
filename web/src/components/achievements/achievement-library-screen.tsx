@@ -13,7 +13,6 @@ import {
   ChallengeRankBadge,
   ChallengeToken,
   formatChallengeUnit,
-  getChallengeIcon,
   getChallengeRankLabel,
 } from "@/components/challenges/challenge-ui";
 import { BackButton } from "@/components/ui/back-button";
@@ -284,7 +283,6 @@ const ChallengeFamilySheet = ({
   family: ChallengeFamily | null;
   onOpenChange: (open: boolean) => void;
 }) => {
-  const Icon = getChallengeIcon(family?.iconKey ?? "shield");
   const nextThreshold = family?.nextTier?.threshold ?? family?.progress ?? 0;
   const progressValue =
     nextThreshold > 0 && family
@@ -295,69 +293,75 @@ const ChallengeFamilySheet = ({
     <Sheet open={Boolean(family)} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="max-h-[85vh] overflow-y-auto rounded-t-[2rem] border-border/80 px-5 pb-8 pt-8"
+        className="flex h-[85vh] max-h-[85vh] flex-col overflow-hidden rounded-t-[2rem] border-border/80 p-0"
       >
         {family ? (
-          <div className="space-y-6">
-            <SheetHeader className="items-center text-center">
-              <ChallengeToken iconKey={family.iconKey} rank={family.currentRank} className="mx-auto" />
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <SheetTitle>{family.title}</SheetTitle>
-                  <ChallengeRankBadge rank={family.currentRank} />
+          <>
+            <div className="border-b border-border/80 bg-background px-5 pb-5 pt-8">
+              <SheetHeader className="items-center text-center">
+                <ChallengeToken iconKey={family.iconKey} rank={family.currentRank} className="mx-auto" />
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <SheetTitle>{family.title}</SheetTitle>
+                    <ChallengeRankBadge rank={family.currentRank} />
+                  </div>
+                  <SheetDescription>{family.description}</SheetDescription>
                 </div>
-                <SheetDescription>{family.description}</SheetDescription>
+                <Badge variant="outline">{family.categoryLabel}</Badge>
+              </SheetHeader>
+            </div>
+
+            <div className="drawer-scroll-region px-5 py-6">
+              <div className="space-y-6">
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <SummaryCell label="Progress" value={String(family.progress)} />
+                  <SummaryCell label="Rank" value={getChallengeRankLabel(family.currentRank)} />
+                  <SummaryCell
+                    label="Next"
+                    value={
+                      family.nextTier
+                        ? formatChallengeUnit(
+                            family.nextTier.threshold,
+                            family.unitSingular,
+                            family.unitPlural,
+                          )
+                        : "Maxed"
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">
+                      {family.nextTier
+                        ? `${family.nextTier.remaining} to ${getChallengeRankLabel(family.nextTier.rank)}`
+                        : "All ranks unlocked"}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      {family.nextTier
+                        ? `${formatChallengeUnit(
+                            family.progress,
+                            family.unitSingular,
+                            family.unitPlural,
+                          )} / ${formatChallengeUnit(
+                            family.nextTier.threshold,
+                            family.unitSingular,
+                            family.unitPlural,
+                          )}`
+                        : "Completed"}
+                    </span>
+                  </div>
+                  <Progress value={progressValue || 100} />
+                </div>
+
+                <div className="space-y-3">
+                  {family.tiers.map((tier) => (
+                    <TierRow key={tier.id} family={family} tier={tier} />
+                  ))}
+                </div>
               </div>
-              <Badge variant="outline">{family.categoryLabel}</Badge>
-            </SheetHeader>
-
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <SummaryCell label="Progress" value={String(family.progress)} />
-              <SummaryCell label="Rank" value={getChallengeRankLabel(family.currentRank)} />
-              <SummaryCell
-                label="Next"
-                value={
-                  family.nextTier
-                    ? formatChallengeUnit(
-                        family.nextTier.threshold,
-                        family.unitSingular,
-                        family.unitPlural,
-                      )
-                    : "Maxed"
-                }
-              />
             </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">
-                  {family.nextTier
-                    ? `${family.nextTier.remaining} to ${getChallengeRankLabel(family.nextTier.rank)}`
-                    : "All ranks unlocked"}
-                </span>
-                <span className="font-medium text-foreground">
-                  {family.nextTier
-                    ? `${formatChallengeUnit(
-                        family.progress,
-                        family.unitSingular,
-                        family.unitPlural,
-                      )} / ${formatChallengeUnit(
-                        family.nextTier.threshold,
-                        family.unitSingular,
-                        family.unitPlural,
-                      )}`
-                    : "Completed"}
-                </span>
-              </div>
-              <Progress value={progressValue || 100} />
-            </div>
-
-            <div className="space-y-3">
-              {family.tiers.map((tier) => (
-                <TierRow key={tier.id} family={family} tier={tier} />
-              ))}
-            </div>
-          </div>
+          </>
         ) : null}
       </SheetContent>
     </Sheet>

@@ -1890,11 +1890,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       </Card>
 
       <Sheet open={showSessionMeta} onOpenChange={setShowSessionMeta}>
-        <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
-          <SheetHeader>
-            <SheetTitle>Workout tools</SheetTitle>
-          </SheetHeader>
-          <div className="mt-6 space-y-4">
+        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
+          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+            <SheetHeader>
+              <SheetTitle>Workout tools</SheetTitle>
+            </SheetHeader>
+          </div>
+          <div className="drawer-scroll-region px-6 py-6">
+            <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="workout-title">Workout title</Label>
               <Input
@@ -1949,6 +1952,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 <Save className="h-4 w-4" />
                 Save as template
               </Button>
+            </div>
             </div>
           </div>
         </SheetContent>
@@ -2024,14 +2028,17 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       />
 
       <Sheet open={supersetSheetOpen} onOpenChange={setSupersetSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
-          <SheetHeader>
-            <SheetTitle>Create superset</SheetTitle>
-            <SheetDescription>
-              Pair the current movement with one other exercise so you can alternate them and rest after the pair.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 space-y-3">
+        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
+          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+            <SheetHeader>
+              <SheetTitle>Create superset</SheetTitle>
+              <SheetDescription>
+                Pair the current movement with one other exercise so you can alternate them and rest after the pair.
+              </SheetDescription>
+            </SheetHeader>
+          </div>
+          <div className="drawer-scroll-region px-6 py-6">
+            <div className="space-y-3">
             {draft.exercises
               .map((exercise, index) => ({ exercise, index }))
               .filter(
@@ -2062,20 +2069,24 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 Add another unpaired exercise to create a superset.
               </div>
             ) : null}
+            </div>
           </div>
         </SheetContent>
       </Sheet>
 
       <Sheet open={detailsSheetOpen} onOpenChange={setDetailsSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
-          <SheetHeader>
-            <SheetTitle>Manage exercise</SheetTitle>
-            <SheetDescription>
-              Keep the main logger compact. Manage swaps, pairings, and the few details that actually matter.
-            </SheetDescription>
-          </SheetHeader>
+        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
+          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+            <SheetHeader>
+              <SheetTitle>Manage exercise</SheetTitle>
+              <SheetDescription>
+                Keep the main logger compact. Manage swaps, pairings, and the few details that actually matter.
+              </SheetDescription>
+            </SheetHeader>
+          </div>
           {activeExercise ? (
-            <div className="mt-6 space-y-4">
+            <div className="drawer-scroll-region px-6 py-6">
+              <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -2252,6 +2263,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     }))
                   }
                 />
+              </div>
               </div>
             </div>
           ) : null}

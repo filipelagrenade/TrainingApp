@@ -133,7 +133,7 @@ export const ChallengeToken = ({
       )}
     >
       <div className="absolute inset-[5px] rounded-full border border-white/20" />
-      <div className="absolute inset-[11px] rounded-full bg-black/18 backdrop-blur-[2px]" />
+      <div className="absolute inset-[11px] rounded-full bg-black/18" />
       <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]">
         <Icon className="h-7 w-7" />
       </div>

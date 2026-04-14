@@ -230,4 +230,32 @@
   .app-grid {
     @apply space-y-6;
   }
+
+  .drawer-surface {
+    overscroll-behavior: contain;
+  }
+
+  .drawer-scroll-region {
+    @apply flex-1 overflow-y-auto overscroll-contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .drawer-surface .surface-card,
+  .drawer-surface .surface-panel,
+  .drawer-surface .surface-panel-soft {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .drawer-surface .surface-card {
+    background-color: hsl(var(--card) / 0.96);
+  }
+
+  .drawer-surface .surface-panel {
+    background-color: hsl(var(--surface-elevated) / 0.96);
+  }
+
+  .drawer-surface .surface-panel-soft {
+    background-color: hsl(var(--background) / 0.92);
+  }
 }

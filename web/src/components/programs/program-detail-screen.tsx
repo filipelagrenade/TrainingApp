@@ -157,39 +157,43 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
           }
         }}
       >
-        <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto rounded-t-3xl">
+        <SheetContent side="bottom" className="flex h-[88vh] max-h-[88vh] flex-col overflow-hidden rounded-t-3xl p-0">
           {previewWorkout ? (
             <>
-              <SheetHeader>
-                <SheetTitle>{previewWorkout.title}</SheetTitle>
-                <SheetDescription>
-                  {previewWorkout.dayLabel} • {previewWorkout.exercises.length} exercises •{" "}
-                  {previewWorkout.estimatedMinutes} min
-                </SheetDescription>
-              </SheetHeader>
-              <div className="mt-6 space-y-3">
-                {previewWorkout.exercises.map((exercise, index) => (
-                  <div
-                    key={exercise.id}
-                    className="rounded-2xl border border-border/60 bg-background/40 px-3 py-3"
-                  >
-                    <p className="text-sm font-medium text-foreground">
-                      {index + 1}. {exercise.exercise.name}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {exercise.sets} sets
-                      {exercise.exercise.exerciseCategory === "STRENGTH"
-                        ? ` • ${exercise.repMin}-${exercise.repMax} reps`
-                        : ""}
-                      {exercise.restSeconds ? ` • ${exercise.restSeconds}s rest` : ""}
-                    </p>
-                    {exercise.notes ? (
-                      <Badge className="mt-3" variant="secondary">
-                        {exercise.notes}
-                      </Badge>
-                    ) : null}
-                  </div>
-                ))}
+              <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+                <SheetHeader>
+                  <SheetTitle>{previewWorkout.title}</SheetTitle>
+                  <SheetDescription>
+                    {previewWorkout.dayLabel} • {previewWorkout.exercises.length} exercises •{" "}
+                    {previewWorkout.estimatedMinutes} min
+                  </SheetDescription>
+                </SheetHeader>
+              </div>
+              <div className="drawer-scroll-region px-6 py-6">
+                <div className="space-y-3">
+                  {previewWorkout.exercises.map((exercise, index) => (
+                    <div
+                      key={exercise.id}
+                      className="rounded-2xl border border-border/60 bg-background/40 px-3 py-3"
+                    >
+                      <p className="text-sm font-medium text-foreground">
+                        {index + 1}. {exercise.exercise.name}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {exercise.sets} sets
+                        {exercise.exercise.exerciseCategory === "STRENGTH"
+                          ? ` • ${exercise.repMin}-${exercise.repMax} reps`
+                          : ""}
+                        {exercise.restSeconds ? ` • ${exercise.restSeconds}s rest` : ""}
+                      </p>
+                      {exercise.notes ? (
+                        <Badge className="mt-3" variant="secondary">
+                          {exercise.notes}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           ) : null}
