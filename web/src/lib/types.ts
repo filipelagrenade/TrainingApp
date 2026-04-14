@@ -19,12 +19,14 @@ export type User = {
   email: string;
   displayName: string;
   preferredUnit: "kg" | "lb";
+  gender: "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY";
   xpTotal: number;
   level: number;
   selectedTitleKey?: string | null;
   selectedTitleLabel?: string | null;
   selectedBadgeKey?: string | null;
   selectedBadgeLabel?: string | null;
+  selectedBadgeIconKey?: string | null;
   avatarConfig: Record<string, unknown> | null;
 };
 
@@ -36,6 +38,7 @@ export type SocialUser = {
   xpTotal: number;
   selectedTitleLabel?: string | null;
   selectedBadgeLabel?: string | null;
+  selectedBadgeIconKey?: string | null;
   isFollowing: boolean;
 };
 
@@ -425,6 +428,7 @@ export type LeaderboardEntry = {
   xp: number;
   selectedTitleLabel?: string | null;
   selectedBadgeLabel?: string | null;
+  selectedBadgeIconKey?: string | null;
 };
 
 export type Challenge = {
@@ -473,6 +477,7 @@ export type ChallengeTier = {
   id: string;
   rank: ChallengeRank;
   threshold: number;
+  femaleThreshold?: number | null;
   xpReward: number;
   unlocked: boolean;
   unlockedAt: string | null;
@@ -480,6 +485,7 @@ export type ChallengeTier = {
   titleRewardLabel: string | null;
   badgeRewardKey: string | null;
   badgeRewardLabel: string | null;
+  badgeRewardIconKey?: string | null;
 };
 
 export type ChallengeFamily = {
@@ -505,6 +511,7 @@ export type ChallengeFamily = {
         titleRewardLabel: string | null;
         badgeRewardKey: string | null;
         badgeRewardLabel: string | null;
+        badgeRewardIconKey?: string | null;
       }
     | null;
   tiers: ChallengeTier[];
@@ -534,6 +541,7 @@ export type ChallengeUnlock = {
 export type ChallengeRewardItem = {
   key: string;
   label: string;
+  iconKey?: string | null;
   familyKey: string;
   familyTitle: string;
   rank: ChallengeRank;

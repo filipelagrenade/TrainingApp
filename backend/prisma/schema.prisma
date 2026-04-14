@@ -95,6 +95,13 @@ enum ChallengeRank {
   GOD
 }
 
+enum UserGender {
+  MALE
+  FEMALE
+  NON_BINARY
+  PREFER_NOT_TO_SAY
+}
+
 enum ChallengeMetric {
   XP
   WORKOUTS
@@ -107,6 +114,7 @@ model User {
   email                String               @unique
   displayName          String
   preferredUnit        String               @default("kg")
+  gender               UserGender           @default(PREFER_NOT_TO_SAY)
   xpTotal              Int                  @default(0)
   level                Int                  @default(1)
   challengeMigrationVersion Int            @default(0)
@@ -114,6 +122,7 @@ model User {
   selectedTitleLabel   String?
   selectedBadgeKey     String?
   selectedBadgeLabel   String?
+  selectedBadgeIconKey String?
   avatarConfig         Json?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
@@ -460,11 +469,13 @@ model ChallengeTier {
   familyId         String
   rank             ChallengeRank
   threshold        Int
+  femaleThreshold  Int?
   xpReward         Int                     @default(0)
   titleRewardKey   String?
   titleRewardLabel String?
   badgeRewardKey   String?
   badgeRewardLabel String?
+  badgeRewardIconKey String?
   family           ChallengeFamily         @relation(fields: [familyId], references: [id], onDelete: Cascade)
   unlocks          UserChallengeTierUnlock[]
 

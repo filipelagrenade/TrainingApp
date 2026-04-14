@@ -1256,54 +1256,76 @@ const getPersonalRecordBenchmarks = async (
   excludeWorkoutId?: string,
 ) => {
   if (!exerciseIds.length) {
-    return new Map<string, number>();
+    return new Map<string, { bestPrevious: number; eligible: boolean }>();
   }
 
-  const priorSets = await transaction.workoutSet.findMany({
+  const priorExercises = await transaction.workoutExercise.findMany({
     where: {
-      weight: {
-        not: null,
+      exerciseId: {
+        in: exerciseIds,
       },
-      workoutExercise: {
-        exerciseId: {
-          in: exerciseIds,
-        },
-          session: {
-            id: excludeWorkoutId
-              ? {
-                  not: excludeWorkoutId,
-                }
-              : undefined,
-            userId,
-            status: WorkoutStatus.COMPLETED,
-          },
+      session: {
+        id: excludeWorkoutId
+          ? {
+              not: excludeWorkoutId,
+            }
+          : undefined,
+        userId,
+        status: WorkoutStatus.COMPLETED,
       },
     },
     select: {
-      weight: true,
-      reps: true,
-      workoutExercise: {
+      exerciseId: true,
+      sessionId: true,
+      sets: {
         select: {
-          exerciseId: true,
+          weight: true,
+          reps: true,
         },
       },
     },
   });
 
-  return priorSets.reduce((benchmarks, set) => {
-    const exerciseId = set.workoutExercise.exerciseId;
-    if (!exerciseId || typeof set.weight !== "number") {
-      return benchmarks;
+  const benchmarks = priorExercises.reduce((accumulator, exercise) => {
+    const exerciseId = exercise.exerciseId;
+    if (!exerciseId) {
+      return accumulator;
     }
 
-    const oneRepMax = estimateOneRepMax(set.weight, set.reps);
-    const currentBest = benchmarks.get(exerciseId) ?? 0;
-    if (oneRepMax > currentBest) {
-      benchmarks.set(exerciseId, oneRepMax);
+    const current =
+      accumulator.get(exerciseId) ??
+      {
+        bestPrevious: 0,
+        sessionIds: new Set<string>(),
+      };
+
+    current.sessionIds.add(exercise.sessionId);
+
+    for (const set of exercise.sets) {
+      if (typeof set.weight !== "number") {
+        continue;
+      }
+
+      const oneRepMax = estimateOneRepMax(set.weight, set.reps);
+      if (oneRepMax > current.bestPrevious) {
+        current.bestPrevious = oneRepMax;
+      }
     }
 
-    return benchmarks;
-  }, new Map<string, number>());
+    accumulator.set(exerciseId, current);
+    return accumulator;
+  }, new Map<string, { bestPrevious: number; sessionIds: Set<string> }>());
+
+  const result = new Map<string, { bestPrevious: number; eligible: boolean }>();
+
+  for (const [exerciseId, value] of benchmarks.entries()) {
+    result.set(exerciseId, {
+        bestPrevious: value.bestPrevious,
+        eligible: value.sessionIds.size >= 2,
+    });
+  }
+
+  return result;
 };
 
 const maybeAdvanceProgramWeek = async (
@@ -1580,10 +1602,14 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
 
         if (exercise.exerciseId && typeof normalizedWeight === "number") {
           const estimate = estimateOneRepMax(normalizedWeight, set.reps);
-          const bestPrevious = personalRecordBenchmarks.get(exercise.exerciseId) ?? 0;
-          if (estimate > bestPrevious) {
+          const benchmark = personalRecordBenchmarks.get(exercise.exerciseId);
+          const bestPrevious = benchmark?.bestPrevious ?? 0;
+          if (benchmark?.eligible && estimate > bestPrevious) {
             personalRecord = true;
-            personalRecordBenchmarks.set(exercise.exerciseId, estimate);
+            personalRecordBenchmarks.set(exercise.exerciseId, {
+              bestPrevious: estimate,
+              eligible: true,
+            });
             prCount += 1;
           }
         }
@@ -1773,10 +1799,14 @@ export const updateCompletedWorkout = async (
 
         if (exercise.exerciseId && typeof normalizedWeight === "number") {
           const estimate = estimateOneRepMax(normalizedWeight, set.reps);
-          const bestPrevious = personalRecordBenchmarks.get(exercise.exerciseId) ?? 0;
-          if (estimate > bestPrevious) {
+          const benchmark = personalRecordBenchmarks.get(exercise.exerciseId);
+          const bestPrevious = benchmark?.bestPrevious ?? 0;
+          if (benchmark?.eligible && estimate > bestPrevious) {
             personalRecord = true;
-            personalRecordBenchmarks.set(exercise.exerciseId, estimate);
+            personalRecordBenchmarks.set(exercise.exerciseId, {
+              bestPrevious: estimate,
+              eligible: true,
+            });
           }
         }
 

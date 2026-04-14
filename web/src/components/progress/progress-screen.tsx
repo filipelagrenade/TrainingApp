@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatBlock } from "@/components/ui/stat-block";
 import { formatVolume } from "@/lib/units";
 import {
+  ChallengeBadgeToken,
   ChallengeRankBadge,
   formatChallengeUnit,
   getChallengeIcon,
@@ -127,7 +128,12 @@ export const ProgressScreen = () => {
               {user.selectedTitleLabel || user.selectedBadgeLabel ? (
                 <div className="flex flex-wrap gap-2">
                   {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
-                  {user.selectedBadgeLabel ? <Badge variant="outline">{user.selectedBadgeLabel}</Badge> : null}
+                  {user.selectedBadgeLabel ? (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                      <ChallengeBadgeToken iconKey={user.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
+                      <span className="text-xs">{user.selectedBadgeLabel}</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </CardHeader>

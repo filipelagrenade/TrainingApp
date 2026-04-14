@@ -9,7 +9,12 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { ChallengeFamily, ChallengeRewardItem, ChallengeUnlock } from "@/lib/types";
 import { AuthCard } from "@/components/auth/auth-card";
-import { ChallengeRankBadge, getChallengeIcon, getChallengeRankLabel } from "@/components/challenges/challenge-ui";
+import {
+  ChallengeBadgeToken,
+  ChallengeRankBadge,
+  getChallengeIcon,
+  getChallengeRankLabel,
+} from "@/components/challenges/challenge-ui";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,7 +118,16 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
         <CardHeader className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
-            {user.selectedBadgeLabel ? <Badge variant="outline">{user.selectedBadgeLabel}</Badge> : null}
+            {user.selectedBadgeLabel ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1.5 text-sm">
+                <ChallengeBadgeToken
+                  iconKey={user.selectedBadgeIconKey ?? "award"}
+                  rank={featured[0]?.currentRank ?? null}
+                  className="h-7 w-7"
+                />
+                <span>{user.selectedBadgeLabel}</span>
+              </div>
+            ) : null}
             {!user.selectedTitleLabel && !user.selectedBadgeLabel ? (
               <Badge variant="outline">No showcase rewards selected yet</Badge>
             ) : null}
@@ -235,6 +249,8 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
                     active={user.selectedBadgeKey === badge.key}
                     label={badge.label}
                     helper={`${badge.familyTitle} • ${getChallengeRankLabel(badge.rank)}`}
+                    iconKey={badge.iconKey}
+                    rank={badge.rank}
                     onClick={() => showcaseMutation.mutate({ selectedBadgeKey: badge.key })}
                   />
                 ))}
@@ -251,11 +267,15 @@ const ShowcaseChoice = ({
   active,
   label,
   helper,
+  iconKey,
+  rank,
   onClick,
 }: {
   active: boolean;
   label: string;
   helper: string;
+  iconKey?: string | null;
+  rank?: ChallengeFamily["currentRank"];
   onClick: () => void;
 }) => (
   <button
@@ -266,7 +286,10 @@ const ShowcaseChoice = ({
     }`}
   >
     <div>
-      <p className="font-semibold text-foreground">{label}</p>
+      <div className="flex items-center gap-2">
+        {iconKey ? <ChallengeBadgeToken iconKey={iconKey} rank={rank ?? null} className="h-7 w-7" /> : null}
+        <p className="font-semibold text-foreground">{label}</p>
+      </div>
       <p className="text-sm text-muted-foreground">{helper}</p>
     </div>
     {active ? <Badge>Selected</Badge> : <Badge variant="outline">Choose</Badge>}

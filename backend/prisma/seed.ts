@@ -501,19 +501,23 @@ async function main() {
           familyId: persistedFamily.id,
           rank: tier.rank,
           threshold: tier.threshold,
+          femaleThreshold: tier.femaleThreshold,
           xpReward: tier.xpReward,
           titleRewardKey: tier.titleRewardKey,
           titleRewardLabel: tier.titleRewardLabel,
           badgeRewardKey: tier.badgeRewardKey,
           badgeRewardLabel: tier.badgeRewardLabel,
+          badgeRewardIconKey: tier.badgeRewardIconKey,
         },
         update: {
           threshold: tier.threshold,
+          femaleThreshold: tier.femaleThreshold,
           xpReward: tier.xpReward,
           titleRewardKey: tier.titleRewardKey,
           titleRewardLabel: tier.titleRewardLabel,
           badgeRewardKey: tier.badgeRewardKey,
           badgeRewardLabel: tier.badgeRewardLabel,
+          badgeRewardIconKey: tier.badgeRewardIconKey,
         },
       });
     }

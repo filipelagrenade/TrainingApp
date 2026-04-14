@@ -42,6 +42,7 @@ export const getLeaderboard = async () => {
       xp: entry._sum.amount ?? 0,
       selectedTitleLabel: user?.selectedTitleLabel ?? null,
       selectedBadgeLabel: user?.selectedBadgeLabel ?? null,
+      selectedBadgeIconKey: user?.selectedBadgeIconKey ?? null,
     };
   });
 };
@@ -112,6 +113,7 @@ export const listFollowing = async (userId: string) => {
     xpTotal: follow.following.xpTotal,
     selectedTitleLabel: follow.following.selectedTitleLabel,
     selectedBadgeLabel: follow.following.selectedBadgeLabel,
+    selectedBadgeIconKey: follow.following.selectedBadgeIconKey,
     isFollowing: true,
   }));
 };

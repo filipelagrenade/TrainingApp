@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, MoonStar, Palette, TimerReset } from "lucide-react";
+import { BellRing, MoonStar, Palette, TimerReset, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -31,7 +31,7 @@ export const SettingsScreen = () => {
     mutationFn: apiClient.updatePreferences,
     onSuccess: ({ user }) => {
       queryClient.setQueryData(["me"], { user });
-      toast.success(`Units set to ${user.preferredUnit.toUpperCase()}`);
+      toast.success("Preferences updated");
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -124,6 +124,39 @@ export const SettingsScreen = () => {
               <SelectContent>
                 <SelectItem value="kg">Kilograms (kg)</SelectItem>
                 <SelectItem value="lb">Pounds (lb)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            Profile
+          </CardTitle>
+          <CardDescription>Used for challenge milestone tuning where appropriate.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="gender-select">Gender</Label>
+            <Select
+              value={meQuery.data.user.gender}
+              onValueChange={(value) =>
+                preferencesMutation.mutate({
+                  gender: value as "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY",
+                })
+              }
+            >
+              <SelectTrigger id="gender-select" disabled={preferencesMutation.isPending}>
+                <SelectValue placeholder="Choose a gender" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MALE">Male</SelectItem>
+                <SelectItem value="FEMALE">Female</SelectItem>
+                <SelectItem value="NON_BINARY">Non-binary</SelectItem>
+                <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
               </SelectContent>
             </Select>
           </div>

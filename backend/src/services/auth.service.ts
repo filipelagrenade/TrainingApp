@@ -123,12 +123,14 @@ export const logoutUser = async (token: string | undefined): Promise<void> => {
 export const updateUserPreferences = async (
   userId: string,
   input: {
-    preferredUnit: "kg" | "lb";
+    preferredUnit?: "kg" | "lb";
+    gender?: "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY";
   },
 ): Promise<User> =>
   prisma.user.update({
     where: { id: userId },
     data: {
-      preferredUnit: input.preferredUnit,
+      ...(input.preferredUnit ? { preferredUnit: input.preferredUnit } : {}),
+      ...(input.gender ? { gender: input.gender } : {}),
     },
   });

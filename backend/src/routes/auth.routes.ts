@@ -16,7 +16,8 @@ const authSchema = z.object({
 });
 
 const preferencesSchema = z.object({
-  preferredUnit: z.enum(["kg", "lb"]),
+  preferredUnit: z.enum(["kg", "lb"]).optional(),
+  gender: z.enum(["MALE", "FEMALE", "NON_BINARY", "PREFER_NOT_TO_SAY"]).optional(),
 });
 
 const cookieOptions = {
@@ -84,6 +85,7 @@ authRouter.patch(
     try {
       const user = await updateUserPreferences(request.currentUser!.id, {
         preferredUnit: request.body.preferredUnit,
+        gender: request.body.gender,
       });
       request.currentUser = user;
       sendSuccess(response, { user });

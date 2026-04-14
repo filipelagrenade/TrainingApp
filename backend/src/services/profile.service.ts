@@ -89,6 +89,8 @@ export const updateProfileShowcase = async (
       selectedTitleLabel: selectedTitle?.label,
       selectedBadgeKey: selectedBadge?.key,
       selectedBadgeLabel: selectedBadge?.label,
+      selectedBadgeIconKey:
+        selectedBadge && "iconKey" in selectedBadge ? selectedBadge.iconKey : null,
     },
   });
 };

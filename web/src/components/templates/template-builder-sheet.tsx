@@ -2,11 +2,12 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Wand2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
+import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,10 +48,10 @@ export const TemplateBuilderSheet = ({
 }) => {
   const queryClient = useQueryClient();
   const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [items, setItems] = useState<DraftExercise[]>([]);
   const [name, setName] = useState("");
-  const defaultExercise = useMemo(() => exercises[0], [exercises]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -299,14 +300,7 @@ export const TemplateBuilderSheet = ({
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  const blank = createBlankDayDraft(defaultExercise, 1).exercises[0];
-                  if (!blank) {
-                    return;
-                  }
-
-                  setItems((current) => [...current, blank]);
-                }}
+                onClick={() => setAddExerciseOpen(true)}
               >
                 <Plus className="h-4 w-4" />
                 Add exercise
@@ -350,6 +344,21 @@ export const TemplateBuilderSheet = ({
         onOpenChange={setBulkSheetOpen}
         open={bulkSheetOpen}
         title="Bulk add to template"
+      />
+      <ExerciseSearchSheet
+        description="Pick an exercise to add to this template."
+        exercises={exercises}
+        onOpenChange={setAddExerciseOpen}
+        onSelect={(exercise) => {
+          const blank = createBlankDayDraft(exercise, 1).exercises[0];
+          if (!blank) {
+            return;
+          }
+
+          setItems((current) => [...current, blank]);
+        }}
+        open={addExerciseOpen}
+        title="Add exercise"
       />
     </>
   );

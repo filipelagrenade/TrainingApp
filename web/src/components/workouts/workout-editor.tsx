@@ -15,7 +15,6 @@ import {
   Play,
   Plus,
   Save,
-  Search,
   Shuffle,
   Trash2,
   Pencil,
@@ -27,6 +26,7 @@ import { toast } from "sonner";
 
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
+import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -144,7 +144,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
   const [substituteSheetOpen, setSubstituteSheetOpen] = useState(false);
   const [supersetSheetOpen, setSupersetSheetOpen] = useState(false);
-  const [substituteSearch, setSubstituteSearch] = useState("");
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [keepChangesOpen, setKeepChangesOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -190,17 +189,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const session = sessionQuery.data;
   const preferredUnit = meQuery.data?.user.preferredUnit ?? "kg";
   const availableExercises = exercisesQuery.data ?? [];
-
-  const substitutionSourceExerciseId =
-    draft?.exercises[activeExerciseIndex]?.substitutedFromExerciseId ??
-    draft?.exercises[activeExerciseIndex]?.exerciseId ??
-    "";
-
-  const substitutesQuery = useQuery({
-    queryKey: ["exercise-substitutes", substitutionSourceExerciseId],
-    queryFn: () => apiClient.getExerciseSubstitutes(substitutionSourceExerciseId),
-    enabled: substitutionSourceExerciseId.length > 0,
-  });
 
   const completeMutation = useMutation({
     mutationFn: (payload: WorkoutDraft) => apiClient.completeWorkout(sessionId, payload),
@@ -288,17 +276,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     onSuccess: (nextDraft) => {
       setDraft(nextDraft);
       setSubstituteSheetOpen(false);
-      setSubstituteSearch("");
       toast.success("Exercise swapped");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const removeSubstituteMutation = useMutation({
-    mutationFn: (exerciseIndex: number) => apiClient.removeWorkoutSubstitution(sessionId, exerciseIndex),
-    onSuccess: (nextDraft) => {
-      setDraft(nextDraft);
-      toast.success("Original exercise restored");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -823,32 +801,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
     return partnerIndex >= 0 ? partnerIndex : null;
   }, [activeExercise, activeExerciseIndex, draft]);
-
-  const filteredSubstitutes = useMemo(() => {
-    const search = substituteSearch.trim().toLowerCase();
-    const source = substitutesQuery.data;
-    if (!source) {
-      return { equivalents: [], alternatives: [] };
-    }
-
-    const filterList = (items: Exercise[]) =>
-      items.filter((exercise) =>
-        [exercise.name, exercise.equipmentType, ...exercise.primaryMuscles, ...exercise.secondaryMuscles]
-          .join(" ")
-          .toLowerCase()
-          .includes(search),
-      );
-
-    if (!search) {
-      return source;
-    }
-
-    return {
-      sourceExercise: source.sourceExercise,
-      equivalents: filterList(source.equivalents),
-      alternatives: filterList(source.alternatives),
-    };
-  }, [substituteSearch, substitutesQuery.data]);
 
   const completedStats = useMemo(() => {
     if (session?.status !== "COMPLETED") {
@@ -2053,92 +2005,21 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         title="Bulk add exercises"
       />
 
-      <Sheet open={substituteSheetOpen} onOpenChange={setSubstituteSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
-          <SheetHeader>
-            <SheetTitle>Swap exercise</SheetTitle>
-            <SheetDescription>
-              Pick the movement you actually want to run today.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 space-y-4">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                value={substituteSearch}
-                onChange={(event) => setSubstituteSearch(event.target.value)}
-                placeholder="Search substitutes"
-              />
-            </div>
-            {activeExercise?.substitutedFromExerciseName ? (
-              <Button
-                variant="outline"
-                onClick={() => removeSubstituteMutation.mutate(activeExerciseIndex)}
-              >
-                Restore {activeExercise.substitutedFromExerciseName}
-              </Button>
-            ) : null}
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Suggested swaps</p>
-              {substitutesQuery.isLoading ? (
-                <Skeleton className="h-24" />
-              ) : filteredSubstitutes.equivalents.length ? (
-                filteredSubstitutes.equivalents.map((exercise) => (
-                  <button
-                    key={exercise.id}
-                    className="surface-panel w-full p-4 text-left"
-                    onClick={() =>
-                      substituteMutation.mutate({
-                        exerciseIndex: activeExerciseIndex,
-                        substituteExerciseId: exercise.id,
-                      })
-                    }
-                    type="button"
-                  >
-                    <p className="font-semibold text-foreground">{exercise.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {exercise.equipmentType}
-                      {exercise.machineType ? ` • ${exercise.machineType}` : ""}
-                    </p>
-                  </button>
-                ))
-              ) : (
-                <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
-                  No suggested swaps yet for this movement.
-                </div>
-              )}
-            </div>
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">More options</p>
-              {filteredSubstitutes.alternatives.length ? (
-                filteredSubstitutes.alternatives.map((exercise) => (
-                  <button
-                    key={exercise.id}
-                    className="surface-panel w-full p-4 text-left"
-                    onClick={() =>
-                      substituteMutation.mutate({
-                        exerciseIndex: activeExerciseIndex,
-                        substituteExerciseId: exercise.id,
-                      })
-                    }
-                    type="button"
-                  >
-                    <p className="font-semibold text-foreground">{exercise.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Swap straight into this movement for today&apos;s session.
-                    </p>
-                  </button>
-                ))
-              ) : (
-                <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
-                  No close alternatives surfaced from the library.
-                </div>
-              )}
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <ExerciseSearchSheet
+        description="Pick the movement you actually want to run today."
+        exercises={availableExercises.filter(
+          (exercise) => exercise.id !== activeExercise?.exerciseId,
+        )}
+        onOpenChange={setSubstituteSheetOpen}
+        onSelect={(exercise) =>
+          substituteMutation.mutate({
+            exerciseIndex: activeExerciseIndex,
+            substituteExerciseId: exercise.id,
+          })
+        }
+        open={substituteSheetOpen}
+        title="Swap exercise"
+      />
 
       <Sheet open={supersetSheetOpen} onOpenChange={setSupersetSheetOpen}>
         <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
+import { ChallengeBadgeToken } from "@/components/challenges/challenge-ui";
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -141,7 +142,12 @@ export const SocialScreen = () => {
                       {user.selectedTitleLabel || user.selectedBadgeLabel ? (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
-                          {user.selectedBadgeLabel ? <Badge variant="outline">{user.selectedBadgeLabel}</Badge> : null}
+                          {user.selectedBadgeLabel ? (
+                            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                              <ChallengeBadgeToken iconKey={user.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
+                              <span className="text-xs">{user.selectedBadgeLabel}</span>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -187,7 +193,12 @@ export const SocialScreen = () => {
                     {user.selectedTitleLabel || user.selectedBadgeLabel ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
-                        {user.selectedBadgeLabel ? <Badge variant="outline">{user.selectedBadgeLabel}</Badge> : null}
+                        {user.selectedBadgeLabel ? (
+                          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                            <ChallengeBadgeToken iconKey={user.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
+                            <span className="text-xs">{user.selectedBadgeLabel}</span>
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -225,7 +236,12 @@ export const SocialScreen = () => {
                       {entry.selectedTitleLabel || entry.selectedBadgeLabel ? (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {entry.selectedTitleLabel ? <Badge variant="secondary">{entry.selectedTitleLabel}</Badge> : null}
-                          {entry.selectedBadgeLabel ? <Badge variant="outline">{entry.selectedBadgeLabel}</Badge> : null}
+                          {entry.selectedBadgeLabel ? (
+                            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                              <ChallengeBadgeToken iconKey={entry.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
+                              <span className="text-xs">{entry.selectedBadgeLabel}</span>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

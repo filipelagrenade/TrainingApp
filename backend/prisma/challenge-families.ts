@@ -20,7 +20,7 @@ type ChallengeDefinition = {
   unitSingular: string;
   unitPlural: string;
   sortOrder: number;
-  thresholds: number[];
+  thresholds: Array<number | { threshold: number; femaleThreshold?: number }>;
   rewardPrefix: string;
 };
 
@@ -32,27 +32,34 @@ type ExerciseChallengeSeed = {
 
 type ExerciseMilestoneSeed = ExerciseChallengeSeed & {
   thresholds: number[];
+  femaleThresholds: number[];
 };
 
 const titleRewards = (
+  familyKey: string,
   prefix: string,
   rank: ChallengeRank,
 ): { key: string; label: string } | null => {
+  const customReward = customTitleRewardMap[familyKey]?.[rank];
+  if (customReward) {
+    return customReward;
+  }
+
   switch (rank) {
     case ChallengeRank.SERIOUS:
       return {
         key: `${prefix}-serious-title`,
-        label: `${prefix} Serious`,
+        label: `${prefix} Vanguard`,
       };
     case ChallengeRank.TITAN:
       return {
         key: `${prefix}-titan-title`,
-        label: `${prefix} Titan`,
+        label: `${prefix} Ascendant`,
       };
     case ChallengeRank.GOD:
       return {
         key: `${prefix}-god-title`,
-        label: `${prefix} God`,
+        label: `${prefix} Mythic`,
       };
     default:
       return null;
@@ -60,19 +67,27 @@ const titleRewards = (
 };
 
 const badgeRewards = (
+  familyKey: string,
   prefix: string,
   rank: ChallengeRank,
-): { key: string; label: string } | null => {
+): { key: string; label: string; iconKey: string } | null => {
+  const customReward = customBadgeRewardMap[familyKey]?.[rank];
+  if (customReward) {
+    return customReward;
+  }
+
   switch (rank) {
     case ChallengeRank.SAVAGE:
       return {
         key: `${prefix}-savage-badge`,
-        label: `${prefix} Savage`,
+        label: `${prefix} Crest`,
+        iconKey: "flame",
       };
     case ChallengeRank.GOD:
       return {
         key: `${prefix}-god-badge`,
-        label: `${prefix} God`,
+        label: `${prefix} Sigil`,
+        iconKey: "crown",
       };
     default:
       return null;
@@ -100,6 +115,45 @@ const buildRewardPrefix = (value: string) =>
 
 const buildExerciseSlug = (exercise: Pick<ExerciseChallengeSeed, "equipmentType" | "name">) =>
   slugify(`${exercise.equipmentType}-${exercise.name}`);
+
+const milestoneThresholds = (defaultThresholds: number[], femaleThresholds: number[]) =>
+  defaultThresholds.map((threshold, index) => ({
+    threshold,
+    femaleThreshold: femaleThresholds[index],
+  }));
+
+const customTitleRewardMap: Partial<
+  Record<string, Partial<Record<ChallengeRank, { key: string; label: string }>>>
+> = {
+  "workouts-completed": {
+    SERIOUS: { key: "show-up-serious-title", label: "Discipline Initiate" },
+    TITAN: { key: "show-up-titan-title", label: "The Unyielding" },
+    GOD: { key: "show-up-god-title", label: "The Inevitable" },
+  },
+  "personal-records": {
+    SERIOUS: { key: "numbers-moving-serious-title", label: "Momentum Builder" },
+    TITAN: { key: "numbers-moving-titan-title", label: "The Ascending" },
+    GOD: { key: "numbers-moving-god-title", label: "Ceiling Breaker" },
+  },
+  "xp-earned": {
+    SERIOUS: { key: "xp-engine-serious-title", label: "Fuelled" },
+    TITAN: { key: "xp-engine-titan-title", label: "Overclocked" },
+    GOD: { key: "xp-engine-god-title", label: "Perpetual Motion" },
+  },
+};
+
+const customBadgeRewardMap: Partial<
+  Record<string, Partial<Record<ChallengeRank, { key: string; label: string; iconKey: string }>>>
+> = {
+  "workouts-completed": {
+    SAVAGE: { key: "show-up-savage-badge", label: "Savage Flame", iconKey: "flame" },
+    GOD: { key: "show-up-god-badge", label: "Inevitable Loop", iconKey: "infinity" },
+  },
+  "personal-records": {
+    SAVAGE: { key: "numbers-moving-savage-badge", label: "PR Surge", iconKey: "zap" },
+    GOD: { key: "numbers-moving-god-badge", label: "Perfect Peak", iconKey: "crown" },
+  },
+};
 
 const makeExerciseSeeds = (
   equipmentType: string,
@@ -527,42 +581,42 @@ const trackedExerciseSeeds: ExerciseChallengeSeed[] = [
 ];
 
 const exerciseMilestoneSeeds: ExerciseMilestoneSeed[] = [
-  { equipmentType: "Barbell", name: "Barbell Back Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260] },
-  { equipmentType: "Barbell", name: "Barbell Front Squat", iconKey: "medal", thresholds: [30, 50, 80, 110, 140, 170, 200] },
-  { equipmentType: "Barbell", name: "Pause Back Squat", iconKey: "medal", thresholds: [40, 60, 90, 130, 170, 210, 250] },
-  { equipmentType: "Barbell", name: "High Bar Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260] },
-  { equipmentType: "Barbell", name: "Low Bar Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260] },
-  { equipmentType: "Barbell", name: "Romanian Deadlift", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260] },
-  { equipmentType: "Barbell", name: "Conventional Deadlift", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 300] },
-  { equipmentType: "Barbell", name: "Sumo Deadlift", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 300] },
-  { equipmentType: "Barbell", name: "Barbell Hip Thrust", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 320] },
-  { equipmentType: "Machine", name: "Leg Press", iconKey: "medal", thresholds: [80, 120, 180, 260, 340, 420, 500] },
-  { equipmentType: "Machine", name: "Hack Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260] },
-  { equipmentType: "Smith Machine", name: "Smith Machine Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260] },
-  { equipmentType: "Trap Bar", name: "Trap Bar Deadlift", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 300] },
-  { equipmentType: "Barbell", name: "Barbell Bench Press", iconKey: "award", thresholds: [40, 60, 80, 100, 120, 140, 160] },
-  { equipmentType: "Barbell", name: "Incline Barbell Bench Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150] },
-  { equipmentType: "Barbell", name: "Close Grip Bench Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150] },
-  { equipmentType: "Smith Machine", name: "Smith Machine Bench Press", iconKey: "award", thresholds: [40, 60, 80, 100, 120, 140, 160] },
-  { equipmentType: "Smith Machine", name: "Smith Machine Incline Bench Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150] },
-  { equipmentType: "Machine", name: "Plate Loaded Incline Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150] },
-  { equipmentType: "Barbell", name: "Standing Overhead Press", iconKey: "award", thresholds: [20, 30, 40, 50, 60, 75, 90] },
-  { equipmentType: "Barbell", name: "Push Press", iconKey: "award", thresholds: [30, 40, 60, 80, 100, 120, 140] },
-  { equipmentType: "Dumbbell", name: "Arnold Press", iconKey: "award", thresholds: [10, 14, 20, 28, 36, 44, 52] },
-  { equipmentType: "Dumbbell", name: "Dumbbell Shoulder Press", iconKey: "award", thresholds: [10, 16, 22, 30, 38, 46, 55] },
-  { equipmentType: "Machine", name: "Machine Shoulder Press", iconKey: "award", thresholds: [20, 35, 50, 65, 80, 95, 110] },
-  { equipmentType: "Smith Machine", name: "Smith Machine Shoulder Press", iconKey: "award", thresholds: [20, 35, 50, 65, 80, 95, 110] },
-  { equipmentType: "Barbell", name: "Barbell Bent Over Row", iconKey: "trophy", thresholds: [40, 60, 80, 100, 120, 140, 160] },
-  { equipmentType: "Barbell", name: "Pendlay Row", iconKey: "trophy", thresholds: [40, 60, 80, 100, 120, 140, 160] },
-  { equipmentType: "Barbell", name: "T-Bar Row", iconKey: "trophy", thresholds: [30, 50, 70, 90, 110, 130, 150] },
-  { equipmentType: "Dumbbell", name: "One Arm Dumbbell Row", iconKey: "trophy", thresholds: [20, 30, 40, 50, 60, 70, 85] },
-  { equipmentType: "Dumbbell", name: "Chest Supported Dumbbell Row", iconKey: "trophy", thresholds: [16, 24, 32, 40, 48, 56, 70] },
-  { equipmentType: "Cable", name: "Seated Cable Row", iconKey: "target", thresholds: [30, 45, 60, 75, 90, 105, 120] },
-  { equipmentType: "Cable", name: "Close Grip Cable Row", iconKey: "target", thresholds: [30, 45, 60, 75, 90, 105, 120] },
-  { equipmentType: "Cable", name: "Lat Pulldown", iconKey: "target", thresholds: [30, 45, 60, 75, 90, 105, 120] },
-  { equipmentType: "Machine", name: "Machine High Row", iconKey: "trophy", thresholds: [30, 45, 60, 80, 100, 120, 140] },
-  { equipmentType: "Machine", name: "Machine Low Row", iconKey: "trophy", thresholds: [30, 45, 60, 80, 100, 120, 140] },
-  { equipmentType: "Landmine", name: "Landmine Press", iconKey: "award", thresholds: [20, 30, 40, 55, 70, 85, 100] },
+  { equipmentType: "Barbell", name: "Barbell Back Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260], femaleThresholds: [25, 40, 60, 90, 120, 150, 180] },
+  { equipmentType: "Barbell", name: "Barbell Front Squat", iconKey: "medal", thresholds: [30, 50, 80, 110, 140, 170, 200], femaleThresholds: [20, 30, 50, 70, 95, 120, 145] },
+  { equipmentType: "Barbell", name: "Pause Back Squat", iconKey: "medal", thresholds: [40, 60, 90, 130, 170, 210, 250], femaleThresholds: [25, 35, 55, 80, 105, 130, 160] },
+  { equipmentType: "Barbell", name: "High Bar Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260], femaleThresholds: [25, 40, 60, 90, 120, 150, 180] },
+  { equipmentType: "Barbell", name: "Low Bar Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260], femaleThresholds: [25, 40, 60, 90, 120, 150, 180] },
+  { equipmentType: "Barbell", name: "Romanian Deadlift", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260], femaleThresholds: [25, 40, 65, 90, 115, 145, 175] },
+  { equipmentType: "Barbell", name: "Conventional Deadlift", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 300], femaleThresholds: [40, 60, 90, 120, 150, 180, 210] },
+  { equipmentType: "Barbell", name: "Sumo Deadlift", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 300], femaleThresholds: [40, 60, 90, 120, 150, 180, 210] },
+  { equipmentType: "Barbell", name: "Barbell Hip Thrust", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 320], femaleThresholds: [40, 60, 90, 130, 160, 190, 230] },
+  { equipmentType: "Machine", name: "Leg Press", iconKey: "medal", thresholds: [80, 120, 180, 260, 340, 420, 500], femaleThresholds: [50, 80, 120, 170, 220, 280, 340] },
+  { equipmentType: "Machine", name: "Hack Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260], femaleThresholds: [25, 40, 65, 90, 120, 150, 180] },
+  { equipmentType: "Smith Machine", name: "Smith Machine Squat", iconKey: "medal", thresholds: [40, 60, 100, 140, 180, 220, 260], femaleThresholds: [25, 40, 60, 90, 120, 150, 180] },
+  { equipmentType: "Trap Bar", name: "Trap Bar Deadlift", iconKey: "medal", thresholds: [60, 100, 140, 180, 220, 260, 300], femaleThresholds: [40, 60, 90, 120, 150, 180, 210] },
+  { equipmentType: "Barbell", name: "Barbell Bench Press", iconKey: "award", thresholds: [40, 60, 80, 100, 120, 140, 160], femaleThresholds: [20, 30, 40, 55, 70, 85, 100] },
+  { equipmentType: "Barbell", name: "Incline Barbell Bench Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150], femaleThresholds: [15, 25, 35, 45, 60, 75, 90] },
+  { equipmentType: "Barbell", name: "Close Grip Bench Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150], femaleThresholds: [15, 25, 35, 45, 60, 75, 90] },
+  { equipmentType: "Smith Machine", name: "Smith Machine Bench Press", iconKey: "award", thresholds: [40, 60, 80, 100, 120, 140, 160], femaleThresholds: [20, 30, 40, 55, 70, 85, 100] },
+  { equipmentType: "Smith Machine", name: "Smith Machine Incline Bench Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150], femaleThresholds: [15, 25, 35, 45, 60, 75, 90] },
+  { equipmentType: "Machine", name: "Plate Loaded Incline Press", iconKey: "award", thresholds: [30, 50, 70, 90, 110, 130, 150], femaleThresholds: [15, 25, 35, 45, 60, 75, 90] },
+  { equipmentType: "Barbell", name: "Standing Overhead Press", iconKey: "award", thresholds: [20, 30, 40, 50, 60, 75, 90], femaleThresholds: [10, 15, 22, 30, 40, 50, 60] },
+  { equipmentType: "Barbell", name: "Push Press", iconKey: "award", thresholds: [30, 40, 60, 80, 100, 120, 140], femaleThresholds: [15, 25, 35, 50, 65, 80, 95] },
+  { equipmentType: "Dumbbell", name: "Arnold Press", iconKey: "award", thresholds: [10, 14, 20, 28, 36, 44, 52], femaleThresholds: [6, 8, 12, 16, 20, 24, 28] },
+  { equipmentType: "Dumbbell", name: "Dumbbell Shoulder Press", iconKey: "award", thresholds: [10, 16, 22, 30, 38, 46, 55], femaleThresholds: [6, 10, 14, 18, 24, 30, 36] },
+  { equipmentType: "Machine", name: "Machine Shoulder Press", iconKey: "award", thresholds: [20, 35, 50, 65, 80, 95, 110], femaleThresholds: [10, 20, 30, 40, 55, 70, 85] },
+  { equipmentType: "Smith Machine", name: "Smith Machine Shoulder Press", iconKey: "award", thresholds: [20, 35, 50, 65, 80, 95, 110], femaleThresholds: [10, 20, 30, 40, 55, 70, 85] },
+  { equipmentType: "Barbell", name: "Barbell Bent Over Row", iconKey: "trophy", thresholds: [40, 60, 80, 100, 120, 140, 160], femaleThresholds: [20, 30, 45, 60, 75, 90, 110] },
+  { equipmentType: "Barbell", name: "Pendlay Row", iconKey: "trophy", thresholds: [40, 60, 80, 100, 120, 140, 160], femaleThresholds: [20, 30, 45, 60, 75, 90, 110] },
+  { equipmentType: "Barbell", name: "T-Bar Row", iconKey: "trophy", thresholds: [30, 50, 70, 90, 110, 130, 150], femaleThresholds: [15, 25, 40, 55, 70, 85, 100] },
+  { equipmentType: "Dumbbell", name: "One Arm Dumbbell Row", iconKey: "trophy", thresholds: [20, 30, 40, 50, 60, 70, 85], femaleThresholds: [10, 14, 20, 28, 36, 44, 52] },
+  { equipmentType: "Dumbbell", name: "Chest Supported Dumbbell Row", iconKey: "trophy", thresholds: [16, 24, 32, 40, 48, 56, 70], femaleThresholds: [8, 12, 16, 22, 28, 34, 42] },
+  { equipmentType: "Cable", name: "Seated Cable Row", iconKey: "target", thresholds: [30, 45, 60, 75, 90, 105, 120], femaleThresholds: [15, 25, 35, 45, 60, 75, 90] },
+  { equipmentType: "Cable", name: "Close Grip Cable Row", iconKey: "target", thresholds: [30, 45, 60, 75, 90, 105, 120], femaleThresholds: [15, 25, 35, 45, 60, 75, 90] },
+  { equipmentType: "Cable", name: "Lat Pulldown", iconKey: "target", thresholds: [30, 45, 60, 75, 90, 105, 120], femaleThresholds: [15, 25, 35, 45, 60, 75, 90] },
+  { equipmentType: "Machine", name: "Machine High Row", iconKey: "trophy", thresholds: [30, 45, 60, 80, 100, 120, 140], femaleThresholds: [15, 25, 35, 50, 65, 80, 95] },
+  { equipmentType: "Machine", name: "Machine Low Row", iconKey: "trophy", thresholds: [30, 45, 60, 80, 100, 120, 140], femaleThresholds: [15, 25, 35, 50, 65, 80, 95] },
+  { equipmentType: "Landmine", name: "Landmine Press", iconKey: "award", thresholds: [20, 30, 40, 55, 70, 85, 100], femaleThresholds: [10, 15, 22, 30, 40, 50, 60] },
 ];
 
 const exerciseSessionDefinitions: ChallengeDefinition[] = trackedExerciseSeeds.map((exercise, index) => ({
@@ -596,14 +650,14 @@ const exercisePrDefinitions: ChallengeDefinition[] = trackedExerciseSeeds.map((e
 const exerciseMilestoneDefinitions: ChallengeDefinition[] = exerciseMilestoneSeeds.map((exercise, index) => ({
   key: `exercise-milestone-${buildExerciseSlug(exercise)}`,
   category: ChallengeCategory.STRENGTH,
-  metricKey: `exercise_e1rm:${buildExerciseSlug(exercise)}`,
+  metricKey: `exercise_best_logged_weight:${buildExerciseSlug(exercise)}`,
   iconKey: exercise.iconKey,
   title: `${exercise.name} Milestones`,
   description: `Push the best set on ${exercise.name} into new territory.`,
   unitSingular: "kg",
   unitPlural: "kg",
   sortOrder: 3000 + index,
-  thresholds: exercise.thresholds,
+  thresholds: milestoneThresholds(exercise.thresholds, exercise.femaleThresholds),
   rewardPrefix: `${buildRewardPrefix(exercise.name)} Peak`,
 }));
 
@@ -618,17 +672,23 @@ export const challengeFamilies = challengeDefinitions.map((definition) => ({
   ...definition,
   tiers: definition.thresholds.map((threshold, index) => {
     const rank = ranks[index];
-    const titleReward = titleRewards(definition.rewardPrefix, rank);
-    const badgeReward = badgeRewards(definition.rewardPrefix, rank);
+    const normalizedThreshold =
+      typeof threshold === "number"
+        ? { threshold, femaleThreshold: null }
+        : { threshold: threshold.threshold, femaleThreshold: threshold.femaleThreshold ?? null };
+    const titleReward = titleRewards(definition.key, definition.rewardPrefix, rank);
+    const badgeReward = badgeRewards(definition.key, definition.rewardPrefix, rank);
 
     return {
       rank,
-      threshold,
+      threshold: normalizedThreshold.threshold,
+      femaleThreshold: normalizedThreshold.femaleThreshold,
       xpReward: 100 + index * 60,
       titleRewardKey: titleReward?.key ?? null,
       titleRewardLabel: titleReward?.label ?? null,
       badgeRewardKey: badgeReward?.key ?? null,
       badgeRewardLabel: badgeReward?.label ?? null,
+      badgeRewardIconKey: badgeReward?.iconKey ?? null,
     };
   }),
 }));

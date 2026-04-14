@@ -104,7 +104,10 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  updatePreferences: (payload: { preferredUnit: "kg" | "lb" }) =>
+  updatePreferences: (payload: {
+    preferredUnit?: "kg" | "lb";
+    gender?: "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY";
+  }) =>
     request<{ user: User }>("/auth/preferences", {
       method: "PATCH",
       body: JSON.stringify(payload),

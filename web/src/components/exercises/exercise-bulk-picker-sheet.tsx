@@ -78,8 +78,8 @@ export const ExerciseBulkPickerSheet = ({
         }
       }}
     >
-      <SheetContent side="bottom" className="flex max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
-        <div className="flex-1 overflow-y-auto px-6 pb-4 pt-6">
+      <SheetContent side="bottom" className="flex max-h-[92vh] flex-col overflow-hidden rounded-t-3xl border-border/90 bg-background p-0">
+        <div className="flex-1 overflow-y-auto bg-background px-6 pb-4 pt-6">
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
@@ -106,7 +106,7 @@ export const ExerciseBulkPickerSheet = ({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/70 bg-card p-3">
+          <div className="rounded-2xl border border-border/70 bg-card p-3 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Queued</p>
@@ -143,7 +143,7 @@ export const ExerciseBulkPickerSheet = ({
             </div>
           </div>
 
-          <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2 pr-1">
             {filteredExercises.length ? (
               filteredExercises.map((exercise) => {
                 const isSelected = selectedIds.has(exercise.id);
@@ -152,7 +152,7 @@ export const ExerciseBulkPickerSheet = ({
                   <button
                     key={exercise.id}
                     className={`w-full rounded-2xl border p-3 text-left transition ${
-                      isSelected ? "border-primary/50 bg-primary/5" : "border-border/70 bg-background/70"
+                      isSelected ? "border-primary/50 bg-primary/8" : "border-border/70 bg-card"
                     }`}
                     onClick={() =>
                       setSelected((current) =>
@@ -197,7 +197,7 @@ export const ExerciseBulkPickerSheet = ({
 
         </div>
         </div>
-        <div className="border-t border-border/70 bg-background/95 px-6 py-4 backdrop-blur">
+        <div className="sticky bottom-0 border-t border-border/80 bg-background px-6 py-4">
           <Button
             className="w-full"
             disabled={selected.length === 0}

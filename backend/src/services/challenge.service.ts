@@ -2,6 +2,7 @@ import {
   ActivityType,
   ChallengeCategory,
   ChallengeRank,
+  UserGender,
   WorkoutEntryType,
   WorkoutStatus,
 } from "@prisma/client";
@@ -51,6 +52,16 @@ const metricValue = (
   metrics: Record<string, number>,
   metricKey: string,
 ): number => metrics[metricKey] ?? 0;
+
+const usesFemaleChallengeThresholds = (gender: UserGender) => gender === UserGender.FEMALE;
+
+const effectiveThresholdForTier = (
+  tier: { threshold: number; femaleThreshold: number | null },
+  gender: UserGender,
+) =>
+  usesFemaleChallengeThresholds(gender) && typeof tier.femaleThreshold === "number"
+    ? tier.femaleThreshold
+    : tier.threshold;
 
 const estimateOneRepMax = (weight: number, reps: number) =>
   Number((weight * (1 + reps / 30)).toFixed(1));
@@ -211,6 +222,7 @@ const getUserChallengeMetrics = async (db: DbClient, userId: string) => {
   const exerciseSessionCounts = new Map<string, number>();
   const exercisePrCounts = new Map<string, number>();
   const exerciseBestOneRepMax = new Map<string, number>();
+  const exerciseBestLoggedWeight = new Map<string, number>();
 
   let totalTrainingMinutes = 0;
   let totalSetsLogged = 0;
@@ -253,6 +265,9 @@ const getUserChallengeMetrics = async (db: DbClient, userId: string) => {
       }
 
       if (typeof set.weight === "number") {
+        if (set.weight > (exerciseBestLoggedWeight.get(slug) ?? 0)) {
+          exerciseBestLoggedWeight.set(slug, set.weight);
+        }
         const estimate = estimateOneRepMax(set.weight, set.reps);
         if (estimate > (exerciseBestOneRepMax.get(slug) ?? 0)) {
           exerciseBestOneRepMax.set(slug, estimate);
@@ -300,6 +315,10 @@ const getUserChallengeMetrics = async (db: DbClient, userId: string) => {
     metrics[`exercise_e1rm:${slug}`] = value;
   }
 
+  for (const [slug, value] of exerciseBestLoggedWeight.entries()) {
+    metrics[`exercise_best_logged_weight:${slug}`] = value;
+  }
+
   return {
     user,
     metrics,
@@ -307,13 +326,14 @@ const getUserChallengeMetrics = async (db: DbClient, userId: string) => {
 };
 
 const applyUnlockedRewardDefaults = async (
-  db: Prisma.TransactionClient,
+  db: DbClient,
   userId: string,
   tier: {
     titleRewardKey: string | null;
     titleRewardLabel: string | null;
     badgeRewardKey: string | null;
     badgeRewardLabel: string | null;
+    badgeRewardIconKey: string | null;
   },
 ) => {
   const currentUser = await db.user.findUniqueOrThrow({
@@ -330,6 +350,7 @@ const applyUnlockedRewardDefaults = async (
   if (!currentUser.selectedBadgeKey && tier.badgeRewardKey && tier.badgeRewardLabel) {
     nextData.selectedBadgeKey = tier.badgeRewardKey;
     nextData.selectedBadgeLabel = tier.badgeRewardLabel;
+    nextData.selectedBadgeIconKey = tier.badgeRewardIconKey;
   }
 
   if (Object.keys(nextData).length) {
@@ -341,7 +362,7 @@ const applyUnlockedRewardDefaults = async (
 };
 
 export const syncUserChallengesInTransaction = async (
-  db: Prisma.TransactionClient,
+  db: DbClient,
   userId: string,
 ) => {
   const families: ChallengeFamilyWithTiers[] = await db.challengeFamily.findMany({
@@ -402,7 +423,7 @@ export const syncUserChallengesInTransaction = async (
       family.tiers
         .filter(
           (tier) =>
-            metricValue(metrics, family.metricKey) >= tier.threshold &&
+            metricValue(metrics, family.metricKey) >= effectiveThresholdForTier(tier, user.gender) &&
             !unlockedTierIds.has(tier.id),
         )
         .map((tier) => ({
@@ -477,7 +498,13 @@ export const syncUserChallenges = async (userId: string) =>
   syncUserChallengesInTransaction(prisma, userId);
 
 const buildChallengeReadModel = async (userId: string) => {
-  const [families, progressRows, unlocks] = await Promise.all([
+  const [user, families, progressRows, unlocks] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        gender: true,
+      },
+    }),
     prisma.challengeFamily.findMany({
       where: {
         isActive: true,
@@ -542,19 +569,21 @@ const buildChallengeReadModel = async (userId: string) => {
         ? {
             id: nextTier.id,
             rank: nextTier.rank,
-            threshold: nextTier.threshold,
+            threshold: effectiveThresholdForTier(nextTier, user.gender),
             xpReward: nextTier.xpReward,
-            remaining: Math.max(0, nextTier.threshold - progress),
+            remaining: Math.max(0, effectiveThresholdForTier(nextTier, user.gender) - progress),
             titleRewardKey: nextTier.titleRewardKey,
             titleRewardLabel: nextTier.titleRewardLabel,
             badgeRewardKey: nextTier.badgeRewardKey,
             badgeRewardLabel: nextTier.badgeRewardLabel,
+            badgeRewardIconKey: nextTier.badgeRewardIconKey,
           }
         : null,
       tiers: family.tiers.map((tier) => ({
         id: tier.id,
         rank: tier.rank,
-        threshold: tier.threshold,
+        threshold: effectiveThresholdForTier(tier, user.gender),
+        femaleThreshold: tier.femaleThreshold,
         xpReward: tier.xpReward,
         unlocked: unlockByTierId.has(tier.id),
         unlockedAt: unlockByTierId.get(tier.id) ?? null,
@@ -562,6 +591,7 @@ const buildChallengeReadModel = async (userId: string) => {
         titleRewardLabel: tier.titleRewardLabel,
         badgeRewardKey: tier.badgeRewardKey,
         badgeRewardLabel: tier.badgeRewardLabel,
+        badgeRewardIconKey: tier.badgeRewardIconKey,
       })),
     };
   });
@@ -578,13 +608,14 @@ const buildChallengeReadModel = async (userId: string) => {
     familyTitle: unlock.tier.family.title,
     iconKey: unlock.tier.family.iconKey,
     rank: unlock.tier.rank,
-    threshold: unlock.tier.threshold,
+    threshold: effectiveThresholdForTier(unlock.tier, user.gender),
     xpReward: unlock.tier.xpReward,
     unlockedAt: unlock.unlockedAt.toISOString(),
     titleRewardKey: unlock.tier.titleRewardKey,
     titleRewardLabel: unlock.tier.titleRewardLabel,
     badgeRewardKey: unlock.tier.badgeRewardKey,
     badgeRewardLabel: unlock.tier.badgeRewardLabel,
+    badgeRewardIconKey: unlock.tier.badgeRewardIconKey,
   }));
 
   const closestNext = familiesWithProgress
@@ -612,6 +643,7 @@ const buildChallengeReadModel = async (userId: string) => {
     .map((unlock) => ({
       key: unlock.tier.badgeRewardKey!,
       label: unlock.tier.badgeRewardLabel!,
+      iconKey: unlock.tier.badgeRewardIconKey,
       familyKey: unlock.tier.family.key,
       familyTitle: unlock.tier.family.title,
       rank: unlock.tier.rank,

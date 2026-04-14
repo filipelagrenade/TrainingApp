@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Award, BadgeCheck, Sparkles, Trophy } from "lucide-react";
+import { Award, BadgeCheck, Search, Sparkles, Trophy } from "lucide-react";
 import Link from "next/link";
 
 import { apiClient } from "@/lib/api-client";
 import type { ChallengeCategory, ChallengeFamily, ChallengeTier } from "@/lib/types";
 import { AuthCard } from "@/components/auth/auth-card";
 import {
+  ChallengeBadgeToken,
   ChallengeRankBadge,
   ChallengeToken,
   formatChallengeUnit,
@@ -18,6 +19,7 @@ import {
 import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { ScreenHero } from "@/components/ui/screen-hero";
@@ -30,6 +32,8 @@ const defaultCategory: ChallengeCategory = "CONSISTENCY";
 export const AchievementLibraryScreen = () => {
   const [category, setCategory] = useState<ChallengeCategory>(defaultCategory);
   const [selectedFamily, setSelectedFamily] = useState<ChallengeFamily | null>(null);
+  const [search, setSearch] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState<"all" | "in_progress" | "completed" | "locked">("all");
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -87,6 +91,36 @@ export const AchievementLibraryScreen = () => {
     ...library.summary.unlockedTitles.slice(0, 2),
     ...library.summary.unlockedBadges.slice(0, 2),
   ];
+  const filterFamilies = (families: ChallengeFamily[]) => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return families.filter((family) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        [family.title, family.description, family.categoryLabel]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch);
+
+      if (!matchesSearch) {
+        return false;
+      }
+
+      if (visibilityFilter === "completed") {
+        return family.nextTier === null;
+      }
+
+      if (visibilityFilter === "locked") {
+        return family.currentRank === null;
+      }
+
+      if (visibilityFilter === "in_progress") {
+        return family.nextTier !== null && family.progress > 0;
+      }
+
+      return true;
+    });
+  };
 
   return (
     <>
@@ -143,6 +177,33 @@ export const AchievementLibraryScreen = () => {
           </CardHeader>
         </Card>
 
+        <Card>
+          <CardContent className="space-y-4 p-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search challenges"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+            <Tabs
+              value={visibilityFilter}
+              onValueChange={(value) =>
+                setVisibilityFilter(value as "all" | "in_progress" | "completed" | "locked")
+              }
+            >
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="in_progress">Moving</TabsTrigger>
+                <TabsTrigger value="completed">Done</TabsTrigger>
+                <TabsTrigger value="locked">Locked</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
+
         <Tabs value={activeCategory.key} onValueChange={(value) => setCategory(value as ChallengeCategory)}>
           <TabsList className="w-full justify-start overflow-x-auto">
             {categories.map((item) => (
@@ -154,9 +215,9 @@ export const AchievementLibraryScreen = () => {
 
           {categories.map((item) => (
             <TabsContent key={item.key} value={item.key} className="space-y-4">
-              {item.families.length ? (
+              {filterFamilies(item.families).length ? (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {item.families.map((family) => (
+                  {filterFamilies(item.families).map((family) => (
                     <button
                       key={family.id}
                       type="button"
@@ -195,7 +256,7 @@ export const AchievementLibraryScreen = () => {
               ) : (
                 <Card>
                   <CardContent className="p-6 text-sm text-muted-foreground">
-                    No challenges are available in this category yet.
+                    No challenges match the current filters.
                   </CardContent>
                 </Card>
               )}
@@ -316,16 +377,25 @@ const TierRow = ({
     }`}
   >
     <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <ChallengeRankBadge rank={tier.rank} />
+      <div className="flex flex-wrap items-center gap-2">
+        <ChallengeRankBadge rank={tier.rank} />
         <span className="text-sm text-muted-foreground">
           {formatChallengeUnit(tier.threshold, family.unitSingular, family.unitPlural)}
         </span>
-        </div>
+      </div>
       <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
         <span>{tier.xpReward} XP</span>
         {tier.titleRewardLabel ? <span>Title: {tier.titleRewardLabel}</span> : null}
-        {tier.badgeRewardLabel ? <span>Badge: {tier.badgeRewardLabel}</span> : null}
+        {tier.badgeRewardLabel ? (
+          <span className="inline-flex items-center gap-2">
+            <ChallengeBadgeToken
+              iconKey={tier.badgeRewardIconKey ?? "award"}
+              rank={tier.rank}
+              className="h-6 w-6"
+            />
+            {tier.badgeRewardLabel}
+          </span>
+        ) : null}
       </div>
     </div>
     {tier.unlocked ? <Badge>Unlocked</Badge> : <Badge variant="outline">Locked</Badge>}

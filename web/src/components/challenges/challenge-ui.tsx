@@ -5,9 +5,11 @@ import {
   Award,
   BookOpen,
   CalendarDays,
+  Crown,
   Dumbbell,
   Flag,
   Flame,
+  Infinity,
   Medal,
   Shield,
   Target,
@@ -33,6 +35,8 @@ const iconMap: Record<string, LucideIcon> = {
   book: BookOpen,
   users: Users,
   target: Target,
+  crown: Crown,
+  infinity: Infinity,
 };
 
 const rankLabelMap: Record<ChallengeRank, string> = {
@@ -46,23 +50,23 @@ const rankLabelMap: Record<ChallengeRank, string> = {
 };
 
 const rankClassMap: Record<ChallengeRank, string> = {
-  ROOKIE: "border-border/70 bg-secondary/70 text-foreground",
-  REGULAR: "border-sky-500/25 bg-sky-500/12 text-sky-200",
-  DEDICATED: "border-emerald-500/25 bg-emerald-500/12 text-emerald-200",
-  SERIOUS: "border-violet-500/25 bg-violet-500/12 text-violet-200",
-  SAVAGE: "border-rose-500/25 bg-rose-500/12 text-rose-200",
-  TITAN: "border-amber-500/30 bg-amber-500/12 text-amber-200",
-  GOD: "border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-200",
+  ROOKIE: "border-zinc-500/40 bg-zinc-500/15 text-zinc-100",
+  REGULAR: "border-sky-400/45 bg-sky-400/18 text-sky-50",
+  DEDICATED: "border-emerald-400/45 bg-emerald-400/18 text-emerald-50",
+  SERIOUS: "border-violet-400/45 bg-violet-400/18 text-violet-50",
+  SAVAGE: "border-rose-400/50 bg-rose-400/20 text-rose-50",
+  TITAN: "border-amber-300/55 bg-amber-300/20 text-amber-50",
+  GOD: "border-fuchsia-300/60 bg-fuchsia-400/24 text-fuchsia-50",
 };
 
 const rankTokenClassMap: Record<ChallengeRank, string> = {
-  ROOKIE: "border-border/70 bg-zinc-400/10 text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
-  REGULAR: "border-sky-400/30 bg-sky-400/12 text-sky-100 shadow-[0_0_30px_rgba(56,189,248,0.16)]",
-  DEDICATED: "border-emerald-400/30 bg-emerald-400/12 text-emerald-100 shadow-[0_0_30px_rgba(52,211,153,0.16)]",
-  SERIOUS: "border-violet-400/30 bg-violet-400/12 text-violet-100 shadow-[0_0_30px_rgba(167,139,250,0.18)]",
-  SAVAGE: "border-rose-400/30 bg-rose-400/12 text-rose-100 shadow-[0_0_30px_rgba(251,113,133,0.18)]",
-  TITAN: "border-amber-400/35 bg-amber-400/12 text-amber-100 shadow-[0_0_30px_rgba(251,191,36,0.18)]",
-  GOD: "border-fuchsia-400/35 bg-fuchsia-400/14 text-fuchsia-100 shadow-[0_0_32px_rgba(232,121,249,0.22)]",
+  ROOKIE: "border-zinc-500/50 bg-gradient-to-br from-zinc-600/30 to-zinc-800/60 text-zinc-100 shadow-[0_0_18px_rgba(63,63,70,0.35)]",
+  REGULAR: "border-sky-400/60 bg-gradient-to-br from-sky-300/30 to-sky-700/60 text-sky-50 shadow-[0_0_24px_rgba(56,189,248,0.32)]",
+  DEDICATED: "border-emerald-400/60 bg-gradient-to-br from-emerald-300/30 to-emerald-700/60 text-emerald-50 shadow-[0_0_24px_rgba(52,211,153,0.32)]",
+  SERIOUS: "border-violet-400/60 bg-gradient-to-br from-violet-300/32 to-violet-700/62 text-violet-50 shadow-[0_0_26px_rgba(167,139,250,0.36)]",
+  SAVAGE: "border-rose-400/65 bg-gradient-to-br from-rose-300/35 to-red-700/62 text-rose-50 shadow-[0_0_28px_rgba(251,113,133,0.4)]",
+  TITAN: "border-amber-300/70 bg-gradient-to-br from-amber-200/40 to-orange-700/62 text-amber-50 shadow-[0_0_28px_rgba(251,191,36,0.42)]",
+  GOD: "border-fuchsia-300/75 bg-gradient-to-br from-fuchsia-300/40 via-violet-500/35 to-cyan-500/60 text-white shadow-[0_0_30px_rgba(232,121,249,0.48)]",
 };
 
 export const getChallengeIcon = (iconKey: string): LucideIcon => iconMap[iconKey] ?? Shield;
@@ -130,6 +134,30 @@ export const ChallengeToken = ({
     >
       <div className="absolute inset-[8px] rounded-full border border-white/8 bg-background/55" />
       <Icon className="relative z-10 h-9 w-9" />
+    </div>
+  );
+};
+
+export const ChallengeBadgeToken = ({
+  iconKey,
+  rank,
+  className,
+}: {
+  iconKey: string;
+  rank: ChallengeRank | null;
+  className?: string;
+}) => {
+  const Icon = getChallengeIcon(iconKey);
+
+  return (
+    <div
+      className={cn(
+        "inline-flex h-9 w-9 items-center justify-center rounded-full border",
+        getChallengeTokenClasses(rank),
+        className,
+      )}
+    >
+      <Icon className="h-4 w-4" />
     </div>
   );
 };
