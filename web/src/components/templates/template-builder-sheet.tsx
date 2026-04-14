@@ -84,12 +84,15 @@ export const TemplateBuilderSheet = ({
           }
         }}
       >
-        <SheetContent side="bottom" className="max-h-[95vh] overflow-y-auto rounded-t-3xl">
-          <SheetHeader>
-            <SheetTitle>Create template</SheetTitle>
-            <SheetDescription>Build a single reusable workout without going through a program.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-6 space-y-4">
+        <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-3xl p-0">
+          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+            <SheetHeader>
+              <SheetTitle>Create template</SheetTitle>
+              <SheetDescription>Build a single reusable workout without going through a program.</SheetDescription>
+            </SheetHeader>
+          </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6">
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="template-name-builder">Template name</Label>
               <Input
@@ -318,7 +321,8 @@ export const TemplateBuilderSheet = ({
               />
             </div>
           </div>
-          <SheetFooter className="mt-6">
+          </div>
+          <SheetFooter className="border-t border-border/80 bg-background px-6 py-4">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
@@ -335,6 +339,7 @@ export const TemplateBuilderSheet = ({
       <ExerciseBulkPickerSheet
         description="Queue several exercises, then drop them into this template all at once."
         exercises={exercises}
+        modal={false}
         onConfirm={(selected) =>
           setItems((current) => [
             ...current,
@@ -348,6 +353,7 @@ export const TemplateBuilderSheet = ({
       <ExerciseSearchSheet
         description="Pick an exercise to add to this template."
         exercises={exercises}
+        modal={false}
         onOpenChange={setAddExerciseOpen}
         onSelect={(exercise) => {
           const blank = createBlankDayDraft(exercise, 1).exercises[0];

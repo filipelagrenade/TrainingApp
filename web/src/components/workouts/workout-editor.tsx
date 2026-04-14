@@ -1999,6 +1999,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       <ExerciseBulkPickerSheet
         description="Queue multiple exercises, then drop them into the workout together."
         exercises={availableExercises}
+        modal={false}
         onConfirm={addExercisesToWorkout}
         onOpenChange={setBulkSheetOpen}
         open={bulkSheetOpen}
@@ -2010,6 +2011,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         exercises={availableExercises.filter(
           (exercise) => exercise.id !== activeExercise?.exerciseId,
         )}
+        modal={false}
         onOpenChange={setSubstituteSheetOpen}
         onSelect={(exercise) =>
           substituteMutation.mutate({
@@ -2075,7 +2077,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           {activeExercise ? (
             <div className="mt-6 space-y-4">
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => setSubstituteSheetOpen(true)}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDetailsSheetOpen(false);
+                    setSubstituteSheetOpen(true);
+                  }}
+                >
                   <Shuffle className="h-4 w-4" />
                   Swap exercise
                 </Button>
@@ -2092,7 +2100,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     Remove superset
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={() => setSupersetSheetOpen(true)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDetailsSheetOpen(false);
+                      setSupersetSheetOpen(true);
+                    }}
+                  >
                     <Link2 className="h-4 w-4" />
                     Pair superset
                   </Button>

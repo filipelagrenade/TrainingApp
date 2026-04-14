@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ExerciseBulkPickerSheetProps = {
   exercises: Exercise[];
+  modal?: boolean;
   onConfirm: (selected: Exercise[]) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -23,6 +24,7 @@ type ExerciseBulkPickerSheetProps = {
 export const ExerciseBulkPickerSheet = ({
   description = "Tap exercises to queue them, then insert them all at once.",
   exercises,
+  modal = true,
   onConfirm,
   onOpenChange,
   open,
@@ -68,6 +70,7 @@ export const ExerciseBulkPickerSheet = ({
 
   return (
     <Sheet
+      modal={modal}
       open={open}
       onOpenChange={(nextOpen) => {
         onOpenChange(nextOpen);
@@ -78,34 +81,37 @@ export const ExerciseBulkPickerSheet = ({
         }
       }}
     >
-      <SheetContent side="bottom" className="flex max-h-[92vh] flex-col overflow-hidden rounded-t-3xl border-border/90 bg-background p-0">
-        <div className="flex-1 overflow-y-auto bg-background px-6 pb-4 pt-6">
-        <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
-        </SheetHeader>
-        <div className="mt-6 space-y-4">
-          <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="system">System</TabsTrigger>
-              <TabsTrigger value="custom">Custom</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="space-y-2">
-            <Label htmlFor="bulk-exercise-search">Exercise library</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="bulk-exercise-search"
-                className="pl-9"
-                placeholder="Search by name, equipment, or muscle"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
+      <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl border-border/90 bg-background p-0">
+        <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+          <SheetHeader>
+            <SheetTitle>{title}</SheetTitle>
+            <SheetDescription>{description}</SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="system">System</TabsTrigger>
+                <TabsTrigger value="custom">Custom</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="space-y-2">
+              <Label htmlFor="bulk-exercise-search">Exercise library</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="bulk-exercise-search"
+                  className="pl-9"
+                  placeholder="Search by name, equipment, or muscle"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </div>
             </div>
           </div>
+        </div>
 
+        <div className="flex-1 overflow-y-auto overscroll-contain bg-background px-6 py-4">
           <div className="rounded-2xl border border-border/70 bg-card p-3 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -143,7 +149,7 @@ export const ExerciseBulkPickerSheet = ({
             </div>
           </div>
 
-          <div className="space-y-2 pr-1">
+          <div className="mt-4 space-y-2 pr-1">
             {filteredExercises.length ? (
               filteredExercises.map((exercise) => {
                 const isSelected = selectedIds.has(exercise.id);
@@ -194,9 +200,8 @@ export const ExerciseBulkPickerSheet = ({
               </div>
             )}
           </div>
+        </div>
 
-        </div>
-        </div>
         <div className="sticky bottom-0 border-t border-border/80 bg-background px-6 py-4">
           <Button
             className="w-full"

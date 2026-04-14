@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Plus, Trash2, Wand2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
@@ -51,13 +51,12 @@ export const DayEditorSheet = ({
   const [prompt, setPrompt] = useState("");
   const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
   const [exercisePickerIndex, setExercisePickerIndex] = useState<number | null>(null);
+  const [addingExercise, setAddingExercise] = useState(false);
 
   useEffect(() => {
     setLocalDay(day);
     setPrompt("");
   }, [day]);
-
-  const firstExerciseId = useMemo(() => exercises[0]?.id, [exercises]);
 
   const generateMutation = useMutation({
     mutationFn: (nextPrompt: string) => apiClient.generateTemplateDraft({ prompt: nextPrompt }),
@@ -83,14 +82,17 @@ export const DayEditorSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[95vh] overflow-y-auto rounded-t-3xl">
-        <SheetHeader>
-          <SheetTitle>Edit day</SheetTitle>
-          <SheetDescription>
-            Keep this focused on one session. You can always duplicate or reorder later.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="mt-6 space-y-5">
+      <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-3xl p-0">
+        <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+          <SheetHeader>
+            <SheetTitle>Edit day</SheetTitle>
+            <SheetDescription>
+              Keep this focused on one session. You can always duplicate or reorder later.
+            </SheetDescription>
+          </SheetHeader>
+        </div>
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6">
+        <div className="space-y-5">
           <div className="rounded-2xl border border-border/70 bg-card p-4">
             <div className="space-y-3">
               <Label htmlFor="day-prompt">Generate from prompt</Label>
@@ -541,23 +543,7 @@ export const DayEditorSheet = ({
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              onClick={() =>
-                setLocalDay((current) => {
-                  const draftExercise = createBlankDayDraft(
-                    exercises.find((exercise) => exercise.id === firstExerciseId),
-                    1,
-                  ).exercises[0];
-
-                  if (!current || !draftExercise) {
-                    return current;
-                  }
-
-                  return {
-                    ...current,
-                    exercises: [...current.exercises, draftExercise],
-                  };
-                })
-              }
+              onClick={() => setAddingExercise(true)}
             >
               <Plus className="h-4 w-4" />
               Add exercise
@@ -569,7 +555,8 @@ export const DayEditorSheet = ({
             <ExerciseCreatorDialog triggerLabel="New custom exercise" />
           </div>
         </div>
-        <SheetFooter className="mt-6">
+        </div>
+        <SheetFooter className="border-t border-border/80 bg-background px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -586,6 +573,7 @@ export const DayEditorSheet = ({
       <ExerciseBulkPickerSheet
         description="Queue several exercises, then add them to this day in one go."
         exercises={exercises}
+        modal={false}
         onConfirm={(selectedExercises) =>
           setLocalDay((current) =>
             current
@@ -606,30 +594,44 @@ export const DayEditorSheet = ({
       <ExerciseSearchSheet
         description="Find the movement quickly by name, machine, or muscle."
         exercises={exercises}
+        modal={false}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             setExercisePickerIndex(null);
+            setAddingExercise(false);
           }
         }}
         onSelect={(selectedExercise) =>
           setLocalDay((current) =>
-            current && exercisePickerIndex !== null
-              ? {
-                  ...current,
-                  exercises: current.exercises.map((candidate, index) =>
-                    index === exercisePickerIndex
+            current
+              ? addingExercise
+                ? (() => {
+                    const draftExercise = createBlankDayDraft(selectedExercise, 1).exercises[0];
+                    return draftExercise
                       ? {
-                          ...candidate,
-                          exerciseId: selectedExercise.id,
-                          exerciseName: selectedExercise.name,
+                          ...current,
+                          exercises: [...current.exercises, draftExercise],
                         }
-                      : candidate,
-                  ),
-                }
+                      : current;
+                  })()
+                : exercisePickerIndex !== null
+                  ? {
+                      ...current,
+                      exercises: current.exercises.map((candidate, index) =>
+                        index === exercisePickerIndex
+                          ? {
+                              ...candidate,
+                              exerciseId: selectedExercise.id,
+                              exerciseName: selectedExercise.name,
+                            }
+                          : candidate,
+                      ),
+                    }
+                  : current
               : current,
           )
         }
-        open={exercisePickerIndex !== null}
+        open={exercisePickerIndex !== null || addingExercise}
         selectedExerciseId={
           exercisePickerIndex !== null ? localDay.exercises[exercisePickerIndex]?.exerciseId ?? null : null
         }

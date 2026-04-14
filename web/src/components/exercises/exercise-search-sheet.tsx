@@ -18,6 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export const ExerciseSearchSheet = ({
   description,
   exercises,
+  modal = true,
   onOpenChange,
   onSelect,
   open,
@@ -28,6 +29,7 @@ export const ExerciseSearchSheet = ({
 }: {
   description: string;
   exercises: Exercise[];
+  modal?: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (exercise: Exercise) => void;
   open: boolean;
@@ -77,6 +79,7 @@ export const ExerciseSearchSheet = ({
 
   return (
     <Sheet
+      modal={modal}
       open={open}
       onOpenChange={(nextOpen) => {
         onOpenChange(nextOpen);
@@ -86,28 +89,33 @@ export const ExerciseSearchSheet = ({
         }
       }}
     >
-      <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-3xl">
-        <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
-        </SheetHeader>
-        <div className="mt-6 space-y-4">
-          <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="system">System</TabsTrigger>
-              <TabsTrigger value="custom">Custom</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Search exercise, muscle, machine, or attachment"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+      <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
+        <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+          <SheetHeader>
+            <SheetTitle>{title}</SheetTitle>
+            <SheetDescription>{description}</SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="system">System</TabsTrigger>
+                <TabsTrigger value="custom">Custom</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search exercise, muscle, machine, or attachment"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
           </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
           <div className="space-y-2">
             {filteredExercises.length ? (
               filteredExercises.map((exercise) => {
