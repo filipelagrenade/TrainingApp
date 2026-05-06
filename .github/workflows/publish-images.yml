@@ -116,3 +116,24 @@ jobs:
           labels: ${{ steps.web-meta.outputs.labels }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [publish-backend, publish-web]
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.publish-backend.result == 'success' || needs.publish-backend.result == 'skipped') &&
+      (needs.publish-web.result == 'success' || needs.publish-web.result == 'skipped')
+    steps:
+      - name: Deploy to droplet
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            cd /root/TrainingApp
+            git pull origin main
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker image prune -f
