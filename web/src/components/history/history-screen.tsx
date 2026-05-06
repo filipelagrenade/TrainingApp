@@ -78,7 +78,9 @@ export const HistoryScreen = () => {
       />
 
       <div>
+        <label htmlFor="history-search" className="sr-only">Search workouts</label>
         <Input
+          id="history-search"
           placeholder="Search title, entry type, or notes"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -99,7 +101,7 @@ export const HistoryScreen = () => {
               <li key={workout.id}>
                 <Link
                   href={`/workouts/${workout.id}`}
-                  className="grid grid-cols-[88px_1fr_auto] items-baseline gap-x-5 gap-y-1 py-6 transition-colors hover:bg-surface-sunken -mx-2 px-2"
+                  className="grid grid-cols-[72px_1fr] items-baseline gap-x-4 gap-y-1 py-6 transition-colors hover:bg-surface-sunken -mx-2 px-2"
                 >
                   <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted leading-tight">
                     {date ? (
@@ -107,8 +109,6 @@ export const HistoryScreen = () => {
                         {format(date, "EEE")}
                         <br />
                         <span className="text-ink">{format(date, "LLL d")}</span>
-                        <br />
-                        <span className="text-ink-subtle">{format(date, "yyyy")}</span>
                       </>
                     ) : (
                       <span>In progress</span>
@@ -131,10 +131,6 @@ export const HistoryScreen = () => {
                       </p>
                     ) : null}
                   </div>
-
-                  <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted self-center">
-                    Open →
-                  </span>
                 </Link>
               </li>
             );

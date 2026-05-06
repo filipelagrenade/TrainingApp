@@ -211,7 +211,7 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
       {profile.editable ? (
         <Link
           href="/achievements"
-          className="flex items-center justify-between border-y border-rule py-4 transition-colors hover:bg-surface-sunken -mx-2 px-2"
+          className="flex items-center justify-between rounded-md border border-rule px-4 py-4 transition-colors hover:bg-surface-sunken"
         >
           <div>
             <p className="font-display font-semibold text-ink">Achievements</p>
@@ -295,6 +295,7 @@ const ShowcaseChoice = ({
   <button
     type="button"
     onClick={onClick}
+    aria-pressed={active}
     className={`surface-panel-soft flex w-full items-center justify-between gap-3 p-4 text-left transition-colors ${
       active ? "border-rule-strong bg-surface-sunken" : ""
     }`}

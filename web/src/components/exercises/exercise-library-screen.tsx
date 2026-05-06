@@ -97,24 +97,6 @@ export const ExerciseLibraryScreen = () => {
       );
   }, [exercisesQuery.data, query, scope]);
 
-  if (meQuery.isLoading) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-64" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (meQuery.isError || !meQuery.data) {
-    return (
-      <div className="grid min-h-[calc(100vh-3rem)] place-items-center">
-        <AuthCard onSuccess={() => meQuery.refetch()} />
-      </div>
-    );
-  }
-
   const exercises = exercisesQuery.data ?? [];
   const customCount = exercises.filter((exercise) => !exercise.isSystem).length;
   const deleteExerciseTarget = exercises.find((exercise) => exercise.id === deleteExerciseId) ?? null;
@@ -155,6 +137,24 @@ export const ExerciseLibraryScreen = () => {
       });
   }, [availableDeleteReplacementTargets, deleteReplacementQuery, deleteReplacementScope]);
 
+  if (meQuery.isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <Skeleton className="h-64" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (meQuery.isError || !meQuery.data) {
+    return (
+      <div className="grid min-h-[calc(100vh-3rem)] place-items-center">
+        <AuthCard onSuccess={() => meQuery.refetch()} />
+      </div>
+    );
+  }
+
   return (
     <div className="app-grid">
       <ScreenHero
@@ -188,6 +188,7 @@ export const ExerciseLibraryScreen = () => {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             <Input
               className="pl-9"
+              aria-label="Search exercises"
               placeholder="Search exercise, machine, attachment, or muscle"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -237,16 +238,17 @@ export const ExerciseLibraryScreen = () => {
                   </Link>
                 </Button>
                 {!exercise.isSystem ? (
-                        <Button
-                          className="w-full"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setDeleteExerciseId(exercise.id);
-                            setDeleteConfirmOpen(true);
-                            setDeleteReplacementExerciseId(null);
-                          }}
-                        >
+                  <Button
+                    className="w-full text-danger hover:text-danger"
+                    size="sm"
+                    variant="outline"
+                    aria-label={`Delete ${exercise.name}`}
+                    onClick={() => {
+                      setDeleteExerciseId(exercise.id);
+                      setDeleteConfirmOpen(true);
+                      setDeleteReplacementExerciseId(null);
+                    }}
+                  >
                     Delete exercise
                   </Button>
                 ) : null}

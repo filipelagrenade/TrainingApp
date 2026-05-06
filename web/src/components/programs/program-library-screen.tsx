@@ -144,7 +144,7 @@ export const ProgramLibraryScreen = () => {
                     </Button>
                   ) : null}
                   {program.status !== "ACTIVE" ? (
-                    <Button size="sm" variant="outline" onClick={() => setActivationProgram(program)}>
+                    <Button size="sm" variant="default" onClick={() => setActivationProgram(program)}>
                       Activate
                     </Button>
                   ) : null}
@@ -154,7 +154,16 @@ export const ProgramLibraryScreen = () => {
                     </Button>
                   ) : null}
                   {!program.isSystem ? (
-                    <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(program.id)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-danger hover:text-danger"
+                      onClick={() => {
+                        if (window.confirm(`Delete "${program.name}"? This cannot be undone.`)) {
+                          deleteMutation.mutate(program.id);
+                        }
+                      }}
+                    >
                       Delete
                     </Button>
                   ) : null}
@@ -164,8 +173,11 @@ export const ProgramLibraryScreen = () => {
           ))
         ) : (
           <Card className="md:col-span-2">
-            <CardContent className="p-6 text-center text-sm text-ink-muted">
-              No programs yet. Create your first block to start tracking progression properly.
+            <CardContent className="p-6 text-center space-y-3">
+              <p className="text-sm text-ink-muted">No programs yet. Create your first block to start tracking progression properly.</p>
+              <Button asChild size="sm">
+                <Link href="/programs/new">Create program</Link>
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -202,7 +214,7 @@ const Metric = ({
   value: string;
 }) => (
   <div className="surface-panel flex h-full min-h-[3.9rem] flex-col justify-between overflow-hidden p-2">
-    <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.1em] text-ink-muted">
+    <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.1em] text-ink-muted">
       <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-accent">
         <Icon className="h-3 w-3" />
       </div>

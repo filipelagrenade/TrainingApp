@@ -149,34 +149,35 @@ export const DashboardScreen = ({ user }: { user: User }) => {
       </header>
 
       {/* Primary CTA strip */}
-      <div className="flex flex-wrap items-center gap-2 border-y border-rule py-4">
-        {inProgressWorkout ? (
-          <Button onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)} variant="accent">
-            Resume workout
-            <ArrowRight className="h-4 w-4" />
+      <div className="border-y border-rule py-4 space-y-2">
+        <div className="flex items-center gap-2">
+          {inProgressWorkout ? (
+            <Button onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)} variant="accent">
+              Resume workout
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button onClick={() => requestStartWorkout({ entryType: "QUICK" })}>
+              Start a quick workout
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="ghost">
+            <Link href="/programs">Programs</Link>
           </Button>
-        ) : (
-          <Button onClick={() => requestStartWorkout({ entryType: "QUICK" })}>
-            Start a quick workout
-            <ArrowRight className="h-4 w-4" />
+          <Button asChild variant="ghost">
+            <Link href="/exercises">Exercises</Link>
           </Button>
-        )}
-        <Button asChild variant="ghost">
-          <Link href="/programs">Programs</Link>
-        </Button>
-        <Button asChild variant="ghost">
-          <Link href="/exercises">Exercises</Link>
-        </Button>
-        <span className="ml-auto flex items-center gap-1">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/settings">
-              <Settings2 className="h-4 w-4" />
-            </Link>
-          </Button>
-          <Button variant="quiet" size="sm" onClick={() => logoutMutation.mutate()}>
-            Sign out
-          </Button>
-        </span>
+          <span className="ml-auto">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/settings" aria-label="Settings">
+                <Settings2 className="h-4 w-4" />
+              </Link>
+            </Button>
+          </span>
+        </div>
       </div>
 
       {/* In-progress session */}
@@ -254,6 +255,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
                       <Button
                         size="sm"
                         variant="quiet"
+                        aria-label="Skip workout"
                         onClick={() =>
                           skipWorkoutMutation.mutate({
                             programId: activeProgram.id,

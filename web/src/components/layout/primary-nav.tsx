@@ -34,17 +34,15 @@ export const PrimaryNav = () => {
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex flex-col items-center justify-center gap-1 px-1 py-3 transition-colors focus-visible:outline-none focus-visible:bg-surface-sunken",
+                  "relative flex flex-col items-center justify-center gap-1 px-1 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-1 rounded-sm",
                   active ? "text-ink" : "text-ink-muted hover:text-ink",
                 )}
               >
                 <Icon className="h-4 w-4" strokeWidth={1.75} />
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] hidden sm:inline">
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em]">
                   {item.label}
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] sm:hidden">
-                  {item.short}
                 </span>
                 {active ? (
                   <motion.span

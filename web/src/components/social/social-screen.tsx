@@ -120,6 +120,7 @@ export const SocialScreen = () => {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             <Input
               className="pl-9"
+              aria-label="Search users"
               placeholder="Search by name or email"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -221,6 +222,8 @@ export const SocialScreen = () => {
           <CardContent className="space-y-3">
             {leaderboardQuery.isLoading ? (
               <Skeleton className="h-36" />
+            ) : !leaderboardQuery.data?.length ? (
+              <p className="text-sm text-ink-muted py-2">No one on the leaderboard yet. Train and earn XP to appear here.</p>
             ) : (
               leaderboardQuery.data?.map((entry) => (
                 <div key={entry.userId} className="surface-panel-soft flex items-center justify-between gap-3 p-3">
@@ -263,6 +266,8 @@ export const SocialScreen = () => {
           <CardContent className="space-y-3">
             {challengesQuery.isLoading ? (
               <Skeleton className="h-36" />
+            ) : !challengesQuery.data?.length ? (
+              <p className="text-sm text-ink-muted py-2">No active challenges right now. Check back soon.</p>
             ) : (
               challengesQuery.data?.map((challenge) => (
                 <div key={challenge.id} className="surface-panel p-4">

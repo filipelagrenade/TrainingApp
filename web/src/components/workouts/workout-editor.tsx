@@ -1058,6 +1058,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     size="icon"
                     type="button"
                     variant="ghost"
+                    aria-label={session.pausedAt ? "Resume workout" : "Pause workout"}
                     onClick={() =>
                       session.pausedAt
                         ? resumeWorkoutMutation.mutate()
@@ -1091,34 +1092,33 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   <BellRing className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button className="h-10" variant="outline" onClick={() => setBulkSheetOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  Bulk add
-                </Button>
-                <Button
-                  className="h-10"
-                  onClick={session.status === "COMPLETED" ? handleSaveCompletedWorkout : handleCompleteWorkout}
-                  disabled={
-                    session.status === "COMPLETED"
-                      ? updateCompletedWorkoutMutation.isPending || draft.exercises.length === 0
-                      : completeMutation.isPending || draft.exercises.length === 0
-                  }
-                >
-                  {session.status === "COMPLETED"
-                    ? updateCompletedWorkoutMutation.isPending
-                      ? "Saving..."
-                      : "Save changes"
-                    : completeMutation.isPending
-                      ? "Completing..."
-                      : "Complete workout"}
-                </Button>
-              </div>
+              <Button
+                className="w-full h-10"
+                variant="accent"
+                onClick={session.status === "COMPLETED" ? handleSaveCompletedWorkout : handleCompleteWorkout}
+                disabled={
+                  session.status === "COMPLETED"
+                    ? updateCompletedWorkoutMutation.isPending || draft.exercises.length === 0
+                    : completeMutation.isPending || draft.exercises.length === 0
+                }
+              >
+                {session.status === "COMPLETED"
+                  ? updateCompletedWorkoutMutation.isPending
+                    ? "Saving..."
+                    : "Save changes"
+                  : completeMutation.isPending
+                    ? "Completing..."
+                    : "Complete workout"}
+              </Button>
+              <Button className="w-full h-9" variant="outline" onClick={() => setBulkSheetOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Bulk add exercises
+              </Button>
             </div>
           )}
         </div>
       </div>
-      <div className="sticky top-9 z-20 -mx-5 border-b border-rule bg-surface/95 backdrop-blur-sm px-5 py-3">
+      <div className="sticky top-0 z-20 -mx-5 border-b border-rule bg-surface/95 backdrop-blur-sm px-5 py-3">
         <div className="flex gap-2 overflow-x-auto pb-1">
           {draft.exercises.map((exercise, index) => (
             <button
@@ -1301,6 +1301,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               ? "border-ink bg-ink text-surface"
                               : "border-rule bg-surface-raised text-ink"
                           }`}
+                          aria-label={isDone ? `Undo set ${set.setNumber}` : `Mark set ${set.setNumber} complete`}
+                          aria-pressed={isDone}
                           onClick={() => toggleSetCompleted(setIndex)}
                           type="button"
                         >
@@ -1336,6 +1338,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                         <Button
                           size="icon"
                           variant="ghost"
+                          aria-label={isExpanded ? "Collapse set details" : "Expand set details"}
+                          aria-expanded={isExpanded}
                           onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
                         >
                           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

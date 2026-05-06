@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { AuthCard } from "@/components/auth/auth-card";
@@ -18,6 +19,8 @@ const REST_DEFAULTS = [60, 90, 120, 180];
 
 export const SettingsScreen = () => {
   const [restDefault, setRestDefault] = useState("90");
+  const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">("unsupported");
+  const router = useRouter();
   const queryClient = useQueryClient();
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -32,8 +35,27 @@ export const SettingsScreen = () => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const notificationState =
-    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported";
+  const logoutMutation = useMutation({
+    mutationFn: apiClient.logout,
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: ["me"] });
+      toast.success("Signed out");
+      router.push("/");
+    },
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifState(Notification.permission);
+    }
+  }, []);
+
+  const handleEnableNotifications = async () => {
+    const result = await Notification.requestPermission();
+    setNotifState(result);
+    if (result === "granted") toast.success("Notifications enabled");
+    else if (result === "denied") toast.error("Notifications blocked — enable them in browser settings");
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -147,17 +169,37 @@ export const SettingsScreen = () => {
         <div className="flex items-center justify-between gap-3 border-y border-rule py-4">
           <div className="space-y-0.5">
             <p className="text-ink">
-              {notificationState === "granted"
+              {notifState === "granted"
                 ? "Enabled"
-                : notificationState === "denied"
-                  ? "Blocked"
-                  : notificationState === "unsupported"
-                    ? "Unavailable"
+                : notifState === "denied"
+                  ? "Blocked in browser"
+                  : notifState === "unsupported"
+                    ? "Unavailable on this device"
                     : "Not enabled"}
             </p>
-            <p className="text-sm text-ink-muted">Turn them on from the active workout timer.</p>
+            <p className="text-sm text-ink-muted">
+              {notifState === "denied"
+                ? "Allow notifications in your browser site settings to enable."
+                : "Used for rest timer alerts during workouts."}
+            </p>
           </div>
+          {notifState === "default" ? (
+            <Button size="sm" variant="outline" onClick={handleEnableNotifications}>
+              Enable
+            </Button>
+          ) : null}
         </div>
+      </Section>
+
+      <Section eyebrow="06" title="Account" description="Sign out on this device.">
+        <Button
+          variant="outline"
+          className="text-danger border-danger/40 hover:bg-danger/5"
+          onClick={() => logoutMutation.mutate()}
+          disabled={logoutMutation.isPending}
+        >
+          {logoutMutation.isPending ? "Signing out…" : "Sign out"}
+        </Button>
       </Section>
     </div>
   );
