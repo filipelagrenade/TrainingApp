@@ -30,7 +30,7 @@ export const ActiveWorkoutGuardDialog = ({
       <DialogHeader>
         <DialogTitle>Active workout already running</DialogTitle>
         <DialogDescription>
-          You currently have <span className="font-medium text-foreground">{activeWorkoutTitle}</span> in
+          You currently have <span className="font-medium text-ink">{activeWorkoutTitle}</span> in
           progress. You can return to it, or cancel it and start this workout instead.
         </DialogDescription>
       </DialogHeader>

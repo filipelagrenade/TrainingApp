@@ -92,7 +92,7 @@ export const ProgramActivationDialog = ({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-ink-muted">
                 Choosing a later day will mark earlier workouts in that week as skipped so your progression starts in the right place.
               </p>
             </div>

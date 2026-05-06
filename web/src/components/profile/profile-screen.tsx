@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { Sparkles, Trophy } from "lucide-react";
+import { ArrowRight, Sparkles, Trophy } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
@@ -119,7 +120,7 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
           <div className="flex flex-wrap items-center gap-2">
             {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
             {user.selectedBadgeLabel ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1.5 text-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-rule bg-surface px-3 py-1.5 text-sm">
                 <ChallengeBadgeToken
                   iconKey={user.selectedBadgeIconKey ?? "award"}
                   rank={featured[0]?.currentRank ?? null}
@@ -150,12 +151,12 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
               return (
                 <div key={family.id} className="surface-panel-soft flex items-center justify-between gap-3 p-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-accent">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-foreground">{family.title}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="font-semibold text-ink">{family.title}</p>
+                      <p className="text-sm text-ink-muted">
                         {family.progress} progress
                       </p>
                     </div>
@@ -165,7 +166,7 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
               );
             })
           ) : (
-            <div className="surface-panel-soft p-4 text-sm text-muted-foreground">
+            <div className="surface-panel-soft p-4 text-sm text-ink-muted">
               Start training and the strongest ranks will appear here.
             </div>
           )}
@@ -185,12 +186,12 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
               return (
                 <div key={`${unlock.familyId}-${unlock.rank}`} className="surface-panel-soft flex items-center justify-between gap-3 p-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-accent">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-foreground">{unlock.familyTitle}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="font-semibold text-ink">{unlock.familyTitle}</p>
+                      <p className="text-sm text-ink-muted">
                         {getChallengeRankLabel(unlock.rank)}
                       </p>
                     </div>
@@ -200,12 +201,25 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
               );
             })
           ) : (
-            <div className="surface-panel-soft p-4 text-sm text-muted-foreground">
+            <div className="surface-panel-soft p-4 text-sm text-ink-muted">
               Tier-ups will appear here once the challenge ladder starts moving.
             </div>
           )}
         </CardContent>
       </Card>
+
+      {profile.editable ? (
+        <Link
+          href="/achievements"
+          className="flex items-center justify-between border-y border-rule py-4 transition-colors hover:bg-surface-sunken -mx-2 px-2"
+        >
+          <div>
+            <p className="font-display font-semibold text-ink">Achievements</p>
+            <p className="text-sm text-ink-muted">Full challenge library and progress tracking</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-ink-muted shrink-0" />
+        </Link>
+      ) : null}
 
       {profile.editable ? (
         <Card>
@@ -282,15 +296,15 @@ const ShowcaseChoice = ({
     type="button"
     onClick={onClick}
     className={`surface-panel-soft flex w-full items-center justify-between gap-3 p-4 text-left transition-colors ${
-      active ? "border-primary/25 bg-primary/8" : ""
+      active ? "border-rule-strong bg-surface-sunken" : ""
     }`}
   >
     <div>
       <div className="flex items-center gap-2">
         {iconKey ? <ChallengeBadgeToken iconKey={iconKey} rank={rank ?? null} className="h-7 w-7" /> : null}
-        <p className="font-semibold text-foreground">{label}</p>
+        <p className="font-semibold text-ink">{label}</p>
       </div>
-      <p className="text-sm text-muted-foreground">{helper}</p>
+      <p className="text-sm text-ink-muted">{helper}</p>
     </div>
     {active ? <Badge>Selected</Badge> : <Badge variant="outline">Choose</Badge>}
   </button>

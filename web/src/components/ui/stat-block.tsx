@@ -15,24 +15,19 @@ export const StatBlock = ({
 }) => (
   <div
     className={cn(
-      "surface-panel flex h-full min-h-[3.5rem] flex-col overflow-hidden",
-      compact ? "p-2" : "p-2.5",
+      "flex flex-col gap-1 px-3 py-2 first:pl-0",
+      compact ? "py-1.5" : "py-3",
       className,
     )}
   >
-    <p
-      className={cn(
-        "truncate uppercase tracking-[0.1em] text-muted-foreground",
-        compact ? "text-[7px] leading-tight" : "text-[8px] leading-tight",
-      )}
-    >
+    <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-muted truncate">
       {label}
     </p>
     <p
       className={cn(
-        "mt-1 text-center font-semibold leading-tight",
-        compact ? "text-[10px]" : "text-xs",
-        highlight ? "text-primary" : "text-foreground",
+        "font-mono tabular-nums leading-none",
+        compact ? "text-sm" : "text-base",
+        highlight ? "text-accent" : "text-ink",
       )}
     >
       {value}

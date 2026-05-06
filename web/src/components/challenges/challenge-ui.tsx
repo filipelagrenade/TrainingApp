@@ -83,7 +83,7 @@ export const formatChallengeUnit = (
 export const getChallengeTokenClasses = (rank: ChallengeRank | null) =>
   rank
     ? rankTokenClassMap[rank]
-    : "border-border/70 bg-background/70 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
+    : "border-rule bg-surface text-ink-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
 
 export const ChallengeRankBadge = ({
   rank,
@@ -103,7 +103,7 @@ export const ChallengeRankBadge = ({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]",
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
         rankClassMap[rank],
         className,
       )}

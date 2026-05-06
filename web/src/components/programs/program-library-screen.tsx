@@ -105,12 +105,12 @@ export const ProgramLibraryScreen = () => {
           Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-52" />)
         ) : programs.length ? (
           programs.map((program) => (
-            <Card key={program.id} className="border-border/70">
+            <Card key={program.id} className="border-rule">
               <CardHeader className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-lg">
-                      <Link href={`/programs/${program.id}`} className="transition-colors hover:text-primary">
+                      <Link href={`/programs/${program.id}`} className="transition-colors hover:text-ink">
                         {program.name}
                       </Link>
                     </CardTitle>
@@ -164,7 +164,7 @@ export const ProgramLibraryScreen = () => {
           ))
         ) : (
           <Card className="md:col-span-2">
-            <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            <CardContent className="p-6 text-center text-sm text-ink-muted">
               No programs yet. Create your first block to start tracking progression properly.
             </CardContent>
           </Card>
@@ -202,12 +202,12 @@ const Metric = ({
   value: string;
 }) => (
   <div className="surface-panel flex h-full min-h-[3.9rem] flex-col justify-between overflow-hidden p-2">
-    <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.1em] text-muted-foreground">
-      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+    <div className="flex items-center gap-1 text-[7px] uppercase tracking-[0.1em] text-ink-muted">
+      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-accent">
         <Icon className="h-3 w-3" />
       </div>
       <span className="truncate">{label}</span>
     </div>
-    <p className="mt-1 truncate text-[13px] font-semibold text-foreground">{value}</p>
+    <p className="mt-1 truncate text-[13px] font-semibold text-ink">{value}</p>
   </div>
 );

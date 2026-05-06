@@ -6,40 +6,40 @@ export const MetricCard = ({
   icon: Icon,
   label,
   value,
+  delta,
   compact = false,
   className,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   label: string;
   value: string;
+  delta?: string;
   compact?: boolean;
   className?: string;
 }) => (
   <div
     className={cn(
-      "surface-panel flex h-full min-h-[4.35rem] flex-col overflow-hidden",
-      compact ? "p-2" : "p-2.5",
+      "flex flex-col gap-1",
+      compact ? "py-2" : "py-3",
       className,
     )}
   >
-    <div
-      className={cn(
-        "flex min-h-[1rem] items-center gap-1.5 text-muted-foreground",
-        compact ? "text-[8px]" : "text-[9px]",
-      )}
-    >
-      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-primary/14 text-primary">
-        <Icon className="h-3 w-3" />
-      </div>
-      <span className="min-w-0 truncate leading-tight uppercase tracking-[0.1em]">{label}</span>
+    <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.08em] text-ink-muted">
+      {Icon ? <Icon className="h-3 w-3" /> : null}
+      <span className="truncate">{label}</span>
     </div>
-    <p
-      className={cn(
-        "mt-2 text-center font-semibold leading-tight tracking-tight text-foreground",
-        compact ? "text-[13px]" : "text-sm",
-      )}
-    >
-      {value}
-    </p>
+    <div className="flex items-baseline gap-2">
+      <span
+        className={cn(
+          "font-mono tabular-nums text-ink leading-none",
+          compact ? "text-base" : "text-xl",
+        )}
+      >
+        {value}
+      </span>
+      {delta ? (
+        <span className="font-mono text-xs text-pr">{delta}</span>
+      ) : null}
+    </div>
   </div>
 );

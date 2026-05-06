@@ -118,8 +118,8 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
               <div key={workout.id} className="surface-panel-soft p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-foreground">{workout.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="font-semibold text-ink">{workout.title}</p>
+                    <p className="mt-1 text-sm text-ink-muted">
                       {workout.dayLabel} • {workout.exercises.length} exercises • {workout.estimatedMinutes} min
                     </p>
                   </div>
@@ -157,10 +157,10 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
           }
         }}
       >
-        <SheetContent side="bottom" className="flex h-[88vh] max-h-[88vh] flex-col overflow-hidden rounded-t-3xl p-0">
+        <SheetContent side="bottom" className="flex h-[88vh] max-h-[88vh] flex-col overflow-hidden rounded-t-md p-0">
           {previewWorkout ? (
             <>
-              <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+              <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
                 <SheetHeader>
                   <SheetTitle>{previewWorkout.title}</SheetTitle>
                   <SheetDescription>
@@ -174,12 +174,12 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
                   {previewWorkout.exercises.map((exercise, index) => (
                     <div
                       key={exercise.id}
-                      className="rounded-2xl border border-border/60 bg-background/40 px-3 py-3"
+                      className="rounded-md border border-rule bg-surface-sunken px-3 py-3"
                     >
-                      <p className="text-sm font-medium text-foreground">
+                      <p className="text-sm font-medium text-ink">
                         {index + 1}. {exercise.exercise.name}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 text-xs text-ink-muted">
                         {exercise.sets} sets
                         {exercise.exercise.exerciseCategory === "STRENGTH"
                           ? ` • ${exercise.repMin}-${exercise.repMax} reps`
@@ -213,10 +213,10 @@ const MiniMetric = ({
   value: string;
 }) => (
   <div className="surface-panel p-3">
-    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-      <Icon className="h-3.5 w-3.5 text-primary" />
+    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.08em] text-ink-muted">
+      <Icon className="h-3.5 w-3.5 text-accent" />
       {label}
     </div>
-    <p className="mt-2 text-base font-semibold text-foreground">{value}</p>
+    <p className="mt-2 text-base font-semibold text-ink">{value}</p>
   </div>
 );

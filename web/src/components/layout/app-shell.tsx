@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { BuildBadge } from "@/components/layout/build-badge";
 import { PrimaryNav } from "@/components/layout/primary-nav";
+import { ContextStrip } from "@/components/layout/context-strip";
 
 export const AppShell = ({
   children,
@@ -10,10 +11,12 @@ export const AppShell = ({
   children: ReactNode;
   showNav?: boolean;
 }) => (
-  <div className="min-h-screen pb-28">
-    <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_hsl(var(--hero-start)/0.18),_transparent_24%),radial-gradient(circle_at_top_right,_hsl(var(--accent)/0.14),_transparent_24%),radial-gradient(circle_at_bottom,_hsl(var(--hero-glow)/0.14),_transparent_32%)]" />
+  <div className="relative min-h-screen">
+    <ContextStrip />
     <BuildBadge />
-    <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+    <main className="mx-auto w-full max-w-3xl px-5 pb-32 pt-12 sm:pt-16 lg:max-w-5xl lg:px-12 lg:pb-16 lg:pt-20">
+      {children}
+    </main>
     {showNav ? <PrimaryNav /> : null}
   </div>
 );

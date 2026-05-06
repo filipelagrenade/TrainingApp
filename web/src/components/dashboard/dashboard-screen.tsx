@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Dumbbell, Settings2, SkipForward } from "lucide-react";
+import { format } from "date-fns";
+import { ArrowRight, Settings2, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,10 +15,16 @@ import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-d
 import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const greetingFor = (now: Date) => {
+  const hour = now.getHours();
+  if (hour < 5) return "Late night";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};
 
 export const DashboardScreen = ({ user }: { user: User }) => {
   const queryClient = useQueryClient();
@@ -92,6 +99,10 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const activeProgram = activeProgramQuery.data;
   const currentWeek = activeProgram?.currentWeek;
   const inProgressWorkout = inProgressWorkoutQuery.data;
+  const recentWorkouts = workoutsQuery.data ?? [];
+
+  const now = new Date();
+  const greeting = greetingFor(now);
 
   const handleExerciseCreated = async () => {
     await queryClient.invalidateQueries({ queryKey: ["exercises"] });
@@ -102,15 +113,11 @@ export const DashboardScreen = ({ user }: { user: User }) => {
       setPendingStart(payload);
       return;
     }
-
     startWorkoutMutation.mutate(payload);
   };
 
   const handleCancelAndStart = async () => {
-    if (!pendingStart || !inProgressWorkout?.id) {
-      return;
-    }
-
+    if (!pendingStart || !inProgressWorkout?.id) return;
     try {
       await cancelWorkoutMutation.mutateAsync(inProgressWorkout.id);
       startWorkoutMutation.mutate(pendingStart);
@@ -120,186 +127,215 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     }
   };
 
-  return (
-    <div className="app-grid">
-      <ScreenHero
-        eyebrow="Home"
-        title={`Welcome back, ${user.displayName}`}
-        actions={
-          <>
-            {inProgressWorkout ? (
-              <Button onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)}>
-                <Dumbbell className="h-4 w-4" />
-                Resume workout
-              </Button>
-            ) : (
-              <Button
-                onClick={() => requestStartWorkout({ entryType: "QUICK" })}
-              >
-                <Dumbbell className="h-4 w-4" />
-                Quick workout
-              </Button>
-            )}
-            <Button asChild variant="ghost">
-              <Link href="/settings">
-                <Settings2 className="h-4 w-4" />
-                Settings
-              </Link>
-            </Button>
-            <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
-              Sign out
-            </Button>
-          </>
-        }
-      />
+  const totalCompletedThisWeek = activeProgram?.currentWeekCompleted ?? 0;
+  const totalWeekly = activeProgram?.currentWeekTotal ?? 0;
+  const adherence = activeProgram?.currentWeekCompletion ?? 0;
 
-      <div className="grid grid-cols-2 gap-3 sm:max-w-md">
-        <Button asChild variant="outline">
-          <Link href="/achievements">Challenges</Link>
+  return (
+    <div className="space-y-12">
+      {/* Editorial greeting */}
+      <header className="space-y-3">
+        <p className="eyebrow">{greeting}</p>
+        <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-editorial leading-[1.05] text-ink">
+          {user.displayName}.
+        </h1>
+        <p className="text-base text-ink-muted max-w-md leading-7">
+          {inProgressWorkout
+            ? "A session is open. Pick up where you left off."
+            : activeProgram
+              ? `Week ${currentWeek?.weekNumber ?? 1} of ${activeProgram.name}.`
+              : "No active program. Start a quick workout or build one."}
+        </p>
+      </header>
+
+      {/* Primary CTA strip */}
+      <div className="flex flex-wrap items-center gap-2 border-y border-rule py-4">
+        {inProgressWorkout ? (
+          <Button onClick={() => router.push(`/workouts/${inProgressWorkout.id}`)} variant="accent">
+            Resume workout
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button onClick={() => requestStartWorkout({ entryType: "QUICK" })}>
+            Start a quick workout
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
+        <Button asChild variant="ghost">
+          <Link href="/programs">Programs</Link>
         </Button>
-        <Button asChild variant="outline">
-          <Link href="/profile">Profile</Link>
+        <Button asChild variant="ghost">
+          <Link href="/exercises">Exercises</Link>
         </Button>
+        <span className="ml-auto flex items-center gap-1">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/settings">
+              <Settings2 className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="quiet" size="sm" onClick={() => logoutMutation.mutate()}>
+            Sign out
+          </Button>
+        </span>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Active program</CardTitle>
-          <CardDescription>{activeProgram ? `Week ${currentWeek?.weekNumber ?? 1}` : "No active program yet."}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {inProgressWorkout ? (
-            <div className="surface-panel p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">{inProgressWorkout.pausedAt ? "Paused session" : "Current session"}</p>
-                  <p className="font-semibold text-foreground">{inProgressWorkout.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {formatDuration(calculateSessionDurationSeconds(inProgressWorkout))}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    inProgressWorkout.pausedAt
-                      ? resumeWorkoutMutation.mutate(inProgressWorkout.id)
-                      : router.push(`/workouts/${inProgressWorkout.id}`)
-                  }
-                >
-                  {inProgressWorkout.pausedAt ? "Resume" : "Open"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Button asChild className="w-full" variant="outline">
-                <Link href="/programs/new">Create program</Link>
-              </Button>
-              <ExerciseCreatorDialog onCreated={handleExerciseCreated} triggerLabel="Custom exercise" />
-            </div>
-          )}
-          {activeProgram && currentWeek ? (
-            <>
-              <div className="surface-panel p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{activeProgram.name}</p>
-                    <p className="font-semibold text-foreground">
-                      Week {currentWeek.weekNumber} progress: {activeProgram.currentWeekCompleted} done
-                      {activeProgram.currentWeekSkipped > 0
-                        ? ` • ${activeProgram.currentWeekSkipped} skipped`
-                        : ""}{" "}
-                      • {activeProgram.currentWeekTotal} total
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">Finish or skip every planned session this week.</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => archiveProgramMutation.mutate(activeProgram.id)}
-                  >
-                    Archive
-                  </Button>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Weekly adherence</span>
-                    <span className="font-medium">
-                      {Math.round(activeProgram.currentWeekCompletion * 100)}%
-                    </span>
-                  </div>
-                  <Progress value={activeProgram.currentWeekCompletion * 100} />
-                </div>
-              </div>
+      {/* In-progress session */}
+      {inProgressWorkout ? (
+        <section className="border-l-2 border-accent pl-5 py-2 space-y-2">
+          <p className="eyebrow">{inProgressWorkout.pausedAt ? "Paused session" : "Current session"}</p>
+          <h2 className="font-display text-2xl font-semibold text-ink">{inProgressWorkout.title}</h2>
+          <p className="font-mono text-sm tabular-nums text-ink-muted">
+            {formatDuration(calculateSessionDurationSeconds(inProgressWorkout))} elapsed
+          </p>
+          <div className="pt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                inProgressWorkout.pausedAt
+                  ? resumeWorkoutMutation.mutate(inProgressWorkout.id)
+                  : router.push(`/workouts/${inProgressWorkout.id}`)
+              }
+            >
+              {inProgressWorkout.pausedAt ? "Resume" : "Open editor"}
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
-              {currentWeek.workouts.map((workout) => {
-                const isCompleted = activeProgram.completedWorkoutIds.includes(workout.id);
-                const isSkipped = activeProgram.skippedWorkoutIds.includes(workout.id);
-                const recommendedCount = workout.exercises.filter(
-                  (exercise) => activeProgram.recommendations[exercise.id]?.weight !== null,
-                ).length;
+      {/* Active program week */}
+      {activeProgram && currentWeek ? (
+        <section className="space-y-6">
+          <div className="flex items-end justify-between gap-4 border-b border-rule pb-3">
+            <div className="space-y-1">
+              <p className="eyebrow">Week {currentWeek.weekNumber}</p>
+              <h2 className="font-display text-2xl font-semibold text-ink">{activeProgram.name}</h2>
+            </div>
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => archiveProgramMutation.mutate(activeProgram.id)}
+            >
+              Archive
+            </Button>
+          </div>
 
-                return (
-                  <div key={workout.id} className="surface-panel-soft p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-muted-foreground">{workout.dayLabel}</p>
-                          {isCompleted ? (
-                            <Badge variant="secondary">
-                              <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                              Done
-                            </Badge>
-                          ) : null}
-                          {isSkipped ? <Badge variant="outline">Skipped</Badge> : null}
-                        </div>
-                        <p className="font-semibold text-foreground">{workout.title}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {workout.exercises.length} exercises • {workout.estimatedMinutes} min
-                          {recommendedCount > 0 ? ` • ${recommendedCount} load suggestions ready` : ""}
-                        </p>
-                      </div>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          size="sm"
-                          disabled={isCompleted || isSkipped}
-                          onClick={() =>
-                            requestStartWorkout({
-                              entryType: "PROGRAM",
-                              programWorkoutId: workout.id,
-                            })
-                          }
-                        >
-                          {isCompleted ? "Completed" : isSkipped ? "Skipped" : "Start"}
-                        </Button>
-                        {!isCompleted && !isSkipped ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              skipWorkoutMutation.mutate({
-                                programId: activeProgram.id,
-                                workoutId: workout.id,
-                              })
-                            }
-                          >
-                            <SkipForward className="h-4 w-4" />
-                            Skip
-                          </Button>
-                        ) : null}
-                      </div>
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-3 font-mono text-sm tabular-nums">
+              <span className="text-ink-muted">Adherence</span>
+              <span className="text-ink">
+                {totalCompletedThisWeek}/{totalWeekly} · {Math.round(adherence * 100)}%
+              </span>
+            </div>
+            <Progress value={adherence * 100} />
+          </div>
+
+          <ol className="divide-y divide-rule border-y border-rule">
+            {currentWeek.workouts.map((workout, i) => {
+              const isCompleted = activeProgram.completedWorkoutIds.includes(workout.id);
+              const isSkipped = activeProgram.skippedWorkoutIds.includes(workout.id);
+              return (
+                <li key={workout.id} className="flex items-center gap-4 py-4">
+                  <span className="font-mono text-xs tabular-nums text-ink-muted w-8 shrink-0">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className="font-display text-lg text-ink truncate">{workout.title}</span>
+                      {isCompleted ? <Badge variant="pr">Done</Badge> : null}
+                      {isSkipped ? <Badge variant="outline">Skipped</Badge> : null}
                     </div>
+                    <p className="font-mono text-xs tabular-nums text-ink-muted mt-0.5">
+                      {workout.dayLabel} · {workout.exercises.length} exercises · {workout.estimatedMinutes}m
+                    </p>
                   </div>
-                );
-              })}
-            </>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground">
-              Programs drive progression and suggestions. Create one to make this useful daily.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <div className="flex shrink-0 gap-1">
+                    {!isCompleted && !isSkipped ? (
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        onClick={() =>
+                          skipWorkoutMutation.mutate({
+                            programId: activeProgram.id,
+                            workoutId: workout.id,
+                          })
+                        }
+                      >
+                        <SkipForward className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant={isCompleted || isSkipped ? "ghost" : "outline"}
+                      disabled={isCompleted || isSkipped}
+                      onClick={() =>
+                        requestStartWorkout({ entryType: "PROGRAM", programWorkoutId: workout.id })
+                      }
+                    >
+                      {isCompleted ? "Done" : isSkipped ? "Skipped" : "Start"}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ) : (
+        <section className="border-y border-dashed border-rule py-10 text-center space-y-3">
+          <p className="font-display text-xl text-ink">No active program.</p>
+          <p className="text-sm text-ink-muted max-w-sm mx-auto">
+            Programs drive progression and load suggestions. Build one to make this useful daily.
+          </p>
+          <div className="flex justify-center gap-2 pt-1">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/programs/new">Create program</Link>
+            </Button>
+            <ExerciseCreatorDialog onCreated={handleExerciseCreated} triggerLabel="Custom exercise" />
+          </div>
+        </section>
+      )}
+
+      {/* Recent activity */}
+      {recentWorkouts.length ? (
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between border-b border-rule pb-3">
+            <h2 className="font-display text-2xl font-semibold text-ink">Recent</h2>
+            <Link
+              href="/history"
+              className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted hover:text-ink"
+            >
+              View all →
+            </Link>
+          </div>
+          <ol className="divide-y divide-rule">
+            {workoutsQuery.isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <li key={i} className="py-4">
+                  <Skeleton className="h-4 w-3/4" />
+                </li>
+              ))
+            ) : (
+              recentWorkouts.map((workout) => (
+                <li key={workout.id}>
+                  <Link
+                    href={`/workouts/${workout.id}`}
+                    className="flex items-center gap-4 py-4 transition-colors hover:bg-surface-sunken -mx-2 px-2 rounded-sm"
+                  >
+                    <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted w-20 shrink-0">
+                      {workout.completedAt ? format(new Date(workout.completedAt), "EEE LLL d") : "—"}
+                    </span>
+                    <span className="flex-1 min-w-0 truncate text-ink">{workout.title}</span>
+                    <span className="font-mono text-xs tabular-nums text-ink-muted shrink-0">
+                      {workout.totalXp} xp
+                    </span>
+                  </Link>
+                </li>
+              ))
+            )}
+          </ol>
+        </section>
+      ) : null}
+
       {inProgressWorkout ? (
         <ActiveWorkoutGuardDialog
           activeWorkoutTitle={inProgressWorkout.title}
@@ -310,9 +346,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
             router.push(`/workouts/${inProgressWorkout.id}`);
           }}
           onOpenChange={(open) => {
-            if (!open) {
-              setPendingStart(null);
-            }
+            if (!open) setPendingStart(null);
           }}
           open={Boolean(pendingStart)}
         />

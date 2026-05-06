@@ -236,13 +236,13 @@ export const ExerciseCreatorDialog = ({
                 )}
               </SelectContent>
             </Select>
-            <div className="flex min-h-10 flex-wrap gap-2 rounded-md border border-border/70 bg-background/70 p-3">
+            <div className="flex min-h-10 flex-wrap gap-2 rounded-md border border-rule bg-surface p-3">
               {secondaryMuscles.length ? (
                 secondaryMuscles.map((muscle) => (
                   <Badge key={muscle} variant="secondary" className="gap-1 pr-1">
                     {muscle}
                     <button
-                      className="rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                      className="rounded-full p-0.5 text-ink-muted transition-colors hover:text-ink"
                       onClick={() =>
                         updateField(
                           "secondaryMuscles",
@@ -256,7 +256,7 @@ export const ExerciseCreatorDialog = ({
                   </Badge>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">Optional. Add any supporting muscles that matter.</p>
+                <p className="text-sm text-ink-muted">Optional. Add any supporting muscles that matter.</p>
               )}
             </div>
           </div>

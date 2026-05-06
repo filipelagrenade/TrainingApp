@@ -1,28 +1,35 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Space_Grotesk } from "next/font/google";
+import { Barlow_Semi_Condensed, Inter, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AppProviders } from "@/components/providers/app-providers";
 import "./globals.css";
 
-const bodyFont = Manrope({
+const sansFont = Inter({
   subsets: ["latin"],
-  variable: "--font-body",
+  variable: "--font-sans",
+  axes: ["opsz"],
 });
 
-const displayFont = Space_Grotesk({
+const displayFont = Barlow_Semi_Condensed({
   subsets: ["latin"],
   variable: "--font-display",
+  weight: ["500", "600", "700", "800"],
+});
+
+const monoFont = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
   title: "LiftIQ",
-  description: "Server-first training companion with program-based progression and social XP loops.",
+  description: "A quiet training journal. Lift with intention; let the numbers speak.",
   manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f0f1a",
+  themeColor: "#FAFAFA",
 };
 
 export default function RootLayout({
@@ -31,8 +38,10 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${bodyFont.variable} ${displayFont.variable} antialiased`}>
+    <html lang="en" data-theme="paper">
+      <body
+        className={`${sansFont.variable} ${displayFont.variable} ${monoFont.variable} antialiased`}
+      >
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

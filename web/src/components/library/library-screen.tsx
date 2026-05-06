@@ -283,7 +283,7 @@ export const LibraryScreen = () => {
         </TabsList>
 
         <TabsContent value="programs">
-          <Card className="border-border/70">
+          <Card className="border-rule">
             <CardHeader className="space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -299,12 +299,12 @@ export const LibraryScreen = () => {
                 Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-52" />)
               ) : programs.length ? (
                 programs.map((program) => (
-                  <Card key={program.id} className="border-border/70">
+                  <Card key={program.id} className="border-rule">
                     <CardHeader className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <CardTitle className="text-lg">
-                            <Link href={`/programs/${program.id}`} className="transition-colors hover:text-primary">
+                            <Link href={`/programs/${program.id}`} className="transition-colors hover:text-ink">
                               {program.name}
                             </Link>
                           </CardTitle>
@@ -319,7 +319,7 @@ export const LibraryScreen = () => {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <MetricCard icon={CalendarRange} label="Weeks" value={String(program.weeks.length)} compact />
                         <MetricCard
                           icon={Layers3}
@@ -359,7 +359,7 @@ export const LibraryScreen = () => {
                 ))
               ) : (
                 <Card className="md:col-span-2">
-                  <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                  <CardContent className="p-6 text-center text-sm text-ink-muted">
                     No programs yet. Create your first block to start tracking progression properly.
                   </CardContent>
                 </Card>
@@ -369,7 +369,7 @@ export const LibraryScreen = () => {
         </TabsContent>
 
         <TabsContent value="templates">
-          <Card className="border-border/70">
+          <Card className="border-rule">
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -385,12 +385,12 @@ export const LibraryScreen = () => {
                 Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-52" />)
               ) : templates.length ? (
                 templates.map((template) => (
-                  <Card key={template.id} className="border-border/70">
+                  <Card key={template.id} className="border-rule">
                     <CardHeader className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <CardTitle className="text-lg">
-                            <Link href={`/templates/${template.id}`} className="transition-colors hover:text-primary">
+                            <Link href={`/templates/${template.id}`} className="transition-colors hover:text-ink">
                               {template.name}
                             </Link>
                           </CardTitle>
@@ -410,7 +410,7 @@ export const LibraryScreen = () => {
                           </Badge>
                         ))}
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         <Button asChild size="sm" variant="ghost">
                           <Link href={`/templates/${template.id}`}>View</Link>
                         </Button>
@@ -442,7 +442,7 @@ export const LibraryScreen = () => {
                 ))
               ) : (
                 <Card className="md:col-span-2">
-                  <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                  <CardContent className="p-6 text-center text-sm text-ink-muted">
                     No templates yet. Program days and saved workouts will show up here.
                   </CardContent>
                 </Card>
@@ -452,7 +452,7 @@ export const LibraryScreen = () => {
         </TabsContent>
 
         <TabsContent value="exercises">
-          <Card className="border-border/70">
+          <Card className="border-rule">
             <CardHeader className="space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -468,7 +468,7 @@ export const LibraryScreen = () => {
                 </TabsList>
               </Tabs>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
                 <Input
                   className="pl-9"
                   placeholder="Search exercise, machine, attachment, or muscle"
@@ -482,7 +482,7 @@ export const LibraryScreen = () => {
                 Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-48" />)
               ) : filteredExercises.length ? (
                 filteredExercises.map((exercise) => (
-                  <Card key={exercise.id} className="border-border/70">
+                  <Card key={exercise.id} className="border-rule">
                     <CardHeader className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -526,7 +526,7 @@ export const LibraryScreen = () => {
                 ))
               ) : (
                 <Card className="sm:col-span-2 xl:col-span-3">
-                  <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                  <CardContent className="p-6 text-center text-sm text-ink-muted">
                     No exercises match that search yet.
                   </CardContent>
                 </Card>
@@ -571,7 +571,7 @@ export const LibraryScreen = () => {
                 </TabsList>
               </Tabs>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
                 <Input
                   className="pl-9"
                   placeholder="Search replacement exercise"
@@ -584,10 +584,10 @@ export const LibraryScreen = () => {
                   filteredDeleteReplacementTargets.map((exercise) => (
                     <button
                       key={exercise.id}
-                      className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                      className={`w-full rounded-md border p-4 text-left transition-colors ${
                         deleteReplacementExerciseId === exercise.id
-                          ? "border-primary/60 bg-primary/5"
-                          : "border-border/70 bg-card hover:bg-background/70"
+                          ? "border-accent bg-surface-sunken"
+                          : "border-rule bg-card hover:bg-surface"
                       }`}
                       onClick={() => {
                         setDeleteReplacementExerciseId(exercise.id);
@@ -597,8 +597,8 @@ export const LibraryScreen = () => {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
-                          <p className="font-semibold text-foreground">{exercise.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-semibold text-ink">{exercise.name}</p>
+                          <p className="text-sm text-ink-muted">
                             {exercise.equipmentType}
                             {exercise.machineType ? ` • ${exercise.machineType}` : ""}
                             {exercise.attachment ? ` • ${exercise.attachment}` : ""}
@@ -611,7 +611,7 @@ export const LibraryScreen = () => {
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-md border border-dashed border-rule p-4 text-sm text-ink-muted">
                     No exercises match that search.
                   </div>
                 )}
@@ -632,7 +632,7 @@ export const LibraryScreen = () => {
                   {availableDeleteReplacementTargets.find((exercise) => exercise.id === deleteReplacementExerciseId)
                     ?.name ?? "No replacement selected"}
                 </span>
-                <span className="text-xs text-muted-foreground">Search</span>
+                <span className="text-xs text-ink-muted">Search</span>
               </Button>
               {deleteReplacementExerciseId ? (
                 <Button
@@ -708,7 +708,7 @@ export const LibraryScreen = () => {
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
   <div>
-    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-    <p className="mt-1 font-medium text-foreground">{value}</p>
+    <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">{label}</p>
+    <p className="mt-1 font-medium text-ink">{value}</p>
   </div>
 );

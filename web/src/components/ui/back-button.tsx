@@ -1,9 +1,9 @@
 "use client";
 
-import { ChevronLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const BackButton = ({
   fallbackHref = "/",
@@ -17,21 +17,22 @@ export const BackButton = ({
   const router = useRouter();
 
   return (
-    <Button
-      className={className}
+    <button
       type="button"
-      variant="ghost"
+      className={cn(
+        "inline-flex items-center gap-1.5 text-sm text-ink-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:text-ink",
+        className,
+      )}
       onClick={() => {
         if (typeof window !== "undefined" && window.history.length > 1) {
           router.back();
           return;
         }
-
         router.push(fallbackHref);
       }}
     >
-      <ChevronLeft className="h-4 w-4" />
-      {label}
-    </Button>
+      <ArrowLeft className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </button>
   );
 };

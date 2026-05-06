@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type NullableNumberInputProps = {
   value: number | null | undefined;
@@ -36,7 +37,7 @@ export const NullableNumberInput = ({
 
   return (
     <Input
-      className={className}
+      className={cn("font-mono tabular-nums text-right", className)}
       id={id}
       inputMode={step && step < 1 ? "decimal" : "numeric"}
       min={min}

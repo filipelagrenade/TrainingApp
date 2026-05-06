@@ -25,8 +25,8 @@ export const TemplateLibrarySheet = ({
   templates: WorkoutTemplate[];
 }) => (
   <Sheet modal={modal} open={open} onOpenChange={onOpenChange}>
-    <SheetContent side="bottom" className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden rounded-t-3xl p-0">
-      <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+    <SheetContent side="bottom" className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden rounded-t-md p-0">
+      <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
         <SheetHeader>
           <SheetTitle>Template library</SheetTitle>
           <SheetDescription>
@@ -40,7 +40,7 @@ export const TemplateLibrarySheet = ({
           templates.map((template) => (
             <button
               key={template.id}
-              className="w-full rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/40"
+              className="w-full rounded-md border border-rule bg-card p-4 text-left shadow-sm transition hover:border-accent"
               onClick={() => {
                 onSelect(template);
                 onOpenChange(false);
@@ -49,8 +49,8 @@ export const TemplateLibrarySheet = ({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <p className="font-semibold text-foreground">{template.name}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-semibold text-ink">{template.name}</p>
+                  <p className="text-sm text-ink-muted">
                     {template.description || "Reusable day template"}
                   </p>
                 </div>
@@ -59,13 +59,13 @@ export const TemplateLibrarySheet = ({
             </button>
           ))
         ) : (
-          <div className="rounded-2xl border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-md border border-dashed border-rule p-6 text-center text-sm text-ink-muted">
             No saved templates yet.
           </div>
         )}
         </div>
       </div>
-      <div className="border-t border-border/80 bg-background px-6 py-4">
+      <div className="border-t border-rule bg-background px-6 py-4">
         <Button className="w-full" variant="outline" onClick={() => onOpenChange(false)}>
           Close
         </Button>

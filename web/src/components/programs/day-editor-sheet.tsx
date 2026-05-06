@@ -82,8 +82,8 @@ export const DayEditorSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-3xl p-0">
-        <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+      <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-md p-0">
+        <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
           <SheetHeader>
             <SheetTitle>Edit day</SheetTitle>
             <SheetDescription>
@@ -93,7 +93,7 @@ export const DayEditorSheet = ({
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6">
         <div className="space-y-5">
-          <div className="rounded-2xl border border-border/70 bg-card p-4">
+          <div className="rounded-md border border-rule bg-card p-4">
             <div className="space-y-3">
               <Label htmlFor="day-prompt">Generate from prompt</Label>
               <Textarea
@@ -165,11 +165,11 @@ export const DayEditorSheet = ({
 
           <div className="space-y-3">
             {localDay.exercises.map((exercise, exerciseIndex) => (
-              <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-2xl border border-border/70 bg-card p-4">
+              <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-md border border-rule bg-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Exercise {exerciseIndex + 1}</p>
-                    <p className="text-xs text-muted-foreground">Pick the movement, then tune the prescription.</p>
+                    <p className="text-sm font-semibold text-ink">Exercise {exerciseIndex + 1}</p>
+                    <p className="text-xs text-ink-muted">Pick the movement, then tune the prescription.</p>
                   </div>
                   <Button
                     size="icon"
@@ -200,7 +200,7 @@ export const DayEditorSheet = ({
                       <span className="truncate">
                         {exercise.exerciseName || exercises.find((item) => item.id === exercise.exerciseId)?.name || "Select exercise"}
                       </span>
-                      <span className="text-xs text-muted-foreground">Search</span>
+                      <span className="text-xs text-ink-muted">Search</span>
                     </Button>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -556,7 +556,7 @@ export const DayEditorSheet = ({
           </div>
         </div>
         </div>
-        <SheetFooter className="border-t border-border/80 bg-background px-6 py-4">
+        <SheetFooter className="border-t border-rule bg-background px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

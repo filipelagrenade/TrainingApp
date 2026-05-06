@@ -108,8 +108,8 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
             <div key={exercise.id} className="surface-panel-soft p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-foreground">{exercise.exercise.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="font-semibold text-ink">{exercise.exercise.name}</p>
+                  <p className="mt-1 text-sm text-ink-muted">
                     {exercise.repMin}-{exercise.repMax} reps • {exercise.sets} sets
                   </p>
                 </div>

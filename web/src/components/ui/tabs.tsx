@@ -11,7 +11,7 @@ const TabsList = ({
 }: React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>) => (
   <TabsPrimitive.List
     className={cn(
-      "inline-flex h-12 items-center rounded-[1.2rem] border border-border/70 bg-card/70 p-1 text-secondary-foreground backdrop-blur-sm",
+      "inline-flex items-center gap-6 border-b border-rule",
       className,
     )}
     {...props}
@@ -24,7 +24,7 @@ const TabsTrigger = ({
 }: React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>) => (
   <TabsPrimitive.Trigger
     className={cn(
-      "inline-flex items-center justify-center rounded-2xl px-3 py-2 text-sm font-semibold transition-all data-[state=active]:bg-primary/90 data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_12px_24px_hsl(var(--primary)/0.24)]",
+      "relative inline-flex items-center justify-center px-0 py-3 text-sm font-medium text-ink-muted transition-colors hover:text-ink focus-visible:outline-none data-[state=active]:text-ink data-[state=active]:after:scale-x-100 after:absolute after:inset-x-0 after:-bottom-px after:h-px after:scale-x-0 after:bg-ink after:transition-transform after:origin-left",
       className,
     )}
     {...props}
@@ -35,7 +35,7 @@ const TabsContent = ({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>) => (
-  <TabsPrimitive.Content className={cn("mt-4", className)} {...props} />
+  <TabsPrimitive.Content className={cn("mt-6", className)} {...props} />
 );
 
 export { Tabs, TabsContent, TabsList, TabsTrigger };

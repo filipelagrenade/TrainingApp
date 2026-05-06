@@ -1,25 +1,22 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellRing, MoonStar, Palette, TimerReset, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { AuthCard } from "@/components/auth/auth-card";
-import { useTheme, themes } from "@/components/providers/theme-provider";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { apiClient } from "@/lib/api-client";
 
 const REST_DEFAULTS = [60, 90, 120, 180];
 
 export const SettingsScreen = () => {
-  const { theme, setTheme } = useTheme();
   const [restDefault, setRestDefault] = useState("90");
   const queryClient = useQueryClient();
   const meQuery = useQuery({
@@ -33,18 +30,13 @@ export const SettingsScreen = () => {
       queryClient.setQueryData(["me"], { user });
       toast.success("Preferences updated");
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
+    onError: (error: Error) => toast.error(error.message),
   });
   const notificationState =
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported";
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
+    if (typeof window === "undefined") return;
     setRestDefault(window.localStorage.getItem("liftiq-rest-default") ?? "90");
   }, []);
 
@@ -67,114 +59,67 @@ export const SettingsScreen = () => {
   }
 
   return (
-    <div className="app-grid">
-      <ScreenHero
-        eyebrow="Settings"
-        title="Keep the app feeling like your app."
-        actions={<BackButton fallbackHref="/" />}
-      />
+    <div className="space-y-12">
+      <header className="space-y-3">
+        <BackButton fallbackHref="/" />
+        <p className="eyebrow">Settings</p>
+        <h1 className="font-display text-4xl font-bold tracking-editorial text-ink leading-tight">
+          Make it yours.
+        </h1>
+      </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-4 w-4 text-primary" />
-            Theme
-          </CardTitle>
-          <CardDescription>Use the original LiftIQ themes from the old app and keep the palette consistent across screens.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="theme-select">Colour theme</Label>
-            <Select value={theme} onValueChange={(value) => setTheme(value as (typeof themes)[number]["value"])}>
-              <SelectTrigger id="theme-select">
-                <SelectValue placeholder="Choose a theme" />
-              </SelectTrigger>
-              <SelectContent>
-                {themes.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <Section eyebrow="01" title="Theme" description="Five moods, one editorial DNA. Pick the room you train in.">
+        <ThemeSwitcher layout="grid" />
+      </Section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MoonStar className="h-4 w-4 text-primary" />
-            Units
-          </CardTitle>
-          <CardDescription>Volume is stored in kilograms and shown in your preferred display unit.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="unit-select">Preferred display unit</Label>
-            <Select
-              value={meQuery.data.user.preferredUnit}
-              onValueChange={(value) =>
-                preferencesMutation.mutate({ preferredUnit: value as "kg" | "lb" })
-              }
-            >
-              <SelectTrigger id="unit-select" disabled={preferencesMutation.isPending}>
-                <SelectValue placeholder="Choose a unit" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="kg">Kilograms (kg)</SelectItem>
-                <SelectItem value="lb">Pounds (lb)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <Section eyebrow="02" title="Units" description="Volume is stored in kilograms; pick how it's shown.">
+        <div className="space-y-2 max-w-xs">
+          <Label htmlFor="unit-select">Display unit</Label>
+          <Select
+            value={meQuery.data.user.preferredUnit}
+            onValueChange={(value) =>
+              preferencesMutation.mutate({ preferredUnit: value as "kg" | "lb" })
+            }
+          >
+            <SelectTrigger id="unit-select" disabled={preferencesMutation.isPending}>
+              <SelectValue placeholder="Choose a unit" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="kg">Kilograms (kg)</SelectItem>
+              <SelectItem value="lb">Pounds (lb)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </Section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            Profile
-          </CardTitle>
-          <CardDescription>Used for challenge milestone tuning where appropriate.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="gender-select">Gender</Label>
-            <Select
-              value={meQuery.data.user.gender}
-              onValueChange={(value) =>
-                preferencesMutation.mutate({
-                  gender: value as "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY",
-                })
-              }
-            >
-              <SelectTrigger id="gender-select" disabled={preferencesMutation.isPending}>
-                <SelectValue placeholder="Choose a gender" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MALE">Male</SelectItem>
-                <SelectItem value="FEMALE">Female</SelectItem>
-                <SelectItem value="NON_BINARY">Non-binary</SelectItem>
-                <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <Section eyebrow="03" title="Profile" description="Used for milestone tuning where it matters.">
+        <div className="space-y-2 max-w-xs">
+          <Label htmlFor="gender-select">Gender</Label>
+          <Select
+            value={meQuery.data.user.gender}
+            onValueChange={(value) =>
+              preferencesMutation.mutate({
+                gender: value as "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY",
+              })
+            }
+          >
+            <SelectTrigger id="gender-select" disabled={preferencesMutation.isPending}>
+              <SelectValue placeholder="Choose a gender" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MALE">Male</SelectItem>
+              <SelectItem value="FEMALE">Female</SelectItem>
+              <SelectItem value="NON_BINARY">Non-binary</SelectItem>
+              <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </Section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TimerReset className="h-4 w-4 text-primary" />
-            Rest timer
-          </CardTitle>
-          <CardDescription>Set the quick default the workout screen should use first.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-2">
+      <Section eyebrow="04" title="Rest timer" description="Default the workout screen reaches for first.">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-md">
           {REST_DEFAULTS.map((seconds) => {
             const active = restDefault === String(seconds);
-
             return (
               <Button
                 key={seconds}
@@ -191,20 +136,17 @@ export const SettingsScreen = () => {
               </Button>
             );
           })}
-        </CardContent>
-      </Card>
+        </div>
+      </Section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BellRing className="h-4 w-4 text-primary" />
-            Notifications
-          </CardTitle>
-          <CardDescription>Rest alerts use local browser notifications on this device.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-medium text-foreground">
+      <Section
+        eyebrow="05"
+        title="Notifications"
+        description="Rest alerts use local browser notifications on this device."
+      >
+        <div className="flex items-center justify-between gap-3 border-y border-rule py-4">
+          <div className="space-y-0.5">
+            <p className="text-ink">
               {notificationState === "granted"
                 ? "Enabled"
                 : notificationState === "denied"
@@ -213,11 +155,31 @@ export const SettingsScreen = () => {
                     ? "Unavailable"
                     : "Not enabled"}
             </p>
-            <p className="text-sm text-muted-foreground">Turn them on from the active workout timer tools.</p>
+            <p className="text-sm text-ink-muted">Turn them on from the active workout timer.</p>
           </div>
-          <MoonStar className="h-5 w-5 text-muted-foreground" />
-        </CardContent>
-      </Card>
+        </div>
+      </Section>
     </div>
   );
 };
+
+const Section = ({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) => (
+  <section className="space-y-5">
+    <header className="space-y-2 border-b border-rule pb-3">
+      <p className="eyebrow">{eyebrow}</p>
+      <h2 className="font-display text-2xl font-semibold tracking-editorial text-ink">{title}</h2>
+      {description ? <p className="text-sm text-ink-muted leading-6 max-w-md">{description}</p> : null}
+    </header>
+    {children}
+  </section>
+);

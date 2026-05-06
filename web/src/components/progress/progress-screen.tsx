@@ -129,7 +129,7 @@ export const ProgressScreen = () => {
                 <div className="flex flex-wrap gap-2">
                   {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
                   {user.selectedBadgeLabel ? (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-rule bg-surface px-3 py-1">
                       <ChallengeBadgeToken iconKey={user.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
                       <span className="text-xs">{user.selectedBadgeLabel}</span>
                     </div>
@@ -139,8 +139,8 @@ export const ProgressScreen = () => {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Progress to Level {user.level + 1}</span>
-                <span className="font-medium text-foreground">
+                <span className="text-ink-muted">Progress to Level {user.level + 1}</span>
+                <span className="font-medium text-ink">
                   {currentXpBand}/{xpBandSize}
                 </span>
               </div>
@@ -163,8 +163,8 @@ export const ProgressScreen = () => {
                 <div className="surface-panel p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-foreground">{overview.activeProgramSummary.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="font-semibold text-ink">{overview.activeProgramSummary.name}</p>
+                      <p className="text-sm text-ink-muted">
                         {overview.activeProgramSummary.completed}/{overview.activeProgramSummary.total} planned sessions complete
                       </p>
                     </div>
@@ -188,15 +188,15 @@ export const ProgressScreen = () => {
                     <Link
                       key={exercise.exerciseId}
                       href={`/progress/exercises/${exercise.exerciseId}`}
-                      className="surface-panel-soft flex items-center justify-between px-4 py-3 transition-colors hover:bg-card/90"
+                      className="surface-panel-soft flex items-center justify-between px-4 py-3 transition-colors hover:bg-surface-raised"
                     >
                       <div>
-                        <p className="font-medium text-foreground">{exercise.exerciseName}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="font-medium text-ink">{exercise.exerciseName}</p>
+                        <p className="text-sm text-ink-muted">
                           {exercise.sessions} session{exercise.sessions === 1 ? "" : "s"} • {formatVolume(exercise.volume, user.preferredUnit)}
                         </p>
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <ChevronRight className="h-4 w-4 text-ink-muted" />
                     </Link>
                   ))
                 ) : (
@@ -209,8 +209,8 @@ export const ProgressScreen = () => {
                   overview.weeklySummary.topMuscleGroups.map((muscle) => (
                     <div key={muscle.muscle} className="surface-panel-soft space-y-2 px-4 py-3">
                       <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="font-medium text-foreground">{muscle.muscle}</span>
-                        <span className="text-muted-foreground">{formatVolume(muscle.volume, user.preferredUnit)}</span>
+                        <span className="font-medium text-ink">{muscle.muscle}</span>
+                        <span className="text-ink-muted">{formatVolume(muscle.volume, user.preferredUnit)}</span>
                       </div>
                       <Progress value={overview.weeklySummary.totalVolume > 0 ? (muscle.volume / overview.weeklySummary.totalVolume) * 100 : 0} />
                     </div>
@@ -234,14 +234,14 @@ export const ProgressScreen = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-foreground">{record.exerciseName}</p>
+                          <p className="font-semibold text-ink">{record.exerciseName}</p>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">{record.bestSetLabel} • {new Date(record.completedAt).toLocaleDateString()}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{record.workoutTitle}</p>
+                        <p className="mt-1 text-sm text-ink-muted">{record.bestSetLabel} • {new Date(record.completedAt).toLocaleDateString()}</p>
+                        <p className="mt-1 text-sm text-ink-muted">{record.workoutTitle}</p>
                       </div>
                       <Badge>PR</Badge>
                     </div>
-                    <p className="mt-3 text-sm font-medium text-primary">
+                    <p className="mt-3 text-sm font-medium text-accent">
                       {record.improvement !== null && record.improvement > 0
                         ? `Up ${record.improvement.toFixed(1)} estimated 1RM`
                         : "New top set recorded"}
@@ -265,12 +265,12 @@ export const ProgressScreen = () => {
                   <Link
                     key={trend.exerciseId}
                     href={`/progress/exercises/${trend.exerciseId}`}
-                    className="surface-panel-soft block p-4 transition-colors hover:bg-card/90"
+                    className="surface-panel-soft block p-4 transition-colors hover:bg-surface-raised"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-foreground">{trend.exerciseName}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="font-display font-semibold text-ink">{trend.exerciseName}</p>
+                        <p className="mt-1 text-sm text-ink-muted">
                           {trend.equipmentType} • {trend.sessionCount} sessions
                         </p>
                       </div>
@@ -320,12 +320,12 @@ export const ProgressScreen = () => {
                     return (
                       <div key={`${unlock.familyId}-${unlock.rank}`} className="surface-panel-soft flex items-center justify-between gap-3 p-4">
                         <div className="flex min-w-0 items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-accent">
                             <Icon className="h-4 w-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-foreground">{unlock.familyTitle}</p>
-                            <p className="mt-1 text-sm text-muted-foreground">
+                            <p className="font-semibold text-ink">{unlock.familyTitle}</p>
+                            <p className="mt-1 text-sm text-ink-muted">
                               Reached {getChallengeRankLabel(unlock.rank)}
                             </p>
                           </div>
@@ -345,8 +345,8 @@ export const ProgressScreen = () => {
                     <div key={family.id} className="surface-panel-soft p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-foreground">{family.title}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
+                          <p className="font-semibold text-ink">{family.title}</p>
+                          <p className="mt-1 text-sm text-ink-muted">
                             {formatChallengeUnit(
                               family.progress,
                               family.unitSingular,
@@ -390,17 +390,17 @@ export const ProgressScreen = () => {
 
 const MiniStat = ({ label, value }: { label: string; value: string }) => (
   <div>
-    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-    <p className="mt-1 font-semibold text-foreground">{value}</p>
+    <p className="text-[10px] uppercase tracking-[0.08em] text-ink-muted">{label}</p>
+    <p className="mt-1 font-semibold text-ink">{value}</p>
   </div>
 );
 
 const SectionLabel = ({ children }: { children: ReactNode }) => (
-  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{children}</p>
+  <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">{children}</p>
 );
 
 const EmptyHint = ({ copy }: { copy: string }) => (
-  <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
+  <div className="rounded-md border border-dashed border-rule bg-surface-raised p-4 text-sm text-ink-muted">
     {copy}
   </div>
 );

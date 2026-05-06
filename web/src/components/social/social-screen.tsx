@@ -117,7 +117,7 @@ export const SocialScreen = () => {
       <Card>
         <CardHeader className="space-y-4">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             <Input
               className="pl-9"
               placeholder="Search by name or email"
@@ -133,17 +133,17 @@ export const SocialScreen = () => {
                 searchResults.map((user) => (
                 <div key={user.id} className="surface-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <Link href={`/profile/${user.id}`} className="font-semibold text-foreground hover:text-primary">
+                      <Link href={`/profile/${user.id}`} className="font-semibold text-ink hover:text-ink">
                         {user.displayName}
                       </Link>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-ink-muted">
                         Level {user.level} • {user.xpTotal} XP
                       </p>
                       {user.selectedTitleLabel || user.selectedBadgeLabel ? (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
                           {user.selectedBadgeLabel ? (
-                            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-rule bg-surface px-3 py-1">
                               <ChallengeBadgeToken iconKey={user.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
                               <span className="text-xs">{user.selectedBadgeLabel}</span>
                             </div>
@@ -164,7 +164,7 @@ export const SocialScreen = () => {
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
+                <div className="rounded-md border border-dashed border-rule bg-surface-raised p-4 text-sm text-ink-muted">
                   No users found.
                 </div>
               )}
@@ -186,15 +186,15 @@ export const SocialScreen = () => {
               followingQuery.data.map((user) => (
                 <div key={user.id} className="surface-panel-soft flex items-center justify-between gap-3 p-3">
                   <div>
-                    <Link href={`/profile/${user.id}`} className="font-semibold hover:text-primary">
+                    <Link href={`/profile/${user.id}`} className="font-semibold hover:text-ink">
                       {user.displayName}
                     </Link>
-                    <p className="text-sm text-muted-foreground">Level {user.level}</p>
+                    <p className="text-sm text-ink-muted">Level {user.level}</p>
                     {user.selectedTitleLabel || user.selectedBadgeLabel ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
                         {user.selectedBadgeLabel ? (
-                          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-rule bg-surface px-3 py-1">
                             <ChallengeBadgeToken iconKey={user.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
                             <span className="text-xs">{user.selectedBadgeLabel}</span>
                           </div>
@@ -206,7 +206,7 @@ export const SocialScreen = () => {
                 </div>
               ))
             ) : (
-              <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-rule bg-surface-raised p-4 text-sm text-ink-muted">
                 Search for people to follow.
               </div>
             )}
@@ -229,15 +229,15 @@ export const SocialScreen = () => {
                       <Trophy className="h-4 w-4" />
                     </div>
                     <div>
-                      <Link href={`/profile/${entry.userId}`} className="font-semibold hover:text-primary">
+                      <Link href={`/profile/${entry.userId}`} className="font-semibold hover:text-ink">
                         #{entry.rank} {entry.displayName}
                       </Link>
-                      <p className="text-sm text-muted-foreground">Level {entry.level}</p>
+                      <p className="text-sm text-ink-muted">Level {entry.level}</p>
                       {entry.selectedTitleLabel || entry.selectedBadgeLabel ? (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {entry.selectedTitleLabel ? <Badge variant="secondary">{entry.selectedTitleLabel}</Badge> : null}
                           {entry.selectedBadgeLabel ? (
-                            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-rule bg-surface px-3 py-1">
                               <ChallengeBadgeToken iconKey={entry.selectedBadgeIconKey ?? "award"} rank={null} className="h-6 w-6" />
                               <span className="text-xs">{entry.selectedBadgeLabel}</span>
                             </div>
@@ -268,13 +268,13 @@ export const SocialScreen = () => {
                 <div key={challenge.id} className="surface-panel p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold">{challenge.title}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{challenge.description}</p>
+                      <p className="font-display font-semibold text-ink">{challenge.title}</p>
+                      <p className="mt-1 text-sm text-ink-muted">{challenge.description}</p>
                     </div>
                     <Badge variant="secondary">{challenge.myScore}</Badge>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-ink-muted">
                       Ends {new Date(challenge.periodEnd).toLocaleDateString()}
                     </p>
                     <Button
@@ -304,13 +304,13 @@ export const SocialScreen = () => {
               feedQuery.data.map((event) => (
                 <div key={event.id} className="surface-panel p-4">
                   <p className="font-semibold">{event.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-1 text-sm text-ink-muted">
                     {event.user.displayName} • {new Date(event.createdAt).toLocaleString()}
                   </p>
                 </div>
               ))
             ) : (
-              <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-rule bg-surface-raised p-4 text-sm text-ink-muted">
                 Follow someone to turn this into a real activity feed.
               </div>
             )}

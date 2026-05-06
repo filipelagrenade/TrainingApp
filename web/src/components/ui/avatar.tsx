@@ -7,14 +7,20 @@ const Avatar = ({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>) => (
-  <AvatarPrimitive.Root className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)} {...props} />
+  <AvatarPrimitive.Root
+    className={cn(
+      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full border border-rule",
+      className,
+    )}
+    {...props}
+  />
 );
 
 const AvatarImage = ({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>) => (
-  <AvatarPrimitive.Image className={cn("aspect-square h-full w-full", className)} {...props} />
+  <AvatarPrimitive.Image className={cn("aspect-square h-full w-full object-cover", className)} {...props} />
 );
 
 const AvatarFallback = ({
@@ -22,7 +28,10 @@ const AvatarFallback = ({
   ...props
 }: React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>) => (
   <AvatarPrimitive.Fallback
-    className={cn("flex h-full w-full items-center justify-center rounded-full bg-secondary text-secondary-foreground", className)}
+    className={cn(
+      "flex h-full w-full items-center justify-center rounded-full bg-surface-sunken font-display text-sm text-ink",
+      className,
+    )}
     {...props}
   />
 );

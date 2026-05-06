@@ -158,7 +158,7 @@ export const AchievementLibraryScreen = () => {
                 <CardTitle>Showcase rewards</CardTitle>
                 <CardDescription>Titles and badges unlock through challenge tiers.</CardDescription>
               </div>
-              <Link href="/profile" className="text-sm font-semibold text-primary">
+              <Link href="/profile" className="text-sm font-semibold text-accent">
                 Open profile
               </Link>
             </div>
@@ -179,7 +179,7 @@ export const AchievementLibraryScreen = () => {
         <Card>
           <CardContent className="space-y-4 p-4">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
               <Input
                 className="pl-9"
                 placeholder="Search challenges"
@@ -221,17 +221,17 @@ export const AchievementLibraryScreen = () => {
                       key={family.id}
                       type="button"
                       onClick={() => setSelectedFamily(family)}
-                      className="surface-panel-soft flex min-h-[12.5rem] flex-col items-center gap-3 rounded-[1.8rem] px-4 py-5 text-center transition-transform duration-200 hover:-translate-y-0.5"
+                      className="surface-panel-soft flex min-h-[12.5rem] flex-col items-center gap-3 rounded-md px-4 py-5 text-center transition-transform duration-200 "
                     >
                       <ChallengeToken iconKey={family.iconKey} rank={family.currentRank} />
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold text-foreground">{family.title}</p>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        <p className="text-sm font-semibold text-ink">{family.title}</p>
+                        <p className="text-[11px] uppercase tracking-[0.08em] text-ink-muted">
                           {family.currentRank ? getChallengeRankLabel(family.currentRank) : "Unranked"}
                         </p>
                       </div>
                       <div className="w-full space-y-2">
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between text-xs text-ink-muted">
                           <span>{formatChallengeUnit(family.progress, family.unitSingular, family.unitPlural)}</span>
                           <span>
                             {formatChallengeUnit(
@@ -254,7 +254,7 @@ export const AchievementLibraryScreen = () => {
                 </div>
               ) : (
                 <Card>
-                  <CardContent className="p-6 text-sm text-muted-foreground">
+                  <CardContent className="p-6 text-sm text-ink-muted">
                     No challenges match the current filters.
                   </CardContent>
                 </Card>
@@ -293,11 +293,11 @@ const ChallengeFamilySheet = ({
     <Sheet open={Boolean(family)} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex h-[85vh] max-h-[85vh] flex-col overflow-hidden rounded-t-[2rem] border-border/80 p-0"
+        className="flex h-[85vh] max-h-[85vh] flex-col overflow-hidden rounded-t-md border-rule p-0"
       >
         {family ? (
           <>
-            <div className="border-b border-border/80 bg-background px-5 pb-5 pt-8">
+            <div className="border-b border-rule bg-background px-5 pb-5 pt-8">
               <SheetHeader className="items-center text-center">
                 <ChallengeToken iconKey={family.iconKey} rank={family.currentRank} className="mx-auto" />
                 <div className="space-y-2">
@@ -332,12 +332,12 @@ const ChallengeFamilySheet = ({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">
+                    <span className="text-ink-muted">
                       {family.nextTier
                         ? `${family.nextTier.remaining} to ${getChallengeRankLabel(family.nextTier.rank)}`
                         : "All ranks unlocked"}
                     </span>
-                    <span className="font-medium text-foreground">
+                    <span className="font-medium text-ink">
                       {family.nextTier
                         ? `${formatChallengeUnit(
                             family.progress,
@@ -377,17 +377,17 @@ const TierRow = ({
 }) => (
   <div
     className={`surface-panel-soft flex items-center justify-between gap-3 px-4 py-3 ${
-      tier.unlocked ? "border-primary/25 bg-primary/8" : ""
+      tier.unlocked ? "border-rule-strong bg-surface-sunken" : ""
     }`}
   >
     <div className="min-w-0">
       <div className="flex flex-wrap items-center gap-2">
         <ChallengeRankBadge rank={tier.rank} />
-        <span className="text-sm text-muted-foreground">
+        <span className="text-sm text-ink-muted">
           {formatChallengeUnit(tier.threshold, family.unitSingular, family.unitPlural)}
         </span>
       </div>
-      <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+      <div className="mt-1 flex flex-wrap gap-2 text-xs text-ink-muted">
         <span>{tier.xpReward} XP</span>
         {tier.titleRewardLabel ? <span>Title: {tier.titleRewardLabel}</span> : null}
         {tier.badgeRewardLabel ? (
@@ -407,8 +407,8 @@ const TierRow = ({
 );
 
 const SummaryCell = ({ label, value }: { label: string; value: string }) => (
-  <div className="surface-panel-soft rounded-[1.2rem] px-4 py-3 text-center">
-    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-    <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
+  <div className="surface-panel-soft rounded-md px-4 py-3 text-center">
+    <p className="text-[10px] uppercase tracking-[0.08em] text-ink-muted">{label}</p>
+    <p className="mt-1 text-lg font-semibold text-ink">{value}</p>
   </div>
 );

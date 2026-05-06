@@ -6,18 +6,21 @@ import { cn } from "@/lib/utils";
 export const Progress = ({
   className,
   value,
+  indicatorClassName,
   ...props
-}: React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>) => (
+}: React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & {
+  indicatorClassName?: string;
+}) => (
   <ProgressPrimitive.Root
     className={cn(
-      "relative h-3 w-full overflow-hidden rounded-full border border-border/60 bg-foreground/[0.06]",
+      "relative h-1 w-full overflow-hidden rounded-full bg-surface-sunken",
       className,
     )}
     value={value}
     {...props}
   >
     <ProgressPrimitive.Indicator
-      className="h-full w-full flex-1 bg-[linear-gradient(90deg,hsl(var(--progress-start))_0%,hsl(var(--progress-end))_100%)] transition-transform"
+      className={cn("h-full w-full flex-1 bg-ink transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]", indicatorClassName)}
       style={{ transform: `translateX(-${100 - (value ?? 0)}%)` }}
     />
   </ProgressPrimitive.Root>

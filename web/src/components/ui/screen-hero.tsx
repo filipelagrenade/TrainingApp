@@ -17,25 +17,29 @@ export const ScreenHero = ({
   eyebrow?: string;
   className?: string;
 }) => (
-  <section className={cn("hero-card p-4 sm:p-5", className)}>
-    <div className="relative z-10 space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="max-w-2xl space-y-2">
-          {eyebrow ? (
-            <div className="inline-flex w-fit items-center rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
-              {eyebrow}
-            </div>
-          ) : null}
-          <div className="space-y-1.5">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{title}</h1>
-            {description ? (
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
-            ) : null}
-          </div>
-        </div>
-        {actions ? <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">{actions}</div> : null}
+  <section className={cn("space-y-6", className)}>
+    <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+      <div className="max-w-2xl space-y-2">
+        {eyebrow ? (
+          <p className="eyebrow">{eyebrow}</p>
+        ) : null}
+        <h1 className="font-display text-3xl sm:text-4xl font-normal tracking-editorial text-ink leading-tight">
+          {title}
+        </h1>
+        {description ? (
+          <p className="max-w-xl text-base leading-7 text-ink-muted">{description}</p>
+        ) : null}
       </div>
-      {stats ? <div className="grid grid-cols-3 gap-1.5 sm:gap-2 lg:grid-cols-4">{stats}</div> : null}
+      {actions ? (
+        <div className="flex flex-row flex-wrap gap-2 sm:justify-end">{actions}</div>
+      ) : null}
     </div>
+    {stats ? (
+      <div className="border-t border-rule">
+        <div className="grid grid-cols-2 gap-x-6 sm:grid-cols-3 lg:grid-cols-4 divide-x divide-rule">
+          {stats}
+        </div>
+      </div>
+    ) : null}
   </section>
 );

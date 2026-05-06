@@ -185,7 +185,7 @@ export const ExerciseLibraryScreen = () => {
             </TabsList>
           </Tabs>
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
             <Input
               className="pl-9"
               placeholder="Search exercise, machine, attachment, or muscle"
@@ -201,7 +201,7 @@ export const ExerciseLibraryScreen = () => {
           Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-48" />)
         ) : filteredExercises.length ? (
           filteredExercises.map((exercise) => (
-            <Card key={exercise.id} className="border-border/70">
+            <Card key={exercise.id} className="border-rule">
               <CardHeader className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -221,7 +221,7 @@ export const ExerciseLibraryScreen = () => {
               <CardContent className="space-y-3 text-sm">
                 <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Primary muscles</p>
+                  <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">Primary muscles</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {exercise.primaryMuscles.map((muscle) => (
                       <Badge key={muscle} variant="outline">
@@ -255,7 +255,7 @@ export const ExerciseLibraryScreen = () => {
           ))
         ) : (
           <Card className="sm:col-span-2 xl:col-span-3">
-            <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            <CardContent className="p-6 text-center text-sm text-ink-muted">
               No exercises match that search yet.
             </CardContent>
           </Card>
@@ -297,7 +297,7 @@ export const ExerciseLibraryScreen = () => {
                 </TabsList>
               </Tabs>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
                 <Input
                   className="pl-9"
                   placeholder="Search replacement exercise"
@@ -310,10 +310,10 @@ export const ExerciseLibraryScreen = () => {
                   filteredDeleteReplacementTargets.map((exercise) => (
                     <button
                       key={exercise.id}
-                      className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                      className={`w-full rounded-md border p-4 text-left transition-colors ${
                         deleteReplacementExerciseId === exercise.id
-                          ? "border-primary/60 bg-primary/5"
-                          : "border-border/70 bg-card hover:bg-background/70"
+                          ? "border-accent bg-surface-sunken"
+                          : "border-rule bg-card hover:bg-surface"
                       }`}
                       onClick={() => {
                         setDeleteReplacementExerciseId(exercise.id);
@@ -323,8 +323,8 @@ export const ExerciseLibraryScreen = () => {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
-                          <p className="font-semibold text-foreground">{exercise.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-semibold text-ink">{exercise.name}</p>
+                          <p className="text-sm text-ink-muted">
                             {exercise.equipmentType}
                             {exercise.machineType ? ` • ${exercise.machineType}` : ""}
                             {exercise.attachment ? ` • ${exercise.attachment}` : ""}
@@ -337,7 +337,7 @@ export const ExerciseLibraryScreen = () => {
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-md border border-dashed border-rule p-4 text-sm text-ink-muted">
                     No exercises match that search.
                   </div>
                 )}
@@ -358,7 +358,7 @@ export const ExerciseLibraryScreen = () => {
                   {availableDeleteReplacementTargets.find((exercise) => exercise.id === deleteReplacementExerciseId)
                     ?.name ?? "No replacement selected"}
                 </span>
-                <span className="text-xs text-muted-foreground">Search</span>
+                <span className="text-xs text-ink-muted">Search</span>
               </Button>
               {deleteReplacementExerciseId ? (
                 <Button
@@ -399,7 +399,7 @@ export const ExerciseLibraryScreen = () => {
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
   <div>
-    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-    <p className="mt-1 font-medium text-foreground">{value}</p>
+    <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">{label}</p>
+    <p className="mt-1 font-medium text-ink">{value}</p>
   </div>
 );

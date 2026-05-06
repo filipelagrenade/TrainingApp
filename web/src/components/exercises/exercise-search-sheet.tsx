@@ -89,8 +89,8 @@ export const ExerciseSearchSheet = ({
         }
       }}
     >
-      <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
-        <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+      <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
+        <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
           <SheetHeader>
             <SheetTitle>{title}</SheetTitle>
             <SheetDescription>{description}</SheetDescription>
@@ -104,7 +104,7 @@ export const ExerciseSearchSheet = ({
               </TabsList>
             </Tabs>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
               <Input
                 className="pl-9"
                 placeholder="Search exercise, muscle, machine, or attachment"
@@ -124,10 +124,10 @@ export const ExerciseSearchSheet = ({
                 return (
                   <button
                     key={exercise.id}
-                    className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                    className={`w-full rounded-md border p-4 text-left transition-colors ${
                       selected
-                        ? "border-primary/60 bg-primary/5"
-                        : "border-border/70 bg-card hover:bg-background/70"
+                        ? "border-accent bg-surface-sunken"
+                        : "border-rule bg-card hover:bg-surface"
                     }`}
                     onClick={() => {
                       onSelect(exercise);
@@ -139,8 +139,8 @@ export const ExerciseSearchSheet = ({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
-                        <p className="font-semibold text-foreground">{exercise.name}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="font-semibold text-ink">{exercise.name}</p>
+                        <p className="text-sm text-ink-muted">
                           {exercise.equipmentType}
                           {exercise.machineType ? ` • ${exercise.machineType}` : ""}
                           {exercise.attachment ? ` • ${exercise.attachment}` : ""}
@@ -164,7 +164,7 @@ export const ExerciseSearchSheet = ({
                 );
               })
             ) : (
-              <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-rule p-4 text-sm text-ink-muted">
                 No exercises match that search.
               </div>
             )}

@@ -84,8 +84,8 @@ export const TemplateBuilderSheet = ({
           }
         }}
       >
-        <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-3xl p-0">
-          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+        <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-md p-0">
+          <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
             <SheetHeader>
               <SheetTitle>Create template</SheetTitle>
               <SheetDescription>Build a single reusable workout without going through a program.</SheetDescription>
@@ -113,10 +113,10 @@ export const TemplateBuilderSheet = ({
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-2">
+              <div className="flex items-center justify-between gap-3 rounded-md border border-rule bg-surface px-3 py-2">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Exercises</p>
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">Exercises</p>
+                  <p className="text-sm font-semibold text-ink">
                     {items.length ? `${items.length} queued` : "Nothing added yet"}
                   </p>
                 </div>
@@ -126,11 +126,11 @@ export const TemplateBuilderSheet = ({
                 </Button>
               </div>
               {items.map((exercise, exerciseIndex) => (
-                <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-2xl border border-border/70 bg-card p-3">
+                <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-md border border-rule bg-card p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-foreground">{exercise.exerciseName}</p>
-                      <p className="text-xs text-muted-foreground">Quick prescription only.</p>
+                      <p className="font-semibold text-ink">{exercise.exerciseName}</p>
+                      <p className="text-xs text-ink-muted">Quick prescription only.</p>
                     </div>
                     <Button
                       size="icon"
@@ -322,7 +322,7 @@ export const TemplateBuilderSheet = ({
             </div>
           </div>
           </div>
-          <SheetFooter className="border-t border-border/80 bg-background px-6 py-4">
+          <SheetFooter className="border-t border-rule bg-background px-6 py-4">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

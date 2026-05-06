@@ -875,10 +875,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               <StatBlock label="Entry" value={session.entryType.replaceAll("_", " ")} />
             </div>
             <div className="surface-panel p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="eyebrow">
                 Estimated volume
               </p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
+              <p className="mt-2 font-display text-2xl font-bold text-ink">
                 {formatVolume(completedStats.volume, preferredUnit)} moved
               </p>
             </div>
@@ -902,14 +902,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 <div key={exercise.id} className="surface-panel p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-foreground">{exercise.exerciseName}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="font-display font-semibold text-ink">{exercise.exerciseName}</p>
+                      <p className="mt-1 text-sm text-ink-muted">
                         {exercise.equipmentType}
                         {exercise.machineType ? ` • ${exercise.machineType}` : ""}
                         {exercise.attachment ? ` • ${exercise.attachment}` : ""}
                       </p>
                       {exercise.substitutedFromExerciseName ? (
-                        <p className="mt-2 text-xs text-muted-foreground">
+                        <p className="mt-2 text-xs text-ink-muted">
                           Replaced {exercise.substitutedFromExerciseName} •{" "}
                           {exercise.countsForProgression ? "Counts for progression" : "Logged as alternate"}
                         </p>
@@ -957,7 +957,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     {exercise.sets.map((set) => (
                       <div
                         key={set.id}
-                        className="surface-panel-soft grid grid-cols-4 gap-3 p-3 text-sm"
+                        className="surface-panel-soft grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 text-sm"
                       >
                         <StatBlock compact label="Set" value={String(set.setNumber)} />
                         <StatBlock
@@ -990,11 +990,11 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         <div className="hero-card p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="eyebrow">
                 {session.wasPlanned ? "Planned session" : "Quick workout"}
               </p>
-              <h1 className="truncate text-lg font-semibold text-foreground">{draft.title}</h1>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <h1 className="truncate text-lg font-semibold text-ink">{draft.title}</h1>
+              <p className="mt-1 text-xs text-ink-muted">
                 {draft.exercises.length
                   ? `Exercise ${activeExerciseIndex + 1} of ${draft.exercises.length}`
                   : "Add a few movements to get started"}
@@ -1029,28 +1029,28 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               type="button"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">
+                <p className="truncate text-sm font-semibold text-ink">
                   {draft.exercises.length
                     ? `${activeExerciseIndex + 1}/${draft.exercises.length} • ${activeExercise?.exerciseName ?? "Workout"}`
                     : "No exercises yet"}
                 </p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
+                <p className="mt-1 truncate text-xs text-ink-muted">
                   {formatDuration(elapsedSeconds)} total • {formatRestTime(restRemaining)} rest
                 </p>
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted" />
             </button>
           ) : (
             <div className="surface-panel mt-3 space-y-2 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
                   <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Total time</p>
-                    <p className="truncate text-sm font-semibold text-foreground">{formatDuration(elapsedSeconds)}</p>
+                    <p className="eyebrow">Total time</p>
+                    <p className="truncate text-sm font-semibold text-ink">{formatDuration(elapsedSeconds)}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Rest</p>
-                    <p className="truncate text-sm font-semibold text-foreground">{formatRestTime(restRemaining)}</p>
+                    <p className="eyebrow">Rest</p>
+                    <p className="truncate text-sm font-semibold text-ink">{formatRestTime(restRemaining)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1118,23 +1118,23 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           )}
         </div>
       </div>
-      <div className="sticky top-0 z-20 -mx-4 bg-[linear-gradient(180deg,hsl(240_29%_8%/0.98)_0%,hsl(240_29%_8%/0.94)_78%,transparent_100%)] px-4 pb-3 pt-3 backdrop-blur-xl">
+      <div className="sticky top-9 z-20 -mx-5 border-b border-rule bg-surface/95 backdrop-blur-sm px-5 py-3">
         <div className="flex gap-2 overflow-x-auto pb-1">
           {draft.exercises.map((exercise, index) => (
             <button
               key={`${exercise.exerciseName}-${index}`}
-              className={`min-w-[8.5rem] rounded-[1.3rem] border px-3 py-2 text-left transition ${
+              className={`min-w-[9rem] rounded-md border px-3 py-2 text-left transition-colors ${
                 index === activeExerciseIndex
-                  ? "border-primary/40 bg-primary/12 shadow-[0_12px_24px_hsl(var(--primary)/0.18)]"
-                  : "border-border/70 bg-card/72"
+                  ? "border-ink bg-surface-sunken"
+                  : "border-rule bg-transparent hover:border-rule-strong"
               }`}
               onClick={() => setActiveExerciseIndex(index)}
               type="button"
             >
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="eyebrow">
                 {index + 1}
               </p>
-              <p className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">{exercise.exerciseName}</p>
+              <p className="mt-1 line-clamp-2 text-sm font-medium text-ink">{exercise.exerciseName}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {exercise.supersetGroupId ? (
                   <Badge variant="outline" className="px-2 py-0 text-[10px]">
@@ -1158,13 +1158,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             <>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="eyebrow">
                   Active exercise
                 </p>
-                <h2 className="truncate text-xl font-semibold text-foreground">{activeExercise.exerciseName}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{activeExerciseSummary}</p>
+                <h2 className="truncate font-display text-2xl font-semibold tracking-editorial text-ink">{activeExercise.exerciseName}</h2>
+                <p className="mt-1 text-sm text-ink-muted">{activeExerciseSummary}</p>
                 {activeExercise.substitutedFromExerciseName ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <p className="mt-2 text-xs text-ink-muted">
                     Replacing {activeExercise.substitutedFromExerciseName} •{" "}
                     {activeExercise.countsForProgression ? "Counts for progression" : "Alternate only"}
                   </p>
@@ -1222,8 +1222,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             {activeSupersetPartner ? (
               <div className="surface-panel flex items-center justify-between gap-3 px-3 py-2">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Paired with</p>
-                  <p className="text-sm font-semibold text-foreground">{activeSupersetPartner.exerciseName}</p>
+                  <p className="eyebrow">Paired with</p>
+                  <p className="text-sm font-semibold text-ink">{activeSupersetPartner.exerciseName}</p>
                 </div>
                     <Button
                       variant="outline"
@@ -1290,16 +1290,16 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   return (
                     <div
                       key={`${activeExercise.exerciseName}-${setIndex}`}
-                      className={`rounded-2xl border ${
-                        isDone ? "border-primary/30 bg-primary/8" : "border-border/70 bg-card/72"
+                      className={`rounded-md border transition-colors ${
+                        isDone ? "border-rule bg-accent-soft/40" : "border-rule bg-transparent"
                       }`}
                     >
                       <div className="flex items-center gap-2 px-3 py-3">
                         <button
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition ${
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border font-mono text-sm transition-colors ${
                             isDone
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border/70 bg-card text-foreground"
+                              ? "border-ink bg-ink text-surface"
+                              : "border-rule bg-surface-raised text-ink"
                           }`}
                           onClick={() => toggleSetCompleted(setIndex)}
                           type="button"
@@ -1311,7 +1311,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                           onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
                           type="button"
                         >
-                          <p className="truncate text-sm font-semibold text-foreground">
+                          <p className="truncate text-sm font-medium text-ink">
                             {formatSetLoad(
                               activeExercise.trackingMode,
                               activeExercise.unitMode,
@@ -1328,7 +1328,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                             {set.setType?.replaceAll("_", " ") ?? (set.isWorkingSet ? "NORMAL" : "WARMUP")}
                           </p>
                           {setTrackingData?.autoGenerated ? (
-                            <p className="mt-1 text-[11px] text-muted-foreground">
+                            <p className="mt-1 text-[11px] text-ink-muted">
                               Auto {setTrackingData.dropPhase ? `drop ${setTrackingData.dropPhase}` : "generated"}
                             </p>
                           ) : null}
@@ -1342,11 +1342,11 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                         </Button>
                       </div>
                       {isExpanded ? (
-                        <div className="border-t border-border/70 px-3 py-3">
+                        <div className="border-t border-rule px-3 py-3">
                           {isUnilateral && activeExercise.exerciseCategory !== "CARDIO" ? (
                             <div className="grid gap-3 md:grid-cols-2">
-                              <div className="rounded-2xl border border-border/70 p-3">
-                                <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                              <div className="rounded-md border border-rule p-3">
+                                <p className="eyebrow mb-2">
                                   Left
                                 </p>
                                 <div className="grid grid-cols-3 gap-2">
@@ -1432,8 +1432,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                                   </div>
                                 </div>
                               </div>
-                              <div className="rounded-2xl border border-border/70 p-3">
-                                <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                              <div className="rounded-md border border-rule p-3">
+                                <p className="eyebrow mb-2">
                                   Right
                                 </p>
                                 <div className="grid grid-cols-3 gap-2">
@@ -1872,8 +1872,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </Button>
             </>
           ) : (
-            <div className="rounded-2xl border border-dashed border-border/80 p-5 text-center">
-              <p className="text-sm text-muted-foreground">Add an exercise to start logging.</p>
+            <div className="rounded-md border border-dashed border-rule p-5 text-center">
+              <p className="text-sm text-ink-muted">Add an exercise to start logging.</p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
                 <Button onClick={() => setBulkSheetOpen(true)}>
                   <Plus className="h-4 w-4" />
@@ -1890,8 +1890,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       </Card>
 
       <Sheet open={showSessionMeta} onOpenChange={setShowSessionMeta}>
-        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
-          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
+          <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
             <SheetHeader>
               <SheetTitle>Workout tools</SheetTitle>
             </SheetHeader>
@@ -2028,8 +2028,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       />
 
       <Sheet open={supersetSheetOpen} onOpenChange={setSupersetSheetOpen}>
-        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
-          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
+          <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
             <SheetHeader>
               <SheetTitle>Create superset</SheetTitle>
               <SheetDescription>
@@ -2056,8 +2056,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   }
                   type="button"
                 >
-                  <p className="font-semibold text-foreground">{exercise.exerciseName}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="font-semibold text-ink">{exercise.exerciseName}</p>
+                  <p className="mt-1 text-sm text-ink-muted">
                     Pair with exercise {index + 1}
                   </p>
                 </button>
@@ -2065,7 +2065,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             {draft.exercises.filter(
               (exercise, index) => index !== activeExerciseIndex && !exercise.supersetGroupId,
             ).length === 0 ? (
-              <div className="rounded-[1.4rem] border border-dashed border-border/80 bg-card/35 p-4 text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-rule p-4 text-sm text-ink-muted">
                 Add another unpaired exercise to create a superset.
               </div>
             ) : null}
@@ -2075,8 +2075,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       </Sheet>
 
       <Sheet open={detailsSheetOpen} onOpenChange={setDetailsSheetOpen}>
-        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-3xl p-0">
-          <div className="border-b border-border/80 bg-background px-6 pb-4 pt-6">
+        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
+          <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
             <SheetHeader>
               <SheetTitle>Manage exercise</SheetTitle>
               <SheetDescription>
@@ -2248,7 +2248,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                     />
                   )}
                   {activeExercise.exerciseCategory !== "CARDIO" ? (
-                    <p className="text-xs text-muted-foreground">Displayed in {preferredUnit.toUpperCase()}</p>
+                    <p className="text-xs text-ink-muted">Displayed in {preferredUnit.toUpperCase()}</p>
                   ) : null}
                 </div>
               </div>
@@ -2318,7 +2318,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       </Dialog>
 
       <Dialog open={keepChangesOpen} onOpenChange={setKeepChangesOpen}>
-        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-lg flex-col overflow-hidden rounded-3xl p-0 sm:w-full">
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-lg flex-col overflow-hidden rounded-md p-0 sm:w-full">
           <div className="flex-1 overflow-y-auto p-6">
           <DialogHeader>
             <DialogTitle>Keep workout changes?</DialogTitle>
@@ -2346,12 +2346,12 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               />
             </div>
             <div className="surface-panel space-y-2 p-3">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Exercises to keep</p>
+              <p className="eyebrow">Exercises to keep</p>
               <div className="mt-3 space-y-2">
                 {draft?.exercises.map((exercise, index) => (
                   <label
                     key={`${exercise.exerciseId ?? exercise.exerciseName}-${index}`}
-                    className="flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2"
+                    className="flex items-center gap-3 rounded-md border border-rule px-3 py-2"
                   >
                     <Checkbox
                       checked={postCompleteSelection.includes(index)}
@@ -2364,8 +2364,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                       }
                     />
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{exercise.exerciseName}</p>
-                      <p className="text-xs text-muted-foreground">{exercise.equipmentType}</p>
+                      <p className="truncate text-sm font-medium text-ink">{exercise.exerciseName}</p>
+                      <p className="text-xs text-ink-muted">{exercise.equipmentType}</p>
                     </div>
                   </label>
                 ))}
@@ -2373,7 +2373,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
             </div>
           </div>
           </div>
-          <DialogFooter className="gap-2 border-t border-border/60 bg-background px-6 py-4 sm:justify-between sm:space-x-0">
+          <DialogFooter className="gap-2 border-t border-rule bg-surface px-6 py-4 sm:justify-between sm:space-x-0">
             <Button variant="ghost" onClick={applyCompletionSuccess}>
               Keep none
             </Button>
