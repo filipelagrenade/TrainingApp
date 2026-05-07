@@ -653,30 +653,12 @@ export const deleteProgram = async (userId: string, programId: string) => {
   return { ok: true };
 };
 
-const buildExposureSnapshots = async (
-  userId: string,
-  programExerciseId: string,
-): Promise<ExposureSnapshot[]> => {
-  const exercises = await prisma.workoutExercise.findMany({
-    where: {
-      session: {
-        userId,
-        status: "COMPLETED",
-      },
-      sourceProgramExerciseId: programExerciseId,
-    },
-    include: {
-      sets: true,
-    },
-    orderBy: {
-      session: {
-        completedAt: "desc",
-      },
-    },
-    take: 2,
-  });
+type WorkoutExerciseWithSets = Awaited<ReturnType<typeof prisma.workoutExercise.findFirst>> & {
+  sets: Awaited<ReturnType<typeof prisma.workoutSet.findMany>>;
+};
 
-  return exercises.map((exercise) => {
+const snapshotsFromRows = (rows: NonNullable<WorkoutExerciseWithSets>[]): ExposureSnapshot[] =>
+  rows.map((exercise) => {
     const workingSets = exercise.sets.filter((set) => set.isWorkingSet);
     const ratedSets = workingSets.filter((set) => typeof set.rpe === "number");
     const averageRpe =
@@ -694,6 +676,55 @@ const buildExposureSnapshots = async (
       workingWeight: workingSets.find((set) => typeof set.weight === "number")?.weight ?? undefined,
     };
   });
+
+const buildExposureSnapshots = async (
+  userId: string,
+  programExerciseId: string,
+): Promise<ExposureSnapshot[]> => {
+  const exercises = await prisma.workoutExercise.findMany({
+    where: {
+      session: { userId, status: "COMPLETED" },
+      sourceProgramExerciseId: programExerciseId,
+    },
+    include: { sets: true },
+    orderBy: { session: { completedAt: "desc" } },
+    take: 2,
+  });
+
+  return snapshotsFromRows(exercises as NonNullable<WorkoutExerciseWithSets>[]);
+};
+
+const batchBuildExposureSnapshots = async (
+  userId: string,
+  programExerciseIds: string[],
+): Promise<Map<string, ExposureSnapshot[]>> => {
+  if (programExerciseIds.length === 0) return new Map();
+
+  const rows = await prisma.workoutExercise.findMany({
+    where: {
+      sourceProgramExerciseId: { in: programExerciseIds },
+      session: { userId, status: "COMPLETED" },
+    },
+    include: { sets: true },
+    orderBy: { session: { completedAt: "desc" } },
+  });
+
+  // Group by sourceProgramExerciseId, keeping at most 2 per exercise (already desc by date)
+  const grouped = new Map<string, NonNullable<WorkoutExerciseWithSets>[]>();
+  for (const row of rows) {
+    if (!row.sourceProgramExerciseId) continue;
+    const existing = grouped.get(row.sourceProgramExerciseId) ?? [];
+    if (existing.length < 2) {
+      existing.push(row as NonNullable<WorkoutExerciseWithSets>);
+      grouped.set(row.sourceProgramExerciseId, existing);
+    }
+  }
+
+  const result = new Map<string, ExposureSnapshot[]>();
+  for (const id of programExerciseIds) {
+    result.set(id, snapshotsFromRows(grouped.get(id) ?? []));
+  }
+  return result;
 };
 
 export const getActiveProgram = async (userId: string) => {
@@ -758,23 +789,20 @@ export const getActiveProgram = async (userId: string) => {
       workout.skips.map((skip) => skip.programWorkoutId),
     ) ?? [];
   const accountedWorkoutIds = new Set([...completedWorkoutIds, ...skippedWorkoutIds]);
-  const recommendations = await Promise.all(
-    (currentWeek?.workouts ?? []).flatMap((workout) =>
-      workout.exercises.map(async (exercise) => {
-        const exposures = await buildExposureSnapshots(userId, exercise.id);
-
-        return [
-          exercise.id,
-          calculateProgressionRecommendation({
-            exposures,
-            startWeight: exercise.startWeight ?? null,
-            increment: exercise.increment,
-            deloadFactor: exercise.deloadFactor,
-          }),
-        ] as const;
-      }),
-    ),
+  const allCurrentExercises = (currentWeek?.workouts ?? []).flatMap((w) => w.exercises);
+  const exposureMap = await batchBuildExposureSnapshots(
+    userId,
+    allCurrentExercises.map((e) => e.id),
   );
+  const recommendations = allCurrentExercises.map((exercise) => [
+    exercise.id,
+    calculateProgressionRecommendation({
+      exposures: exposureMap.get(exercise.id) ?? [],
+      startWeight: exercise.startWeight ?? null,
+      increment: exercise.increment,
+      deloadFactor: exercise.deloadFactor,
+    }),
+  ] as const);
 
   return {
     ...program,

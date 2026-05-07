@@ -227,6 +227,8 @@ model Program {
   sessions             WorkoutSession[]
   progressionSnapshots ProgressionSnapshot[]
   skippedWorkouts      ProgramWorkoutSkip[]
+
+  @@index([userId, status])
 }
 
 model ProgramWeek {
@@ -281,6 +283,9 @@ model ProgramWorkoutExercise {
   notes               String?
   programWorkout      ProgramWorkout @relation(fields: [programWorkoutId], references: [id], onDelete: Cascade)
   exercise            Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([programWorkoutId])
+  @@index([exerciseId])
 }
 
 model WorkoutTemplate {
@@ -340,6 +345,11 @@ model WorkoutSession {
   program                  Program?         @relation(fields: [programId], references: [id], onDelete: SetNull)
   programWorkout           ProgramWorkout?  @relation(fields: [programWorkoutId], references: [id], onDelete: SetNull)
   exercises                WorkoutExercise[]
+
+  @@index([userId, status, completedAt(sort: Desc)])
+  @@index([userId, status, startedAt(sort: Desc)])
+  @@index([userId, programId, status])
+  @@index([userId, programWorkoutId, status])
 }
 
 model ProgramWorkoutSkip {
@@ -386,6 +396,10 @@ model WorkoutExercise {
   supersetPosition       Int?
   session                WorkoutSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   sets                   WorkoutSet[]
+
+  @@index([sessionId])
+  @@index([sourceProgramExerciseId, sessionId])
+  @@index([exerciseId, sessionId])
 }
 
 model WorkoutSet {
@@ -401,6 +415,8 @@ model WorkoutSet {
   isWorkingSet      Boolean         @default(true)
   isPersonalRecord  Boolean         @default(false)
   workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([workoutExerciseId])
 }
 
 model ProgressionSnapshot {
@@ -414,6 +430,8 @@ model ProgressionSnapshot {
   createdAt              DateTime @default(now())
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   program                Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([userId, programId])
 }
 
 model XpLedger {
