@@ -1,4 +1,23 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: liftiq-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: liftiq
+      POSTGRES_USER: liftiq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liftiq -d liftiq"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   caddy:
     image: caddy:2.8-alpine
     container_name: liftiq-caddy
@@ -24,6 +43,9 @@ services:
       context: ./backend
     container_name: liftiq-backend
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL}
       PORT: 4000
@@ -63,6 +85,9 @@ services:
       context: ./backend
     container_name: liftiq-migrate
     profiles: ["ops"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: production
@@ -72,5 +97,6 @@ services:
     command: ["npx", "prisma", "migrate", "deploy"]
 
 volumes:
+  postgres_data:
   caddy_data:
   caddy_config:
