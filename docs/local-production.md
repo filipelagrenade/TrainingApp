@@ -15,8 +15,8 @@ Replace the DigitalOcean droplet with your local machine using a Cloudflare Tunn
 3. Name it `liftiq-local`
 4. Copy the **tunnel token**
 5. In the **Public Hostname** tab, add two routes:
-   - `lagrenade.dev` → `http://web:3000` (type: HTTP)
-   - `lagrenade.dev/api/*` → `http://backend:4000` (type: HTTP)
+   - `liftiq.lagrenade.dev` → `http://web:3000` (type: HTTP)
+   - `liftiq.lagrenade.dev/api/*` → `http://backend:4000` (type: HTTP)
 
 ## Step 2: Configure environment
 
@@ -59,7 +59,7 @@ This runs: Postgres, Backend, Web, and Cloudflare Tunnel. Caddy is not needed �
 
 - Check containers: `docker compose -f docker-compose.prod.yml -f docker-compose.tunnel.yml ps`
 - Check tunnel status in the [Zero Trust dashboard](https://one.dash.cloudflare.com/)
-- Visit `https://lagrenade.dev`
+- Visit `https://liftiq.lagrenade.dev`
 
 ## Shutting down the droplet
 
