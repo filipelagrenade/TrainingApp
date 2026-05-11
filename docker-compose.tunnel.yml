@@ -1,0 +1,16 @@
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: liftiq-tunnel
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+
+  caddy:
+    profiles: ["disabled"]
