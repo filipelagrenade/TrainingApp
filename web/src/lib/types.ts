@@ -298,6 +298,7 @@ export type WorkoutSession = {
   completedAt: string | null;
   programWorkoutId: string | null;
   templateId: string | null;
+  inviteId: string | null;
 };
 
 export type WorkoutSetRecord = {
@@ -715,4 +716,22 @@ export type AppNotification = {
   payload: Record<string, unknown> | null;
   read: boolean;
   createdAt: string;
+};
+
+export type WorkoutInvite = {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  workoutTitle: string;
+  exercises: Array<{
+    exerciseId: string;
+    exerciseName: string;
+    sets: number;
+    repMin: number;
+    repMax: number;
+  }>;
+  status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED";
+  expiresAt: string;
+  createdAt: string;
+  fromUser?: { id: string; displayName: string };
 };

@@ -18,6 +18,8 @@ import {
   Shuffle,
   Trash2,
   Pencil,
+  History,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,6 +29,8 @@ import { toast } from "sonner";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
+import { ExerciseHistorySheet } from "@/components/workouts/exercise-history-sheet";
+import { InviteMateSheet } from "@/components/workouts/invite-mate-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -144,6 +148,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
   const [substituteSheetOpen, setSubstituteSheetOpen] = useState(false);
   const [supersetSheetOpen, setSupersetSheetOpen] = useState(false);
+  const [historySheetOpen, setHistorySheetOpen] = useState(false);
+  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [keepChangesOpen, setKeepChangesOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -1189,6 +1195,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setHistorySheetOpen(true)}>
+                  <History className="mr-1.5 h-3.5 w-3.5" />
+                  History
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setInviteSheetOpen(true)}>
+                  <Users className="mr-1.5 h-3.5 w-3.5" />
+                  Invite
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setDetailsSheetOpen(true)}>
                   Manage
                 </Button>
@@ -2003,6 +2017,23 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExerciseHistorySheet
+        exerciseId={activeExercise?.exerciseId ?? null}
+        exerciseName={activeExercise?.exerciseName ?? ""}
+        preferredUnit={preferredUnit}
+        open={historySheetOpen}
+        onOpenChange={setHistorySheetOpen}
+      />
+
+      <InviteMateSheet
+        open={inviteSheetOpen}
+        onOpenChange={setInviteSheetOpen}
+        sessionId={sessionId}
+        workoutTitle={draft?.title ?? ""}
+        programWorkoutId={session?.programWorkoutId ?? null}
+        templateId={session?.templateId ?? null}
+      />
 
       <ExerciseBulkPickerSheet
         description="Queue multiple exercises, then drop them into the workout together."

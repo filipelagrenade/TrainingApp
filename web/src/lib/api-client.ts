@@ -19,6 +19,7 @@ import type {
   SocialUser,
   TemplateDraft,
   User,
+  WorkoutInvite,
   WorkoutTemplate,
   WorkoutDraft,
   WorkoutSession,
@@ -313,6 +314,26 @@ export const apiClient = {
     }),
   markAllNotificationsRead: () =>
     request<{ ok: boolean }>("/notifications/read-all", {
+      method: "POST",
+    }),
+  createWorkoutInvite: (input: {
+    toUserId: string;
+    fromSessionId?: string;
+    programWorkoutId?: string;
+    templateId?: string;
+    workoutTitle: string;
+  }) =>
+    request<WorkoutInvite>("/workouts/invite", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  getPendingInvites: () => request<WorkoutInvite[]>("/workouts/invites/pending"),
+  acceptInvite: (inviteId: string) =>
+    request<{ sessionId: string }>(`/workouts/invite/${inviteId}/accept`, {
+      method: "POST",
+    }),
+  declineInvite: (inviteId: string) =>
+    request<{ ok: boolean }>(`/workouts/invite/${inviteId}/decline`, {
       method: "POST",
     }),
 };
