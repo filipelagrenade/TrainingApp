@@ -145,6 +145,8 @@ model User {
   challengeEntries     ChallengeParticipant[]
   reactions            Reaction[]           @relation("reactions")
   notifications        Notification[]
+  sentInvites          WorkoutInvite[]      @relation("sentInvites")
+  receivedInvites      WorkoutInvite[]      @relation("receivedInvites")
   skippedProgramWorkouts ProgramWorkoutSkip[]
 }
 
@@ -342,6 +344,7 @@ model WorkoutSession {
   totalXp                  Int              @default(0)
   wasPlanned               Boolean          @default(false)
   qualifiesForProgression  Boolean          @default(true)
+  inviteId                 String?
   savedDraft               Json?
   originDraft              Json?
   user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -623,4 +626,23 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read, createdAt(sort: Desc)])
+}
+
+model WorkoutInvite {
+  id               String   @id @default(cuid())
+  fromUserId       String
+  toUserId         String
+  fromSessionId    String?
+  programWorkoutId String?
+  templateId       String?
+  workoutTitle     String
+  exercises        Json
+  status           String   @default("PENDING")
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+
+  fromUser         User     @relation("sentInvites", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser           User     @relation("receivedInvites", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([toUserId, status])
 }
