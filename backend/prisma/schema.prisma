@@ -219,6 +219,7 @@ model Program {
   currentWeek          Int                  @default(1)
   adherenceStreak      Int                  @default(0)
   graceHours           Int                  @default(48)
+  allowCopy            Boolean              @default(false)
   startedAt            DateTime?
   pausedAt             DateTime?
   createdAt            DateTime             @default(now())
