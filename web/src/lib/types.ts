@@ -706,3 +706,13 @@ export type CopyableProgram = {
   description: string | null;
   weekCount: number;
 };
+
+export type AppNotification = {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  payload: Record<string, unknown> | null;
+  read: boolean;
+  createdAt: string;
+};

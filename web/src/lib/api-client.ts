@@ -2,6 +2,7 @@ import type {
   ActiveProgram,
   ActivityEvent,
   ApiResponse,
+  AppNotification,
   Challenge,
   ChallengeLibrary,
   CreateProgramInput,
@@ -303,5 +304,15 @@ export const apiClient = {
     request<Program>(`/programs/${programId}`, {
       method: "PATCH",
       body: JSON.stringify({ allowCopy }),
+    }),
+  getNotifications: () => request<AppNotification[]>("/notifications"),
+  getUnreadNotificationCount: () => request<{ count: number }>("/notifications/unread-count"),
+  markNotificationRead: (id: string) =>
+    request<{ ok: boolean }>(`/notifications/${id}/read`, {
+      method: "PATCH",
+    }),
+  markAllNotificationsRead: () =>
+    request<{ ok: boolean }>("/notifications/read-all", {
+      method: "POST",
     }),
 };
