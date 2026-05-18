@@ -5,6 +5,7 @@ import { z } from "zod";
 import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
+import { acceptInvite, createWorkoutInvite, declineInvite, getPendingInvites } from "../services/invite.service";
 import {
   applyWorkoutSubstitution,
   cancelWorkout,
@@ -113,6 +114,52 @@ workoutsRouter.get("/in-progress", async (request, response, next) => {
   try {
     const workout = await getInProgressWorkout(request.currentUser!.id);
     sendSuccess(response, workout);
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.post("/invite", async (request, response, next) => {
+  try {
+    const input = z
+      .object({
+        toUserId: z.string(),
+        fromSessionId: z.string().optional(),
+        programWorkoutId: z.string().optional(),
+        templateId: z.string().optional(),
+        workoutTitle: z.string(),
+      })
+      .parse(request.body);
+
+    const invite = await createWorkoutInvite(request.currentUser!.id, input);
+    sendSuccess(response, invite, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.get("/invites/pending", async (request, response, next) => {
+  try {
+    const invites = await getPendingInvites(request.currentUser!.id);
+    sendSuccess(response, invites);
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.post("/invite/:inviteId/accept", async (request, response, next) => {
+  try {
+    const result = await acceptInvite(request.currentUser!.id, request.params.inviteId);
+    sendSuccess(response, result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.post("/invite/:inviteId/decline", async (request, response, next) => {
+  try {
+    await declineInvite(request.currentUser!.id, request.params.inviteId);
+    sendSuccess(response, { ok: true });
   } catch (error) {
     next(error);
   }
