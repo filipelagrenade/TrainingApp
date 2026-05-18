@@ -839,3 +839,34 @@ export const generateProgramDraftForUser = async (
   userId: string,
   prompt: string,
 ): Promise<GeneratedProgramDraft> => generateProgramDraft(userId, prompt);
+
+export const copyProgram = async (requesterId: string, programId: string) => {
+  const source = await prisma.program.findFirst({
+    where: {
+      id: programId,
+      allowCopy: true,
+    },
+    include: programInclude,
+  });
+
+  if (!source) {
+    throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found or is not copyable.");
+  }
+
+  const isFollowing = await prisma.follow.findUnique({
+    where: {
+      followerId_followingId: {
+        followerId: requesterId,
+        followingId: source.userId,
+      },
+    },
+  });
+
+  if (!isFollowing && requesterId !== source.userId) {
+    throw new AppError(403, "NOT_FOLLOWING", "You must follow this user to copy their program.");
+  }
+
+  return prisma.$transaction((transaction) =>
+    cloneProgramToUser(transaction, requesterId, source as ProgramWithInclude),
+  );
+};

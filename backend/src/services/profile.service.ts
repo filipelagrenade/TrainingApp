@@ -37,11 +37,40 @@ export const getPublicProfile = async (viewerId: string, profileUserId: string) 
     throw new AppError(404, "PROFILE_NOT_FOUND", "That profile could not be found.");
   }
 
+  const isFollowing = Boolean(following);
+
+  const copyablePrograms = isFollowing
+    ? await prisma.program.findMany({
+        where: {
+          userId: profileUserId,
+          allowCopy: true,
+          status: { not: "ARCHIVED" },
+        },
+        select: {
+          id: true,
+          name: true,
+          goal: true,
+          description: true,
+          _count: {
+            select: { weeks: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+
   return {
     user,
     showcase,
     editable: viewerId === profileUserId,
-    isFollowing: Boolean(following),
+    isFollowing,
+    copyablePrograms: copyablePrograms.map((p) => ({
+      id: p.id,
+      name: p.name,
+      goal: p.goal,
+      description: p.description,
+      weekCount: p._count.weeks,
+    })),
   };
 };
 

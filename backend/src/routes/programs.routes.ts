@@ -2,12 +2,15 @@ import { LoadType, TrackingMode } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 
+import { AppError } from "../lib/errors";
 import { sendSuccess } from "../lib/http";
+import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
 import {
   activateProgram,
   archiveProgram,
+  copyProgram,
   createProgram,
   deleteProgram,
   generateProgramDraftForUser,
@@ -108,6 +111,25 @@ programsRouter.get("/:programId", async (request, response, next) => {
   }
 });
 
+programsRouter.patch("/:programId", async (request, response, next) => {
+  try {
+    const body = z.object({ allowCopy: z.boolean() }).parse(request.body);
+    const program = await prisma.program.findFirst({
+      where: { id: request.params.programId, userId: request.currentUser!.id, isSystem: false },
+    });
+    if (!program) {
+      return next(new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found."));
+    }
+    const updated = await prisma.program.update({
+      where: { id: request.params.programId },
+      data: { allowCopy: body.allowCopy },
+    });
+    sendSuccess(response, updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
 programsRouter.post("/", validateBody(programSchema), async (request, response, next) => {
   try {
     const program = await createProgram(request.currentUser!.id, request.body);
@@ -160,6 +182,15 @@ programsRouter.post("/:programId/archive", async (request, response, next) => {
   try {
     const program = await archiveProgram(request.currentUser!.id, request.params.programId);
     sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.post("/:programId/copy", async (request, response, next) => {
+  try {
+    const program = await copyProgram(request.currentUser!.id, request.params.programId);
+    sendSuccess(response, program, 201);
   } catch (error) {
     next(error);
   }
