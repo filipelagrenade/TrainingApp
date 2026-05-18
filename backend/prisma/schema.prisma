@@ -144,6 +144,7 @@ model User {
   followers            Follow[]             @relation("followers")
   challengeEntries     ChallengeParticipant[]
   reactions            Reaction[]           @relation("reactions")
+  notifications        Notification[]
   skippedProgramWorkouts ProgramWorkoutSkip[]
 }
 
@@ -607,4 +608,19 @@ model Reaction {
 
   @@unique([activityEventId, userId, emoji])
   @@index([activityEventId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  payload   Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt(sort: Desc)])
 }
