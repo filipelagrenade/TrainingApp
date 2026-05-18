@@ -295,4 +295,13 @@ export const apiClient = {
     request<{ ok: boolean }>(`/social/feed/${eventId}/reactions/${emoji}`, {
       method: "DELETE",
     }),
+  copyProgram: (programId: string) =>
+    request<Program>(`/programs/${programId}/copy`, {
+      method: "POST",
+    }),
+  updateProgramAllowCopy: (programId: string, allowCopy: boolean) =>
+    request<Program>(`/programs/${programId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ allowCopy }),
+    }),
 };

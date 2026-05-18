@@ -169,6 +169,7 @@ export type Program = {
   status: "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
   currentWeek: number;
   adherenceStreak: number;
+  allowCopy: boolean;
   weeks: ProgramWeek[];
 };
 
@@ -695,4 +696,13 @@ export type ProfileView = {
   showcase: ProfileShowcase;
   editable: boolean;
   isFollowing?: boolean;
+  copyablePrograms?: CopyableProgram[];
+};
+
+export type CopyableProgram = {
+  id: string;
+  name: string;
+  goal: string;
+  description: string | null;
+  weekCount: number;
 };
