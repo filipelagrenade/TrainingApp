@@ -143,6 +143,7 @@ model User {
   following            Follow[]             @relation("following")
   followers            Follow[]             @relation("followers")
   challengeEntries     ChallengeParticipant[]
+  reactions            Reaction[]           @relation("reactions")
   skippedProgramWorkouts ProgramWorkoutSkip[]
 }
 
@@ -590,4 +591,19 @@ model ActivityEvent {
   payload   Json?
   createdAt DateTime     @default(now())
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+}
+
+model Reaction {
+  id              String        @id @default(cuid())
+  activityEventId String
+  userId          String
+  emoji           String
+  createdAt       DateTime      @default(now())
+
+  activityEvent   ActivityEvent @relation(fields: [activityEventId], references: [id], onDelete: Cascade)
+  user            User          @relation("reactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityEventId, userId, emoji])
+  @@index([activityEventId])
 }
