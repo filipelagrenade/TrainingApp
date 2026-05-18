@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { ArrowRight, Sparkles, Trophy } from "lucide-react";
+import { ArrowRight, Copy, Sparkles, Trophy } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -52,6 +52,15 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
       await queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       await queryClient.invalidateQueries({ queryKey: ["social-search"] });
       toast.success("Profile showcase updated");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const copyProgramMutation = useMutation({
+    mutationFn: apiClient.copyProgram,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["programs"] });
+      toast.success("Program copied to your library");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -207,6 +216,39 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
           )}
         </CardContent>
       </Card>
+
+      {!profile.editable && profile.copyablePrograms?.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Programs</CardTitle>
+            <CardDescription>Programs shared by {profile.user.displayName}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {profile.copyablePrograms.map((program) => (
+              <div key={program.id} className="flex items-center justify-between gap-3 rounded-md border border-rule bg-surface p-4">
+                <div className="min-w-0">
+                  <p className="font-semibold text-ink">{program.name}</p>
+                  <p className="mt-0.5 text-sm text-ink-muted">
+                    {program.goal} • {program.weekCount} weeks
+                  </p>
+                  {program.description ? (
+                    <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{program.description}</p>
+                  ) : null}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyProgramMutation.mutate(program.id)}
+                  disabled={copyProgramMutation.isPending}
+                >
+                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  Copy
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {profile.editable ? (
         <Link

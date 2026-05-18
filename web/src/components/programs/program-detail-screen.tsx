@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Flame, Layers3 } from "lucide-react";
+import { CalendarRange, Flame, Layers3, Share2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -54,6 +54,14 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const allowCopyMutation = useMutation({
+    mutationFn: (allowCopy: boolean) => apiClient.updateProgramAllowCopy(programId, allowCopy),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["program", programId] });
+      toast.success("Sharing preference updated");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   if (meQuery.isLoading || programQuery.isLoading) {
     return (
@@ -89,6 +97,17 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
             {!program.isSystem ? (
               <Button asChild variant="outline">
                 <Link href={`/programs/${program.id}/edit`}>Edit</Link>
+              </Button>
+            ) : null}
+            {!program.isSystem ? (
+              <Button
+                variant={program.allowCopy ? "default" : "outline"}
+                size="sm"
+                onClick={() => allowCopyMutation.mutate(!program.allowCopy)}
+                disabled={allowCopyMutation.isPending}
+              >
+                <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                {program.allowCopy ? "Shared" : "Share"}
               </Button>
             ) : null}
             {!program.isSystem ? (
