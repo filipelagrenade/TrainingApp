@@ -7,6 +7,7 @@ import { exercisesRouter } from "./exercises.routes";
 import { profileRouter } from "./profile.routes";
 import { progressRouter } from "./progress.routes";
 import { programsRouter } from "./programs.routes";
+import { notificationRouter } from "./notification.routes";
 import { socialRouter } from "./social.routes";
 import { templatesRouter } from "./templates.routes";
 import { workoutsRouter } from "./workouts.routes";
@@ -28,5 +29,6 @@ apiRouter.use("/programs", programsRouter);
 apiRouter.use("/templates", templatesRouter);
 apiRouter.use("/workouts", workoutsRouter);
 apiRouter.use("/social", socialRouter);
+apiRouter.use("/notifications", notificationRouter);
 
 export { apiRouter };
