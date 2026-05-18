@@ -443,6 +443,12 @@ export type Challenge = {
   periodEnd: string;
 };
 
+export type ReactionSummary = {
+  emoji: string;
+  count: number;
+  userReacted: boolean;
+};
+
 export type ActivityEvent = {
   id: string;
   title: string;
@@ -450,6 +456,7 @@ export type ActivityEvent = {
   createdAt: string;
   type: string;
   user: Pick<User, "id" | "displayName" | "level">;
+  reactions: ReactionSummary[];
 };
 
 export type ChallengeCategory =

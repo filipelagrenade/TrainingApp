@@ -286,4 +286,13 @@ export const apiClient = {
       method: "POST",
     }),
   getFeed: () => request<ActivityEvent[]>("/social/feed"),
+  addReaction: (eventId: string, emoji: string) =>
+    request<{ id: string }>(`/social/feed/${eventId}/reactions`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    }),
+  removeReaction: (eventId: string, emoji: string) =>
+    request<{ ok: boolean }>(`/social/feed/${eventId}/reactions/${emoji}`, {
+      method: "DELETE",
+    }),
 };
