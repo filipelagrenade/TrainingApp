@@ -54,7 +54,7 @@ export const getFeed = async (userId: string) => {
     },
   });
 
-  return prisma.activityEvent.findMany({
+  const events = await prisma.activityEvent.findMany({
     where: {
       userId: {
         in: [userId, ...follows.map((follow) => follow.followingId)],
@@ -62,9 +62,29 @@ export const getFeed = async (userId: string) => {
     },
     include: {
       user: true,
+      reactions: true,
     },
     orderBy: { createdAt: "desc" },
     take: 20,
+  });
+
+  return events.map((event) => {
+    const reactionMap = new Map<string, { count: number; userReacted: boolean }>();
+    for (const reaction of event.reactions) {
+      const existing = reactionMap.get(reaction.emoji) ?? { count: 0, userReacted: false };
+      existing.count += 1;
+      if (reaction.userId === userId) existing.userReacted = true;
+      reactionMap.set(reaction.emoji, existing);
+    }
+
+    return {
+      ...event,
+      reactions: Array.from(reactionMap.entries()).map(([emoji, data]) => ({
+        emoji,
+        count: data.count,
+        userReacted: data.userReacted,
+      })),
+    };
   });
 };
 
@@ -228,3 +248,37 @@ export const searchUsers = async (userId: string, query: string) =>
       isFollowing: followingIds.has(user.id),
     }));
   });
+
+const VALID_EMOJIS = ["fire", "flex", "clap", "trophy", "heart"] as const;
+
+export const addReaction = async (userId: string, activityEventId: string, emoji: string) => {
+  if (!VALID_EMOJIS.includes(emoji as typeof VALID_EMOJIS[number])) {
+    throw new AppError(400, "INVALID_EMOJI", `Emoji must be one of: ${VALID_EMOJIS.join(", ")}`);
+  }
+
+  const event = await prisma.activityEvent.findUnique({
+    where: { id: activityEventId },
+  });
+
+  if (!event) {
+    throw new AppError(404, "EVENT_NOT_FOUND", "That activity event could not be found.");
+  }
+
+  return prisma.reaction.upsert({
+    where: {
+      activityEventId_userId_emoji: {
+        activityEventId,
+        userId,
+        emoji,
+      },
+    },
+    create: { activityEventId, userId, emoji },
+    update: {},
+  });
+};
+
+export const removeReaction = async (userId: string, activityEventId: string, emoji: string) => {
+  await prisma.reaction.deleteMany({
+    where: { activityEventId, userId, emoji },
+  });
+};

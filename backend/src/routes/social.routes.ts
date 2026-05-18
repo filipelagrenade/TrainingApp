@@ -4,12 +4,14 @@ import { z } from "zod";
 import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
 import {
+  addReaction,
   followUser,
   getFeed,
   getLeaderboard,
   joinChallenge,
   listFollowing,
   listChallenges,
+  removeReaction,
   searchUsers,
   unfollowUser,
 } from "../services/social.service";
@@ -85,6 +87,25 @@ socialRouter.post("/follow/:userId", async (request, response, next) => {
 socialRouter.delete("/follow/:userId", async (request, response, next) => {
   try {
     await unfollowUser(request.currentUser!.id, request.params.userId);
+    sendSuccess(response, { ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+socialRouter.post("/feed/:eventId/reactions", async (request, response, next) => {
+  try {
+    const emoji = z.string().parse(request.body.emoji);
+    const reaction = await addReaction(request.currentUser!.id, request.params.eventId, emoji);
+    sendSuccess(response, reaction, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+socialRouter.delete("/feed/:eventId/reactions/:emoji", async (request, response, next) => {
+  try {
+    await removeReaction(request.currentUser!.id, request.params.eventId, request.params.emoji);
     sendSuccess(response, { ok: true });
   } catch (error) {
     next(error);
