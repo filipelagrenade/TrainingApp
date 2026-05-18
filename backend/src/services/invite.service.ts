@@ -207,3 +207,130 @@ export const declineInvite = async (userId: string, inviteId: string) => {
     data: { status: "DECLINED" },
   });
 };
+
+export const getWorkoutComparison = async (userId: string, sessionId: string) => {
+  const session = await prisma.workoutSession.findFirst({
+    where: { id: sessionId, userId, status: "COMPLETED" },
+    include: {
+      exercises: {
+        include: { sets: { orderBy: { setNumber: "asc" } } },
+      },
+    },
+  });
+
+  if (!session?.inviteId) {
+    throw new AppError(404, "NO_COMPARISON", "This workout is not linked to an invite.");
+  }
+
+  const invite = await prisma.workoutInvite.findUnique({
+    where: { id: session.inviteId },
+  });
+
+  if (!invite) {
+    throw new AppError(404, "INVITE_NOT_FOUND", "Invite not found.");
+  }
+
+  const mateSessionQuery = invite.fromUserId === userId
+    ? { inviteId: invite.id, userId: invite.toUserId }
+    : { id: invite.fromSessionId ?? undefined, userId: invite.fromUserId };
+
+  const mateSession = await prisma.workoutSession.findFirst({
+    where: { ...mateSessionQuery, status: "COMPLETED" },
+    include: {
+      user: { select: { displayName: true } },
+      exercises: {
+        include: { sets: { orderBy: { setNumber: "asc" } } },
+      },
+    },
+  });
+
+  if (!mateSession) {
+    throw new AppError(404, "MATE_NOT_DONE", "Your mate hasn't completed their workout yet.");
+  }
+
+  type ExStats = { volume: number; estimatedOneRepMax: number | null; name: string };
+  const computeExerciseStats = (exercises: typeof session.exercises) => {
+    const map = new Map<string, ExStats>();
+    for (const ex of exercises) {
+      if (!ex.exerciseId) continue;
+      let volume = 0;
+      let bestE1rm: number | null = null;
+      for (const set of ex.sets) {
+        if (set.weight && set.reps) {
+          volume += set.weight * set.reps;
+          const e1rm = set.weight * (1 + set.reps / 30);
+          if (bestE1rm === null || e1rm > bestE1rm) bestE1rm = e1rm;
+        }
+      }
+      map.set(ex.exerciseId, { volume, estimatedOneRepMax: bestE1rm, name: ex.exerciseName });
+    }
+    return map;
+  };
+
+  const getPreviousStats = async (targetUserId: string, exerciseIds: string[], beforeDate: Date) => {
+    const map = new Map<string, { volume: number; estimatedOneRepMax: number | null }>();
+    for (const exerciseId of exerciseIds) {
+      const prev = await prisma.workoutExercise.findFirst({
+        where: {
+          exerciseId,
+          session: {
+            userId: targetUserId,
+            status: "COMPLETED",
+            completedAt: { lt: beforeDate },
+          },
+        },
+        include: { sets: true },
+        orderBy: { session: { completedAt: "desc" } },
+      });
+      if (prev) {
+        let vol = 0;
+        let best: number | null = null;
+        for (const set of prev.sets) {
+          if (set.weight && set.reps) {
+            vol += set.weight * set.reps;
+            const e1rm = set.weight * (1 + set.reps / 30);
+            if (best === null || e1rm > best) best = e1rm;
+          }
+        }
+        map.set(exerciseId, { volume: vol, estimatedOneRepMax: best });
+      }
+    }
+    return map;
+  };
+
+  const myStats = computeExerciseStats(session.exercises);
+  const mateStats = computeExerciseStats(mateSession.exercises);
+
+  const allExerciseIds = [...new Set([...myStats.keys(), ...mateStats.keys()])];
+
+  const [myPrev, matePrev] = await Promise.all([
+    getPreviousStats(userId, allExerciseIds, session.startedAt),
+    getPreviousStats(mateSession.userId, allExerciseIds, mateSession.startedAt),
+  ]);
+
+  const pctChange = (current: number, previous: number | undefined) => {
+    if (!previous || previous === 0) return null;
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+  };
+
+  const exercises = allExerciseIds.map((exerciseId) => {
+    const my = myStats.get(exerciseId);
+    const mate = mateStats.get(exerciseId);
+    const myP = myPrev.get(exerciseId);
+    const mateP = matePrev.get(exerciseId);
+
+    return {
+      exerciseName: my?.name ?? mate?.name ?? "Unknown",
+      myVolumeChange: my ? pctChange(my.volume, myP?.volume) : null,
+      mateVolumeChange: mate ? pctChange(mate.volume, mateP?.volume) : null,
+      myE1rmChange: my?.estimatedOneRepMax ? pctChange(my.estimatedOneRepMax, myP?.estimatedOneRepMax ?? undefined) : null,
+      mateE1rmChange: mate?.estimatedOneRepMax ? pctChange(mate.estimatedOneRepMax, mateP?.estimatedOneRepMax ?? undefined) : null,
+    };
+  });
+
+  return {
+    mySession: { completedAt: session.completedAt?.toISOString() ?? null },
+    mateSession: { completedAt: mateSession.completedAt?.toISOString() ?? null, displayName: mateSession.user.displayName },
+    exercises,
+  };
+};

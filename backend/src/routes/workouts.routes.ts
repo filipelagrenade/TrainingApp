@@ -5,7 +5,7 @@ import { z } from "zod";
 import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
-import { acceptInvite, createWorkoutInvite, declineInvite, getPendingInvites } from "../services/invite.service";
+import { acceptInvite, createWorkoutInvite, declineInvite, getPendingInvites, getWorkoutComparison } from "../services/invite.service";
 import {
   applyWorkoutSubstitution,
   cancelWorkout,
@@ -346,6 +346,15 @@ workoutsRouter.delete("/:workoutId", async (request, response, next) => {
       String(request.params.workoutId),
     );
     sendSuccess(response, result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.get("/:workoutId/comparison", async (request, response, next) => {
+  try {
+    const comparison = await getWorkoutComparison(request.currentUser!.id, request.params.workoutId);
+    sendSuccess(response, comparison);
   } catch (error) {
     next(error);
   }
