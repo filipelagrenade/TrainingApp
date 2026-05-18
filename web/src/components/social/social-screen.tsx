@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, Trophy, UserPlus, Users } from "lucide-react";
+import { Dumbbell, Flame, HandMetal, Heart, Search, Trophy, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ChallengeBadgeToken } from "@/components/challenges/challenge-ui";
@@ -16,6 +17,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const EMOJI_CONFIG = [
+  { key: "fire", label: "Fire", icon: Flame },
+  { key: "trophy", label: "Trophy", icon: Trophy },
+  { key: "heart", label: "Heart", icon: Heart },
+  { key: "clap", label: "Clap", icon: HandMetal },
+  { key: "flex", label: "Flex", icon: Dumbbell },
+] as const;
 
 export const SocialScreen = () => {
   const queryClient = useQueryClient();
@@ -77,6 +86,13 @@ export const SocialScreen = () => {
       toast.success("Challenge joined");
     },
     onError: (error: Error) => toast.error(error.message),
+  });
+  const reactionMutation = useMutation({
+    mutationFn: ({ eventId, emoji, remove }: { eventId: string; emoji: string; remove: boolean }) =>
+      (remove ? apiClient.removeReaction(eventId, emoji) : apiClient.addReaction(eventId, emoji)) as Promise<{ ok: boolean }>,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["feed"] });
+    },
   });
 
   const searchResults = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
@@ -312,6 +328,32 @@ export const SocialScreen = () => {
                   <p className="mt-1 text-sm text-ink-muted">
                     {event.user.displayName} • {new Date(event.createdAt).toLocaleString()}
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {EMOJI_CONFIG.map(({ key, icon: Icon }) => {
+                      const reaction = event.reactions.find((r) => r.emoji === key);
+                      const reacted = reaction?.userReacted ?? false;
+                      const count = reaction?.count ?? 0;
+
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() =>
+                            reactionMutation.mutate({ eventId: event.id, emoji: key, remove: reacted })
+                          }
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                            reacted
+                              ? "border-ink bg-ink text-surface"
+                              : "border-rule text-ink-muted hover:border-ink hover:text-ink",
+                          )}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {count > 0 ? <span>{count}</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               ))
             ) : (
