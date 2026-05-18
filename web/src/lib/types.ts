@@ -735,3 +735,15 @@ export type WorkoutInvite = {
   createdAt: string;
   fromUser?: { id: string; displayName: string };
 };
+
+export type WorkoutComparison = {
+  mySession: { completedAt: string | null };
+  mateSession: { completedAt: string | null; displayName: string };
+  exercises: Array<{
+    exerciseName: string;
+    myVolumeChange: number | null;
+    mateVolumeChange: number | null;
+    myE1rmChange: number | null;
+    mateE1rmChange: number | null;
+  }>;
+};

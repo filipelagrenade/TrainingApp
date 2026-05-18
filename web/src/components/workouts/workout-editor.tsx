@@ -18,6 +18,7 @@ import {
   Shuffle,
   Trash2,
   Pencil,
+  GitCompareArrows,
   History,
   Users,
 } from "lucide-react";
@@ -31,6 +32,7 @@ import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-pi
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { ExerciseHistorySheet } from "@/components/workouts/exercise-history-sheet";
 import { InviteMateSheet } from "@/components/workouts/invite-mate-sheet";
+import { WorkoutComparisonSheet } from "@/components/workouts/workout-comparison-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,6 +152,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [supersetSheetOpen, setSupersetSheetOpen] = useState(false);
   const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
+  const [comparisonSheetOpen, setComparisonSheetOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [keepChangesOpen, setKeepChangesOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -1203,6 +1206,12 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   <Users className="mr-1.5 h-3.5 w-3.5" />
                   Invite
                 </Button>
+                {session?.inviteId ? (
+                  <Button variant="outline" size="sm" onClick={() => setComparisonSheetOpen(true)}>
+                    <GitCompareArrows className="mr-1.5 h-3.5 w-3.5" />
+                    Compare
+                  </Button>
+                ) : null}
                 <Button variant="outline" size="sm" onClick={() => setDetailsSheetOpen(true)}>
                   Manage
                 </Button>
@@ -2033,6 +2042,12 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         workoutTitle={draft?.title ?? ""}
         programWorkoutId={session?.programWorkoutId ?? null}
         templateId={session?.templateId ?? null}
+      />
+
+      <WorkoutComparisonSheet
+        sessionId={sessionId}
+        open={comparisonSheetOpen}
+        onOpenChange={setComparisonSheetOpen}
       />
 
       <ExerciseBulkPickerSheet

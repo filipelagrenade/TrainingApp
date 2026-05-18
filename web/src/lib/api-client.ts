@@ -19,6 +19,7 @@ import type {
   SocialUser,
   TemplateDraft,
   User,
+  WorkoutComparison,
   WorkoutInvite,
   WorkoutTemplate,
   WorkoutDraft,
@@ -336,4 +337,6 @@ export const apiClient = {
     request<{ ok: boolean }>(`/workouts/invite/${inviteId}/decline`, {
       method: "POST",
     }),
+  getWorkoutComparison: (sessionId: string) =>
+    request<WorkoutComparison>(`/workouts/${sessionId}/comparison`),
 };
