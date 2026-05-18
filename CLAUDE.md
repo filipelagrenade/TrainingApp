@@ -2,7 +2,7 @@
 
 This file defines global constraints for Codex across this repository.
 
-Subdirectory `AGENTS.md` files override this file when more specific.
+Subdirectory `CLAUDE.md` files override this file when more specific.
 
 ---
 
