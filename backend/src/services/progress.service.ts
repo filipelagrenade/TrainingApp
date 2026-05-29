@@ -78,6 +78,59 @@ const getVisibleExercise = async (userId: string, exerciseId: string) => {
   return exercise;
 };
 
+const VOLUME_SERIES_WEEKS = 8;
+
+// Rolling 7-day buckets of total working volume (kg) for the last 8 weeks, oldest first.
+const buildWeeklyVolumeSeries = async (userId: string, now: Date) => {
+  const todayStart = startOfDay(now).getTime();
+  const windowStart = new Date(todayStart - (VOLUME_SERIES_WEEKS * 7 - 1) * DAY_IN_MS);
+
+  const sessions = await prisma.workoutSession.findMany({
+    where: {
+      userId,
+      status: WorkoutStatus.COMPLETED,
+      completedAt: {
+        gte: windowStart,
+      },
+    },
+    include: {
+      exercises: {
+        include: {
+          sets: true,
+        },
+      },
+    },
+  });
+
+  const buckets = new Array<number>(VOLUME_SERIES_WEEKS).fill(0);
+
+  for (const session of sessions) {
+    if (!session.completedAt) {
+      continue;
+    }
+
+    const daysAgo = Math.floor((todayStart - startOfDay(session.completedAt).getTime()) / DAY_IN_MS);
+    const weekIndex = Math.floor(daysAgo / 7);
+
+    if (weekIndex < 0 || weekIndex >= VOLUME_SERIES_WEEKS) {
+      continue;
+    }
+
+    let volume = 0;
+    for (const exercise of session.exercises) {
+      volume += summarizeSets(exercise.sets, exercise.unitMode).volume;
+    }
+    buckets[weekIndex] += volume;
+  }
+
+  return buckets
+    .map((volume, weekIndex) => ({
+      weekStart: new Date(todayStart - (weekIndex * 7 + 6) * DAY_IN_MS).toISOString(),
+      volume,
+    }))
+    .reverse();
+};
+
 export const getProgressOverview = async (userId: string) => {
   const weekStart = startOfDay(new Date(Date.now() - 6 * DAY_IN_MS));
   const now = new Date();
@@ -363,9 +416,12 @@ export const getProgressOverview = async (userId: string) => {
     })
     .slice(0, 6);
 
+  const weeklyVolumeSeries = await buildWeeklyVolumeSeries(userId, now);
+
   const challengeSummary = await getChallengeSummary(userId);
 
   return {
+    weeklyVolumeSeries,
     weeklySummary: {
       startDate: weekStart.toISOString(),
       endDate: now.toISOString(),

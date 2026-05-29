@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ const REST_DEFAULTS = [60, 90, 120, 180];
 
 export const SettingsScreen = () => {
   const [restDefault, setRestDefault] = useState("90");
+  const [autoRest, setAutoRest] = useState(true);
   const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">("unsupported");
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -50,6 +52,16 @@ export const SettingsScreen = () => {
     }
   }, []);
 
+  const downloadExport = (format: "csv" | "json") => {
+    if (typeof window === "undefined") return;
+    const anchor = document.createElement("a");
+    anchor.href = apiClient.workoutsExportUrl(format);
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  };
+
   const handleEnableNotifications = async () => {
     const result = await Notification.requestPermission();
     setNotifState(result);
@@ -60,6 +72,7 @@ export const SettingsScreen = () => {
   useEffect(() => {
     if (typeof window === "undefined") return;
     setRestDefault(window.localStorage.getItem("liftiq-rest-default") ?? "90");
+    setAutoRest(window.localStorage.getItem("liftiq-auto-rest") !== "false");
   }, []);
 
   if (meQuery.isLoading) {
@@ -159,6 +172,28 @@ export const SettingsScreen = () => {
             );
           })}
         </div>
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-rule pt-4 max-w-md">
+          <div className="space-y-0.5">
+            <p className="text-ink">Auto-start after each set</p>
+            <p className="text-sm text-ink-muted">
+              Begin the rest countdown when you complete a working set.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={autoRest ? "default" : "outline"}
+            onClick={() => {
+              const next = !autoRest;
+              setAutoRest(next);
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem("liftiq-auto-rest", next ? "true" : "false");
+              }
+            }}
+          >
+            {autoRest ? "On" : "Off"}
+          </Button>
+        </div>
       </Section>
 
       <Section
@@ -191,7 +226,24 @@ export const SettingsScreen = () => {
         </div>
       </Section>
 
-      <Section eyebrow="06" title="Account" description="Sign out on this device.">
+      <Section
+        eyebrow="06"
+        title="Your data"
+        description="Export every completed workout. It's yours — take it anywhere."
+      >
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => downloadExport("csv")}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={() => downloadExport("json")}>
+            <Download className="h-4 w-4" />
+            Export JSON
+          </Button>
+        </div>
+      </Section>
+
+      <Section eyebrow="07" title="Account" description="Sign out on this device.">
         <Button
           variant="outline"
           className="text-danger border-danger/40 hover:bg-danger/5"

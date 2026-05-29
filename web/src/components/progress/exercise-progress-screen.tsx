@@ -15,7 +15,12 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LineTrendChart } from "@/components/progress/charts/line-trend-chart";
+import { VolumeBarChart } from "@/components/progress/charts/volume-bar-chart";
 import { formatVolume } from "@/lib/units";
+
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) => {
   const meQuery = useQuery({
@@ -89,10 +94,18 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
             Compact exposure history for this movement. Open the workout if you need the full set-level review.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="space-y-3">
             <SectionLabel>Estimated 1RM</SectionLabel>
-            {progress.estimatedOneRepMaxHistory.length ? (
+            {progress.estimatedOneRepMaxHistory.filter((point) => point.value !== null).length >= 2 ? (
+              <LineTrendChart
+                data={progress.estimatedOneRepMaxHistory.map((point) => ({
+                  label: shortDate(point.completedAt),
+                  value: point.value,
+                }))}
+                valueFormatter={(value) => Math.round(value).toString()}
+              />
+            ) : progress.estimatedOneRepMaxHistory.length ? (
               progress.estimatedOneRepMaxHistory.map((point) => (
                 <TrendRow
                   key={`e1rm-${point.completedAt}`}
@@ -107,7 +120,15 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
           </div>
           <div className="space-y-3">
             <SectionLabel>Volume</SectionLabel>
-            {progress.volumeHistory.length ? (
+            {progress.volumeHistory.length >= 2 ? (
+              <VolumeBarChart
+                data={progress.volumeHistory.map((point) => ({
+                  label: shortDate(point.completedAt),
+                  value: point.value,
+                }))}
+                valueFormatter={(value) => formatVolume(value, preferredUnit, { compact: true })}
+              />
+            ) : progress.volumeHistory.length ? (
               progress.volumeHistory.map((point) => (
                 <TrendRow
                   key={`volume-${point.completedAt}`}

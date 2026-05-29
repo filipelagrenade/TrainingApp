@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  Flame,
   Info,
   Link2,
   MoreHorizontal,
@@ -85,12 +86,14 @@ import {
   draftExerciseToTemplateExercise,
   formatDuration,
   formatSetLoad,
+  generateWarmupSets,
   reindexSets,
   syncAdvancedSetTracking,
   strengthSetTypeOptions,
   trackingModeOptions,
   toggleSetUnilateral,
 } from "@/lib/workout-tracking";
+import { PlateCalculator } from "@/components/workouts/plate-calculator";
 
 const formatRestTime = (seconds: number) => {
   const safeSeconds = Math.max(0, seconds);
@@ -167,6 +170,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const [restDuration, setRestDuration] = useState(90);
   const [restRemaining, setRestRemaining] = useState(90);
   const [restRunning, setRestRunning] = useState(false);
+  const [autoRestEnabled, setAutoRestEnabled] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
     getNotificationPermission(),
@@ -477,6 +481,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       setRestDuration(storedDefault);
       setRestRemaining(storedDefault);
     }
+
+    setAutoRestEnabled(window.localStorage.getItem("liftiq-auto-rest") !== "false");
   }, []);
 
   useEffect(() => {
@@ -555,11 +561,12 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     [draft?.exercises, postCompleteSelection],
   );
 
-  const startRestTimer = (seconds: number) => {
+  const startRestTimer = (seconds: number, options?: { persist?: boolean }) => {
     setRestDuration(seconds);
     setRestRemaining(seconds);
     setRestRunning(true);
-    if (typeof window !== "undefined") {
+    // Auto-started rests reuse the saved default and should not overwrite it.
+    if (typeof window !== "undefined" && options?.persist !== false) {
       window.localStorage.setItem("liftiq-rest-default", String(seconds));
     }
   };
@@ -702,6 +709,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       }
     } else if ((activeSet?.setType ?? "NORMAL") === "DROP" || (activeSet?.setType ?? "NORMAL") === "CLUSTER") {
       startRestTimer(restTarget);
+    } else if (
+      autoRestEnabled &&
+      activeSet?.isWorkingSet !== false &&
+      activeExercise.exerciseCategory !== "CARDIO"
+    ) {
+      // Auto-start the rest timer on a completed working set using the saved default.
+      startRestTimer(restDuration, { persist: false });
     }
 
     setExpandedSetIndex(nextIncompleteIndex >= 0 ? nextIncompleteIndex : -1);
@@ -1777,6 +1791,33 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                               </div>
                             ) : null}
                           </div>
+                          {(activeExercise.trackingMode === "ABSOLUTE_WEIGHT" ||
+                            activeExercise.trackingMode === "PLATES_PER_SIDE") &&
+                          typeof deriveNormalizedWeight(
+                            activeExercise.trackingMode,
+                            set.weight,
+                            setTrackingData,
+                          ) === "number" ? (
+                            <div className="mt-3">
+                              <PlateCalculator
+                                targetWeight={
+                                  deriveNormalizedWeight(
+                                    activeExercise.trackingMode,
+                                    set.weight,
+                                    setTrackingData,
+                                  ) as number
+                                }
+                                barWeight={
+                                  typeof setTrackingData?.barWeight === "number"
+                                    ? setTrackingData.barWeight
+                                    : activeExercise.unitMode === "lb"
+                                      ? 45
+                                      : 20
+                                }
+                                unitMode={activeExercise.unitMode}
+                              />
+                            </div>
+                          ) : null}
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             <Button
                               size="sm"
@@ -1901,6 +1942,46 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 <Plus className="h-4 w-4" />
                 Add set
               </Button>
+
+              {activeExercise.trackingMode === "ABSOLUTE_WEIGHT" &&
+              activeExercise.exerciseCategory !== "CARDIO" ? (
+                <Button
+                  className="w-full"
+                  variant="ghost"
+                  onClick={() =>
+                    updateExercise(activeExerciseIndex, (current) => {
+                      const workingSet = current.sets.find((candidate) => candidate.isWorkingSet !== false);
+                      const baseWeight =
+                        deriveNormalizedWeight(
+                          current.trackingMode,
+                          workingSet?.weight ?? null,
+                          workingSet?.trackingData ?? current.defaultTrackingData,
+                        ) ??
+                        workingSet?.weight ??
+                        current.suggestedWeight ??
+                        null;
+
+                      if (typeof baseWeight !== "number" || baseWeight <= 0) {
+                        toast.error("Add a working weight first to build warm-ups.");
+                        return current;
+                      }
+
+                      const warmups = generateWarmupSets(baseWeight, {
+                        reps: current.repMin ?? 8,
+                        roundTo: current.unitMode === "lb" ? 5 : 2.5,
+                      });
+
+                      return {
+                        ...current,
+                        sets: reindexSets([...warmups, ...current.sets]),
+                      };
+                    })
+                  }
+                >
+                  <Flame className="h-4 w-4" />
+                  Generate warm-ups
+                </Button>
+              ) : null}
             </>
           ) : (
             <div className="rounded-md border border-dashed border-rule p-5 text-center">

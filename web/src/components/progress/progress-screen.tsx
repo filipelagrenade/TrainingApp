@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Award, CalendarRange, ChevronRight, Dumbbell, Flame, TrendingUp, Trophy } from "lucide-react";
+import { Award, CalendarRange, ChevronRight, Dumbbell, Flame, Scale, TrendingUp, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -15,6 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatBlock } from "@/components/ui/stat-block";
+import { VolumeBarChart } from "@/components/progress/charts/volume-bar-chart";
 import { formatVolume } from "@/lib/units";
 import {
   ChallengeBadgeToken,
@@ -221,6 +222,45 @@ export const ProgressScreen = () => {
               </div>
             </CardContent>
           </Card>
+
+        <Link
+          href="/body"
+          className="surface-panel flex items-center justify-between gap-3 p-4 transition-colors hover:bg-surface-raised"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-accent">
+              <Scale className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="font-semibold text-ink">Body metrics</p>
+              <p className="text-sm text-ink-muted">Log bodyweight & measurements</p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-ink-muted" />
+        </Link>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Volume trend</CardTitle>
+            <CardDescription>Total working volume over the last 8 weeks.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {overview.weeklyVolumeSeries.some((point) => point.volume > 0) ? (
+              <VolumeBarChart
+                data={overview.weeklyVolumeSeries.map((point) => ({
+                  label: new Date(point.weekStart).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  }),
+                  value: point.volume,
+                }))}
+                valueFormatter={(value) => formatVolume(value, user.preferredUnit, { compact: true })}
+              />
+            ) : (
+              <EmptyHint copy="Your weekly volume trend appears once you log some sessions." />
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
