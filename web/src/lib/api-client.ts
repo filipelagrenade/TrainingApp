@@ -3,8 +3,11 @@ import type {
   ActivityEvent,
   ApiResponse,
   AppNotification,
+  BodyMetricEntry,
+  BodyMetricsView,
   Challenge,
   ChallengeLibrary,
+  CreateBodyMetricInput,
   CreateProgramInput,
   CreateTemplateInput,
   CreateExerciseInput,
@@ -339,4 +342,17 @@ export const apiClient = {
     }),
   getWorkoutComparison: (sessionId: string) =>
     request<WorkoutComparison>(`/workouts/${sessionId}/comparison`),
+  getBodyMetrics: () => request<BodyMetricsView>("/body-metrics"),
+  createBodyMetric: (input: CreateBodyMetricInput) =>
+    request<{ entry: BodyMetricEntry }>("/body-metrics", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteBodyMetric: (entryId: string) =>
+    request<{ ok: boolean }>(`/body-metrics/${entryId}`, {
+      method: "DELETE",
+    }),
+  // The export endpoint streams a file rather than the JSON envelope, so callers
+  // navigate to this URL (cookies are sent) instead of going through `request`.
+  workoutsExportUrl: (format: "csv" | "json") => `${API_URL}/workouts/export?format=${format}`,
 };

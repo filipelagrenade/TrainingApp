@@ -5,6 +5,7 @@ import { z } from "zod";
 import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
+import { exportWorkoutsCsv, exportWorkoutsJson } from "../services/export.service";
 import { acceptInvite, createWorkoutInvite, declineInvite, getPendingInvites, getWorkoutComparison } from "../services/invite.service";
 import {
   applyWorkoutSubstitution,
@@ -160,6 +161,28 @@ workoutsRouter.post("/invite/:inviteId/decline", async (request, response, next)
   try {
     await declineInvite(request.currentUser!.id, request.params.inviteId);
     sendSuccess(response, { ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.get("/export", async (request, response, next) => {
+  try {
+    const format = request.query.format === "csv" ? "csv" : "json";
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    if (format === "csv") {
+      const csv = await exportWorkoutsCsv(request.currentUser!.id);
+      response.setHeader("Content-Type", "text/csv; charset=utf-8");
+      response.setHeader("Content-Disposition", `attachment; filename="liftiq-workouts-${stamp}.csv"`);
+      response.status(200).send(csv);
+      return;
+    }
+
+    const data = await exportWorkoutsJson(request.currentUser!.id);
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.setHeader("Content-Disposition", `attachment; filename="liftiq-workouts-${stamp}.json"`);
+    response.status(200).send(JSON.stringify(data, null, 2));
   } catch (error) {
     next(error);
   }

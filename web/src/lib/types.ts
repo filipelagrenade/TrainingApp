@@ -637,12 +637,40 @@ export type ProgressChallengeSummary = {
   closestNext: ChallengeFamily[];
 };
 
+export type WeeklyVolumePoint = {
+  weekStart: string;
+  volume: number;
+};
+
 export type ProgressOverview = {
+  weeklyVolumeSeries: WeeklyVolumePoint[];
   weeklySummary: ProgressWeeklySummary;
   activeProgramSummary: ProgressActiveProgramSummary;
   recentPrs: ProgressRecentPr[];
   exerciseTrends: ProgressExerciseTrend[];
   challengeSummary: ProgressChallengeSummary;
+};
+
+export type BodyMetricEntry = {
+  id: string;
+  weight: number | null;
+  measurements: Record<string, number> | null;
+  note: string | null;
+  recordedAt: string;
+};
+
+export type BodyMetricsView = {
+  preferredUnit: "kg" | "lb";
+  entries: BodyMetricEntry[];
+  latest: BodyMetricEntry | null;
+  weightTrend: Array<{ recordedAt: string; value: number }>;
+};
+
+export type CreateBodyMetricInput = {
+  weight?: number;
+  measurements?: Record<string, number>;
+  note?: string | null;
+  recordedAt?: string;
 };
 
 export type ExerciseProgressExposure = {
