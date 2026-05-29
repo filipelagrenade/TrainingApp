@@ -1014,6 +1014,14 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 {syncState === "saving" ? "Saving..." : syncState === "error" ? "Pending" : "Synced"}
               </Badge>
               <Button
+                aria-label="Invite a mate to this workout"
+                size="icon"
+                variant="outline"
+                onClick={() => setInviteSheetOpen(true)}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+              <Button
                 aria-label={headerCollapsed ? "Expand workout header" : "Collapse workout header"}
                 size="icon"
                 variant="outline"
@@ -1166,7 +1174,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
           {activeExercise ? (
             <>
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="eyebrow">
                   Active exercise
                 </p>
@@ -1179,7 +1187,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                   </p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
                   size="icon"
                   type="button"
@@ -1201,10 +1209,6 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
                 <Button variant="outline" size="sm" onClick={() => setHistorySheetOpen(true)}>
                   <History className="mr-1.5 h-3.5 w-3.5" />
                   History
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setInviteSheetOpen(true)}>
-                  <Users className="mr-1.5 h-3.5 w-3.5" />
-                  Invite
                 </Button>
                 {session?.inviteId ? (
                   <Button variant="outline" size="sm" onClick={() => setComparisonSheetOpen(true)}>
