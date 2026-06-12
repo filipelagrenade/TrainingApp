@@ -135,9 +135,13 @@ jobs:
           script: |
             set -e
             cd /root/liftiq
-            git pull origin main
-            # Build images from the freshly pulled checkout.
-            docker compose -f docker-compose.prod.yml --env-file .env.production build
+            # Rebase keeps droplet-local commits (edge config) on top of main.
+            git pull --rebase origin main
+            # Build images from the freshly pulled checkout. --profile ops is
+            # required so the profile-gated migrate image is rebuilt too —
+            # otherwise it runs with stale bundled migrations and reports
+            # "no pending migrations" while the schema drifts.
+            docker compose -f docker-compose.prod.yml --env-file .env.production --profile ops build
             # Apply any pending Prisma migrations BEFORE rolling out the new
             # backend. Additive migrations are safe to run while the old
             # backend is still serving. The migrate service is profile-gated.
