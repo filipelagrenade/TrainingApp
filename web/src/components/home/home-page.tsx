@@ -19,7 +19,7 @@ export const HomePage = () => {
   const isAuthenticated = Boolean(meQuery.data);
 
   return (
-    <AppShell showNav={isAuthenticated}>
+    <AppShell showNav={isAuthenticated} showBell={!isAuthenticated}>
         {meQuery.isLoading ? (
           <Card>
             <CardContent className="space-y-4 pt-6">
