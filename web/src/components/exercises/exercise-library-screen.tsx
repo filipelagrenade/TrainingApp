@@ -278,7 +278,7 @@ export const ExerciseLibraryScreen = () => {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Delete custom exercise</DialogTitle>
             <DialogDescription>

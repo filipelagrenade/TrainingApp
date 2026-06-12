@@ -27,8 +27,8 @@ const DeltaBadge = ({ value }: { value: number | null }) => {
       variant="outline"
       className={cn(
         "gap-1 font-mono text-xs",
-        positive && "border-green-500/30 text-green-600",
-        !positive && !neutral && "border-red-500/30 text-red-500",
+        positive && "border-success/30 text-success",
+        !positive && !neutral && "border-danger/30 text-danger",
       )}
     >
       {positive ? (

@@ -9,6 +9,7 @@ import {
 
 import { prisma } from "../lib/prisma";
 import { normalizeWeightForTrackingMode, type TrackingData } from "../lib/tracking";
+import { toPreferredUnit } from "../lib/units";
 import { AppError } from "../lib/errors";
 import {
   advanceTrack,
@@ -322,10 +323,16 @@ export const getProgramProgression = async (userId: string, programId: string) =
     throw new AppError(404, "PROGRAM_NOT_FOUND", "That program could not be found.");
   }
 
-  const tracks = await prisma.progressionTrack.findMany({
-    where: { userId, programId },
-    orderBy: { updatedAt: "desc" },
-  });
+  const [tracks, user] = await Promise.all([
+    prisma.progressionTrack.findMany({
+      where: { userId, programId },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { preferredUnit: true } }),
+  ]);
+  const preferredUnit = user?.preferredUnit === "lb" ? "lb" : "kg";
+  const convert = (weight: number | null) =>
+    typeof weight === "number" ? toPreferredUnit(weight, preferredUnit) : null;
 
   return {
     currentWeek: program.currentWeek,
@@ -333,8 +340,8 @@ export const getProgramProgression = async (userId: string, programId: string) =
     tracks: tracks.map((track) => ({
       programWorkoutExerciseId: track.programWorkoutExerciseId,
       status: track.status,
-      workingWeight: track.workingWeight,
-      suggestedWeight: track.suggestedWeight,
+      workingWeight: convert(track.workingWeight),
+      suggestedWeight: convert(track.suggestedWeight),
       suggestionReason: track.suggestionReason,
       successStreak: track.successStreak,
       failStreak: track.failStreak,

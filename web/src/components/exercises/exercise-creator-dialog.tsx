@@ -89,7 +89,7 @@ export const ExerciseCreatorDialog = ({
           {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Create custom exercise</DialogTitle>
           <DialogDescription>

@@ -89,7 +89,11 @@ export const ExerciseSearchSheet = ({
         }
       }}
     >
-      <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
+      <SheetContent
+        side="bottom"
+        className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
           <SheetHeader>
             <SheetTitle>{title}</SheetTitle>

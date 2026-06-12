@@ -51,7 +51,7 @@ const SUPERSET_HUES = [262, 199, 152, 36, 322];
 
 // Used only until the user record loads; the server is the source of truth.
 const FALLBACK_SETTINGS: UserSettings = {
-  advancedTracking: { enabled: true, rpe: true, tempo: false },
+  advancedTracking: { enabled: false, rpe: true, tempo: false },
   plates: { kg: [20, 15, 10, 5, 2.5, 1.25], lb: [45, 35, 25, 10, 5, 2.5] },
   barWeights: { barbell: 20, ezBar: 7.5, trapBar: 25 },
   rest: { workingSeconds: 90, warmupSeconds: 60, autoStart: true },
