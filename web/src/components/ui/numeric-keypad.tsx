@@ -87,6 +87,7 @@ export const NumericKeypad = ({
     <AnimatePresence>
       {config && (
         <motion.div
+          data-keypad=""
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}

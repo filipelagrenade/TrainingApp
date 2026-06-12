@@ -1,189 +1,96 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Check,
-  BellRing,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  Flame,
-  Info,
-  Link2,
-  MoreHorizontal,
-  Pause,
-  Play,
-  Plus,
-  Save,
-  Shuffle,
-  Trash2,
-  Pencil,
-  GitCompareArrows,
-  History,
-  Users,
-} from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Sparkles } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
+import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
 import { ExerciseHistorySheet } from "@/components/workouts/exercise-history-sheet";
 import { InviteMateSheet } from "@/components/workouts/invite-mate-sheet";
 import { WorkoutComparisonSheet } from "@/components/workouts/workout-comparison-sheet";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { MetricCard } from "@/components/ui/metric-card";
-import { Label } from "@/components/ui/label";
-import { NullableNumberInput } from "@/components/ui/nullable-number-input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { KeypadProvider, useKeypad } from "@/components/ui/keypad-context";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatBlock } from "@/components/ui/stat-block";
-import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
-import { clearDraft, loadDraft, saveDraftLocally } from "@/lib/draft-storage";
-import {
-  defaultLoadTypeByEquipment,
-  equipmentTypeOptions,
-  equipmentTypesWithAttachments,
-} from "@/lib/exercise-options";
 import type {
   Exercise,
-  TemplateDraft,
-  TrackingMode,
+  PreviousSetEntry,
+  UserSettings,
   WorkoutDraft,
   WorkoutDraftExercise,
-  WorkoutDraftSet,
   WorkoutSetTrackingData,
-  WorkoutSetType,
 } from "@/lib/types";
-import { formatVolume, sumVolumeInKilograms } from "@/lib/units";
+import { deriveNormalizedWeight } from "@/lib/workout-tracking";
+
+import { CompletedWorkoutView } from "./completed-workout-view";
+import { ExerciseCard } from "./exercise-card";
+import { FinishFlow } from "./finish-flow";
+import { useRestTimer } from "./hooks/use-rest-timer";
+import { useSessionClock } from "./hooks/use-session-clock";
+import { useWorkoutDraft } from "./hooks/use-workout-draft";
+import { PlateCalcSheet, type PlateCalcRequest } from "./plate-calc-sheet";
+import { RestTimerBar } from "./rest-timer-bar";
+import { ManageExerciseSheet } from "./sheets/manage-exercise-sheet";
+import { SupersetSheet } from "./sheets/superset-sheet";
+import { WorkoutToolsSheet } from "./sheets/workout-tools-sheet";
 import {
-  applySetTypeBehavior,
-  buildDraftSet,
-  buildExerciseDraft,
-  calculateSessionDurationSeconds,
-  changeExerciseTrackingMode,
-  compareExerciseLineup,
-  defaultSetTypeForCategory,
-  defaultTrackingDataForMode,
-  deriveNormalizedWeight,
-  draftExerciseToTemplateExercise,
-  formatDuration,
-  formatSetLoad,
-  generateWarmupSets,
-  reindexSets,
-  syncAdvancedSetTracking,
-  strengthSetTypeOptions,
-  trackingModeOptions,
-  toggleSetUnilateral,
-} from "@/lib/workout-tracking";
-import { PlateCalculator } from "@/components/workouts/plate-calculator";
+  matchPreviousEntry,
+  WorkoutEditorProvider,
+  type ExerciseSheetKind,
+  type WorkoutEditorContextValue,
+} from "./workout-editor-context";
+import { WorkoutHeader } from "./workout-header";
 
-const formatRestTime = (seconds: number) => {
-  const safeSeconds = Math.max(0, seconds);
-  const minutes = Math.floor(safeSeconds / 60);
-  const remainingSeconds = safeSeconds % 60;
+const SUPERSET_HUES = [262, 199, 152, 36, 322];
 
-  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+// Used only until the user record loads; the server is the source of truth.
+const FALLBACK_SETTINGS: UserSettings = {
+  advancedTracking: { enabled: true, rpe: true, tempo: false },
+  plates: { kg: [20, 15, 10, 5, 2.5, 1.25], lb: [45, 35, 25, 10, 5, 2.5] },
+  barWeights: { barbell: 20, ezBar: 7.5, trapBar: 25 },
+  rest: { workingSeconds: 90, warmupSeconds: 60, autoStart: true },
+  previousValueScope: "slot",
 };
 
-const getNotificationPermission = (): NotificationPermission | "unsupported" => {
-  if (typeof window === "undefined" || typeof Notification === "undefined") {
-    return "unsupported";
-  }
+const numberValue = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
 
-  try {
-    return Notification.permission;
-  } catch {
-    return "unsupported";
-  }
+// The bulk picker sheet sits under the keypad's z-index; close (and commit) the
+// keypad first, matching the other sheet-opening surfaces.
+const AddExercisesButton = ({
+  className,
+  variant,
+  onOpen,
+}: {
+  className?: string;
+  variant?: "outline";
+  onOpen: () => void;
+}) => {
+  const { closeKeypad } = useKeypad();
+
+  return (
+    <Button
+      className={className}
+      variant={variant}
+      onClick={() => {
+        closeKeypad();
+        onOpen();
+      }}
+    >
+      <Plus className="h-4 w-4" />
+      Add exercises
+    </Button>
+  );
 };
-
-const closeNotificationSafely = (notification: Notification | null) => {
-  if (!notification) {
-    return;
-  }
-
-  try {
-    notification.close();
-  } catch {
-    // Ignore browsers/PWAs that do not allow programmatic close on resume.
-  }
-};
-
-const showNotificationSafely = (title: string, options?: NotificationOptions) => {
-  if (typeof window === "undefined" || typeof Notification === "undefined") {
-    return null;
-  }
-
-  try {
-    return new Notification(title, options);
-  } catch {
-    return null;
-  }
-};
-
-const toTemplateExercises = (exercises: WorkoutDraftExercise[]) =>
-  exercises
-    .map(draftExerciseToTemplateExercise)
-    .filter((exercise): exercise is NonNullable<ReturnType<typeof draftExerciseToTemplateExercise>> => Boolean(exercise));
 
 export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
   const queryClient = useQueryClient();
-  const router = useRouter();
-  const [draft, setDraft] = useState<WorkoutDraft | null>(null);
-  const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
-  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
-  const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
-  const [substituteSheetOpen, setSubstituteSheetOpen] = useState(false);
-  const [supersetSheetOpen, setSupersetSheetOpen] = useState(false);
-  const [historySheetOpen, setHistorySheetOpen] = useState(false);
-  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
-  const [comparisonSheetOpen, setComparisonSheetOpen] = useState(false);
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
-  const [keepChangesOpen, setKeepChangesOpen] = useState(false);
-  const [templateName, setTemplateName] = useState("");
-  const [templateDescription, setTemplateDescription] = useState("");
-  const [postCompleteSelection, setPostCompleteSelection] = useState<number[]>([]);
-  const [showSessionMeta, setShowSessionMeta] = useState(false);
-  const [cancelWorkoutOpen, setCancelWorkoutOpen] = useState(false);
-  const [deleteWorkoutOpen, setDeleteWorkoutOpen] = useState(false);
-  const [completedEditMode, setCompletedEditMode] = useState(false);
-  const [headerCollapsed, setHeaderCollapsed] = useState(true);
-  const [expandedSetIndex, setExpandedSetIndex] = useState(0);
-  const [restDuration, setRestDuration] = useState(90);
-  const [restRemaining, setRestRemaining] = useState(90);
-  const [restRunning, setRestRunning] = useState(false);
-  const [autoRestEnabled, setAutoRestEnabled] = useState(true);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
-    getNotificationPermission(),
-  );
-  const restNotificationRef = useRef<Notification | null>(null);
-  const hydratedRef = useRef(false);
-  const autosaveTimerRef = useRef<number | null>(null);
-  const autosaveQueuedRef = useRef(false);
-  const autosaveRunningRef = useRef(false);
-  const autoResumeRequestedRef = useRef(false);
-  const latestDraftRef = useRef<WorkoutDraft | null>(null);
-  const pendingCompletionLineupRef = useRef<ReturnType<typeof compareExerciseLineup> | null>(null);
-  const [syncState, setSyncState] = useState<"saving" | "synced" | "error">("synced");
 
   const sessionQuery = useQuery({
     queryKey: ["workout", sessionId],
@@ -198,143 +105,124 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     queryKey: ["exercises"],
     queryFn: apiClient.getExercises,
   });
+  const preferencesQuery = useQuery({
+    queryKey: ["exercise-preferences"],
+    queryFn: apiClient.getExercisePreferences,
+  });
 
   const session = sessionQuery.data;
   const preferredUnit = meQuery.data?.user.preferredUnit ?? "kg";
+  const settings = meQuery.data?.user.settings ?? FALLBACK_SETTINGS;
   const availableExercises = exercisesQuery.data ?? [];
 
-  const completeMutation = useMutation({
-    mutationFn: (payload: WorkoutDraft) => apiClient.completeWorkout(sessionId, payload),
-    onSuccess: async (result) => {
-      clearDraft(sessionId);
-      const pendingLineup = pendingCompletionLineupRef.current;
+  const preferencesMap = useMemo(
+    () =>
+      new Map(
+        (preferencesQuery.data?.preferences ?? []).map((preference) => [
+          preference.exerciseId,
+          preference,
+        ]),
+      ),
+    [preferencesQuery.data],
+  );
 
-      if (pendingLineup?.hasChanges && draft?.exercises.length) {
-        setPostCompleteSelection(
-          draft.exercises.map((_, index) => index).filter((index) => pendingLineup.selections[index]?.selected),
-        );
-        setTemplateName(`${draft.title} template`);
-        setTemplateDescription(draft.notes ?? "");
-        setKeepChangesOpen(true);
-      } else {
-        pendingCompletionLineupRef.current = null;
-        toast.success(`Workout complete. +${result.xpAwarded} XP`);
-        router.push("/");
-      }
-
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["recent-workouts"] }),
-        queryClient.invalidateQueries({ queryKey: ["active-program"] }),
-        queryClient.invalidateQueries({ queryKey: ["leaderboard"] }),
-        queryClient.invalidateQueries({ queryKey: ["feed"] }),
-        queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] }),
-      ]);
-    },
-    onError: (error: Error) => toast.error(error.message),
+  const clock = useSessionClock(sessionId, session);
+  const [autosavePaused, setAutosavePaused] = useState(false);
+  const draftApi = useWorkoutDraft({
+    sessionId,
+    session,
+    resumeWorkout: clock.resume,
+    resumePending: clock.resumePending,
+    autosavePaused,
   });
+  const { draft, setDraft, syncState, ensureWorkoutResumed, updateExercise, updateSet } = draftApi;
+  const restTimer = useRestTimer();
 
-  const createTemplateMutation = useMutation({
-    mutationFn: (payload: { name: string; description?: string }) =>
-      apiClient.createTemplate({
-        name: payload.name,
-        description: payload.description,
-        exercises: toTemplateExercises(draft?.exercises ?? []),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["templates"] });
-      toast.success("Workout saved to templates");
-      setSaveTemplateOpen(false);
-      setTemplateDescription("");
-    },
-    onError: (error: Error) => toast.error(error.message),
+  const exerciseIds = useMemo(
+    () =>
+      [
+        ...new Set(
+          (draft?.exercises ?? [])
+            .map((exercise) => exercise.exerciseId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ].sort(),
+    [draft?.exercises],
+  );
+  const slotIds = useMemo(
+    () =>
+      [
+        ...new Set(
+          (draft?.exercises ?? [])
+            .map((exercise) => exercise.sourceProgramExerciseId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ].sort(),
+    [draft?.exercises],
+  );
+
+  const previousSetsQuery = useQuery({
+    queryKey: ["previous-sets", sessionId, exerciseIds.join(","), slotIds.join(",")],
+    queryFn: () => apiClient.getPreviousSets({ exerciseIds, slotIds }),
+    enabled: Boolean(draft) && (exerciseIds.length > 0 || slotIds.length > 0),
+    staleTime: 5 * 60 * 1000,
   });
+  const previousSets = previousSetsQuery.data ?? null;
 
-  const keepChangesTemplateMutation = useMutation({
-    mutationFn: (payload: { name: string; description?: string; exercises: TemplateDraft["exercises"] }) =>
-      apiClient.createTemplate(payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["templates"] });
-      toast.success("Changes saved as template");
-      applyCompletionSuccess();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  // ---- UI state ---------------------------------------------------------------
+  const [exerciseSheet, setExerciseSheet] = useState<{
+    kind: ExerciseSheetKind;
+    index: number;
+  } | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [plateCalc, setPlateCalc] = useState<PlateCalcRequest | null>(null);
+  const [completedEditMode, setCompletedEditMode] = useState(false);
 
-  const updateTemplateMutation = useMutation({
-    mutationFn: (payload: {
-      templateId: string;
-      draft: {
-        name: string;
-        description?: string;
-        exercises: TemplateDraft["exercises"];
-      };
-    }) =>
-      apiClient.updateTemplate(payload.templateId, {
-        name: payload.draft.name,
-        description: payload.draft.description,
-        exercises: payload.draft.exercises,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["templates"] });
-      toast.success("Template updated");
-      setKeepChangesOpen(false);
-      router.push("/");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const cardElementsRef = useRef(new Map<number, HTMLElement>());
 
+  const registerCardElement = useCallback((exerciseIndex: number, element: HTMLElement | null) => {
+    if (element) {
+      cardElementsRef.current.set(exerciseIndex, element);
+    } else {
+      cardElementsRef.current.delete(exerciseIndex);
+    }
+  }, []);
+
+  const scrollToExercise = useCallback((exerciseIndex: number) => {
+    window.setTimeout(() => {
+      cardElementsRef.current
+        .get(exerciseIndex)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }, []);
+
+  // ---- Server mutations -------------------------------------------------------
   const substituteMutation = useMutation({
     mutationFn: (payload: { exerciseIndex: number; substituteExerciseId: string }) =>
       apiClient.applyWorkoutSubstitution(sessionId, payload),
     onSuccess: (nextDraft) => {
       setDraft(nextDraft);
-      setSubstituteSheetOpen(false);
+      setExerciseSheet(null);
       toast.success("Exercise swapped");
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const pairSupersetMutation = useMutation({
-    mutationFn: (payload: { exerciseIndexes: [number, number] }) =>
-      apiClient.pairWorkoutSuperset(sessionId, payload),
+  const unpairSupersetMutation = useMutation({
+    mutationFn: (supersetGroupId: string) =>
+      apiClient.unpairWorkoutSuperset(sessionId, supersetGroupId),
     onSuccess: (nextDraft) => {
       setDraft(nextDraft);
-      setSupersetSheetOpen(false);
-      toast.success("Superset paired");
+      toast.success("Superset removed");
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const pauseWorkoutMutation = useMutation({
-    mutationFn: () => apiClient.pauseWorkout(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["workout", sessionId] });
-      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
-      toast.success("Workout paused");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const resumeWorkoutMutation = useMutation({
-    mutationFn: () => apiClient.resumeWorkout(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["workout", sessionId] });
-      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
-      toast.success("Workout resumed");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  const cancelWorkoutMutation = useMutation({
-    mutationFn: () => apiClient.cancelWorkout(sessionId),
-    onSuccess: async () => {
-      clearDraft(sessionId);
-      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
-      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
-      toast.success("Workout cancelled");
-      router.push("/");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
   const updateCompletedWorkoutMutation = useMutation({
     mutationFn: (payload: WorkoutDraft) => apiClient.updateCompletedWorkout(sessionId, payload),
     onSuccess: async () => {
@@ -346,509 +234,281 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const deleteCompletedWorkoutMutation = useMutation({
-    mutationFn: () => apiClient.deleteWorkout(sessionId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
-      await queryClient.invalidateQueries({ queryKey: ["progress-overview"] });
-      toast.success("Workout deleted");
-      router.push("/history");
+
+  const persistExercisePreference = useCallback(
+    (
+      exerciseId: string,
+      payload: Parameters<typeof apiClient.upsertExercisePreference>[1],
+    ) => {
+      void apiClient
+        .upsertExercisePreference(exerciseId, payload)
+        .then(() => queryClient.invalidateQueries({ queryKey: ["exercise-preferences"] }))
+        .catch(() => {
+          // Sticky preferences are best-effort; the in-session change still applies.
+        });
     },
-    onError: (error: Error) => toast.error(error.message),
-  });
+    [queryClient],
+  );
 
-  const unpairSupersetMutation = useMutation({
-    mutationFn: (supersetGroupId: string) => apiClient.unpairWorkoutSuperset(sessionId, supersetGroupId),
-    onSuccess: (nextDraft) => {
-      setDraft(nextDraft);
-      toast.success("Superset removed");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  useEffect(() => {
-    if (!sessionQuery.data || hydratedRef.current) {
-      return;
-    }
-
-    const localDraft = loadDraft(sessionId);
-    const initialDraft =
-      localDraft ??
-      sessionQuery.data.savedDraft ?? {
-        title: sessionQuery.data.title,
-        notes: sessionQuery.data.notes ?? "",
-        exercises: [],
-      };
-
-    setDraft({
-      ...initialDraft,
-      exercises: initialDraft.exercises.map((exercise) => syncAdvancedSetTracking(exercise)),
-    });
-    hydratedRef.current = true;
-  }, [sessionId, sessionQuery.data]);
-
-  useEffect(() => {
-    if (!draft || !hydratedRef.current || session?.status !== "IN_PROGRESS") {
-      return;
-    }
-
-    if (completeMutation.isPending) {
-      return;
-    }
-
-    latestDraftRef.current = draft;
-    saveDraftLocally(sessionId, draft);
-    setSyncState("saving");
-
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-    }
-
-    autosaveTimerRef.current = window.setTimeout(() => {
-      const runAutosave = async () => {
-        if (!latestDraftRef.current) {
-          return;
-        }
-
-        if (autosaveRunningRef.current) {
-          autosaveQueuedRef.current = true;
-          return;
-        }
-
-        autosaveRunningRef.current = true;
-
-        try {
-          await apiClient.saveWorkoutDraft(sessionId, latestDraftRef.current);
-          setSyncState("synced");
-        } catch {
-          setSyncState("error");
-        } finally {
-          autosaveRunningRef.current = false;
-          if (autosaveQueuedRef.current) {
-            autosaveQueuedRef.current = false;
-            void runAutosave();
-          }
-        }
-      };
-
-      void runAutosave();
-    }, 700);
-
-    return () => {
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
+  // ---- Derived helpers ----------------------------------------------------------
+  const previousSetsForExercise = useCallback(
+    (exercise: WorkoutDraftExercise): PreviousSetEntry[] | null => {
+      if (!previousSets) {
+        return null;
       }
-    };
-  }, [completeMutation.isPending, draft, session?.status, sessionId]);
 
-  useEffect(() => {
-    if (!completeMutation.isPending) {
-      return;
-    }
+      if (settings.previousValueScope === "slot" && exercise.sourceProgramExerciseId) {
+        const bySlot = previousSets.bySlot[exercise.sourceProgramExerciseId];
+        if (bySlot) {
+          return bySlot.sets;
+        }
+      }
 
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
+      return exercise.exerciseId
+        ? previousSets.byExercise[exercise.exerciseId]?.sets ?? null
+        : null;
+    },
+    [previousSets, settings.previousValueScope],
+  );
 
-    autosaveQueuedRef.current = false;
-  }, [completeMutation.isPending]);
+  const supersetHueFor = useCallback(
+    (supersetGroupId: string) => {
+      const groups: string[] = [];
+      for (const exercise of draft?.exercises ?? []) {
+        if (exercise.supersetGroupId && !groups.includes(exercise.supersetGroupId)) {
+          groups.push(exercise.supersetGroupId);
+        }
+      }
+      const index = groups.indexOf(supersetGroupId);
+      return SUPERSET_HUES[(index >= 0 ? index : 0) % SUPERSET_HUES.length];
+    },
+    [draft?.exercises],
+  );
 
-  useEffect(() => {
-    if (!draft?.exercises.length) {
-      setActiveExerciseIndex(0);
-      return;
-    }
-
-    setActiveExerciseIndex((current) => Math.min(current, draft.exercises.length - 1));
-  }, [draft?.exercises.length]);
-
-  useEffect(() => {
-    setExpandedSetIndex(0);
-  }, [activeExerciseIndex]);
-
-  useEffect(() => {
-    setNotificationPermission(getNotificationPermission());
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const storedDefault = Number(window.localStorage.getItem("liftiq-rest-default"));
-    if (Number.isFinite(storedDefault) && storedDefault > 0) {
-      setRestDuration(storedDefault);
-      setRestRemaining(storedDefault);
-    }
-
-    setAutoRestEnabled(window.localStorage.getItem("liftiq-auto-rest") !== "false");
-  }, []);
-
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (session?.status !== "IN_PROGRESS") {
+  // ---- Set completion: ghost acceptance, superset jump, rest, auto-scroll -------
+  const toggleSetCompleted = useCallback(
+    (exerciseIndex: number, setIndex: number) => {
+      if (!draft || !session) {
         return;
       }
 
-      event.preventDefault();
-      event.returnValue = "";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [session?.status]);
-
-  useEffect(() => {
-    if (!session) {
-      return;
-    }
-
-    const updateElapsed = () => setElapsedSeconds(calculateSessionDurationSeconds(session));
-    updateElapsed();
-
-    if (session.status !== "IN_PROGRESS") {
-      return;
-    }
-
-    const timer = window.setInterval(updateElapsed, 1000);
-    return () => window.clearInterval(timer);
-  }, [session]);
-
-  const updateExercise = (
-    exerciseIndex: number,
-    updater: (exercise: WorkoutDraftExercise) => WorkoutDraftExercise,
-  ) => {
-    ensureWorkoutResumed();
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            exercises: current.exercises.map((exercise, index) =>
-              index === exerciseIndex ? syncAdvancedSetTracking(updater(exercise)) : exercise,
-            ),
-          }
-        : current,
-    );
-  };
-
-  const updateSet = (
-    exerciseIndex: number,
-    setIndex: number,
-    updater: (set: WorkoutDraftSet, exercise: WorkoutDraftExercise) => WorkoutDraftSet,
-  ) => {
-    updateExercise(exerciseIndex, (exercise) => ({
-      ...exercise,
-      sets: exercise.sets.map((set, candidateIndex) =>
-        candidateIndex === setIndex ? updater(set, exercise) : set,
-      ),
-    }));
-  };
-
-  const applyCompletionSuccess = () => {
-    pendingCompletionLineupRef.current = null;
-    toast.success("Workout complete");
-    setKeepChangesOpen(false);
-    router.push("/");
-  };
-
-  const selectedTemplateExercises = useMemo(
-    () =>
-      draft?.exercises
-        .filter((_, index) => postCompleteSelection.includes(index))
-        .map(draftExerciseToTemplateExercise)
-        .filter((exercise): exercise is NonNullable<ReturnType<typeof draftExerciseToTemplateExercise>> => Boolean(exercise)) ?? [],
-    [draft?.exercises, postCompleteSelection],
-  );
-
-  const startRestTimer = (seconds: number, options?: { persist?: boolean }) => {
-    setRestDuration(seconds);
-    setRestRemaining(seconds);
-    setRestRunning(true);
-    // Auto-started rests reuse the saved default and should not overwrite it.
-    if (typeof window !== "undefined" && options?.persist !== false) {
-      window.localStorage.setItem("liftiq-rest-default", String(seconds));
-    }
-  };
-
-  const requestNotificationPermission = async () => {
-    if (typeof window === "undefined" || typeof Notification === "undefined") {
-      toast.error("Notifications are not available in this browser.");
-      setNotificationPermission("unsupported");
-      return;
-    }
-
-    let permission: NotificationPermission;
-    try {
-      permission = await Notification.requestPermission();
-    } catch {
-      toast.error("Notifications could not be enabled on this device.");
-      setNotificationPermission("unsupported");
-      return;
-    }
-    setNotificationPermission(permission);
-
-    if (permission === "granted") {
-      toast.success("Rest timer notifications enabled");
-      return;
-    }
-
-    toast.error("Notifications were not enabled");
-  };
-
-  const addExerciseToWorkout = (exercise: Exercise) => {
-    const nextIndex = draft?.exercises.length ?? 0;
-
-    ensureWorkoutResumed();
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            exercises: [...current.exercises, buildExerciseDraft(exercise, preferredUnit)],
-          }
-        : current,
-    );
-    setActiveExerciseIndex(nextIndex);
-    setBulkSheetOpen(false);
-  };
-
-  const addExercisesToWorkout = (exercises: Exercise[]) => {
-    const nextIndex = draft?.exercises.length ?? 0;
-
-    ensureWorkoutResumed();
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            exercises: [...current.exercises, ...exercises.map((exercise) => buildExerciseDraft(exercise, preferredUnit))],
-          }
-        : current,
-    );
-    setActiveExerciseIndex(nextIndex);
-    setBulkSheetOpen(false);
-  };
-
-  const moveExercise = (fromIndex: number, toIndex: number) => {
-    if (!draft || toIndex < 0 || toIndex >= draft.exercises.length || fromIndex === toIndex) {
-      return;
-    }
-
-    ensureWorkoutResumed();
-    setDraft((current) => {
-      if (!current) {
-        return current;
+      const exercise = draft.exercises[exerciseIndex];
+      const set = exercise?.sets[setIndex];
+      if (!exercise || !set) {
+        return;
       }
 
-      const nextExercises = [...current.exercises];
-      const [movedExercise] = nextExercises.splice(fromIndex, 1);
-      nextExercises.splice(toIndex, 0, movedExercise);
+      ensureWorkoutResumed();
 
-      return {
-        ...current,
-        exercises: nextExercises,
-      };
-    });
-    setActiveExerciseIndex(toIndex);
-  };
-
-  const handleCompleteWorkout = () => {
-    if (!draft || !session) {
-      return;
-    }
-
-    ensureWorkoutResumed();
-    pendingCompletionLineupRef.current = compareExerciseLineup(draft, session.originDraft);
-    completeMutation.mutate(draft);
-  };
-
-  const handleSaveCompletedWorkout = () => {
-    if (!draft) {
-      return;
-    }
-
-    updateCompletedWorkoutMutation.mutate(draft);
-  };
-
-  const toggleSetCompleted = (setIndex: number) => {
-    if (!activeExercise) {
-      return;
-    }
-
-    ensureWorkoutResumed();
-    const isCompleted = activeExercise.sets[setIndex]?.completed === true;
-
-    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
-      ...candidate,
-      completed: !isCompleted,
-    }));
-
-    if (isCompleted) {
-      setExpandedSetIndex(setIndex);
-      return;
-    }
-
-    const activeSet = activeExercise.sets[setIndex];
-    const restTarget =
-      activeExercise.repMax && activeExercise.repMax <= 6 ? 180 : activeExercise.exerciseCategory === "CARDIO" ? 60 : 90;
-
-    const nextIncompleteIndex = activeExercise.sets.findIndex(
-      (candidate, candidateIndex) => candidateIndex > setIndex && candidate.completed !== true,
-    );
-
-    if (activeExercise.supersetGroupId && activeSupersetPartnerIndex !== null) {
-      if ((activeExercise.supersetPosition ?? 1) === 1) {
-        setActiveExerciseIndex(activeSupersetPartnerIndex);
-        setExpandedSetIndex(
-          Math.min(
-            setIndex,
-            (draft?.exercises[activeSupersetPartnerIndex]?.sets.length ?? 1) - 1,
-          ),
-        );
-      } else {
-        startRestTimer(restTarget);
+      if (set.completed === true) {
+        updateSet(exerciseIndex, setIndex, (candidate) => ({ ...candidate, completed: false }));
+        return;
       }
-    } else if ((activeSet?.setType ?? "NORMAL") === "DROP" || (activeSet?.setType ?? "NORMAL") === "CLUSTER") {
-      startRestTimer(restTarget);
-    } else if (
-      autoRestEnabled &&
-      activeSet?.isWorkingSet !== false &&
-      activeExercise.exerciseCategory !== "CARDIO"
-    ) {
-      // Auto-start the rest timer on a completed working set using the saved default.
-      startRestTimer(restDuration, { persist: false });
-    }
 
-    setExpandedSetIndex(nextIncompleteIndex >= 0 ? nextIncompleteIndex : -1);
-  };
+      const prevEntry = matchPreviousEntry(exercise, setIndex, previousSetsForExercise(exercise));
 
-  const activeExercise = draft?.exercises[activeExerciseIndex];
-  const usesAttachment = activeExercise ? equipmentTypesWithAttachments.has(activeExercise.equipmentType) : false;
+      updateSet(exerciseIndex, setIndex, (candidate, current) => {
+        const next = { ...candidate, completed: true };
 
-  useEffect(() => {
-    autoResumeRequestedRef.current = false;
-  }, [session?.pausedAt]);
+        // Completing an empty row accepts the ghost (previous-session) values.
+        if (prevEntry) {
+          const trackingData = (candidate.trackingData ??
+            current.defaultTrackingData ??
+            {}) as WorkoutSetTrackingData;
+          const ghostTracking: Partial<WorkoutSetTrackingData> = {};
 
-  const ensureWorkoutResumed = () => {
-    if (!session?.pausedAt || resumeWorkoutMutation.isPending || autoResumeRequestedRef.current) {
-      return;
-    }
-
-    autoResumeRequestedRef.current = true;
-    resumeWorkoutMutation.mutate();
-  };
-
-  useEffect(() => {
-    if (!restRunning) {
-      closeNotificationSafely(restNotificationRef.current);
-      restNotificationRef.current = null;
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setRestRemaining((current) => {
-        if (current <= 1) {
-          window.clearInterval(timer);
-          setRestRunning(false);
-          closeNotificationSafely(restNotificationRef.current);
-          restNotificationRef.current = null;
-          if (
-            typeof window !== "undefined" &&
-            document.hidden &&
-            getNotificationPermission() === "granted"
-          ) {
-            showNotificationSafely("Rest timer done", {
-              body: activeExercise?.exerciseName
-                ? `Back to ${activeExercise.exerciseName}`
-                : "Jump back into your workout.",
-            });
+          switch (current.trackingMode) {
+            case "PLATES_PER_SIDE":
+            case "PLATES_TOTAL":
+              if (
+                numberValue(trackingData.plateCount) === null &&
+                numberValue(prevEntry.trackingData?.plateCount) !== null
+              ) {
+                ghostTracking.plateCount = prevEntry.trackingData?.plateCount;
+              }
+              break;
+            case "BODYWEIGHT_PLUS_LOAD":
+              if (
+                numberValue(trackingData.externalLoad) === null &&
+                numberValue(prevEntry.trackingData?.externalLoad) !== null
+              ) {
+                ghostTracking.externalLoad = prevEntry.trackingData?.externalLoad;
+              }
+              break;
+            case "PER_SIDE_LOAD":
+              if (
+                numberValue(trackingData.perSideLoad) === null &&
+                numberValue(prevEntry.trackingData?.perSideLoad) !== null
+              ) {
+                ghostTracking.perSideLoad = prevEntry.trackingData?.perSideLoad;
+              }
+              break;
+            default:
+              if (trackingData.unilateral === true) {
+                // Writing `weight` directly would be wiped by syncUnilateralSet,
+                // which recomputes it from left/right. Fill those sides instead.
+                const prevTracking = prevEntry.trackingData;
+                if (
+                  numberValue(trackingData.leftWeight) === null &&
+                  numberValue(trackingData.rightWeight) === null
+                ) {
+                  const prevLeftWeight = numberValue(prevTracking?.leftWeight);
+                  const prevRightWeight = numberValue(prevTracking?.rightWeight);
+                  if (prevLeftWeight !== null && prevRightWeight !== null) {
+                    ghostTracking.leftWeight = prevLeftWeight;
+                    ghostTracking.rightWeight = prevRightWeight;
+                  } else if (typeof prevEntry.weight === "number") {
+                    ghostTracking.leftWeight = prevEntry.weight / 2;
+                    ghostTracking.rightWeight = prevEntry.weight / 2;
+                  }
+                }
+                if (
+                  numberValue(trackingData.leftReps) === null &&
+                  numberValue(trackingData.rightReps) === null
+                ) {
+                  const prevLeftReps = numberValue(prevTracking?.leftReps);
+                  const prevRightReps = numberValue(prevTracking?.rightReps);
+                  if (prevLeftReps !== null && prevRightReps !== null) {
+                    ghostTracking.leftReps = prevLeftReps;
+                    ghostTracking.rightReps = prevRightReps;
+                  } else if (typeof prevEntry.reps === "number") {
+                    ghostTracking.leftReps = prevEntry.reps;
+                    ghostTracking.rightReps = prevEntry.reps;
+                  }
+                }
+              } else if (next.weight === null && typeof prevEntry.weight === "number") {
+                next.weight = prevEntry.weight;
+              }
+              break;
           }
-          toast.success("Rest timer done");
-          return 0;
+
+          if (Object.keys(ghostTracking).length) {
+            next.trackingData = { ...trackingData, ...ghostTracking };
+            next.weight = deriveNormalizedWeight(current.trackingMode, null, next.trackingData);
+          }
         }
 
-        return current - 1;
+        return next;
       });
-    }, 1000);
 
-    return () => window.clearInterval(timer);
-  }, [activeExercise?.exerciseName, restRunning]);
+      if (session.status !== "IN_PROGRESS") {
+        return;
+      }
 
-  useEffect(() => {
-    if (
-      !restRunning ||
-      typeof window === "undefined" ||
-      !document.hidden ||
-      notificationPermission !== "granted"
-    ) {
-      return;
-    }
+      // Superset position 1 hands off to the partner card instead of resting,
+      // but only while the partner still has work to do.
+      const partnerIndex = exercise.supersetGroupId
+        ? draft.exercises.findIndex(
+            (candidate, index) =>
+              index !== exerciseIndex && candidate.supersetGroupId === exercise.supersetGroupId,
+          )
+        : -1;
+      const partnerHasIncompleteSet =
+        partnerIndex >= 0 &&
+        draft.exercises[partnerIndex].sets.some((entry) => entry.completed !== true);
 
-    closeNotificationSafely(restNotificationRef.current);
-    restNotificationRef.current = showNotificationSafely("Rest timer running", {
-      body: `${formatRestTime(restRemaining)} left${activeExercise?.exerciseName ? ` • ${activeExercise.exerciseName}` : ""}`,
-      tag: "rest-timer",
-      silent: true,
-    });
-  }, [activeExercise?.exerciseName, notificationPermission, restRemaining, restRunning]);
+      if (
+        exercise.supersetGroupId &&
+        partnerHasIncompleteSet &&
+        (exercise.supersetPosition ?? 1) === 1
+      ) {
+        scrollToExercise(partnerIndex);
+        return;
+      }
 
-  const activeExerciseSummary = useMemo(() => {
-    if (!activeExercise) {
-      return null;
-    }
+      const nextSet = exercise.sets[setIndex + 1];
+      const restSuppressed = nextSet?.setType === "DROP";
 
-    return `${activeExercise.equipmentType}${activeExercise.attachment ? ` • ${activeExercise.attachment}` : ""}`;
-  }, [activeExercise]);
+      if (!restSuppressed && settings.rest.autoStart && exercise.exerciseCategory !== "CARDIO") {
+        const isWorking = set.isWorkingSet !== false && set.setType !== "WARMUP";
+        restTimer.start(
+          isWorking ? settings.rest.workingSeconds : settings.rest.warmupSeconds,
+          exercise.exerciseName,
+        );
+      }
 
-  const activeSupersetPartner = useMemo(() => {
-    if (!activeExercise?.supersetGroupId || !draft) {
-      return null;
-    }
+      const isLastIncomplete = exercise.sets.every(
+        (candidate, index) => index === setIndex || candidate.completed === true,
+      );
+      if (isLastIncomplete) {
+        const nextIndex = draft.exercises.findIndex(
+          (candidate, index) =>
+            index > exerciseIndex && candidate.sets.some((entry) => entry.completed !== true),
+        );
+        if (nextIndex >= 0) {
+          scrollToExercise(nextIndex);
+        }
+      }
+    },
+    [
+      draft,
+      ensureWorkoutResumed,
+      previousSetsForExercise,
+      restTimer,
+      scrollToExercise,
+      session,
+      settings.rest,
+      updateSet,
+    ],
+  );
 
+  // ---- Composite actions --------------------------------------------------------
+  const addExercisesToWorkout = useCallback(
+    (exercises: Exercise[]) => {
+      const firstNewIndex = draft?.exercises.length ?? 0;
+      draftApi.addExercises(exercises, preferredUnit, preferencesMap);
+      setBulkOpen(false);
+      scrollToExercise(firstNewIndex);
+    },
+    [draft?.exercises.length, draftApi, preferencesMap, preferredUnit, scrollToExercise],
+  );
+
+  const moveExercise = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      draftApi.moveExercise(fromIndex, toIndex);
+      // Keep an open per-exercise sheet pointed at the moved exercise.
+      setExerciseSheet((current) => {
+        if (!current) {
+          return current;
+        }
+        if (current.index === fromIndex) {
+          return { ...current, index: toIndex };
+        }
+        if (current.index === toIndex) {
+          return { ...current, index: fromIndex };
+        }
+        return current;
+      });
+    },
+    [draftApi],
+  );
+
+  const removeExercise = useCallback(
+    (exerciseIndex: number) => {
+      draftApi.removeExercise(exerciseIndex);
+      setExerciseSheet((current) => {
+        if (!current) {
+          return current;
+        }
+        if (current.index === exerciseIndex) {
+          return null;
+        }
+        return current.index > exerciseIndex ? { ...current, index: current.index - 1 } : current;
+      });
+    },
+    [draftApi],
+  );
+
+  // ---- Loading / completed routing ----------------------------------------------
+  if (sessionQuery.isError) {
     return (
-      draft.exercises.find(
-        (exercise, index) =>
-          index !== activeExerciseIndex && exercise.supersetGroupId === activeExercise.supersetGroupId,
-      ) ?? null
+      <ErrorState
+        title="Couldn't load this workout"
+        description={sessionQuery.error instanceof Error ? sessionQuery.error.message : undefined}
+        onRetry={() => void sessionQuery.refetch()}
+      />
     );
-  }, [activeExercise, activeExerciseIndex, draft]);
-
-  const activeSupersetPartnerIndex = useMemo(() => {
-    if (!activeExercise?.supersetGroupId || !draft) {
-      return null;
-    }
-
-    const partnerIndex = draft.exercises.findIndex(
-      (exercise, index) =>
-        index !== activeExerciseIndex && exercise.supersetGroupId === activeExercise.supersetGroupId,
-    );
-
-    return partnerIndex >= 0 ? partnerIndex : null;
-  }, [activeExercise, activeExerciseIndex, draft]);
-
-  const completedStats = useMemo(() => {
-    if (session?.status !== "COMPLETED") {
-      return null;
-    }
-
-    const exercises = session.exercises ?? [];
-    const sets = exercises.flatMap((exercise) => exercise.sets);
-
-    return {
-      exercises: exercises.length,
-      sets: sets.length,
-      reps: sets.reduce((sum, set) => sum + set.reps, 0),
-      volume: exercises.reduce(
-        (sum, exercise) => sum + sumVolumeInKilograms(exercise.sets, exercise.unitMode),
-        0,
-      ),
-      prs: sets.filter((set) => set.isPersonalRecord).length,
-    };
-  }, [session]);
-
-  const activeExerciseCompletedSets = activeExercise
-    ? activeExercise.sets.filter((set) => set.completed === true).length
-    : 0;
-  const activeExerciseTotalSets = activeExercise?.sets.length ?? 0;
+  }
 
   if (sessionQuery.isLoading || !draft || !session) {
     return (
@@ -860,1691 +520,238 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     );
   }
 
-  if (session.status === "COMPLETED" && completedStats && !completedEditMode) {
+  if (session.status === "COMPLETED" && !completedEditMode) {
     return (
-      <div className="app-grid">
-        <Card>
-          <CardHeader className="space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle>{session.title}</CardTitle>
-                <CardDescription>
-                  Completed {session.completedAt ? new Date(session.completedAt).toLocaleString() : "recently"}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button variant="outline" onClick={() => setCompletedEditMode(true)}>
-                  <Pencil className="h-4 w-4" />
-                  Edit workout
-                </Button>
-                <Button variant="outline" onClick={() => setDeleteWorkoutOpen(true)}>
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-                <Button variant="outline" onClick={() => router.push("/")}>
-                  Back home
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <StatBlock label="XP" value={String(session.totalXp)} />
-              <StatBlock label="Exercises" value={String(completedStats.exercises)} />
-              <StatBlock label="Sets" value={String(completedStats.sets)} />
-              <StatBlock label="Reps" value={String(completedStats.reps)} />
-              <StatBlock label="PRs" value={String(completedStats.prs)} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <StatBlock label="Total time" value={formatDuration(session.totalDurationSeconds)} />
-              <StatBlock label="Entry" value={session.entryType.replaceAll("_", " ")} />
-            </div>
-            <div className="surface-panel p-4">
-              <p className="eyebrow">
-                Estimated volume
-              </p>
-              <p className="mt-2 font-display text-2xl font-bold text-ink">
-                {formatVolume(completedStats.volume, preferredUnit)} moved
-              </p>
-            </div>
-          </CardHeader>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Workout breakdown</CardTitle>
-            <CardDescription>
-              Every exercise, set, and recorded effort from this session.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {session.exercises.map((exercise) => {
-              const review = session.exerciseReviews.find(
-                (candidate) => candidate.workoutExerciseId === exercise.id,
-              );
-
-              return (
-                <div key={exercise.id} className="surface-panel p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-display font-semibold text-ink">{exercise.exerciseName}</p>
-                      <p className="mt-1 text-sm text-ink-muted">
-                        {exercise.equipmentType}
-                        {exercise.machineType ? ` • ${exercise.machineType}` : ""}
-                        {exercise.attachment ? ` • ${exercise.attachment}` : ""}
-                      </p>
-                      {exercise.substitutedFromExerciseName ? (
-                        <p className="mt-2 text-xs text-ink-muted">
-                          Replaced {exercise.substitutedFromExerciseName} •{" "}
-                          {exercise.countsForProgression ? "Counts for progression" : "Logged as alternate"}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge variant="secondary">{exercise.sets.length} sets</Badge>
-                      {exercise.supersetGroupId ? <Badge variant="outline">Superset</Badge> : null}
-                    </div>
-                  </div>
-                  {review ? (
-                    <div className="mt-4 space-y-3">
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <StatBlock label="Volume" value={formatVolume(review.volume, preferredUnit)} />
-                        <StatBlock label="Best set" value={review.bestSetLabel} />
-                        <StatBlock
-                          label="Best e1RM"
-                          value={
-                            review.estimatedOneRepMax
-                              ? Math.round(review.estimatedOneRepMax).toString()
-                              : "-"
-                          }
-                        />
-                        <StatBlock
-                          label="Vs last"
-                          value={
-                            review.oneRepMaxChange === null
-                              ? "No prior exposure"
-                              : `${review.oneRepMaxChange >= 0 ? "+" : ""}${Math.round(review.oneRepMaxChange)} e1RM`
-                          }
-                        />
-                      </div>
-                      {exercise.exerciseId ? (
-                        <div className="flex justify-end">
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/progress/exercises/${exercise.exerciseId}`}>
-                              View exercise history
-                            </Link>
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="mt-4 space-y-3">
-                    {exercise.sets.map((set) => (
-                      <div
-                        key={set.id}
-                        className="surface-panel-soft grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 text-sm"
-                      >
-                        <StatBlock compact label="Set" value={String(set.setNumber)} />
-                        <StatBlock
-                          compact
-                          label="Weight"
-                          value={set.weight === null ? "-" : `${set.weight} ${exercise.unitMode}`}
-                        />
-                        <StatBlock compact label="Reps" value={String(set.reps)} />
-                        <StatBlock
-                          compact
-                          label={set.isWorkingSet ? "RPE" : "Warm-up"}
-                          value={set.isWorkingSet ? (set.rpe === null ? "-" : String(set.rpe)) : "Prep"}
-                          highlight={set.isPersonalRecord}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </div>
+      <CompletedWorkoutView
+        session={session}
+        preferredUnit={preferredUnit}
+        onEdit={() => setCompletedEditMode(true)}
+      />
     );
   }
 
+  const isCompletedEdit = session.status === "COMPLETED";
+  const showRpe = settings.advancedTracking.enabled && settings.advancedTracking.rpe;
+  const showTempo = settings.advancedTracking.enabled && settings.advancedTracking.tempo;
+  const sheetTarget = exerciseSheet ? draft.exercises[exerciseSheet.index] : undefined;
+
+  const contextValue: WorkoutEditorContextValue = {
+    sessionId,
+    session,
+    draft,
+    settings,
+    preferredUnit,
+    availableExercises,
+    previousSets,
+    syncState,
+    isCompletedEdit,
+    showRpe,
+    showTempo,
+    setDraft,
+    updateExercise,
+    updateSet,
+    ensureWorkoutResumed,
+    toggleSetCompleted,
+    addSet: draftApi.addSet,
+    addDropSet: draftApi.addDropSet,
+    removeSet: draftApi.removeSet,
+    changeSetType: draftApi.changeSetType,
+    generateWarmups: draftApi.generateWarmups,
+    applySuggestedWeight: draftApi.applySuggestedWeight,
+    removeExercise,
+    moveExercise,
+    restTimer,
+    openExerciseSheet: (kind, index) => setExerciseSheet({ kind, index }),
+    openPlateCalc: (exerciseIndex, setIndex) => setPlateCalc({ exerciseIndex, setIndex }),
+    registerCardElement,
+    previousSetsForExercise,
+    getExercisePreference: (exerciseId) =>
+      exerciseId ? preferencesMap.get(exerciseId) : undefined,
+    persistExercisePreference,
+    unpairSuperset: (supersetGroupId) => unpairSupersetMutation.mutate(supersetGroupId),
+    supersetHueFor,
+  };
+
+  const handleFinish = () => {
+    if (isCompletedEdit) {
+      updateCompletedWorkoutMutation.mutate(draft);
+      return;
+    }
+
+    setFinishOpen(true);
+  };
+
   return (
-    <div className="space-y-4 pb-8">
-      <div className="-mx-4 px-4 pt-1">
-        <div className="hero-card p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="eyebrow">
-                {session.wasPlanned ? "Planned session" : "Quick workout"}
-              </p>
-              <h1 className="truncate text-lg font-semibold text-ink">{draft.title}</h1>
-              <p className="mt-1 text-xs text-ink-muted">
-                {draft.exercises.length
-                  ? `Exercise ${activeExerciseIndex + 1} of ${draft.exercises.length}`
-                  : "Add a few movements to get started"}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">
-                {syncState === "saving" ? "Saving..." : syncState === "error" ? "Pending" : "Synced"}
-              </Badge>
-              <Button
-                aria-label="Invite a mate to this workout"
-                size="icon"
-                variant="outline"
-                onClick={() => setInviteSheetOpen(true)}
-              >
-                <Users className="h-4 w-4" />
-              </Button>
-              <Button
-                aria-label={headerCollapsed ? "Expand workout header" : "Collapse workout header"}
-                size="icon"
-                variant="outline"
-                onClick={() => setHeaderCollapsed((current) => !current)}
-              >
-                {headerCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              </Button>
-              <Button
-                aria-label="Open workout tools"
-                size="icon"
-                variant="outline"
-                onClick={() => setShowSessionMeta(true)}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          {headerCollapsed ? (
-            <button
-              className="surface-panel mt-3 flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
-              onClick={() => setHeaderCollapsed(false)}
-              type="button"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">
-                  {draft.exercises.length
-                    ? `${activeExerciseIndex + 1}/${draft.exercises.length} • ${activeExercise?.exerciseName ?? "Workout"}`
-                    : "No exercises yet"}
-                </p>
-                <p className="mt-1 truncate text-xs text-ink-muted">
-                  {formatDuration(elapsedSeconds)} total • {formatRestTime(restRemaining)} rest
+    <KeypadProvider>
+      <WorkoutEditorProvider value={contextValue}>
+        <div className="pb-28">
+          <WorkoutHeader
+            elapsedSeconds={clock.elapsedSeconds}
+            finishDisabled={
+              draft.exercises.length === 0 ||
+              (isCompletedEdit && updateCompletedWorkoutMutation.isPending)
+            }
+            finishLabel={
+              isCompletedEdit
+                ? updateCompletedWorkoutMutation.isPending
+                  ? "Saving..."
+                  : "Save"
+                : "Finish"
+            }
+            onFinish={handleFinish}
+            onOpenCompare={() => setComparisonOpen(true)}
+            onOpenInvite={() => setInviteOpen(true)}
+            onOpenTools={() => setToolsOpen(true)}
+          />
+
+          <div className="mt-4 space-y-3">
+            {draft.formativeWeek === true ? (
+              <div className="flex items-start gap-2 rounded-md border border-rule bg-surface-sunken px-3 py-2.5">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
+                <p className="text-sm leading-5 text-ink-muted">
+                  Formative week — log what you can manage; weight coaching starts next week.
                 </p>
               </div>
-              <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted" />
-            </button>
-          ) : (
-            <div className="surface-panel mt-3 space-y-2 px-3 py-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
-                  <div className="min-w-0">
-                    <p className="eyebrow">Total time</p>
-                    <p className="truncate text-sm font-semibold text-ink">{formatDuration(elapsedSeconds)}</p>
+            ) : null}
+
+            {draft.exercises.map((exercise, index) => (
+              <ExerciseCard key={`${exercise.exerciseName}-${index}`} exerciseIndex={index} />
+            ))}
+
+            {draft.exercises.length === 0 ? (
+              <EmptyState
+                title="Add an exercise to start logging."
+                description="Pick from the library or create your own movement."
+                action={
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <AddExercisesButton onOpen={() => setBulkOpen(true)} />
+                    <ExerciseCreatorDialog
+                      onCreated={(exercise) => addExercisesToWorkout([exercise])}
+                      triggerLabel="Custom exercise"
+                    />
                   </div>
-                  <div className="min-w-0">
-                    <p className="eyebrow">Rest</p>
-                    <p className="truncate text-sm font-semibold text-ink">{formatRestTime(restRemaining)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    type="button"
-                    variant="ghost"
-                    aria-label={session.pausedAt ? "Resume workout" : "Pause workout"}
-                    onClick={() =>
-                      session.pausedAt
-                        ? resumeWorkoutMutation.mutate()
-                        : pauseWorkoutMutation.mutate()
-                    }
-                  >
-                    {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {[60, 90, 180].map((seconds) => (
-                  <Button
-                    key={seconds}
-                    className="h-8 rounded-xl px-0 text-xs"
-                    size="sm"
-                    type="button"
-                    variant={restDuration === seconds ? "default" : "outline"}
-                    onClick={() => startRestTimer(seconds)}
-                  >
-                    {seconds < 120 ? `${seconds}s` : `${seconds / 60}m`}
-                  </Button>
-                ))}
-                <Button
-                  className="h-8 w-8 rounded-xl"
-                  size="icon"
-                  type="button"
-                  variant="outline"
-                  onClick={() => void requestNotificationPermission()}
-                >
-                  <BellRing className="h-4 w-4" />
-                </Button>
-              </div>
-              <Button
-                className="w-full h-10"
-                variant="accent"
-                onClick={session.status === "COMPLETED" ? handleSaveCompletedWorkout : handleCompleteWorkout}
-                disabled={
-                  session.status === "COMPLETED"
-                    ? updateCompletedWorkoutMutation.isPending || draft.exercises.length === 0
-                    : completeMutation.isPending || draft.exercises.length === 0
                 }
-              >
-                {session.status === "COMPLETED"
-                  ? updateCompletedWorkoutMutation.isPending
-                    ? "Saving..."
-                    : "Save changes"
-                  : completeMutation.isPending
-                    ? "Completing..."
-                    : "Complete workout"}
-              </Button>
-              <Button className="w-full h-9" variant="outline" onClick={() => setBulkSheetOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Bulk add exercises
-              </Button>
-            </div>
-          )}
+              />
+            ) : (
+              <AddExercisesButton
+                className="h-12 w-full"
+                variant="outline"
+                onOpen={() => setBulkOpen(true)}
+              />
+            )}
+          </div>
         </div>
-      </div>
-      <div className="sticky top-0 z-20 -mx-5 border-b border-rule bg-surface/95 backdrop-blur-sm px-5 py-3">
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {draft.exercises.map((exercise, index) => (
-            <button
-              key={`${exercise.exerciseName}-${index}`}
-              className={`min-w-[9rem] rounded-md border px-3 py-2 text-left transition-colors ${
-                index === activeExerciseIndex
-                  ? "border-ink bg-surface-sunken"
-                  : "border-rule bg-transparent hover:border-rule-strong"
-              }`}
-              onClick={() => setActiveExerciseIndex(index)}
-              type="button"
-            >
-              <p className="eyebrow">
-                {index + 1}
-              </p>
-              <p className="mt-1 line-clamp-2 text-sm font-medium text-ink">{exercise.exerciseName}</p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {exercise.supersetGroupId ? (
-                  <Badge variant="outline" className="px-2 py-0 text-[10px]">
-                    Pair
-                  </Badge>
-                ) : null}
-                {exercise.substitutedFromExerciseName ? (
-                  <Badge variant="secondary" className="px-2 py-0 text-[10px]">
-                    Swap
-                  </Badge>
-                ) : null}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
 
-      <Card>
-        <CardContent className="space-y-4 p-4">
-          {activeExercise ? (
-            <>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="eyebrow">
-                  Active exercise
-                </p>
-                <h2 className="truncate font-display text-2xl font-semibold tracking-editorial text-ink">{activeExercise.exerciseName}</h2>
-                <p className="mt-1 text-sm text-ink-muted">{activeExerciseSummary}</p>
-                {activeExercise.substitutedFromExerciseName ? (
-                  <p className="mt-2 text-xs text-ink-muted">
-                    Replacing {activeExercise.substitutedFromExerciseName} •{" "}
-                    {activeExercise.countsForProgression ? "Counts for progression" : "Alternate only"}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  size="icon"
-                  type="button"
-                  variant="outline"
-                  disabled={activeExerciseIndex === 0}
-                  onClick={() => moveExercise(activeExerciseIndex, activeExerciseIndex - 1)}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  type="button"
-                  variant="outline"
-                  disabled={activeExerciseIndex >= draft.exercises.length - 1}
-                  onClick={() => moveExercise(activeExerciseIndex, activeExerciseIndex + 1)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setHistorySheetOpen(true)}>
-                  <History className="mr-1.5 h-3.5 w-3.5" />
-                  History
-                </Button>
-                {session?.inviteId ? (
-                  <Button variant="outline" size="sm" onClick={() => setComparisonSheetOpen(true)}>
-                    <GitCompareArrows className="mr-1.5 h-3.5 w-3.5" />
-                    Compare
-                  </Button>
-                ) : null}
-                <Button variant="outline" size="sm" onClick={() => setDetailsSheetOpen(true)}>
-                  Manage
-                </Button>
-              </div>
-            </div>
+        <RestTimerBar />
 
-            <div className="grid grid-cols-3 gap-2">
-                <StatBlock
-                  label="Plan"
-                  value={
-                    activeExercise.exerciseCategory === "CARDIO"
-                      ? `${Math.round(((activeExercise.defaultTrackingData?.durationSeconds as number | null | undefined) ?? 900) / 60)} min target`
-                      : `${activeExercise.repMin ?? "-"}-${activeExercise.repMax ?? "-"} reps`
-                  }
-                />
-                <StatBlock
-                  label="Suggested"
-                  value={formatSetLoad(
-                    activeExercise.trackingMode,
-                    activeExercise.unitMode,
-                    activeExercise.suggestedWeight ?? null,
-                    activeExercise.defaultTrackingData ?? null,
-                  )}
-                />
-                <StatBlock
-                  label="Progress"
-                  value={`${activeExerciseCompletedSets}/${activeExerciseTotalSets}`}
-                />
-            </div>
+        <FinishFlow
+          finishOpen={finishOpen}
+          onFinishOpenChange={setFinishOpen}
+          saveTemplateOpen={saveTemplateOpen}
+          onSaveTemplateOpenChange={setSaveTemplateOpen}
+          onAutosavePauseChange={setAutosavePaused}
+        />
 
-            {activeSupersetPartner ? (
-              <div className="surface-panel flex items-center justify-between gap-3 px-3 py-2">
-                <div>
-                  <p className="eyebrow">Paired with</p>
-                  <p className="text-sm font-semibold text-ink">{activeSupersetPartner.exerciseName}</p>
-                </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const partnerIndex = draft.exercises.findIndex(
-                          (exercise) => exercise.supersetGroupId === activeExercise.supersetGroupId && exercise !== activeExercise,
-                        );
-                        if (partnerIndex >= 0) {
-                          setActiveExerciseIndex(partnerIndex);
-                        }
-                      }}
-                    >
-                      Go to pair
-                    </Button>
-              </div>
-            ) : null}
+        <WorkoutToolsSheet
+          open={toolsOpen}
+          onOpenChange={setToolsOpen}
+          onPause={clock.pause}
+          onResume={clock.resume}
+          onSaveTemplate={() => {
+            setToolsOpen(false);
+            setSaveTemplateOpen(true);
+          }}
+        />
 
-            <div className="grid grid-cols-1 gap-2">
-              <Button size="sm" type="button" variant="outline" onClick={() => startRestTimer(90)}>
-                Start rest
-              </Button>
-            </div>
+        <ManageExerciseSheet
+          exerciseIndex={exerciseSheet?.index ?? 0}
+          open={exerciseSheet?.kind === "manage"}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExerciseSheet(null);
+            }
+          }}
+        />
 
-            <div className="space-y-2">
-                {activeExercise.sets.map((set, setIndex) => {
-                  const isDone = set.completed === true;
-                  const isExpanded = expandedSetIndex === setIndex;
-                  const setTrackingData = (set.trackingData ??
-                    activeExercise.defaultTrackingData ??
-                    null) as WorkoutSetTrackingData | null;
-                  const setDurationSeconds =
-                    typeof setTrackingData?.durationSeconds === "number"
-                      ? setTrackingData.durationSeconds
-                      : null;
-                  const setPlateCount =
-                    typeof setTrackingData?.plateCount === "number" ? setTrackingData.plateCount : null;
-                  const setExternalLoad =
-                    typeof setTrackingData?.externalLoad === "number"
-                      ? setTrackingData.externalLoad
-                      : null;
-                  const setPerSideLoad =
-                    typeof setTrackingData?.perSideLoad === "number" ? setTrackingData.perSideLoad : null;
-                  const setDistance =
-                    typeof setTrackingData?.distance === "number" ? setTrackingData.distance : null;
-                  const setIncline =
-                    typeof setTrackingData?.incline === "number" ? setTrackingData.incline : null;
-                  const setBandLevel =
-                    typeof setTrackingData?.bandLevel === "string" ? setTrackingData.bandLevel : "MEDIUM";
-                  const isUnilateral = setTrackingData?.unilateral === true;
-                  const leftWeight =
-                    typeof setTrackingData?.leftWeight === "number" ? setTrackingData.leftWeight : null;
-                  const rightWeight =
-                    typeof setTrackingData?.rightWeight === "number" ? setTrackingData.rightWeight : null;
-                  const leftReps =
-                    typeof setTrackingData?.leftReps === "number" ? setTrackingData.leftReps : null;
-                  const rightReps =
-                    typeof setTrackingData?.rightReps === "number" ? setTrackingData.rightReps : null;
-                  const leftRpe =
-                    typeof setTrackingData?.leftRpe === "number" ? setTrackingData.leftRpe : null;
-                  const rightRpe =
-                    typeof setTrackingData?.rightRpe === "number" ? setTrackingData.rightRpe : null;
+        <SupersetSheet
+          exerciseIndex={exerciseSheet?.index ?? 0}
+          open={exerciseSheet?.kind === "superset"}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExerciseSheet(null);
+            }
+          }}
+        />
 
-                  return (
-                    <div
-                      key={`${activeExercise.exerciseName}-${setIndex}`}
-                      className={`rounded-md border transition-colors ${
-                        isDone ? "border-rule bg-accent-soft/40" : "border-rule bg-transparent"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 px-3 py-3">
-                        <button
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border font-mono text-sm transition-colors ${
-                            isDone
-                              ? "border-ink bg-ink text-surface"
-                              : "border-rule bg-surface-raised text-ink"
-                          }`}
-                          aria-label={isDone ? `Undo set ${set.setNumber}` : `Mark set ${set.setNumber} complete`}
-                          aria-pressed={isDone}
-                          onClick={() => toggleSetCompleted(setIndex)}
-                          type="button"
-                        >
-                          {isDone ? <Check className="h-4 w-4" /> : set.setNumber}
-                        </button>
-                        <button
-                          className="min-w-0 flex-1 text-left"
-                          onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
-                          type="button"
-                        >
-                          <p className="truncate text-sm font-medium text-ink">
-                            {formatSetLoad(
-                              activeExercise.trackingMode,
-                              activeExercise.unitMode,
-                              set.weight,
-                              setTrackingData,
-                            )}
-                            {" · "}
-                            {activeExercise.exerciseCategory === "CARDIO"
-                              ? formatDuration(setDurationSeconds)
-                              : isUnilateral
-                                ? `L ${leftReps ?? "--"} / R ${rightReps ?? "--"} reps`
-                              : `${set.reps} reps`}
-                            {" · "}
-                            {set.setType?.replaceAll("_", " ") ?? (set.isWorkingSet ? "NORMAL" : "WARMUP")}
-                          </p>
-                          {setTrackingData?.autoGenerated ? (
-                            <p className="mt-1 text-[11px] text-ink-muted">
-                              Auto {setTrackingData.dropPhase ? `drop ${setTrackingData.dropPhase}` : "generated"}
-                            </p>
-                          ) : null}
-                        </button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={isExpanded ? "Collapse set details" : "Expand set details"}
-                          aria-expanded={isExpanded}
-                          onClick={() => setExpandedSetIndex((current) => (current === setIndex ? -1 : setIndex))}
-                        >
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                      {isExpanded ? (
-                        <div className="border-t border-rule px-3 py-3">
-                          {isUnilateral && activeExercise.exerciseCategory !== "CARDIO" ? (
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div className="rounded-md border border-rule p-3">
-                                <p className="eyebrow mb-2">
-                                  Left
-                                </p>
-                                <div className="grid grid-cols-3 gap-2">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Load</Label>
-                                    <NullableNumberInput
-                                      className="h-9 px-2 text-sm"
-                                      value={leftWeight}
-                                      onChange={(value) =>
-                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
-                                          syncAdvancedSetTracking({
-                                            ...exercise,
-                                            sets: exercise.sets.map((entry, entryIndex) =>
-                                              entryIndex === setIndex
-                                                ? {
-                                                    ...candidate,
-                                                    trackingData: {
-                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                                      unilateral: true,
-                                                      leftWeight: value,
-                                                    },
-                                                  }
-                                                : entry,
-                                            ),
-                                          }).sets[setIndex],
-                                        )
-                                      }
-                                      placeholder={activeExercise.unitMode}
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Reps</Label>
-                                    <NullableNumberInput
-                                      className="h-9 px-2 text-sm"
-                                      value={leftReps}
-                                      onChange={(value) =>
-                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
-                                          syncAdvancedSetTracking({
-                                            ...exercise,
-                                            sets: exercise.sets.map((entry, entryIndex) =>
-                                              entryIndex === setIndex
-                                                ? {
-                                                    ...candidate,
-                                                    trackingData: {
-                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                                      unilateral: true,
-                                                      leftReps: value,
-                                                    },
-                                                  }
-                                                : entry,
-                                            ),
-                                          }).sets[setIndex],
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">RPE</Label>
-                                    <NullableNumberInput
-                                      className="h-9 px-2 text-sm"
-                                      step={0.5}
-                                      value={leftRpe}
-                                      onChange={(value) =>
-                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
-                                          syncAdvancedSetTracking({
-                                            ...exercise,
-                                            sets: exercise.sets.map((entry, entryIndex) =>
-                                              entryIndex === setIndex
-                                                ? {
-                                                    ...candidate,
-                                                    trackingData: {
-                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                                      unilateral: true,
-                                                      leftRpe: value,
-                                                    },
-                                                  }
-                                                : entry,
-                                            ),
-                                          }).sets[setIndex],
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="rounded-md border border-rule p-3">
-                                <p className="eyebrow mb-2">
-                                  Right
-                                </p>
-                                <div className="grid grid-cols-3 gap-2">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Load</Label>
-                                    <NullableNumberInput
-                                      className="h-9 px-2 text-sm"
-                                      value={rightWeight}
-                                      onChange={(value) =>
-                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
-                                          syncAdvancedSetTracking({
-                                            ...exercise,
-                                            sets: exercise.sets.map((entry, entryIndex) =>
-                                              entryIndex === setIndex
-                                                ? {
-                                                    ...candidate,
-                                                    trackingData: {
-                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                                      unilateral: true,
-                                                      rightWeight: value,
-                                                    },
-                                                  }
-                                                : entry,
-                                            ),
-                                          }).sets[setIndex],
-                                        )
-                                      }
-                                      placeholder={activeExercise.unitMode}
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Reps</Label>
-                                    <NullableNumberInput
-                                      className="h-9 px-2 text-sm"
-                                      value={rightReps}
-                                      onChange={(value) =>
-                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
-                                          syncAdvancedSetTracking({
-                                            ...exercise,
-                                            sets: exercise.sets.map((entry, entryIndex) =>
-                                              entryIndex === setIndex
-                                                ? {
-                                                    ...candidate,
-                                                    trackingData: {
-                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                                      unilateral: true,
-                                                      rightReps: value,
-                                                    },
-                                                  }
-                                                : entry,
-                                            ),
-                                          }).sets[setIndex],
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">RPE</Label>
-                                    <NullableNumberInput
-                                      className="h-9 px-2 text-sm"
-                                      step={0.5}
-                                      value={rightRpe}
-                                      onChange={(value) =>
-                                        updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
-                                          syncAdvancedSetTracking({
-                                            ...exercise,
-                                            sets: exercise.sets.map((entry, entryIndex) =>
-                                              entryIndex === setIndex
-                                                ? {
-                                                    ...candidate,
-                                                    trackingData: {
-                                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                                      unilateral: true,
-                                                      rightRpe: value,
-                                                    },
-                                                  }
-                                                : entry,
-                                            ),
-                                          }).sets[setIndex],
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                          <div className="grid grid-cols-3 gap-2">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">
-                                {activeExercise.trackingMode === "CARDIO" ? "Duration" : "Load"}
-                              </Label>
-                              <NullableNumberInput
-                                className="h-9 px-2 text-sm"
-                                value={
-                                  activeExercise.trackingMode === "CARDIO"
-                                    ? (setDurationSeconds === null ? null : setDurationSeconds / 60)
-                                    : activeExercise.trackingMode === "PLATES_PER_SIDE"
-                                      ? setPlateCount
-                                      : activeExercise.trackingMode === "BODYWEIGHT_PLUS_LOAD"
-                                        ? setExternalLoad
-                                        : activeExercise.trackingMode === "PER_SIDE_LOAD"
-                                          ? setPerSideLoad
-                                          : set.weight
-                                }
-                                onChange={(value) =>
-                                  updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => {
-                                    const nextTrackingData = {
-                                      ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                    } as WorkoutSetTrackingData;
+        <PlateCalcSheet
+          request={plateCalc}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPlateCalc(null);
+            }
+          }}
+        />
 
-                                    if (exercise.trackingMode === "CARDIO") {
-                                      nextTrackingData.durationSeconds = value === null ? null : value * 60;
-                                      return {
-                                        ...candidate,
-                                        trackingData: nextTrackingData,
-                                      };
-                                    }
+        <ExerciseHistorySheet
+          exerciseId={sheetTarget?.exerciseId ?? null}
+          exerciseName={sheetTarget?.exerciseName ?? ""}
+          preferredUnit={preferredUnit}
+          open={exerciseSheet?.kind === "history"}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExerciseSheet(null);
+            }
+          }}
+        />
 
-                                    if (exercise.trackingMode === "PLATES_PER_SIDE") {
-                                      nextTrackingData.plateCount = value;
-                                      return {
-                                        ...candidate,
-                                        trackingData: nextTrackingData,
-                                        weight: deriveNormalizedWeight(exercise.trackingMode, null, nextTrackingData),
-                                      };
-                                    }
-
-                                    if (exercise.trackingMode === "BODYWEIGHT_PLUS_LOAD") {
-                                      nextTrackingData.externalLoad = value;
-                                      return {
-                                        ...candidate,
-                                        trackingData: nextTrackingData,
-                                        weight: deriveNormalizedWeight(exercise.trackingMode, null, nextTrackingData),
-                                      };
-                                    }
-
-                                    if (exercise.trackingMode === "PER_SIDE_LOAD") {
-                                      nextTrackingData.perSideLoad = value;
-                                      return {
-                                        ...candidate,
-                                        trackingData: nextTrackingData,
-                                        weight: deriveNormalizedWeight(exercise.trackingMode, null, nextTrackingData),
-                                      };
-                                    }
-
-                                    return { ...candidate, weight: value };
-                                  })
-                                }
-                                placeholder={
-                                  activeExercise.trackingMode === "CARDIO"
-                                    ? "min"
-                                    : activeExercise.trackingMode === "PLATES_PER_SIDE"
-                                      ? "plates"
-                                      : activeExercise.unitMode
-                                }
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">
-                                {activeExercise.exerciseCategory === "CARDIO" ? "Distance" : "Reps"}
-                              </Label>
-                              {activeExercise.exerciseCategory === "CARDIO" ? (
-                                <NullableNumberInput
-                                  className="h-9 px-2 text-sm"
-                                  value={setDistance}
-                                  onChange={(value) =>
-                                    updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => ({
-                                      ...candidate,
-                                      trackingData: {
-                                        ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                        distance: value,
-                                      },
-                                    }))
-                                  }
-                                />
-                              ) : (
-                                <NullableNumberInput
-                                  className="h-9 px-2 text-sm"
-                                  value={set.reps}
-                                  onChange={(value) =>
-                                    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
-                                      ...candidate,
-                                      reps: value ?? candidate.reps,
-                                    }))
-                                  }
-                                />
-                              )}
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">
-                                {activeExercise.exerciseCategory === "CARDIO" ? "Incline / RPE" : "RPE"}
-                              </Label>
-                              {activeExercise.exerciseCategory === "CARDIO" ? (
-                                <NullableNumberInput
-                                  className="h-9 px-2 text-sm"
-                                  step={0.5}
-                                  value={setIncline}
-                                  onChange={(value) =>
-                                    updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => ({
-                                      ...candidate,
-                                      trackingData: {
-                                        ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                        incline: value,
-                                      },
-                                    }))
-                                  }
-                                />
-                              ) : (
-                                <NullableNumberInput
-                                  className="h-9 px-2 text-sm"
-                                  step={0.5}
-                                  value={set.rpe}
-                                  onChange={(value) =>
-                                    updateSet(activeExerciseIndex, setIndex, (candidate) => ({
-                                      ...candidate,
-                                      rpe: value,
-                                    }))
-                                  }
-                                />
-                              )}
-                            </div>
-                          </div>
-                          )}
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">Set type</Label>
-                              <Select
-                                value={set.setType ?? defaultSetTypeForCategory(activeExercise.exerciseCategory)}
-                                onValueChange={(value) =>
-                                  updateExercise(activeExerciseIndex, (current) =>
-                                    syncAdvancedSetTracking(
-                                      applySetTypeBehavior(
-                                        current,
-                                        setIndex,
-                                        value as WorkoutSetType,
-                                      ),
-                                    ),
-                                  )
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Set type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {(activeExercise.exerciseCategory === "CARDIO"
-                                    ? [{ value: "CARDIO", label: "Cardio" }]
-                                    : strengthSetTypeOptions
-                                  ).map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            {set.setType === "CLUSTER" ? (
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Cluster pattern</Label>
-                                <Input
-                                  placeholder="e.g. 4,4,4"
-                                  value={setTrackingData?.clusterPattern ?? ""}
-                                  onChange={(event) =>
-                                    updateExercise(activeExerciseIndex, (current) =>
-                                      syncAdvancedSetTracking({
-                                        ...current,
-                                        sets: current.sets.map((candidate, candidateIndex) =>
-                                          candidateIndex === setIndex
-                                            ? {
-                                                ...candidate,
-                                                trackingData: {
-                                                  ...(candidate.trackingData ?? current.defaultTrackingData ?? {}),
-                                                  clusterPattern: event.target.value,
-                                                },
-                                              }
-                                            : candidate,
-                                        ),
-                                      }),
-                                    )
-                                  }
-                                />
-                              </div>
-                            ) : null}
-                            {activeExercise.trackingMode === "BAND_LEVEL" ? (
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Band level</Label>
-                                <Select
-                                  value={setBandLevel}
-                                  onValueChange={(value) =>
-                                    updateSet(activeExerciseIndex, setIndex, (candidate, exercise) => ({
-                                      ...candidate,
-                                      trackingData: {
-                                        ...(candidate.trackingData ?? exercise.defaultTrackingData ?? {}),
-                                        bandLevel: value,
-                                      },
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Band level" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {["LIGHT", "MEDIUM", "HEAVY", "EXTRA_HEAVY"].map((level) => (
-                                      <SelectItem key={level} value={level}>
-                                        {level.replaceAll("_", " ")}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            ) : null}
-                          </div>
-                          {(activeExercise.trackingMode === "ABSOLUTE_WEIGHT" ||
-                            activeExercise.trackingMode === "PLATES_PER_SIDE") &&
-                          typeof deriveNormalizedWeight(
-                            activeExercise.trackingMode,
-                            set.weight,
-                            setTrackingData,
-                          ) === "number" ? (
-                            <div className="mt-3">
-                              <PlateCalculator
-                                targetWeight={
-                                  deriveNormalizedWeight(
-                                    activeExercise.trackingMode,
-                                    set.weight,
-                                    setTrackingData,
-                                  ) as number
-                                }
-                                barWeight={
-                                  typeof setTrackingData?.barWeight === "number"
-                                    ? setTrackingData.barWeight
-                                    : activeExercise.unitMode === "lb"
-                                      ? 45
-                                      : 20
-                                }
-                                unitMode={activeExercise.unitMode}
-                              />
-                            </div>
-                          ) : null}
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <Button
-                              size="sm"
-                              type="button"
-                              variant="ghost"
-                              onClick={() =>
-                                updateExercise(activeExerciseIndex, (current) => {
-                                  const previousSet = current.sets[setIndex - 1];
-                                  if (!previousSet) {
-                                    return current;
-                                  }
-
-                                  return {
-                                    ...current,
-                                    sets: current.sets.map((candidate, candidateIndex) =>
-                                      candidateIndex === setIndex
-                                        ? {
-                                            ...candidate,
-                                            weight: previousSet.weight,
-                                            reps: previousSet.reps,
-                                            rpe: previousSet.rpe,
-                                            trackingData: previousSet.trackingData,
-                                            isWorkingSet: previousSet.isWorkingSet,
-                                          }
-                                        : candidate,
-                                    ),
-                                  };
-                                })
-                              }
-                              disabled={setIndex === 0}
-                            >
-                              Copy previous
-                            </Button>
-                            <Button
-                              size="sm"
-                              type="button"
-                              variant="ghost"
-                              onClick={() => startRestTimer(activeExercise.repMax && activeExercise.repMax <= 6 ? 180 : 90)}
-                            >
-                              Start rest
-                            </Button>
-                            <Button
-                              size="sm"
-                              type="button"
-                              variant={isUnilateral ? "default" : "ghost"}
-                              onClick={() =>
-                                updateSet(activeExerciseIndex, setIndex, (candidate, exercise) =>
-                                  toggleSetUnilateral(candidate, exercise),
-                                )
-                              }
-                            >
-                              {isUnilateral ? "Bilateral" : "Unilateral"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={activeExercise.sets.filter((candidate) => !candidate.trackingData?.autoGenerated).length === 1}
-                              onClick={() =>
-                                updateExercise(activeExerciseIndex, (current) => ({
-                                  ...current,
-                                  sets: reindexSets(
-                                    current.sets.filter((candidate, candidateIndex) => {
-                                      if (candidateIndex === setIndex) {
-                                        return false;
-                                      }
-
-                                      return candidate.trackingData?.generatedFromSetNumber !== set.setNumber;
-                                    }),
-                                  ),
-                                }))
-                              }
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() =>
-                  updateExercise(activeExerciseIndex, (current) =>
-                    (() => {
-                      const previousLoggedSet =
-                        [...current.sets].reverse().find((candidate) => !candidate.trackingData?.autoGenerated) ??
-                        current.sets.at(-1);
-
-                      return syncAdvancedSetTracking({
-                        ...current,
-                        sets: [
-                          ...current.sets,
-                          {
-                            setNumber: current.sets.length + 1,
-                            weight: previousLoggedSet?.weight ?? current.suggestedWeight ?? null,
-                            reps:
-                              current.exerciseCategory === "CARDIO"
-                                ? 0
-                                : previousLoggedSet?.reps ?? current.repMin ?? 8,
-                            rpe: previousLoggedSet?.rpe ?? null,
-                            setType:
-                              previousLoggedSet?.setType ?? defaultSetTypeForCategory(current.exerciseCategory),
-                            trackingData:
-                              previousLoggedSet?.trackingData ??
-                              current.defaultTrackingData ??
-                              defaultTrackingDataForMode(current.trackingMode, current.unitMode),
-                            isWorkingSet:
-                              current.exerciseCategory === "CARDIO"
-                                ? false
-                                : previousLoggedSet?.isWorkingSet ?? true,
-                          },
-                        ],
-                      });
-                    })(),
-                  )
-                }
-              >
-                <Plus className="h-4 w-4" />
-                Add set
-              </Button>
-
-              {activeExercise.trackingMode === "ABSOLUTE_WEIGHT" &&
-              activeExercise.exerciseCategory !== "CARDIO" ? (
-                <Button
-                  className="w-full"
-                  variant="ghost"
-                  onClick={() =>
-                    updateExercise(activeExerciseIndex, (current) => {
-                      const workingSet = current.sets.find((candidate) => candidate.isWorkingSet !== false);
-                      const baseWeight =
-                        deriveNormalizedWeight(
-                          current.trackingMode,
-                          workingSet?.weight ?? null,
-                          workingSet?.trackingData ?? current.defaultTrackingData,
-                        ) ??
-                        workingSet?.weight ??
-                        current.suggestedWeight ??
-                        null;
-
-                      if (typeof baseWeight !== "number" || baseWeight <= 0) {
-                        toast.error("Add a working weight first to build warm-ups.");
-                        return current;
-                      }
-
-                      const warmups = generateWarmupSets(baseWeight, {
-                        reps: current.repMin ?? 8,
-                        roundTo: current.unitMode === "lb" ? 5 : 2.5,
-                      });
-
-                      return {
-                        ...current,
-                        sets: reindexSets([...warmups, ...current.sets]),
-                      };
-                    })
-                  }
-                >
-                  <Flame className="h-4 w-4" />
-                  Generate warm-ups
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <div className="rounded-md border border-dashed border-rule p-5 text-center">
-              <p className="text-sm text-ink-muted">Add an exercise to start logging.</p>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
-                <Button onClick={() => setBulkSheetOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  Add exercises
-                </Button>
-                <ExerciseCreatorDialog
-                  onCreated={(exercise) => addExerciseToWorkout(exercise)}
-                  triggerLabel="Custom exercise"
-                />
-              </div>
-            </div>
+        <ExerciseSearchSheet
+          description="Pick the movement you actually want to run today."
+          exercises={availableExercises.filter(
+            (exercise) => exercise.id !== sheetTarget?.exerciseId,
           )}
-        </CardContent>
-      </Card>
+          modal={false}
+          onOpenChange={(open) => {
+            if (!open) {
+              setExerciseSheet(null);
+            }
+          }}
+          onSelect={(exercise) => {
+            if (exerciseSheet) {
+              substituteMutation.mutate({
+                exerciseIndex: exerciseSheet.index,
+                substituteExerciseId: exercise.id,
+              });
+            }
+          }}
+          open={exerciseSheet?.kind === "swap"}
+          title="Swap exercise"
+        />
 
-      <Sheet open={showSessionMeta} onOpenChange={setShowSessionMeta}>
-        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
-          <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
-            <SheetHeader>
-              <SheetTitle>Workout tools</SheetTitle>
-            </SheetHeader>
-          </div>
-          <div className="drawer-scroll-region px-6 py-6">
-            <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="workout-title">Workout title</Label>
-              <Input
-                id="workout-title"
-                value={draft.title}
-                onChange={(event) => {
-                  ensureWorkoutResumed();
-                  setDraft((current) => (current ? { ...current, title: event.target.value } : current));
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="workout-notes">Session notes</Label>
-              <Textarea
-                id="workout-notes"
-                value={draft.notes ?? ""}
-                onChange={(event) => {
-                  ensureWorkoutResumed();
-                  setDraft((current) => (current ? { ...current, notes: event.target.value } : current));
-                }}
-              />
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button
-                variant="outline"
-                onClick={() =>
-                  session.pausedAt
-                    ? resumeWorkoutMutation.mutate()
-                    : pauseWorkoutMutation.mutate()
-                }
-              >
-                {session.pausedAt ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                {session.pausedAt ? "Resume workout" : "Pause workout"}
-              </Button>
-              <Button variant="outline" onClick={() => setCancelWorkoutOpen(true)}>
-                <Trash2 className="h-4 w-4" />
-                Cancel workout
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (!draft.exercises.some((exercise) => exercise.exerciseId)) {
-                    toast.error("Add at least one saved exercise before creating a template");
-                    return;
-                  }
+        <ExerciseBulkPickerSheet
+          description="Queue multiple exercises, then drop them into the workout together."
+          exercises={availableExercises}
+          modal={false}
+          onConfirm={addExercisesToWorkout}
+          onOpenChange={setBulkOpen}
+          open={bulkOpen}
+          title="Add exercises"
+        />
 
-                  setTemplateName(`${draft.title} template`);
-                  setTemplateDescription(draft.notes ?? "");
-                  setSaveTemplateOpen(true);
-                }}
-              >
-                <Save className="h-4 w-4" />
-                Save as template
-              </Button>
-            </div>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+        <InviteMateSheet
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          sessionId={sessionId}
+          workoutTitle={draft.title}
+          programWorkoutId={session.programWorkoutId ?? null}
+          templateId={session.templateId ?? null}
+        />
 
-      <Dialog open={cancelWorkoutOpen} onOpenChange={setCancelWorkoutOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel this workout?</DialogTitle>
-            <DialogDescription>
-              This will discard the active session and return you home. Use pause if you plan to come back later.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-start">
-            <Button type="button" variant="outline" onClick={() => setCancelWorkoutOpen(false)}>
-              Keep workout
-            </Button>
-            <Button type="button" onClick={() => cancelWorkoutMutation.mutate()} disabled={cancelWorkoutMutation.isPending}>
-              {cancelWorkoutMutation.isPending ? "Cancelling..." : "Cancel workout"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteWorkoutOpen} onOpenChange={setDeleteWorkoutOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete this workout?</DialogTitle>
-            <DialogDescription>
-              This removes the completed workout from your history permanently.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-start">
-            <Button type="button" variant="outline" onClick={() => setDeleteWorkoutOpen(false)}>
-              Keep workout
-            </Button>
-            <Button
-              type="button"
-              onClick={() => deleteCompletedWorkoutMutation.mutate()}
-              disabled={deleteCompletedWorkoutMutation.isPending}
-            >
-              {deleteCompletedWorkoutMutation.isPending ? "Deleting..." : "Delete workout"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <ExerciseHistorySheet
-        exerciseId={activeExercise?.exerciseId ?? null}
-        exerciseName={activeExercise?.exerciseName ?? ""}
-        preferredUnit={preferredUnit}
-        open={historySheetOpen}
-        onOpenChange={setHistorySheetOpen}
-      />
-
-      <InviteMateSheet
-        open={inviteSheetOpen}
-        onOpenChange={setInviteSheetOpen}
-        sessionId={sessionId}
-        workoutTitle={draft?.title ?? ""}
-        programWorkoutId={session?.programWorkoutId ?? null}
-        templateId={session?.templateId ?? null}
-      />
-
-      <WorkoutComparisonSheet
-        sessionId={sessionId}
-        open={comparisonSheetOpen}
-        onOpenChange={setComparisonSheetOpen}
-      />
-
-      <ExerciseBulkPickerSheet
-        description="Queue multiple exercises, then drop them into the workout together."
-        exercises={availableExercises}
-        modal={false}
-        onConfirm={addExercisesToWorkout}
-        onOpenChange={setBulkSheetOpen}
-        open={bulkSheetOpen}
-        title="Bulk add exercises"
-      />
-
-      <ExerciseSearchSheet
-        description="Pick the movement you actually want to run today."
-        exercises={availableExercises.filter(
-          (exercise) => exercise.id !== activeExercise?.exerciseId,
-        )}
-        modal={false}
-        onOpenChange={setSubstituteSheetOpen}
-        onSelect={(exercise) =>
-          substituteMutation.mutate({
-            exerciseIndex: activeExerciseIndex,
-            substituteExerciseId: exercise.id,
-          })
-        }
-        open={substituteSheetOpen}
-        title="Swap exercise"
-      />
-
-      <Sheet open={supersetSheetOpen} onOpenChange={setSupersetSheetOpen}>
-        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
-          <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
-            <SheetHeader>
-              <SheetTitle>Create superset</SheetTitle>
-              <SheetDescription>
-                Pair the current movement with one other exercise so you can alternate them and rest after the pair.
-              </SheetDescription>
-            </SheetHeader>
-          </div>
-          <div className="drawer-scroll-region px-6 py-6">
-            <div className="space-y-3">
-            {draft.exercises
-              .map((exercise, index) => ({ exercise, index }))
-              .filter(
-                ({ exercise, index }) =>
-                  index !== activeExerciseIndex && !exercise.supersetGroupId,
-              )
-              .map(({ exercise, index }) => (
-                <button
-                  key={`${exercise.exerciseName}-${index}`}
-                  className="surface-panel w-full p-4 text-left"
-                  onClick={() =>
-                    pairSupersetMutation.mutate({
-                      exerciseIndexes: [activeExerciseIndex, index],
-                    })
-                  }
-                  type="button"
-                >
-                  <p className="font-semibold text-ink">{exercise.exerciseName}</p>
-                  <p className="mt-1 text-sm text-ink-muted">
-                    Pair with exercise {index + 1}
-                  </p>
-                </button>
-              ))}
-            {draft.exercises.filter(
-              (exercise, index) => index !== activeExerciseIndex && !exercise.supersetGroupId,
-            ).length === 0 ? (
-              <div className="rounded-md border border-dashed border-rule p-4 text-sm text-ink-muted">
-                Add another unpaired exercise to create a superset.
-              </div>
-            ) : null}
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={detailsSheetOpen} onOpenChange={setDetailsSheetOpen}>
-        <SheetContent side="bottom" className="flex h-[92vh] max-h-[92vh] flex-col overflow-hidden rounded-t-md p-0">
-          <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
-            <SheetHeader>
-              <SheetTitle>Manage exercise</SheetTitle>
-              <SheetDescription>
-                Keep the main logger compact. Manage swaps, pairings, and the few details that actually matter.
-              </SheetDescription>
-            </SheetHeader>
-          </div>
-          {activeExercise ? (
-            <div className="drawer-scroll-region px-6 py-6">
-              <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setDetailsSheetOpen(false);
-                    setSubstituteSheetOpen(true);
-                  }}
-                >
-                  <Shuffle className="h-4 w-4" />
-                  Swap exercise
-                </Button>
-                {activeExercise.supersetGroupId ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      activeExercise.supersetGroupId
-                        ? unpairSupersetMutation.mutate(activeExercise.supersetGroupId)
-                        : undefined
-                    }
-                  >
-                    <Link2 className="h-4 w-4" />
-                    Remove superset
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setDetailsSheetOpen(false);
-                      setSupersetSheetOpen(true);
-                    }}
-                  >
-                    <Link2 className="h-4 w-4" />
-                    Pair superset
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    setDraft((current) =>
-                      current
-                        ? {
-                            ...current,
-                            exercises: current.exercises.filter((_, index) => index !== activeExerciseIndex),
-                          }
-                        : current,
-                    )
-                  }
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Remove exercise
-                </Button>
-              </div>
-              <div className="space-y-2">
-                <Label>Exercise name</Label>
-                <Input
-                  value={activeExercise.exerciseName}
-                  onChange={(event) =>
-                    updateExercise(activeExerciseIndex, (current) => ({
-                      ...current,
-                      exerciseName: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Equipment</Label>
-                  <Select
-                    value={activeExercise.equipmentType}
-                    onValueChange={(value) =>
-                      updateExercise(activeExerciseIndex, (current) => ({
-                        ...current,
-                        equipmentType: value,
-                        loadType: defaultLoadTypeByEquipment[value] ?? current.loadType,
-                        attachment: equipmentTypesWithAttachments.has(value) ? current.attachment : null,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Equipment type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {equipmentTypeOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tracking mode</Label>
-                  <Select
-                    value={activeExercise.trackingMode}
-                    onValueChange={(value) =>
-                      updateExercise(activeExerciseIndex, (current) =>
-                        changeExerciseTrackingMode(current, value as TrackingMode),
-                      )
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Tracking mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {trackingModeOptions
-                        .filter((option) =>
-                          activeExercise.exerciseCategory === "CARDIO"
-                            ? option.value === "CARDIO"
-                            : option.value !== "CARDIO",
-                        )
-                        .map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {usesAttachment ? (
-                <div className="space-y-2">
-                  <Label>Grip / attachment</Label>
-                  <Input
-                    value={activeExercise.attachment ?? ""}
-                    onChange={(event) =>
-                      updateExercise(activeExerciseIndex, (current) => ({
-                        ...current,
-                        attachment: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              ) : null}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{activeExercise.exerciseCategory === "CARDIO" ? "Default duration (min)" : "Suggested weight"}</Label>
-                  {activeExercise.exerciseCategory === "CARDIO" ? (
-                    <NullableNumberInput
-                      value={Math.round(((activeExercise.defaultTrackingData?.durationSeconds as number | null | undefined) ?? 900) / 60)}
-                      onChange={(value) =>
-                        updateExercise(activeExerciseIndex, (current) => ({
-                          ...current,
-                          defaultTrackingData: {
-                            ...(current.defaultTrackingData ?? {}),
-                            durationSeconds: (value ?? 15) * 60,
-                          },
-                        }))
-                      }
-                    />
-                  ) : (
-                    <NullableNumberInput
-                      value={activeExercise.suggestedWeight ?? null}
-                      onChange={(value) =>
-                        updateExercise(activeExerciseIndex, (current) => ({
-                          ...current,
-                          suggestedWeight: value,
-                        }))
-                      }
-                    />
-                  )}
-                  {activeExercise.exerciseCategory !== "CARDIO" ? (
-                    <p className="text-xs text-ink-muted">Displayed in {preferredUnit.toUpperCase()}</p>
-                  ) : null}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  value={activeExercise.notes ?? ""}
-                  onChange={(event) =>
-                    updateExercise(activeExerciseIndex, (current) => ({
-                      ...current,
-                      notes: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-              </div>
-            </div>
-          ) : null}
-        </SheetContent>
-      </Sheet>
-
-      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save this workout as a template</DialogTitle>
-            <DialogDescription>
-              Capture today’s structure once so you can start it in a couple of taps next time.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="template-name">Template name</Label>
-              <Input
-                id="template-name"
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                placeholder="Push day A"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="template-description">Description</Label>
-              <Textarea
-                id="template-description"
-                value={templateDescription}
-                onChange={(event) => setTemplateDescription(event.target.value)}
-                placeholder="Optional notes for the saved structure"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setSaveTemplateOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={createTemplateMutation.isPending || templateName.trim().length < 2}
-              onClick={() =>
-                createTemplateMutation.mutate({
-                  name: templateName.trim(),
-                  description: templateDescription.trim() || undefined,
-                })
-              }
-            >
-              {createTemplateMutation.isPending ? "Saving..." : "Save template"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={keepChangesOpen} onOpenChange={setKeepChangesOpen}>
-        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-lg flex-col overflow-hidden rounded-md p-0 sm:w-full">
-          <div className="flex-1 overflow-y-auto p-6">
-          <DialogHeader>
-            <DialogTitle>Keep workout changes?</DialogTitle>
-            <DialogDescription>
-              You changed the exercise lineup for this session. Keep the useful parts without rebuilding them later.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="post-complete-template-name">Template name</Label>
-              <Input
-                id="post-complete-template-name"
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                placeholder="Travel gym push"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="post-complete-template-description">Description</Label>
-              <Textarea
-                id="post-complete-template-description"
-                value={templateDescription}
-                onChange={(event) => setTemplateDescription(event.target.value)}
-                placeholder="Optional note for what changed"
-              />
-            </div>
-            <div className="surface-panel space-y-2 p-3">
-              <p className="eyebrow">Exercises to keep</p>
-              <div className="mt-3 space-y-2">
-                {draft?.exercises.map((exercise, index) => (
-                  <label
-                    key={`${exercise.exerciseId ?? exercise.exerciseName}-${index}`}
-                    className="flex items-center gap-3 rounded-md border border-rule px-3 py-2"
-                  >
-                    <Checkbox
-                      checked={postCompleteSelection.includes(index)}
-                      onCheckedChange={(checked) =>
-                        setPostCompleteSelection((current) =>
-                          checked === true
-                            ? [...current, index]
-                            : current.filter((candidate) => candidate !== index),
-                        )
-                      }
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{exercise.exerciseName}</p>
-                      <p className="text-xs text-ink-muted">{exercise.equipmentType}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          </div>
-          <DialogFooter className="gap-2 border-t border-rule bg-surface px-6 py-4 sm:justify-between sm:space-x-0">
-            <Button variant="ghost" onClick={applyCompletionSuccess}>
-              Keep none
-            </Button>
-            {session?.entryType === "TEMPLATE" && session.templateId ? (
-              <Button
-                variant="outline"
-                disabled={postCompleteSelection.length === 0 || updateTemplateMutation.isPending}
-                onClick={() =>
-                  updateTemplateMutation.mutate({
-                    templateId: session.templateId as string,
-                    draft: {
-                      name: templateName.trim() || draft?.title || "Updated template",
-                      description: templateDescription.trim(),
-                      exercises: selectedTemplateExercises,
-                    },
-                  })
-                }
-              >
-                {updateTemplateMutation.isPending ? "Updating..." : "Update original template"}
-              </Button>
-            ) : null}
-            <Button
-              disabled={postCompleteSelection.length === 0 || keepChangesTemplateMutation.isPending}
-              onClick={() =>
-                keepChangesTemplateMutation.mutate({
-                  name: templateName.trim() || draft?.title || "Updated workout template",
-                  description: templateDescription.trim() || undefined,
-                  exercises: selectedTemplateExercises,
-                })
-              }
-            >
-              {keepChangesTemplateMutation.isPending ? "Saving..." : "Save as template"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        <WorkoutComparisonSheet
+          sessionId={sessionId}
+          open={comparisonOpen}
+          onOpenChange={setComparisonOpen}
+        />
+      </WorkoutEditorProvider>
+    </KeypadProvider>
   );
 };

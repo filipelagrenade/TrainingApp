@@ -85,6 +85,7 @@ export const NumberField = ({
     <button
       type="button"
       aria-label={label}
+      data-keypad-field={id}
       onClick={() => openField(configRef.current)}
       className={cn(
         "num h-[var(--control-h)] w-full rounded-md border border-rule bg-surface-sunken px-2",

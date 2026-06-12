@@ -166,7 +166,21 @@ export const KeypadProvider = ({ children }: { children: ReactNode }) => {
     if (id === null) {
       return;
     }
-    const ids = [...registryRef.current.keys()];
+    // Registry insertion order scrambles after remounts/sheet fields, so derive
+    // the visual order from the DOM; fall back to registry order if the active
+    // field's node isn't found.
+    let ids = [...registryRef.current.keys()];
+    if (typeof document !== "undefined") {
+      const domIds = [...document.querySelectorAll("[data-keypad-field]")]
+        .map((node) => node.getAttribute("data-keypad-field"))
+        .filter(
+          (candidate): candidate is string =>
+            candidate !== null && registryRef.current.has(candidate),
+        );
+      if (domIds.includes(id)) {
+        ids = domIds;
+      }
+    }
     const next = registryRef.current.get(ids[ids.indexOf(id) + 1] ?? "");
     if (next) {
       openField(next);
