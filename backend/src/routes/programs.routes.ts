@@ -7,6 +7,7 @@ import { sendSuccess } from "../lib/http";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
+import { getProgramProgression } from "../services/progression-track.service";
 import {
   activateProgram,
   archiveProgram,
@@ -106,6 +107,18 @@ programsRouter.get("/:programId", async (request, response, next) => {
   try {
     const program = await getProgramById(request.currentUser!.id, request.params.programId);
     sendSuccess(response, program);
+  } catch (error) {
+    next(error);
+  }
+});
+
+programsRouter.get("/:programId/progression", async (request, response, next) => {
+  try {
+    const progression = await getProgramProgression(
+      request.currentUser!.id,
+      request.params.programId,
+    );
+    sendSuccess(response, progression);
   } catch (error) {
     next(error);
   }

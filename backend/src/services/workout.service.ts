@@ -36,6 +36,8 @@ import {
   estimateOneRepMax,
   type ExposureSnapshot,
 } from "./progression.service";
+import { evaluateCompletedSession, suggestionsForWorkout } from "./progression-track.service";
+import { getUserExercisePreferenceMap } from "./exercise.service";
 
 type WorkoutDraftSet = {
   setNumber: number;
@@ -79,6 +81,7 @@ type WorkoutDraftExercise = {
 export type WorkoutDraft = {
   title: string;
   notes?: string;
+  formativeWeek?: boolean;
   exercises: WorkoutDraftExercise[];
 };
 
@@ -123,23 +126,6 @@ const snapshotsFromRows = (rows: NonNullable<WorkoutExerciseWithSets>[]): Exposu
     };
   });
 
-const buildExposureSnapshots = async (
-  userId: string,
-  programExerciseId: string,
-): Promise<ExposureSnapshot[]> => {
-  const exercises = await prisma.workoutExercise.findMany({
-    where: {
-      session: { userId, status: WorkoutStatus.COMPLETED },
-      sourceProgramExerciseId: programExerciseId,
-    },
-    include: { sets: true },
-    orderBy: { session: { completedAt: "desc" } },
-    take: 2,
-  });
-
-  return snapshotsFromRows(exercises as NonNullable<WorkoutExerciseWithSets>[]);
-};
-
 const batchBuildExposureSnapshots = async (
   userId: string,
   programExerciseIds: string[],
@@ -180,6 +166,11 @@ const buildProgramDraft = async (
   const workout = await prisma.programWorkout.findUnique({
     where: { id: programWorkoutId },
     include: {
+      programWeek: {
+        include: {
+          program: { select: { currentWeek: true } },
+        },
+      },
       exercises: {
         include: {
           exercise: true,
@@ -193,28 +184,39 @@ const buildProgramDraft = async (
     throw new AppError(404, "PROGRAM_WORKOUT_NOT_FOUND", "That planned workout could not be found.");
   }
 
-  const exposureMap = await batchBuildExposureSnapshots(
-    userId,
-    workout.exercises.map((e) => e.id),
-  );
+  const [suggestionMap, exposureMap, preferenceMap] = await Promise.all([
+    suggestionsForWorkout(userId, workout),
+    batchBuildExposureSnapshots(
+      userId,
+      workout.exercises.map((e) => e.id),
+    ),
+    getUserExercisePreferenceMap(
+      userId,
+      workout.exercises.map((e) => e.exerciseId),
+    ),
+  ]);
 
   return {
     title: workout.title,
+    formativeWeek: workout.programWeek.program.currentWeek === 1,
     exercises: await Promise.all(
       workout.exercises.map(async (exercise) => {
-        const exposures = exposureMap.get(exercise.id) ?? [];
-        const recommendation = calculateProgressionRecommendation({
-          exposures,
-          startWeight: exercise.startWeight ?? null,
-          increment: exercise.increment,
-          deloadFactor: exercise.deloadFactor,
-        });
+        const preference = preferenceMap.get(exercise.exerciseId) ?? null;
+        const suggestion = suggestionMap.get(exercise.id) ?? null;
+        const recommendation = suggestion
+          ? { weight: suggestion.weight, reason: suggestion.reason }
+          : calculateProgressionRecommendation({
+              exposures: exposureMap.get(exercise.id) ?? [],
+              startWeight: exercise.startWeight ?? null,
+              increment: exercise.increment,
+              deloadFactor: exercise.deloadFactor,
+            });
         const tracking = buildProgramExerciseTracking({
           exerciseCategory: exercise.exercise.exerciseCategory,
           equipmentType: exercise.exercise.equipmentType,
           loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
           unitMode: exercise.exercise.unitMode,
-          trackingMode: exercise.trackingMode,
+          trackingMode: exercise.trackingMode ?? preference?.trackingMode ?? null,
           defaultTrackingData: exercise.defaultTrackingData,
         });
         const displayDefaultTrackingData =
@@ -239,7 +241,7 @@ const buildProgramDraft = async (
           trackingMode: tracking.trackingMode,
           defaultTrackingData: displayDefaultTrackingData,
           unitMode: preferredUnit,
-          unilateral: exercise.unilateral,
+          unilateral: exercise.unilateral || preference?.unilateral === true,
           notes: exercise.notes ?? undefined,
           prescribedSetCount: exercise.sets,
           repMin: exercise.repMin,
@@ -274,6 +276,7 @@ const buildProgramDraft = async (
 };
 
 const buildTemplateDraft = async (
+  userId: string,
   templateId: string,
   preferredUnit: "kg" | "lb",
 ): Promise<WorkoutDraft> => {
@@ -293,17 +296,23 @@ const buildTemplateDraft = async (
     throw new AppError(404, "TEMPLATE_NOT_FOUND", "That template could not be found.");
   }
 
+  const preferenceMap = await getUserExercisePreferenceMap(
+    userId,
+    template.exercises.map((exercise) => exercise.exerciseId),
+  );
+
   return {
     title: template.name,
     notes: template.description ?? undefined,
     exercises: template.exercises.map((exercise) => ({
       ...(function () {
+        const preference = preferenceMap.get(exercise.exerciseId) ?? null;
         const tracking = buildTemplateExerciseTracking({
           exerciseCategory: exercise.exercise.exerciseCategory,
           equipmentType: exercise.exercise.equipmentType,
           loadType: exercise.loadTypeOverride ?? exercise.exercise.loadType,
           unitMode: exercise.exercise.unitMode,
-          trackingMode: exercise.trackingMode,
+          trackingMode: exercise.trackingMode ?? preference?.trackingMode ?? null,
           defaultTrackingData: exercise.defaultTrackingData,
         });
         const displayDefaultTrackingData =
@@ -328,7 +337,7 @@ const buildTemplateDraft = async (
       trackingMode: tracking.trackingMode,
       defaultTrackingData: displayDefaultTrackingData,
       unitMode: preferredUnit,
-      unilateral: exercise.unilateral,
+      unilateral: exercise.unilateral || preference?.unilateral === true,
       notes: exercise.notes ?? undefined,
       prescribedSetCount: exercise.sets,
       repMin: exercise.repMin,
@@ -773,7 +782,7 @@ export const startWorkout = async (
       throw new AppError(404, "TEMPLATE_NOT_FOUND", "That template could not be found.");
     }
 
-    savedDraft = await buildTemplateDraft(input.templateId, preferredUnit);
+    savedDraft = await buildTemplateDraft(userId, input.templateId, preferredUnit);
   }
 
   const persistedDraft = convertDraftToStorageUnit(savedDraft);
@@ -1695,6 +1704,17 @@ export const completeWorkout = async (userId: string, workoutId: string, draft: 
     });
 
     if (workout.programId && workout.programWorkoutId) {
+      await evaluateCompletedSession(
+        transaction,
+        userId,
+        {
+          id: workout.id,
+          programId: workout.programId,
+          qualifiesForProgression: workout.qualifiesForProgression,
+        },
+        persistedDraft.exercises,
+      );
+
       const advancement = await maybeAdvanceProgramWeek(
         transaction,
         userId,

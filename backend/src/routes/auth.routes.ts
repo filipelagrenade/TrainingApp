@@ -3,9 +3,16 @@ import { z } from "zod";
 
 import { env } from "../config/env";
 import { sendSuccess } from "../lib/http";
+import { mergeUserSettings, userSettingsUpdateSchema } from "../lib/user-settings";
 import { requireAuth } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
-import { loginUser, logoutUser, registerUser, updateUserPreferences } from "../services/auth.service";
+import {
+  loginUser,
+  logoutUser,
+  registerUser,
+  updateUserPreferences,
+  updateUserSettings,
+} from "../services/auth.service";
 
 const authRouter = Router();
 
@@ -74,8 +81,24 @@ authRouter.post("/logout", async (request, response, next) => {
 });
 
 authRouter.get("/me", requireAuth, (request, response) => {
-  sendSuccess(response, { user: request.currentUser });
+  const user = request.currentUser!;
+  sendSuccess(response, { user: { ...user, settings: mergeUserSettings(user.settings) } });
 });
+
+authRouter.patch(
+  "/settings",
+  requireAuth,
+  validateBody(userSettingsUpdateSchema),
+  async (request, response, next) => {
+    try {
+      const user = await updateUserSettings(request.currentUser!.id, request.body);
+      request.currentUser = user;
+      sendSuccess(response, { user: { ...user, settings: mergeUserSettings(user.settings) } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 authRouter.patch(
   "/preferences",

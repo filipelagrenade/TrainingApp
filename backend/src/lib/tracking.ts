@@ -99,6 +99,16 @@ export const normalizeWeightForTrackingMode = (
 
       return barWeight + plateCount * plateWeight * 2;
     }
+    case TrackingMode.PLATES_TOTAL: {
+      const plateCount = numberValue(normalized?.plateCount);
+      const plateWeight = numberValue(normalized?.plateWeight);
+
+      if (plateCount === null || plateWeight === null) {
+        return null;
+      }
+
+      return plateCount * plateWeight;
+    }
     case TrackingMode.BODYWEIGHT_PLUS_LOAD:
       return numberValue(normalized?.externalLoad);
     case TrackingMode.PER_SIDE_LOAD: {
@@ -132,6 +142,11 @@ export const buildDefaultTrackingData = (input: {
         plateCount: null,
         plateWeight: input.unitMode === "lb" ? 45 : 20,
         barWeight: input.unitMode === "lb" ? 45 : 20,
+      };
+    case TrackingMode.PLATES_TOTAL:
+      return {
+        plateCount: null,
+        plateWeight: input.unitMode === "lb" ? 45 : 20,
       };
     case TrackingMode.BODYWEIGHT_PLUS_LOAD:
       return {
@@ -234,9 +249,12 @@ export const formatTrackingSummary = (input: {
     return bandLevel ? `${bandLevel.toLowerCase()} band • ${input.reps} reps` : `${input.reps} reps`;
   }
 
+  const tempo = stringValue(normalized?.tempo);
+  const tempoSuffix = tempo ? ` • ${tempo} tempo` : "";
+
   if (input.weight === null) {
-    return `${input.reps} reps`;
+    return `${input.reps} reps${tempoSuffix}`;
   }
 
-  return `${input.weight} ${input.unitMode}${input.reps > 0 ? ` • ${input.reps} reps` : ""}`;
+  return `${input.weight} ${input.unitMode}${input.reps > 0 ? ` • ${input.reps} reps` : ""}${tempoSuffix}`;
 };

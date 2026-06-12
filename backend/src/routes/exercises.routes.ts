@@ -1,4 +1,4 @@
-import { ExerciseCategory, LoadType } from "@prisma/client";
+import { ExerciseCategory, LoadType, TrackingMode } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 
@@ -10,8 +10,11 @@ import {
   createExerciseEquivalency,
   deleteExercise,
   deleteExerciseEquivalency,
+  deleteUserExercisePreference,
   listExerciseSubstitutes,
   listExercises,
+  listUserExercisePreferences,
+  upsertUserExercisePreference,
 } from "../services/exercise.service";
 
 const exercisesRouter = Router();
@@ -34,6 +37,12 @@ const createEquivalencySchema = z.object({
 
 const deleteExerciseSchema = z.object({
   replacementExerciseId: z.string().min(1).nullable().optional(),
+});
+
+const preferenceSchema = z.object({
+  unilateral: z.boolean().nullable().optional(),
+  trackingMode: z.nativeEnum(TrackingMode).nullable().optional(),
+  barWeight: z.number().positive().max(100).nullable().optional(),
 });
 
 exercisesRouter.use(requireAuth);
@@ -116,6 +125,44 @@ exercisesRouter.post(
 exercisesRouter.delete("/:exerciseId", async (request, response, next) => {
   try {
     const result = await deleteExercise(request.currentUser!.id, String(request.params.exerciseId), null);
+    sendSuccess(response, result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+exercisesRouter.get("/preferences", async (request, response, next) => {
+  try {
+    const preferences = await listUserExercisePreferences(request.currentUser!.id);
+    sendSuccess(response, { preferences });
+  } catch (error) {
+    next(error);
+  }
+});
+
+exercisesRouter.put(
+  "/:exerciseId/preference",
+  validateBody(preferenceSchema),
+  async (request, response, next) => {
+    try {
+      const preference = await upsertUserExercisePreference(
+        request.currentUser!.id,
+        String(request.params.exerciseId),
+        request.body,
+      );
+      sendSuccess(response, { preference });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+exercisesRouter.delete("/:exerciseId/preference", async (request, response, next) => {
+  try {
+    const result = await deleteUserExercisePreference(
+      request.currentUser!.id,
+      String(request.params.exerciseId),
+    );
     sendSuccess(response, result);
   } catch (error) {
     next(error);

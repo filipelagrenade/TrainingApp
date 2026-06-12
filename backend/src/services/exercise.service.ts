@@ -1,4 +1,9 @@
-import { ExerciseCategory, type LoadType } from "@prisma/client";
+import {
+  ExerciseCategory,
+  type LoadType,
+  type TrackingMode,
+  type UserExercisePreference,
+} from "@prisma/client";
 
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
@@ -276,6 +281,71 @@ export const deleteExercise = async (
         id: exerciseId,
       },
     });
+  });
+
+  return { ok: true };
+};
+
+export type ExercisePreferenceInput = {
+  unilateral?: boolean | null;
+  trackingMode?: TrackingMode | null;
+  barWeight?: number | null;
+};
+
+export const listUserExercisePreferences = async (userId: string) =>
+  prisma.userExercisePreference.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+  });
+
+/** Sticky per-exercise preferences keyed by exerciseId for draft builders. */
+export const getUserExercisePreferenceMap = async (userId: string, exerciseIds: string[]) => {
+  const uniqueIds = [...new Set(exerciseIds)];
+
+  if (!uniqueIds.length) {
+    return new Map<string, UserExercisePreference>();
+  }
+
+  const preferences = await prisma.userExercisePreference.findMany({
+    where: { userId, exerciseId: { in: uniqueIds } },
+  });
+
+  return new Map(preferences.map((preference) => [preference.exerciseId, preference]));
+};
+
+export const upsertUserExercisePreference = async (
+  userId: string,
+  exerciseId: string,
+  input: ExercisePreferenceInput,
+) => {
+  const exercise = await prisma.exercise.findFirst({
+    where: {
+      id: exerciseId,
+      OR: [{ userId }, { isSystem: true }],
+    },
+    select: { id: true },
+  });
+
+  if (!exercise) {
+    throw new AppError(404, "EXERCISE_NOT_FOUND", "That exercise could not be found.");
+  }
+
+  const data = {
+    ...(input.unilateral !== undefined ? { unilateral: input.unilateral } : {}),
+    ...(input.trackingMode !== undefined ? { trackingMode: input.trackingMode } : {}),
+    ...(input.barWeight !== undefined ? { barWeight: input.barWeight } : {}),
+  };
+
+  return prisma.userExercisePreference.upsert({
+    where: { userId_exerciseId: { userId, exerciseId } },
+    create: { userId, exerciseId, ...data },
+    update: data,
+  });
+};
+
+export const deleteUserExercisePreference = async (userId: string, exerciseId: string) => {
+  await prisma.userExercisePreference.deleteMany({
+    where: { userId, exerciseId },
   });
 
   return { ok: true };

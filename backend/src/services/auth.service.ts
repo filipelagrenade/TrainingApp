@@ -6,6 +6,11 @@ import bcrypt from "bcryptjs";
 import { env } from "../config/env";
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
+import {
+  applySettingsUpdate,
+  mergeUserSettings,
+  type UserSettingsUpdate,
+} from "../lib/user-settings";
 
 const SESSION_TTL_MS = env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
@@ -134,3 +139,20 @@ export const updateUserPreferences = async (
       ...(input.gender ? { gender: input.gender } : {}),
     },
   });
+
+export const updateUserSettings = async (
+  userId: string,
+  update: UserSettingsUpdate,
+): Promise<User> => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { settings: true },
+  });
+
+  const merged = applySettingsUpdate(mergeUserSettings(user?.settings), update);
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: { settings: merged },
+  });
+};

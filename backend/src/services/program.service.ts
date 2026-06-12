@@ -677,23 +677,6 @@ const snapshotsFromRows = (rows: NonNullable<WorkoutExerciseWithSets>[]): Exposu
     };
   });
 
-const buildExposureSnapshots = async (
-  userId: string,
-  programExerciseId: string,
-): Promise<ExposureSnapshot[]> => {
-  const exercises = await prisma.workoutExercise.findMany({
-    where: {
-      session: { userId, status: "COMPLETED" },
-      sourceProgramExerciseId: programExerciseId,
-    },
-    include: { sets: true },
-    orderBy: { session: { completedAt: "desc" } },
-    take: 2,
-  });
-
-  return snapshotsFromRows(exercises as NonNullable<WorkoutExerciseWithSets>[]);
-};
-
 const batchBuildExposureSnapshots = async (
   userId: string,
   programExerciseIds: string[],
