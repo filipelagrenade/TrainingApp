@@ -11,12 +11,13 @@ import { apiClient } from "@/lib/api-client";
 import type { Exercise } from "@/lib/types";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
-import { BackButton } from "@/components/ui/back-button";
 import { TemplateBuilderSheet } from "@/components/templates/template-builder-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScreenHero } from "@/components/ui/screen-hero";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const TemplateLibraryScreen = () => {
@@ -76,11 +77,10 @@ export const TemplateLibraryScreen = () => {
 
   if (meQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-72" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-72" />
+      </div>
     );
   }
 
@@ -108,18 +108,22 @@ export const TemplateLibraryScreen = () => {
   };
 
   return (
-    <div className="app-grid">
-      <ScreenHero
+    <div className="space-y-6">
+      <PageHeader
         eyebrow="Templates"
         title="Templates"
-        actions={
-          <>
-            <BackButton />
-            <Button onClick={() => setBuilderOpen(true)}>Create template</Button>
-          </>
-        }
+        description="Single reusable workouts you can start any time."
+        backHref="/"
+        actions={<Button onClick={() => setBuilderOpen(true)}>Create template</Button>}
       />
 
+      {templatesQuery.isError ? (
+        <ErrorState
+          title="Couldn't load templates"
+          description={templatesQuery.error instanceof Error ? templatesQuery.error.message : undefined}
+          onRetry={() => void templatesQuery.refetch()}
+        />
+      ) : (
       <div className="grid gap-4 md:grid-cols-2">
         {templatesQuery.isLoading ? (
           Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-52" />)
@@ -181,13 +185,20 @@ export const TemplateLibraryScreen = () => {
             </Card>
           ))
         ) : (
-          <Card className="md:col-span-2">
-            <CardContent className="p-6 text-center text-sm text-ink-muted">
-              No templates yet. Program days auto-save here once you build them.
-            </CardContent>
-          </Card>
+          <EmptyState
+            className="md:col-span-2"
+            icon={Rows3}
+            title="No templates yet"
+            description="Program days auto-save here once you build them."
+            action={
+              <Button size="sm" onClick={() => setBuilderOpen(true)}>
+                Create template
+              </Button>
+            }
+          />
         )}
       </div>
+      )}
 
       <TemplateBuilderSheet
         exercises={(exercisesQuery.data as Exercise[] | undefined) ?? []}

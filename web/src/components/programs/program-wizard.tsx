@@ -26,11 +26,15 @@ import { TemplateLibrarySheet } from "@/components/programs/template-library-she
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NullableNumberInput } from "@/components/ui/nullable-number-input";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Stat } from "@/components/ui/stat";
+import { Stepper } from "@/components/ui/stepper";
 import { Textarea } from "@/components/ui/textarea";
 
 const goalOptions: ProgramGoal[] = [
@@ -198,10 +202,21 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
   if (isEditMode && programQuery.isLoading && hydratedProgramId !== programId) {
     return (
       <Card>
-        <CardContent className="pt-6">
-          <p className="text-sm text-ink-muted">Loading program...</p>
+        <CardContent className="space-y-3 pt-6">
+          <Skeleton className="h-8 w-1/2" />
+          <Skeleton className="h-40" />
         </CardContent>
       </Card>
+    );
+  }
+
+  if (isEditMode && programQuery.isError) {
+    return (
+      <ErrorState
+        title="Couldn't load this program"
+        description={programQuery.error instanceof Error ? programQuery.error.message : undefined}
+        onRetry={() => void programQuery.refetch()}
+      />
     );
   }
 
@@ -280,19 +295,20 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="duration-weeks">Duration (weeks)</Label>
-                <NullableNumberInput
-                  id="duration-weeks"
+                <Label>Duration (weeks)</Label>
+                <Stepper
+                  label="Duration in weeks"
                   min={4}
                   max={16}
                   value={durationWeeks}
                   onChange={(value) => setDurationWeeks(value ?? 8)}
+                  format={(value) => `${value} wk`}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="days-per-week">Days per week</Label>
-                <NullableNumberInput
-                  id="days-per-week"
+                <Label>Days per week</Label>
+                <Stepper
+                  label="Days per week"
                   min={2}
                   max={6}
                   value={daysPerWeek}
@@ -451,9 +467,11 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
               ))}
             </div>
             {days.length === 0 ? (
-              <div className="rounded-md border border-dashed border-rule p-6 text-center text-sm text-ink-muted">
-                Add your first day manually or pull one from your template library.
-              </div>
+              <EmptyState
+                icon={Plus}
+                title="No days yet"
+                description="Add your first day manually or pull one from your template library."
+              />
             ) : null}
           </CardContent>
         </Card>
@@ -470,10 +488,10 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <SummaryPill label="Duration" value={`${durationWeeks} weeks`} />
-              <SummaryPill label="Days/week" value={`${daysPerWeek}`} />
-              <SummaryPill label="Difficulty" value={difficulty} />
+            <div className="grid grid-cols-3 gap-4 rounded-md border border-rule bg-card p-4">
+              <Stat label="Duration" value={`${durationWeeks} wk`} />
+              <Stat label="Days/week" value={String(daysPerWeek)} />
+              <Stat label="Difficulty" value={difficulty} />
             </div>
             <div className="rounded-md border border-rule bg-surface p-4">
               <p className="font-semibold text-ink">{name}</p>
@@ -562,10 +580,3 @@ export const ProgramWizard = ({ programId }: { programId?: string }) => {
     </div>
   );
 };
-
-const SummaryPill = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-md border border-rule bg-card p-4">
-    <p className="text-sm text-ink-muted">{label}</p>
-    <p className="mt-1 font-semibold text-ink">{value}</p>
-  </div>
-);

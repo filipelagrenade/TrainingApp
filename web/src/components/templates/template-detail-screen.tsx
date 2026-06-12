@@ -9,11 +9,12 @@ import { toast } from "sonner";
 
 import { AuthCard } from "@/components/auth/auth-card";
 import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
-import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScreenHero } from "@/components/ui/screen-hero";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
 
@@ -54,19 +55,28 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
 
   if (meQuery.isLoading || templateQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-72" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-72" />
+      </div>
     );
   }
 
-  if (meQuery.isError || !meQuery.data || templateQuery.isError || !templateQuery.data) {
+  if (meQuery.isError || !meQuery.data) {
     return (
       <div className="grid min-h-[calc(100vh-8rem)] place-items-center">
         <AuthCard onSuccess={() => void meQuery.refetch()} />
       </div>
+    );
+  }
+
+  if (templateQuery.isError || !templateQuery.data) {
+    return (
+      <ErrorState
+        title="Couldn't load this template"
+        description={templateQuery.error instanceof Error ? templateQuery.error.message : undefined}
+        onRetry={() => void templateQuery.refetch()}
+      />
     );
   }
 
@@ -83,18 +93,16 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
   };
 
   return (
-    <div className="app-grid">
-      <ScreenHero
+    <div className="space-y-6">
+      <PageHeader
         eyebrow="Template"
         title={template.name}
+        backHref="/templates"
         actions={
-          <>
-            <BackButton fallbackHref="/templates" />
-            <Button onClick={handleStart}>
-              <Play className="h-4 w-4" />
-              Start
-            </Button>
-          </>
+          <Button onClick={handleStart}>
+            <Play className="h-4 w-4" />
+            Start
+          </Button>
         }
       />
 
@@ -104,13 +112,17 @@ export const TemplateDetailScreen = ({ templateId }: { templateId: string }) => 
           <CardDescription>{template.description || `${template.exercises.length} exercises`}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {template.exercises.length === 0 ? (
+            <EmptyState icon={Rows3} title="No exercises in this template yet" />
+          ) : null}
           {template.exercises.map((exercise) => (
             <div key={exercise.id} className="surface-panel-soft p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-ink">{exercise.exercise.name}</p>
                   <p className="mt-1 text-sm text-ink-muted">
-                    {exercise.repMin}-{exercise.repMax} reps • {exercise.sets} sets
+                    <span className="num">{exercise.repMin}-{exercise.repMax}</span> reps •{" "}
+                    <span className="num">{exercise.sets}</span> sets
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

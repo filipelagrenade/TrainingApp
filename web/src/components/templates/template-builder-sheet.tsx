@@ -8,16 +8,17 @@ import { toast } from "sonner";
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
+import { RepRangeControl } from "@/components/programs/prescription-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NullableNumberInput } from "@/components/ui/nullable-number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Stepper } from "@/components/ui/stepper";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { createBlankDayDraft } from "@/lib/programs";
-import type { DraftExercise, Exercise } from "@/lib/types";
+import type { DraftExercise, Exercise, WorkoutSetTrackingData } from "@/lib/types";
 import { defaultTrackingDataForMode, trackingModeOptions } from "@/lib/workout-tracking";
 
 const sanitizeExercise = (exercise: DraftExercise): DraftExercise => ({
@@ -71,6 +72,24 @@ export const TemplateBuilderSheet = ({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const patchItem = (exerciseIndex: number, patch: (exercise: DraftExercise) => DraftExercise) =>
+    setItems((current) =>
+      current.map((candidate, index) => (index === exerciseIndex ? patch(candidate) : candidate)),
+    );
+
+  const patchTracking = (
+    exerciseIndex: number,
+    key: keyof WorkoutSetTrackingData,
+    value: number | null,
+  ) =>
+    patchItem(exerciseIndex, (exercise) => ({
+      ...exercise,
+      defaultTrackingData: {
+        ...exercise.defaultTrackingData,
+        [key]: value,
+      },
+    }));
+
   return (
     <>
       <Sheet
@@ -84,7 +103,11 @@ export const TemplateBuilderSheet = ({
           }
         }}
       >
-        <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-md p-0">
+        <SheetContent
+          side="bottom"
+          className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-md p-0"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
           <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
             <SheetHeader>
               <SheetTitle>Create template</SheetTitle>
@@ -115,7 +138,7 @@ export const TemplateBuilderSheet = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3 rounded-md border border-rule bg-surface px-3 py-2">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">Exercises</p>
+                  <p className="eyebrow">Exercises</p>
                   <p className="text-sm font-semibold text-ink">
                     {items.length ? `${items.length} queued` : "Nothing added yet"}
                   </p>
@@ -125,14 +148,18 @@ export const TemplateBuilderSheet = ({
                   Bulk add
                 </Button>
               </div>
-              {items.map((exercise, exerciseIndex) => (
-                <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-md border border-rule bg-card p-3">
+              {items.map((exercise, exerciseIndex) => {
+                const isCardio = exercise.exerciseCategory === "CARDIO";
+
+                return (
+                <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="surface-panel space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-ink">{exercise.exerciseName}</p>
                       <p className="text-xs text-ink-muted">Quick prescription only.</p>
                     </div>
                     <Button
+                      aria-label="Remove exercise"
                       size="icon"
                       variant="ghost"
                       onClick={() => setItems((current) => current.filter((_, index) => index !== exerciseIndex))}
@@ -140,120 +167,113 @@ export const TemplateBuilderSheet = ({
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Sets</Label>
-                      <NullableNumberInput
+                      <Stepper
+                        label="Sets"
+                        min={1}
+                        max={10}
                         value={exercise.sets}
                         onChange={(value) =>
-                          setItems((current) =>
-                            current.map((candidate, index) =>
-                              index === exerciseIndex ? { ...candidate, sets: value ?? candidate.sets } : candidate,
-                            ),
-                          )
+                          patchItem(exerciseIndex, (candidate) => ({
+                            ...candidate,
+                            sets: value ?? candidate.sets,
+                          }))
                         }
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Minutes" : "Rep min"}</Label>
-                      <NullableNumberInput
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? Math.round(((exercise.defaultTrackingData?.durationSeconds ?? 900) as number) / 60)
-                            : exercise.repMin
-                        }
-                        onChange={(value) =>
-                          setItems((current) =>
-                            current.map((candidate, index) =>
-                              index === exerciseIndex
-                                ? exercise.exerciseCategory === "CARDIO"
-                                  ? {
-                                      ...candidate,
-                                      defaultTrackingData: {
-                                        ...candidate.defaultTrackingData,
-                                        durationSeconds: (value ?? 15) * 60,
-                                      },
-                                    }
-                                  : { ...candidate, repMin: value ?? candidate.repMin }
-                                : candidate,
-                            ),
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Distance" : "Rep max"}</Label>
-                      <NullableNumberInput
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? (exercise.defaultTrackingData?.distance as number | null | undefined) ?? null
-                            : exercise.repMax
-                        }
-                        onChange={(value) =>
-                          setItems((current) =>
-                            current.map((candidate, index) =>
-                              index === exerciseIndex
-                                ? exercise.exerciseCategory === "CARDIO"
-                                  ? {
-                                      ...candidate,
-                                      defaultTrackingData: {
-                                        ...candidate.defaultTrackingData,
-                                        distance: value,
-                                      },
-                                    }
-                                  : { ...candidate, repMax: value ?? candidate.repMax }
-                                : candidate,
-                            ),
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Resistance" : "Start weight"}</Label>
-                      <NullableNumberInput
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? (exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null
-                            : exercise.startWeight ?? null
-                        }
-                        onChange={(value) =>
-                          setItems((current) =>
-                            current.map((candidate, index) =>
-                              index === exerciseIndex
-                                ? exercise.exerciseCategory === "CARDIO"
-                                  ? {
-                                      ...candidate,
-                                      defaultTrackingData: {
-                                        ...candidate.defaultTrackingData,
-                                        resistance: value,
-                                      },
-                                    }
-                                  : { ...candidate, startWeight: value }
-                                : candidate,
-                            ),
-                          )
-                        }
-                      />
-                    </div>
+                    {isCardio ? (
+                      <div className="space-y-2">
+                        <Label>Minutes</Label>
+                        <Stepper
+                          label="Minutes"
+                          min={5}
+                          max={180}
+                          step={5}
+                          value={Math.round(((exercise.defaultTrackingData?.durationSeconds ?? 900) as number) / 60)}
+                          onChange={(value) =>
+                            patchTracking(exerciseIndex, "durationSeconds", (value ?? 15) * 60)
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Start weight</Label>
+                        <Stepper
+                          label="Start weight"
+                          min={0}
+                          step={exercise.increment ?? 2.5}
+                          seed={20}
+                          allowClear
+                          value={exercise.startWeight ?? null}
+                          onChange={(value) =>
+                            patchItem(exerciseIndex, (candidate) => ({
+                              ...candidate,
+                              startWeight: value,
+                            }))
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {isCardio ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Distance</Label>
+                        <Stepper
+                          label="Distance"
+                          min={0.5}
+                          max={100}
+                          step={0.5}
+                          seed={1}
+                          allowClear
+                          value={(exercise.defaultTrackingData?.distance as number | null | undefined) ?? null}
+                          onChange={(value) => patchTracking(exerciseIndex, "distance", value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Resistance</Label>
+                        <Stepper
+                          label="Resistance"
+                          min={0.5}
+                          max={30}
+                          step={0.5}
+                          seed={1}
+                          allowClear
+                          value={(exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null}
+                          onChange={(value) => patchTracking(exerciseIndex, "resistance", value)}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Rep range</Label>
+                      <RepRangeControl
+                        repMin={exercise.repMin}
+                        repMax={exercise.repMax}
+                        onChange={(repMin, repMax) =>
+                          patchItem(exerciseIndex, (candidate) => ({
+                            ...candidate,
+                            repMin,
+                            repMax,
+                          }))
+                        }
+                      />
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Tracking mode</Label>
                       <Select
-                        value={exercise.trackingMode ?? (exercise.exerciseCategory === "CARDIO" ? "CARDIO" : "ABSOLUTE_WEIGHT")}
+                        value={exercise.trackingMode ?? (isCardio ? "CARDIO" : "ABSOLUTE_WEIGHT")}
                         onValueChange={(value) =>
-                          setItems((current) =>
-                            current.map((candidate, index) =>
-                              index === exerciseIndex
-                                ? {
-                                    ...candidate,
-                                    trackingMode: value as DraftExercise["trackingMode"],
-                                    defaultTrackingData:
-                                      defaultTrackingDataForMode(value as NonNullable<DraftExercise["trackingMode"]>, "kg") ?? null,
-                                  }
-                                : candidate,
-                            ),
-                          )
+                          patchItem(exerciseIndex, (candidate) => ({
+                            ...candidate,
+                            trackingMode: value as DraftExercise["trackingMode"],
+                            defaultTrackingData:
+                              defaultTrackingDataForMode(value as NonNullable<DraftExercise["trackingMode"]>, "kg") ?? null,
+                          }))
                         }
                       >
                         <SelectTrigger>
@@ -262,7 +282,7 @@ export const TemplateBuilderSheet = ({
                         <SelectContent>
                           {trackingModeOptions
                             .filter((option) =>
-                              exercise.exerciseCategory === "CARDIO" ? option.value === "CARDIO" : option.value !== "CARDIO",
+                              isCardio ? option.value === "CARDIO" : option.value !== "CARDIO",
                             )
                             .map((option) => (
                               <SelectItem key={option.value} value={option.value}>
@@ -272,32 +292,25 @@ export const TemplateBuilderSheet = ({
                         </SelectContent>
                       </Select>
                     </div>
-                    {exercise.exerciseCategory === "CARDIO" ? (
+                    {isCardio ? (
                       <div className="space-y-2">
                         <Label>Incline</Label>
-                        <NullableNumberInput
+                        <Stepper
+                          label="Incline"
+                          min={0.5}
+                          max={15}
+                          step={0.5}
+                          seed={1}
+                          allowClear
                           value={(exercise.defaultTrackingData?.incline as number | null | undefined) ?? null}
-                          onChange={(value) =>
-                            setItems((current) =>
-                              current.map((candidate, index) =>
-                                index === exerciseIndex
-                                  ? {
-                                      ...candidate,
-                                      defaultTrackingData: {
-                                        ...candidate.defaultTrackingData,
-                                        incline: value,
-                                      },
-                                    }
-                                  : candidate,
-                              ),
-                            )
-                          }
+                          onChange={(value) => patchTracking(exerciseIndex, "incline", value)}
                         />
                       </div>
                     ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex flex-wrap gap-2">

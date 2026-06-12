@@ -7,15 +7,15 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { createBlankDayDraft, generatedTemplateToDayDraft } from "@/lib/programs";
-import type { DraftTemplateDay, Exercise } from "@/lib/types";
+import type { DraftExercise, DraftTemplateDay, Exercise, WorkoutSetTrackingData } from "@/lib/types";
 import { defaultTrackingDataForMode, trackingModeOptions } from "@/lib/workout-tracking";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { ExerciseBulkPickerSheet } from "@/components/exercises/exercise-bulk-picker-sheet";
 import { ExerciseSearchSheet } from "@/components/exercises/exercise-search-sheet";
+import { RepRangeControl, RestControl } from "@/components/programs/prescription-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NullableNumberInput } from "@/components/ui/nullable-number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sheet,
@@ -25,14 +25,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Stepper } from "@/components/ui/stepper";
 import { Textarea } from "@/components/ui/textarea";
-
-const restPresetOptions = [
-  { label: "60 sec", value: 60 },
-  { label: "90 sec", value: 90 },
-  { label: "120 sec", value: 120 },
-  { label: "180 sec", value: 180 },
-];
 
 export const DayEditorSheet = ({
   day,
@@ -76,13 +70,45 @@ export const DayEditorSheet = ({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const patchExercise = (
+    exerciseIndex: number,
+    patch: (exercise: DraftExercise) => DraftExercise,
+  ) =>
+    setLocalDay((current) =>
+      current
+        ? {
+            ...current,
+            exercises: current.exercises.map((candidate, index) =>
+              index === exerciseIndex ? patch(candidate) : candidate,
+            ),
+          }
+        : current,
+    );
+
+  const patchTracking = (
+    exerciseIndex: number,
+    key: keyof WorkoutSetTrackingData,
+    value: number | null,
+  ) =>
+    patchExercise(exerciseIndex, (exercise) => ({
+      ...exercise,
+      defaultTrackingData: {
+        ...exercise.defaultTrackingData,
+        [key]: value,
+      },
+    }));
+
   if (!localDay) {
     return null;
   }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-md p-0">
+      <SheetContent
+        side="bottom"
+        className="flex h-[95vh] max-h-[95vh] flex-col overflow-hidden rounded-t-md p-0"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
           <SheetHeader>
             <SheetTitle>Edit day</SheetTitle>
@@ -92,26 +118,24 @@ export const DayEditorSheet = ({
           </SheetHeader>
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6">
-        <div className="space-y-5">
-          <div className="rounded-md border border-rule bg-card p-4">
-            <div className="space-y-3">
-              <Label htmlFor="day-prompt">Generate from prompt</Label>
-              <Textarea
-                id="day-prompt"
-                placeholder="e.g. back and biceps day for hypertrophy"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-              />
-              <Button
-                className="w-full"
-                disabled={generateMutation.isPending || prompt.trim().length < 4}
-                onClick={() => generateMutation.mutate(prompt)}
-                variant="outline"
-              >
-                <Wand2 className="h-4 w-4" />
-                {generateMutation.isPending ? "Generating..." : "Generate draft"}
-              </Button>
-            </div>
+        <div className="space-y-6">
+          <div className="surface-panel space-y-3 p-4">
+            <Label htmlFor="day-prompt">Generate from prompt</Label>
+            <Textarea
+              id="day-prompt"
+              placeholder="e.g. back and biceps day for hypertrophy"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+            />
+            <Button
+              className="w-full"
+              disabled={generateMutation.isPending || prompt.trim().length < 4}
+              onClick={() => generateMutation.mutate(prompt)}
+              variant="outline"
+            >
+              <Wand2 className="h-4 w-4" />
+              {generateMutation.isPending ? "Generating..." : "Generate draft"}
+            </Button>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -149,9 +173,12 @@ export const DayEditorSheet = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="day-minutes">Estimated minutes</Label>
-            <NullableNumberInput
-              id="day-minutes"
+            <Label>Estimated minutes</Label>
+            <Stepper
+              label="Estimated minutes"
+              min={15}
+              max={180}
+              step={5}
               value={localDay.estimatedMinutes ?? 55}
               onChange={(value) =>
                 setLocalDay((current) =>
@@ -160,18 +187,24 @@ export const DayEditorSheet = ({
                     : current,
                 )
               }
+              format={(value) => `${value} min`}
+              className="max-w-[14rem]"
             />
           </div>
 
           <div className="space-y-3">
-            {localDay.exercises.map((exercise, exerciseIndex) => (
-              <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="rounded-md border border-rule bg-card p-4">
+            {localDay.exercises.map((exercise, exerciseIndex) => {
+              const isCardio = exercise.exerciseCategory === "CARDIO";
+
+              return (
+              <div key={`${exercise.exerciseId}-${exerciseIndex}`} className="surface-panel space-y-4 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-ink">Exercise {exerciseIndex + 1}</p>
-                    <p className="text-xs text-ink-muted">Pick the movement, then tune the prescription.</p>
+                    <p className="eyebrow">Exercise {exerciseIndex + 1}</p>
+                    <p className="mt-1 text-xs text-ink-muted">Pick the movement, then tune the prescription.</p>
                   </div>
                   <Button
+                    aria-label="Remove exercise"
                     size="icon"
                     variant="ghost"
                     onClick={() =>
@@ -188,356 +221,264 @@ export const DayEditorSheet = ({
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="mt-4 grid gap-4">
+                <div className="space-y-2">
+                  <Label>Exercise</Label>
+                  <Button
+                    className="w-full justify-between"
+                    type="button"
+                    variant="outline"
+                    onClick={() => setExercisePickerIndex(exerciseIndex)}
+                  >
+                    <span className="truncate">
+                      {exercise.exerciseName || exercises.find((item) => item.id === exercise.exerciseId)?.name || "Select exercise"}
+                    </span>
+                    <span className="text-xs text-ink-muted">Search</span>
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Exercise</Label>
-                    <Button
-                      className="w-full justify-between"
-                      type="button"
-                      variant="outline"
-                      onClick={() => setExercisePickerIndex(exerciseIndex)}
-                    >
-                      <span className="truncate">
-                        {exercise.exerciseName || exercises.find((item) => item.id === exercise.exerciseId)?.name || "Select exercise"}
-                      </span>
-                      <span className="text-xs text-ink-muted">Search</span>
-                    </Button>
+                    <Label>Sets</Label>
+                    <Stepper
+                      label="Sets"
+                      min={1}
+                      max={10}
+                      value={exercise.sets}
+                      onChange={(value) =>
+                        patchExercise(exerciseIndex, (candidate) => ({
+                          ...candidate,
+                          sets: value ?? candidate.sets,
+                        }))
+                      }
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {isCardio ? (
                     <div className="space-y-2">
-                      <Label>Sets</Label>
-                      <NullableNumberInput
-                        value={exercise.sets}
-                        onChange={(event) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? { ...candidate, sets: event ?? candidate.sets }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Minutes" : "Rep min"}</Label>
-                      <NullableNumberInput
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? Math.round(((exercise.defaultTrackingData?.durationSeconds ?? 900) as number) / 60)
-                            : exercise.repMin
-                        }
-                        onChange={(event) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? exercise.exerciseCategory === "CARDIO"
-                                        ? {
-                                            ...candidate,
-                                            defaultTrackingData: {
-                                              ...candidate.defaultTrackingData,
-                                              durationSeconds: (event ?? 15) * 60,
-                                            },
-                                          }
-                                        : { ...candidate, repMin: event ?? candidate.repMin }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Distance" : "Rep max"}</Label>
-                      <NullableNumberInput
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? (exercise.defaultTrackingData?.distance as number | null | undefined) ?? null
-                            : exercise.repMax
-                        }
-                        onChange={(event) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? exercise.exerciseCategory === "CARDIO"
-                                        ? {
-                                            ...candidate,
-                                            defaultTrackingData: {
-                                              ...candidate.defaultTrackingData,
-                                              distance: event,
-                                            },
-                                          }
-                                        : { ...candidate, repMax: event ?? candidate.repMax }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Resistance" : "Start weight"}</Label>
-                      <NullableNumberInput
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? (exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null
-                            : exercise.startWeight ?? null
-                        }
+                      <Label>Minutes</Label>
+                      <Stepper
+                        label="Minutes"
+                        min={5}
+                        max={180}
+                        step={5}
+                        value={Math.round(((exercise.defaultTrackingData?.durationSeconds ?? 900) as number) / 60)}
                         onChange={(value) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? exercise.exerciseCategory === "CARDIO"
-                                        ? {
-                                            ...candidate,
-                                            defaultTrackingData: {
-                                              ...candidate.defaultTrackingData,
-                                              resistance: value,
-                                            },
-                                          }
-                                        : {
-                                            ...candidate,
-                                            startWeight: value,
-                                          }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
+                          patchTracking(exerciseIndex, "durationSeconds", (value ?? 15) * 60)
                         }
                       />
                     </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Start weight</Label>
+                      <Stepper
+                        label="Start weight"
+                        min={0}
+                        step={exercise.increment ?? 2.5}
+                        seed={20}
+                        allowClear
+                        value={exercise.startWeight ?? null}
+                        onChange={(value) =>
+                          patchExercise(exerciseIndex, (candidate) => ({
+                            ...candidate,
+                            startWeight: value,
+                          }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {isCardio ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Distance</Label>
+                      <Stepper
+                        label="Distance"
+                        min={0.5}
+                        max={100}
+                        step={0.5}
+                        seed={1}
+                        allowClear
+                        value={(exercise.defaultTrackingData?.distance as number | null | undefined) ?? null}
+                        onChange={(value) => patchTracking(exerciseIndex, "distance", value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Resistance</Label>
+                      <Stepper
+                        label="Resistance"
+                        min={0.5}
+                        max={30}
+                        step={0.5}
+                        seed={1}
+                        allowClear
+                        value={(exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null}
+                        onChange={(value) => patchTracking(exerciseIndex, "resistance", value)}
+                      />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div className="space-y-2">
-                      <Label>Tracking mode</Label>
-                      <Select
-                        value={exercise.trackingMode ?? (exercise.exerciseCategory === "CARDIO" ? "CARDIO" : "ABSOLUTE_WEIGHT")}
-                        onValueChange={(value) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? {
-                                          ...candidate,
-                                          trackingMode: value as DraftTemplateDay["exercises"][number]["trackingMode"],
-                                          defaultTrackingData:
-                                            defaultTrackingDataForMode(value as NonNullable<typeof candidate.trackingMode>, "kg") ?? null,
-                                        }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Tracking mode" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {trackingModeOptions
-                            .filter((option) =>
-                              exercise.exerciseCategory === "CARDIO" ? option.value === "CARDIO" : option.value !== "CARDIO",
-                            )
-                            .map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Rest</Label>
-                      <Select
-                        value={String(exercise.restSeconds ?? 90)}
-                        onValueChange={(value) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? { ...candidate, restSeconds: Number(value) }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Rest" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {restPresetOptions.map((option) => (
-                            <SelectItem key={option.value} value={String(option.value)}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Resistance" : "Increment"}</Label>
-                      {exercise.exerciseCategory === "CARDIO" ? (
-                        <NullableNumberInput
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Rep range</Label>
+                    <RepRangeControl
+                      repMin={exercise.repMin}
+                      repMax={exercise.repMax}
+                      onChange={(repMin, repMax) =>
+                        patchExercise(exerciseIndex, (candidate) => ({
+                          ...candidate,
+                          repMin,
+                          repMax,
+                        }))
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Rest</Label>
+                  <RestControl
+                    value={exercise.restSeconds ?? 90}
+                    onChange={(restSeconds) =>
+                      patchExercise(exerciseIndex, (candidate) => ({
+                        ...candidate,
+                        restSeconds,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tracking mode</Label>
+                  <Select
+                    value={exercise.trackingMode ?? (isCardio ? "CARDIO" : "ABSOLUTE_WEIGHT")}
+                    onValueChange={(value) =>
+                      patchExercise(exerciseIndex, (candidate) => ({
+                        ...candidate,
+                        trackingMode: value as DraftExercise["trackingMode"],
+                        defaultTrackingData:
+                          defaultTrackingDataForMode(value as NonNullable<DraftExercise["trackingMode"]>, "kg") ?? null,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tracking mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {trackingModeOptions
+                        .filter((option) =>
+                          isCardio ? option.value === "CARDIO" : option.value !== "CARDIO",
+                        )
+                        .map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {isCardio ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Incline</Label>
+                        <Stepper
+                          label="Incline"
+                          min={0.5}
+                          max={15}
                           step={0.5}
-                          value={(exercise.defaultTrackingData?.resistance as number | null | undefined) ?? null}
-                          onChange={(value) =>
-                            setLocalDay((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    exercises: current.exercises.map((candidate, index) =>
-                                      index === exerciseIndex
-                                        ? {
-                                            ...candidate,
-                                            defaultTrackingData: {
-                                              ...candidate.defaultTrackingData,
-                                              resistance: value,
-                                            },
-                                          }
-                                        : candidate,
-                                    ),
-                                  }
-                                : current,
-                            )
-                          }
+                          seed={1}
+                          allowClear
+                          value={(exercise.defaultTrackingData?.incline as number | null | undefined) ?? null}
+                          onChange={(value) => patchTracking(exerciseIndex, "incline", value)}
                         />
-                      ) : (
-                        <NullableNumberInput
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Speed</Label>
+                        <Stepper
+                          label="Speed"
+                          min={0.5}
+                          max={25}
+                          step={0.5}
+                          seed={8}
+                          allowClear
+                          value={(exercise.defaultTrackingData?.speed as number | null | undefined) ?? null}
+                          onChange={(value) => patchTracking(exerciseIndex, "speed", value)}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Increment</Label>
+                        <Stepper
+                          label="Increment"
+                          min={0.5}
+                          max={10}
                           step={0.5}
                           value={exercise.increment ?? 2.5}
                           onChange={(value) =>
-                            setLocalDay((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    exercises: current.exercises.map((candidate, index) =>
-                                      index === exerciseIndex
-                                        ? { ...candidate, increment: value ?? candidate.increment ?? 2.5 }
-                                        : candidate,
-                                    ),
-                                  }
-                                : current,
-                            )
+                            patchExercise(exerciseIndex, (candidate) => ({
+                              ...candidate,
+                              increment: value ?? candidate.increment ?? 2.5,
+                            }))
                           }
                         />
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Incline" : "Target RPE"}</Label>
-                      <NullableNumberInput
-                        step={0.5}
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? (exercise.defaultTrackingData?.incline as number | null | undefined) ?? null
-                            : exercise.targetRpe ?? null
-                        }
-                        onChange={(value) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? exercise.exerciseCategory === "CARDIO"
-                                        ? {
-                                            ...candidate,
-                                            defaultTrackingData: {
-                                              ...candidate.defaultTrackingData,
-                                              incline: value,
-                                            },
-                                          }
-                                        : {
-                                            ...candidate,
-                                            targetRpe: value,
-                                          }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{exercise.exerciseCategory === "CARDIO" ? "Speed" : "Deload factor"}</Label>
-                      <NullableNumberInput
-                        step={0.05}
-                        value={
-                          exercise.exerciseCategory === "CARDIO"
-                            ? (exercise.defaultTrackingData?.speed as number | null | undefined) ?? null
-                            : exercise.deloadFactor ?? 0.9
-                        }
-                        onChange={(value) =>
-                          setLocalDay((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  exercises: current.exercises.map((candidate, index) =>
-                                    index === exerciseIndex
-                                      ? exercise.exerciseCategory === "CARDIO"
-                                        ? {
-                                            ...candidate,
-                                            defaultTrackingData: {
-                                              ...candidate.defaultTrackingData,
-                                              speed: value,
-                                            },
-                                          }
-                                        : { ...candidate, deloadFactor: value ?? candidate.deloadFactor ?? 0.9 }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Exercise notes</Label>
-                    <Textarea
-                      value={exercise.notes ?? ""}
-                      onChange={(event) =>
-                        setLocalDay((current) =>
-                          current
-                            ? {
-                                ...current,
-                                exercises: current.exercises.map((candidate, index) =>
-                                  index === exerciseIndex
-                                    ? { ...candidate, notes: event.target.value }
-                                    : candidate,
-                                ),
-                              }
-                            : current,
-                        )
-                      }
-                      placeholder="Optional cue, substitution note, or setup reminder"
-                    />
-                  </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Target RPE</Label>
+                        <Stepper
+                          label="Target RPE"
+                          min={5}
+                          max={10}
+                          step={0.5}
+                          seed={8}
+                          allowClear
+                          value={exercise.targetRpe ?? null}
+                          onChange={(value) =>
+                            patchExercise(exerciseIndex, (candidate) => ({
+                              ...candidate,
+                              targetRpe: value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Deload factor</Label>
+                        <Stepper
+                          label="Deload factor"
+                          min={0.5}
+                          max={1}
+                          step={0.05}
+                          value={exercise.deloadFactor ?? 0.9}
+                          onChange={(value) =>
+                            patchExercise(exerciseIndex, (candidate) => ({
+                              ...candidate,
+                              deloadFactor: value ?? candidate.deloadFactor ?? 0.9,
+                            }))
+                          }
+                          format={(value) => value.toFixed(2)}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Exercise notes</Label>
+                  <Textarea
+                    value={exercise.notes ?? ""}
+                    onChange={(event) =>
+                      patchExercise(exerciseIndex, (candidate) => ({
+                        ...candidate,
+                        notes: event.target.value,
+                      }))
+                    }
+                    placeholder="Optional cue, substitution note, or setup reminder"
+                  />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap gap-3">

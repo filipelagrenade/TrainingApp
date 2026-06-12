@@ -14,6 +14,10 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
+/** Stack-loaded equipment moves in 5s; free weights in 2.5s. */
+export const suggestedIncrementForExercise = (exercise?: Pick<Exercise, "equipmentType">) =>
+  exercise && ["Machine", "Cable"].includes(exercise.equipmentType) ? 5 : 2.5;
+
 export const createBlankDayDraft = (exercise?: Exercise, dayNumber = 1): DraftTemplateDay => ({
   templateId: `draft-${slugify(`day-${dayNumber}-${Date.now()}`)}`,
   dayLabel: `Day ${dayNumber}`,
@@ -31,7 +35,7 @@ export const createBlankDayDraft = (exercise?: Exercise, dayNumber = 1): DraftTe
           repMax: exercise.exerciseCategory === "CARDIO" ? 0 : 10,
           restSeconds: 90,
           startWeight: null,
-          increment: 2.5,
+          increment: suggestedIncrementForExercise(exercise),
           deloadFactor: 0.9,
           targetRpe: 8,
           loadTypeOverride: exercise.loadType,

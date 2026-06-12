@@ -53,7 +53,7 @@ export const ProgramActivationDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Activate {program?.name ?? "program"}</DialogTitle>
           <DialogDescription>

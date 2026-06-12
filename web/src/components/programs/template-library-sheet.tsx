@@ -1,8 +1,11 @@
 "use client";
 
+import { Layers3 } from "lucide-react";
+
 import type { WorkoutTemplate } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Sheet,
   SheetContent,
@@ -25,7 +28,11 @@ export const TemplateLibrarySheet = ({
   templates: WorkoutTemplate[];
 }) => (
   <Sheet modal={modal} open={open} onOpenChange={onOpenChange}>
-    <SheetContent side="bottom" className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden rounded-t-md p-0">
+    <SheetContent
+      side="bottom"
+      className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden rounded-t-md p-0"
+      onOpenAutoFocus={(event) => event.preventDefault()}
+    >
       <div className="border-b border-rule bg-background px-6 pb-4 pt-6">
         <SheetHeader>
           <SheetTitle>Template library</SheetTitle>
@@ -40,7 +47,7 @@ export const TemplateLibrarySheet = ({
           templates.map((template) => (
             <button
               key={template.id}
-              className="w-full rounded-md border border-rule bg-card p-4 text-left shadow-sm transition hover:border-accent"
+              className="surface-panel w-full p-4 text-left shadow-sm transition hover:border-accent"
               onClick={() => {
                 onSelect(template);
                 onOpenChange(false);
@@ -54,14 +61,18 @@ export const TemplateLibrarySheet = ({
                     {template.description || "Reusable day template"}
                   </p>
                 </div>
-                <Badge variant="secondary">{template.exercises.length} exercises</Badge>
+                <Badge variant="secondary">
+                  <span className="num">{template.exercises.length}</span> exercises
+                </Badge>
               </div>
             </button>
           ))
         ) : (
-          <div className="rounded-md border border-dashed border-rule p-6 text-center text-sm text-ink-muted">
-            No saved templates yet.
-          </div>
+          <EmptyState
+            icon={Layers3}
+            title="No saved templates yet"
+            description="Program days auto-save here once you build them."
+          />
         )}
         </div>
       </div>

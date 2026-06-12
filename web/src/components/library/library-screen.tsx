@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Copy, Dumbbell, Flame, Layers3, Play, Search, TrendingUp } from "lucide-react";
+import { CalendarRange, Copy, Dumbbell, Layers3, Play, Search, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -22,10 +22,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import { MetricCard } from "@/components/ui/metric-card";
-import { ScreenHero } from "@/components/ui/screen-hero";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
 import type { Program } from "@/lib/types";
@@ -262,18 +264,17 @@ export const LibraryScreen = () => {
   };
 
   return (
-    <div className="app-grid">
-      <ScreenHero
+    <div className="space-y-6">
+      <PageHeader
         eyebrow="Library"
         title="Library"
-        stats={
-          <>
-            <MetricCard icon={CalendarRange} label="Programs" value={String(programs.length)} />
-            <MetricCard icon={Layers3} label="Templates" value={String(templates.length)} />
-            <MetricCard icon={Dumbbell} label="Exercises" value={String(exercises.length)} />
-          </>
-        }
+        description="Everything you train from: programs, templates, and exercises."
       />
+      <div className="grid grid-cols-3 gap-4 border-y border-rule py-4">
+        <Stat label="Programs" value={String(programs.length)} />
+        <Stat label="Templates" value={String(templates.length)} />
+        <Stat label="Exercises" value={String(exercises.length)} />
+      </div>
 
       <Tabs defaultValue="programs" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
@@ -295,7 +296,13 @@ export const LibraryScreen = () => {
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-              {programsQuery.isLoading ? (
+              {programsQuery.isError ? (
+                <ErrorState
+                  className="md:col-span-2"
+                  title="Couldn't load programs"
+                  onRetry={() => void programsQuery.refetch()}
+                />
+              ) : programsQuery.isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-52" />)
               ) : programs.length ? (
                 programs.map((program) => (
@@ -319,15 +326,14 @@ export const LibraryScreen = () => {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <MetricCard icon={CalendarRange} label="Weeks" value={String(program.weeks.length)} compact />
-                        <MetricCard
-                          icon={Layers3}
+                      <div className="grid grid-cols-3 gap-3 border-y border-rule py-3">
+                        <Stat compact label="Weeks" value={String(program.weeks.length)} />
+                        <Stat
+                          compact
                           label="Days"
                           value={String(program.weeks[0]?.workouts.length ?? 0)}
-                          compact
                         />
-                        <MetricCard icon={Flame} label="Streak" value={String(program.adherenceStreak)} compact />
+                        <Stat compact label="Streak" value={String(program.adherenceStreak)} />
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         <Button asChild size="sm" variant="ghost">
@@ -358,11 +364,17 @@ export const LibraryScreen = () => {
                   </Card>
                 ))
               ) : (
-                <Card className="md:col-span-2">
-                  <CardContent className="p-6 text-center text-sm text-ink-muted">
-                    No programs yet. Create your first block to start tracking progression properly.
-                  </CardContent>
-                </Card>
+                <EmptyState
+                  className="md:col-span-2"
+                  icon={CalendarRange}
+                  title="No programs yet"
+                  description="Create your first block to start tracking progression properly."
+                  action={
+                    <Button asChild size="sm">
+                      <Link href="/programs/new">Create program</Link>
+                    </Button>
+                  }
+                />
               )}
             </CardContent>
           </Card>
@@ -381,7 +393,13 @@ export const LibraryScreen = () => {
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-              {templatesQuery.isLoading ? (
+              {templatesQuery.isError ? (
+                <ErrorState
+                  className="md:col-span-2"
+                  title="Couldn't load templates"
+                  onRetry={() => void templatesQuery.refetch()}
+                />
+              ) : templatesQuery.isLoading ? (
                 Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-52" />)
               ) : templates.length ? (
                 templates.map((template) => (
@@ -441,11 +459,12 @@ export const LibraryScreen = () => {
                   </Card>
                 ))
               ) : (
-                <Card className="md:col-span-2">
-                  <CardContent className="p-6 text-center text-sm text-ink-muted">
-                    No templates yet. Program days and saved workouts will show up here.
-                  </CardContent>
-                </Card>
+                <EmptyState
+                  className="md:col-span-2"
+                  icon={Layers3}
+                  title="No templates yet"
+                  description="Program days and saved workouts will show up here."
+                />
               )}
             </CardContent>
           </Card>
@@ -478,7 +497,13 @@ export const LibraryScreen = () => {
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {exercisesQuery.isLoading ? (
+              {exercisesQuery.isError ? (
+                <ErrorState
+                  className="sm:col-span-2 xl:col-span-3"
+                  title="Couldn't load exercises"
+                  onRetry={() => void exercisesQuery.refetch()}
+                />
+              ) : exercisesQuery.isLoading ? (
                 Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-48" />)
               ) : filteredExercises.length ? (
                 filteredExercises.map((exercise) => (
@@ -525,11 +550,12 @@ export const LibraryScreen = () => {
                   </Card>
                 ))
               ) : (
-                <Card className="sm:col-span-2 xl:col-span-3">
-                  <CardContent className="p-6 text-center text-sm text-ink-muted">
-                    No exercises match that search yet.
-                  </CardContent>
-                </Card>
+                <EmptyState
+                  className="sm:col-span-2 xl:col-span-3"
+                  icon={Dumbbell}
+                  title="No exercises match that search"
+                  description="Try a different name, machine, attachment, or muscle."
+                />
               )}
             </CardContent>
           </Card>
@@ -549,7 +575,7 @@ export const LibraryScreen = () => {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Delete custom exercise</DialogTitle>
             <DialogDescription>
