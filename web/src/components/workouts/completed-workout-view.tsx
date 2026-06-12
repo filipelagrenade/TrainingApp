@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -24,8 +24,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MuscleMap } from "@/components/ui/muscle-map";
 import { Stat } from "@/components/ui/stat";
 import { apiClient } from "@/lib/api-client";
+import { computeMuscleIntensities } from "@/lib/muscle-volume";
 import type { WorkoutSessionDetail } from "@/lib/types";
 import { formatVolume, sumVolumeInKilograms } from "@/lib/units";
 import { formatDuration } from "@/lib/workout-tracking";
@@ -54,6 +56,34 @@ export const CompletedWorkoutView = ({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const exercisesQuery = useQuery({
+    queryKey: ["exercises"],
+    queryFn: apiClient.getExercises,
+  });
+
+  const muscleIntensities = useMemo(() => {
+    const catalog = new Map(
+      (exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise]),
+    );
+
+    return computeMuscleIntensities(
+      session.exercises.flatMap((exercise) => {
+        const definition = exercise.exerciseId ? catalog.get(exercise.exerciseId) : undefined;
+        if (!definition) {
+          return [];
+        }
+        return [
+          {
+            primaryMuscles: definition.primaryMuscles,
+            secondaryMuscles: definition.secondaryMuscles,
+            workingSets: exercise.sets.filter((set) => set.isWorkingSet).length,
+          },
+        ];
+      }),
+    );
+  }, [exercisesQuery.data, session.exercises]);
+  const hasMuscleData = Object.keys(muscleIntensities).length > 0;
 
   const stats = useMemo(() => {
     const exercises = session.exercises;
@@ -116,6 +146,20 @@ export const CompletedWorkoutView = ({
           </div>
         </CardHeader>
       </Card>
+
+      {hasMuscleData ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Muscles worked</CardTitle>
+            <CardDescription>
+              Training emphasis from this session&apos;s working sets.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MuscleMap intensities={muscleIntensities} className="mx-auto max-w-xs" />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

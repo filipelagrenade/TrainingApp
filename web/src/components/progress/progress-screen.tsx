@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { MuscleMap } from "@/components/ui/muscle-map";
 import { PageHeader } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat } from "@/components/ui/stat";
 import { XpBar } from "@/components/ui/xp-bar";
 import { VolumeBarChart } from "@/components/progress/charts/volume-bar-chart";
+import { normalizeMuscleMeasures } from "@/lib/muscle-volume";
 import { formatVolume } from "@/lib/units";
 import {
   ChallengeBadgeToken,
@@ -207,6 +209,17 @@ export const ProgressScreen = () => {
               </div>
               <div className="space-y-3">
                 <SectionLabel>Top muscles</SectionLabel>
+                {overview.weeklySummary.topMuscleGroups.length ? (
+                  <MuscleMap
+                    intensities={normalizeMuscleMeasures(
+                      overview.weeklySummary.topMuscleGroups.map((muscle) => ({
+                        muscle: muscle.muscle,
+                        value: muscle.volume,
+                      })),
+                    )}
+                    className="mx-auto max-w-xs py-2"
+                  />
+                ) : null}
                 {overview.weeklySummary.topMuscleGroups.length ? (
                   overview.weeklySummary.topMuscleGroups.map((muscle) => (
                     <div key={muscle.muscle} className="surface-panel-soft space-y-2 px-4 py-3">

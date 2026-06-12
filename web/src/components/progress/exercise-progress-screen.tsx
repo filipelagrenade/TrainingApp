@@ -11,12 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { MuscleMap } from "@/components/ui/muscle-map";
 import { PageHeader } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat } from "@/components/ui/stat";
 import { LineTrendChart } from "@/components/progress/charts/line-trend-chart";
 import { VolumeBarChart } from "@/components/progress/charts/volume-bar-chart";
+import { computeMuscleIntensities } from "@/lib/muscle-volume";
 import { formatVolume } from "@/lib/units";
 
 const shortDate = (iso: string) =>
@@ -82,6 +84,14 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
     ...progress.estimatedOneRepMaxHistory.map((point) => point.value ?? 0),
     1,
   );
+  const muscleIntensities = computeMuscleIntensities([
+    {
+      primaryMuscles: progress.exercise.primaryMuscles,
+      secondaryMuscles: progress.exercise.secondaryMuscles,
+      workingSets: 1,
+    },
+  ]);
+  const hasMuscleData = Object.keys(muscleIntensities).length > 0;
 
   return (
     <div className="space-y-6">
@@ -109,6 +119,32 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
           highlight={progress.summary.personalRecordCount > 0}
         />
       </div>
+
+      {hasMuscleData ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Muscles worked</CardTitle>
+            <CardDescription>
+              Primary muscles at full intensity, secondary contributions at half.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <MuscleMap intensities={muscleIntensities} className="mx-auto max-w-xs" />
+            <div className="flex flex-wrap gap-2">
+              {progress.exercise.primaryMuscles.map((muscle) => (
+                <Badge key={`primary-${muscle}`} caps>
+                  {muscle}
+                </Badge>
+              ))}
+              {progress.exercise.secondaryMuscles.map((muscle) => (
+                <Badge key={`secondary-${muscle}`} variant="secondary" caps>
+                  {muscle}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

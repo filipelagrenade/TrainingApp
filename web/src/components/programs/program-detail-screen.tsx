@@ -13,11 +13,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CoachChip } from "@/components/ui/coach-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { MuscleMap } from "@/components/ui/muscle-map";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat } from "@/components/ui/stat";
 import { apiClient } from "@/lib/api-client";
+import { computeMuscleIntensities } from "@/lib/muscle-volume";
 import type { Program, ProgramWorkout, ProgressionSlotInfo } from "@/lib/types";
 import { useState } from "react";
 
@@ -122,6 +124,19 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
   const formatWeight = (value: number | null) =>
     value === null ? "—" : `${Math.round(value * 100) / 100} ${unit}`;
 
+  const coverageWeek =
+    program.weeks.find((week) => week.weekNumber === program.currentWeek) ?? program.weeks[0];
+  const muscleIntensities = computeMuscleIntensities(
+    coverageWeek?.workouts.flatMap((workout) =>
+      workout.exercises.map((exercise) => ({
+        primaryMuscles: exercise.exercise.primaryMuscles,
+        secondaryMuscles: exercise.exercise.secondaryMuscles,
+        workingSets: exercise.sets,
+      })),
+    ) ?? [],
+  );
+  const hasMuscleCoverage = Object.keys(muscleIntensities).length > 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -163,6 +178,21 @@ export const ProgramDetailScreen = ({ programId }: { programId: string }) => {
         <Stat label="Days" value={String(program.weeks[0]?.workouts.length ?? 0)} />
         <Stat label="Streak" value={String(program.adherenceStreak)} />
       </div>
+
+      {hasMuscleCoverage ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Weekly muscle coverage</CardTitle>
+            <CardDescription>
+              Where {coverageWeek?.label ? `${coverageWeek.label.toLowerCase()}'s` : "this week's"}{" "}
+              prescribed working sets land across the body.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MuscleMap intensities={muscleIntensities} className="mx-auto max-w-xs" />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
