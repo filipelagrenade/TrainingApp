@@ -12,45 +12,32 @@ import {
 
 const STORAGE_KEY = "liftiq-theme";
 const LEGACY_THEME_MAP: Record<string, string> = {
-  "neon-gym": "paper",
-  "midnight-surge": "graphite",
-  "warm-lift": "bone",
-  "iron-brutalist": "iron",
-  "clean-slate": "slate",
+  paper: "light",
+  bone: "light",
+  graphite: "dark",
+  slate: "dark",
+  iron: "dark",
+  "neon-gym": "light",
+  "midnight-surge": "dark",
+  "warm-lift": "light",
+  "iron-brutalist": "dark",
+  "clean-slate": "dark",
 };
 
-const DEFAULT_THEME = "paper";
+const DEFAULT_THEME = "dark";
 
 export const themes = [
   {
-    value: "paper",
-    label: "Paper",
-    description: "Warm off-white. The default journal.",
-    swatch: { surface: "#FAFAF6", ink: "#14110F", accent: "#B8543A" },
+    value: "dark",
+    label: "Dark",
+    description: "Deep navy-black. Built for the gym floor.",
+    swatch: { surface: "#0A0B12", ink: "#F0F1F6", accent: "#EF3E9D" },
   },
   {
-    value: "graphite",
-    label: "Graphite",
-    description: "Ink on dark paper. Quiet evening.",
-    swatch: { surface: "#0F0E0D", ink: "#F2EBE1", accent: "#D4A574" },
-  },
-  {
-    value: "bone",
-    label: "Bone",
-    description: "Vintage logbook. Warm cream and oxblood.",
-    swatch: { surface: "#EDE2D0", ink: "#3A2820", accent: "#6B2A2E" },
-  },
-  {
-    value: "slate",
-    label: "Slate",
-    description: "Cool sport-tech. Midnight blue and mint.",
-    swatch: { surface: "#11161A", ink: "#E8ECEF", accent: "#6EE7B7" },
-  },
-  {
-    value: "iron",
-    label: "Iron",
-    description: "Brutalist black. Heavy lifting.",
-    swatch: { surface: "#0A0A0A", ink: "#FFFFFF", accent: "#E8C547" },
+    value: "light",
+    label: "Light",
+    description: "Clean paper. Same DNA, daylight legible.",
+    swatch: { surface: "#F9FAFC", ink: "#13151F", accent: "#D21F84" },
   },
 ] as const;
 

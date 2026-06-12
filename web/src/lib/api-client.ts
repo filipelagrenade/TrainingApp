@@ -17,11 +17,15 @@ import type {
   ProfileView,
   Program,
   ProgramDraft,
+  ProgramProgression,
   ProgressOverview,
   ExerciseProgressDetail,
   SocialUser,
   TemplateDraft,
+  TrackingMode,
   User,
+  UserExercisePreference,
+  UserSettingsUpdate,
   WorkoutComparison,
   WorkoutInvite,
   WorkoutTemplate,
@@ -114,6 +118,31 @@ export const apiClient = {
     request<{ ok: boolean }>("/auth/logout", {
       method: "POST",
     }),
+  updateSettings: (payload: UserSettingsUpdate) =>
+    request<{ user: User }>("/auth/settings", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  getExercisePreferences: () =>
+    request<{ preferences: UserExercisePreference[] }>("/exercises/preferences"),
+  upsertExercisePreference: (
+    exerciseId: string,
+    payload: {
+      unilateral?: boolean | null;
+      trackingMode?: TrackingMode | null;
+      barWeight?: number | null;
+    },
+  ) =>
+    request<{ preference: UserExercisePreference }>(`/exercises/${exerciseId}/preference`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  deleteExercisePreference: (exerciseId: string) =>
+    request<{ ok: boolean }>(`/exercises/${exerciseId}/preference`, {
+      method: "DELETE",
+    }),
+  getProgramProgression: (programId: string) =>
+    request<ProgramProgression>(`/programs/${programId}/progression`),
   getExercises: () => request<Exercise[]>("/exercises"),
   getExerciseSubstitutes: (exerciseId: string) =>
     request<ExerciseSubstitutes>(`/exercises/${exerciseId}/substitutes`),

@@ -14,6 +14,22 @@ export type ApiError = {
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
+export type UserSettings = {
+  advancedTracking: { enabled: boolean; rpe: boolean; tempo: boolean };
+  plates: { kg: number[]; lb: number[] };
+  barWeights: { barbell: number; ezBar: number; trapBar: number };
+  rest: { workingSeconds: number; warmupSeconds: number; autoStart: boolean };
+  previousValueScope: "slot" | "anywhere";
+};
+
+export type UserSettingsUpdate = {
+  advancedTracking?: Partial<UserSettings["advancedTracking"]>;
+  plates?: Partial<UserSettings["plates"]>;
+  barWeights?: Partial<UserSettings["barWeights"]>;
+  rest?: Partial<UserSettings["rest"]>;
+  previousValueScope?: UserSettings["previousValueScope"];
+};
+
 export type User = {
   id: string;
   email: string;
@@ -22,6 +38,7 @@ export type User = {
   gender: "MALE" | "FEMALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY";
   xpTotal: number;
   level: number;
+  settings: UserSettings;
   selectedTitleKey?: string | null;
   selectedTitleLabel?: string | null;
   selectedBadgeKey?: string | null;
@@ -76,11 +93,37 @@ export type ExerciseCategory = Exercise["exerciseCategory"];
 export type TrackingMode =
   | "ABSOLUTE_WEIGHT"
   | "PLATES_PER_SIDE"
+  | "PLATES_TOTAL"
   | "BODYWEIGHT_ONLY"
   | "BODYWEIGHT_PLUS_LOAD"
   | "BAND_LEVEL"
   | "PER_SIDE_LOAD"
   | "CARDIO";
+
+export type UserExercisePreference = {
+  id: string;
+  exerciseId: string;
+  unilateral: boolean | null;
+  trackingMode: TrackingMode | null;
+  barWeight: number | null;
+};
+
+export type ProgressionSlotInfo = {
+  programWorkoutExerciseId: string;
+  status: "FORMATIVE" | "ACTIVE" | "DELOADED";
+  workingWeight: number | null;
+  suggestedWeight: number | null;
+  suggestionReason: string | null;
+  successStreak: number;
+  failStreak: number;
+  lastEvaluatedAt: string | null;
+};
+
+export type ProgramProgression = {
+  currentWeek: number;
+  formativeWeek: boolean;
+  tracks: ProgressionSlotInfo[];
+};
 
 export type WorkoutSetType =
   | "NORMAL"
@@ -113,6 +156,7 @@ export type WorkoutSetTrackingData = {
   speed?: number | null;
   clusterSize?: number | null;
   clusterPattern?: string | null;
+  tempo?: string | null;
   generatedFromSetNumber?: number | null;
   dropPhase?: number | null;
   dropPercent?: number | null;
@@ -419,6 +463,7 @@ export type CreateTemplateInput = {
 export type WorkoutDraft = {
   title: string;
   notes?: string;
+  formativeWeek?: boolean;
   exercises: WorkoutDraftExercise[];
 };
 

@@ -3,143 +3,90 @@
 @tailwind utilities;
 
 /*
-  LiftIQ — Performance design tokens.
+  LiftIQ — Neon Coach design tokens.
 
-  Five themes share the same DNA: hairline rules, generous whitespace,
-  Barlow Semi Condensed display, Inter body, JetBrains Mono numerals.
-  High-contrast accents. Built for athletes, not journals.
+  Two themes (dark default, light) built from one token system:
+  deep navy-black surfaces, hairline rules, Barlow Semi Condensed display,
+  Inter body, JetBrains Mono tabular numerals.
+
+  The magenta→violet gradient is reserved EXCLUSIVELY for progression/XP
+  roles (XpBar, StreakRing, level + PR celebration) via the two
+  .{bg,text}-progression-gradient utilities. Never decoration.
 */
 
 @layer base {
   :root,
-  [data-theme="paper"] {
-    /* Paper — crisp white, vivid orange-red accent */
-    --surface: 0 0% 98%;
+  [data-theme="dark"] {
+    /* Dark — deep navy-black, the gym default */
+    --surface: 230 30% 5%;
+    --surface-raised: 230 26% 8%;
+    --surface-sunken: 230 32% 3%;
+    --ink: 228 20% 95%;
+    --ink-soft: 228 14% 76%;
+    --ink-muted: 228 10% 56%;
+    --ink-subtle: 228 8% 36%;
+    --rule: 230 18% 15%;
+    --rule-strong: 230 16% 26%;
+    --accent: 322 85% 58%;            /* magenta — actions */
+    --accent-soft: 322 60% 14%;
+    --accent-ink: 230 30% 5%;
+    --grad-progression-from: 322 90% 58%;
+    --grad-progression-to: 262 85% 62%;
+    --pr: 322 90% 58%;
+    --pr-soft: 322 60% 13%;
+    --coach: 262 75% 72%;             /* coach chips: suggestion + reason */
+    --coach-soft: 262 50% 14%;
+    --timer: 195 85% 55%;             /* rest timer */
+    --success: 152 65% 50%;
+    --warning: 36 90% 58%;
+    --danger: 0 70% 58%;
+    --shadow-active: 230 50% 2%;
+    --color-scheme: dark;
+    --selection-bg: 322 85% 58%;
+    --selection-fg: 230 30% 5%;
+  }
+
+  [data-theme="light"] {
+    /* Light — clean paper with the same DNA */
+    --surface: 228 30% 98%;
     --surface-raised: 0 0% 100%;
-    --surface-sunken: 0 0% 95%;
-    --ink: 0 0% 7%;
-    --ink-soft: 0 0% 25%;
-    --ink-muted: 0 0% 48%;
-    --ink-subtle: 0 0% 70%;
-    --rule: 0 0% 88%;
-    --rule-strong: 0 0% 72%;
-    --accent: 12 88% 50%;            /* vivid orange-red */
-    --accent-soft: 12 90% 94%;
+    --surface-sunken: 228 20% 94%;
+    --ink: 230 30% 10%;
+    --ink-soft: 230 16% 30%;
+    --ink-muted: 230 10% 48%;
+    --ink-subtle: 230 8% 68%;
+    --rule: 228 16% 88%;
+    --rule-strong: 228 14% 74%;
+    --accent: 322 75% 48%;
+    --accent-soft: 322 70% 94%;
     --accent-ink: 0 0% 100%;
-    --pr: 12 88% 50%;
-    --pr-soft: 12 90% 94%;
-    --success: 145 55% 35%;
-    --warning: 35 90% 48%;
-    --danger: 0 75% 50%;
-    --noise-opacity: 0.02;
-    --shadow-active: 0 0% 10%;
+    --grad-progression-from: 322 85% 50%;
+    --grad-progression-to: 262 80% 54%;
+    --pr: 322 85% 48%;
+    --pr-soft: 322 70% 94%;
+    --coach: 262 60% 45%;
+    --coach-soft: 262 60% 94%;
+    --timer: 199 90% 38%;
+    --success: 152 60% 32%;
+    --warning: 35 90% 42%;
+    --danger: 0 72% 48%;
+    --shadow-active: 230 30% 10%;
     --color-scheme: light;
-    --selection-bg: 12 88% 50%;
+    --selection-bg: 322 75% 48%;
     --selection-fg: 0 0% 100%;
   }
 
-  [data-theme="graphite"] {
-    /* Graphite — neutral charcoal, electric lime accent */
-    --surface: 0 0% 6%;
-    --surface-raised: 0 0% 9%;
-    --surface-sunken: 0 0% 4%;
-    --ink: 0 0% 94%;
-    --ink-soft: 0 0% 75%;
-    --ink-muted: 0 0% 54%;
-    --ink-subtle: 0 0% 35%;
-    --rule: 0 0% 16%;
-    --rule-strong: 0 0% 26%;
-    --accent: 82 75% 55%;            /* electric lime */
-    --accent-soft: 82 50% 14%;
-    --accent-ink: 0 0% 6%;
-    --pr: 82 75% 55%;
-    --pr-soft: 82 50% 12%;
-    --success: 145 60% 55%;
-    --warning: 35 90% 58%;
-    --danger: 0 70% 58%;
-    --noise-opacity: 0;
-    --shadow-active: 0 0% 0%;
-    --color-scheme: dark;
-    --selection-bg: 82 75% 55%;
-    --selection-fg: 0 0% 6%;
-  }
-
-  [data-theme="bone"] {
-    /* Bone — warm vintage, high-saturation oxblood accent */
-    --surface: 38 38% 91%;
-    --surface-raised: 38 50% 95%;
-    --surface-sunken: 38 28% 87%;
-    --ink: 18 30% 12%;
-    --ink-soft: 18 20% 30%;
-    --ink-muted: 18 12% 50%;
-    --ink-subtle: 18 8% 68%;
-    --rule: 25 18% 72%;
-    --rule-strong: 25 20% 55%;
-    --accent: 358 65% 38%;           /* high-sat oxblood */
-    --accent-soft: 358 45% 88%;
-    --accent-ink: 38 50% 95%;
-    --pr: 358 65% 38%;
-    --pr-soft: 358 40% 88%;
-    --success: 130 40% 30%;
-    --warning: 28 75% 38%;
-    --danger: 358 65% 38%;
-    --noise-opacity: 0.04;
-    --shadow-active: 18 30% 12%;
-    --color-scheme: light;
-    --selection-bg: 358 65% 38%;
-    --selection-fg: 38 50% 95%;
-  }
-
-  [data-theme="slate"] {
-    /* Slate — sport-tech dark, bright mint accent */
-    --surface: 210 22% 9%;
-    --surface-raised: 210 18% 12%;
-    --surface-sunken: 210 24% 7%;
-    --ink: 210 18% 94%;
-    --ink-soft: 210 12% 76%;
-    --ink-muted: 210 10% 55%;
-    --ink-subtle: 210 8% 35%;
-    --rule: 210 16% 18%;
-    --rule-strong: 210 14% 28%;
-    --accent: 152 80% 55%;           /* bright mint */
-    --accent-soft: 152 45% 14%;
-    --accent-ink: 210 22% 9%;
-    --pr: 152 80% 55%;
-    --pr-soft: 152 45% 12%;
-    --success: 152 70% 55%;
-    --warning: 36 90% 60%;
-    --danger: 0 65% 60%;
-    --noise-opacity: 0;
-    --shadow-active: 210 50% 2%;
-    --color-scheme: dark;
-    --selection-bg: 152 80% 55%;
-    --selection-fg: 210 22% 9%;
-  }
-
-  [data-theme="iron"] {
-    /* Iron — brutal black, max-sat cadmium yellow */
-    --surface: 0 0% 4%;
-    --surface-raised: 0 0% 8%;
-    --surface-sunken: 0 0% 0%;
-    --ink: 0 0% 100%;
-    --ink-soft: 0 0% 80%;
-    --ink-muted: 0 0% 55%;
-    --ink-subtle: 0 0% 36%;
-    --rule: 0 0% 16%;
-    --rule-strong: 0 0% 30%;
-    --accent: 50 95% 55%;            /* max cadmium */
-    --accent-soft: 50 50% 12%;
-    --accent-ink: 0 0% 0%;
-    --pr: 50 95% 55%;
-    --pr-soft: 50 50% 12%;
-    --success: 130 65% 52%;
-    --warning: 30 90% 58%;
-    --danger: 0 75% 58%;
-    --noise-opacity: 0;
-    --shadow-active: 0 0% 0%;
-    --color-scheme: dark;
-    --selection-bg: 50 95% 55%;
-    --selection-fg: 0 0% 0%;
+  /* ---- Component-scale tokens (shared by both themes) ---- */
+  :root {
+    --control-h: 3rem;        /* 48px default control height */
+    --touch-min: 2.75rem;     /* 44px minimum touch target */
+    --keypad-key-h: 3.5rem;   /* 56px keypad keys */
+    --set-row-h: 3.25rem;     /* 52px set rows */
+    --z-rail: 30;
+    --z-nav: 40;
+    --z-sheet: 50;
+    --z-keypad: 60;
+    --z-toast: 70;
   }
 
   /* ---- ShadCN compatibility shims (map old tokens to new) ---- */
@@ -179,25 +126,6 @@
     font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    background-image: url("/noise.svg");
-    background-size: 200px 200px;
-    background-repeat: repeat;
-    background-attachment: fixed;
-  }
-
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background-color: hsl(var(--surface));
-    opacity: calc(1 - var(--noise-opacity, 0));
-    z-index: -1;
-    pointer-events: none;
-  }
-
-  /* Smooth theme transitions on tokens */
-  body,
-  body::before {
     transition: background-color 240ms ease, color 240ms ease;
   }
 
@@ -335,6 +263,12 @@
   .text-pr {
     color: hsl(var(--pr));
   }
+  .text-coach {
+    color: hsl(var(--coach));
+  }
+  .text-timer {
+    color: hsl(var(--timer));
+  }
   .bg-surface {
     background-color: hsl(var(--surface));
   }
@@ -347,11 +281,17 @@
   .bg-accent-soft {
     background-color: hsl(var(--accent-soft));
   }
+  .bg-coach-soft {
+    background-color: hsl(var(--coach-soft));
+  }
   .border-rule {
     border-color: hsl(var(--rule));
   }
   .border-rule-strong {
     border-color: hsl(var(--rule-strong));
+  }
+  .border-coach {
+    border-color: hsl(var(--coach) / 0.4);
   }
   .ring-ink {
     --tw-ring-color: hsl(var(--ink));
@@ -363,5 +303,29 @@
   }
   .font-display {
     font-family: var(--font-display), system-ui, sans-serif;
+  }
+
+  /* The ONLY legal home of the magenta→violet gradient: progression & XP. */
+  .bg-progression-gradient {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--grad-progression-from)),
+      hsl(var(--grad-progression-to))
+    );
+  }
+  .text-progression-gradient {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--grad-progression-from)),
+      hsl(var(--grad-progression-to))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .touch-target {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
   }
 }
