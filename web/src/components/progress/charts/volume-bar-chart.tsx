@@ -13,9 +13,11 @@ import {
 import { ChartTooltip } from "./chart-tooltip";
 import type { TrendPoint } from "./line-trend-chart";
 
-const AXIS_STYLE = {
+// Axis labels: 11px mono in the muted ink token, matching .eyebrow numerals.
+const AXIS_TICK = {
   fontSize: 11,
   fill: "hsl(var(--ink-muted))",
+  fontFamily: "var(--font-mono), ui-monospace, monospace",
 };
 
 // Bar chart for discrete totals (per-session or per-week volume). Expects already
@@ -35,14 +37,14 @@ export const VolumeBarChart = ({
         <CartesianGrid stroke="hsl(var(--rule))" strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="label"
-          tick={AXIS_STYLE}
+          tick={AXIS_TICK}
           tickLine={false}
           axisLine={{ stroke: "hsl(var(--rule))" }}
           minTickGap={12}
         />
         <YAxis
           width={44}
-          tick={AXIS_STYLE}
+          tick={AXIS_TICK}
           tickLine={false}
           axisLine={false}
           tickFormatter={(value) => (valueFormatter ? valueFormatter(Number(value)) : String(value))}

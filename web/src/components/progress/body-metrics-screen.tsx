@@ -1,14 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Plus, Scale, Trash2, TrendingUp } from "lucide-react";
+import { Plus, Scale, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { LineTrendChart } from "@/components/progress/charts/line-trend-chart";
-import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,20 +19,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MetricCard } from "@/components/ui/metric-card";
-import { NullableNumberInput } from "@/components/ui/nullable-number-input";
-import { ScreenHero } from "@/components/ui/screen-hero";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
+import { Stepper } from "@/components/ui/stepper";
 
 // Body circumference fields (centimetres) the log dialog offers alongside bodyweight.
-const MEASUREMENT_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "waist", label: "Waist" },
-  { key: "chest", label: "Chest" },
-  { key: "arms", label: "Arms" },
-  { key: "thighs", label: "Thighs" },
-  { key: "hips", label: "Hips" },
+// `seed` is where the stepper starts the first time a field is used; afterwards it
+// seeds from the most recent logged value for that field.
+const MEASUREMENT_FIELDS: Array<{ key: string; label: string; seed: number }> = [
+  { key: "waist", label: "Waist", seed: 80 },
+  { key: "chest", label: "Chest", seed: 100 },
+  { key: "arms", label: "Arms", seed: 35 },
+  { key: "thighs", label: "Thighs", seed: 55 },
+  { key: "hips", label: "Hips", seed: 95 },
 ];
 
 const shortDate = (iso: string) =>
@@ -81,11 +84,10 @@ export const BodyMetricsScreen = () => {
 
   if (meQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-72" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-72" />
+      </div>
     );
   }
 
@@ -102,6 +104,18 @@ export const BodyMetricsScreen = () => {
   const trend = data?.weightTrend ?? [];
   const change =
     trend.length >= 2 ? Number((trend[trend.length - 1].value - trend[0].value).toFixed(1)) : null;
+
+  // Steppers seed from the most recent logged value so the next entry starts close.
+  const weightSeed = data?.latest?.weight ?? (unit === "kg" ? 75 : 165);
+  const seedForMeasurement = (key: string, fallback: number) => {
+    for (const entry of data?.entries ?? []) {
+      const value = entry.measurements?.[key];
+      if (typeof value === "number") {
+        return value;
+      }
+    }
+    return fallback;
+  };
 
   const handleSubmit = () => {
     const cleanedMeasurements = Object.fromEntries(
@@ -134,21 +148,23 @@ export const BodyMetricsScreen = () => {
           Log entry
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Log body metrics</DialogTitle>
           <DialogDescription>Track your bodyweight and optional measurements over time.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="bw-weight">Bodyweight ({unit})</Label>
-            <NullableNumberInput
-              id="bw-weight"
+            <Label>Bodyweight ({unit})</Label>
+            <Stepper
+              label={`Bodyweight in ${unit}`}
               value={weight}
               onChange={setWeight}
-              placeholder={`Weight in ${unit}`}
               min={0}
-              step={0.1}
+              step={0.5}
+              seed={weightSeed}
+              allowClear
+              format={(value) => `${value} ${unit}`}
             />
           </div>
           <div className="space-y-2">
@@ -156,18 +172,17 @@ export const BodyMetricsScreen = () => {
             <div className="grid grid-cols-2 gap-2">
               {MEASUREMENT_FIELDS.map((field) => (
                 <div key={field.key} className="space-y-1">
-                  <Label htmlFor={`bw-${field.key}`} className="text-xs text-ink-muted">
-                    {field.label}
-                  </Label>
-                  <NullableNumberInput
-                    id={`bw-${field.key}`}
+                  <Label className="text-xs text-ink-muted">{field.label}</Label>
+                  <Stepper
+                    label={`${field.label} in cm`}
                     value={measurements[field.key] ?? null}
                     onChange={(value) =>
                       setMeasurements((current) => ({ ...current, [field.key]: value }))
                     }
-                    placeholder="cm"
                     min={0}
-                    step={0.1}
+                    step={0.5}
+                    seed={seedForMeasurement(field.key, field.seed)}
+                    allowClear
                   />
                 </div>
               ))}
@@ -194,99 +209,120 @@ export const BodyMetricsScreen = () => {
   );
 
   return (
-    <div className="app-grid">
-      <ScreenHero
+    <div className="space-y-6">
+      <PageHeader
         eyebrow="Body"
         title="Body metrics"
         description="Bodyweight and measurement history."
-        actions={<BackButton fallbackHref="/progress" label="Back to progress" />}
-        stats={
-          <>
-            <MetricCard
-              icon={Scale}
-              label="Latest"
-              value={data?.latest?.weight != null ? `${data.latest.weight} ${unit}` : "-"}
-            />
-            <MetricCard
-              icon={TrendingUp}
-              label="Change"
-              value={change === null ? "-" : `${change > 0 ? "+" : ""}${change} ${unit}`}
-            />
-            <MetricCard icon={CalendarDays} label="Entries" value={String(data?.entries.length ?? 0)} />
-          </>
-        }
+        backHref="/progress"
+        actions={logDialog}
       />
 
-      <Card>
-        <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-          <div>
-            <CardTitle>Weight trend</CardTitle>
-            <CardDescription>Your logged bodyweight over time.</CardDescription>
-          </div>
-          {logDialog}
-        </CardHeader>
-        <CardContent>
-          {metricsQuery.isLoading ? (
-            <Skeleton className="h-48" />
-          ) : trend.length >= 2 ? (
-            <LineTrendChart
-              data={trend.map((point) => ({ label: shortDate(point.recordedAt), value: point.value }))}
-              valueFormatter={(value) => `${value} ${unit}`}
-            />
-          ) : (
-            <EmptyHint copy="Log at least two bodyweight entries to see your trend." />
-          )}
-        </CardContent>
-      </Card>
+      {metricsQuery.isLoading ? (
+        <Skeleton className="h-20" />
+      ) : (
+        <div className="grid grid-cols-3 gap-4 border-y border-rule py-4">
+          <Stat
+            label="Latest"
+            value={data?.latest?.weight != null ? `${data.latest.weight} ${unit}` : "—"}
+          />
+          <Stat
+            label="Change"
+            value={change === null ? "—" : `${change > 0 ? "+" : ""}${change} ${unit}`}
+          />
+          <Stat label="Entries" value={String(data?.entries.length ?? 0)} />
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>History</CardTitle>
-          <CardDescription>Every entry, most recent first.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {data?.entries.length ? (
-            data.entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-start justify-between gap-3 rounded-md border border-rule bg-surface p-4"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <p className="font-semibold text-ink">
-                      {entry.weight != null ? `${entry.weight} ${unit}` : "—"}
-                    </p>
-                    <p className="text-sm text-ink-muted">{new Date(entry.recordedAt).toLocaleDateString()}</p>
+      {metricsQuery.isError ? (
+        <ErrorState
+          title="Couldn't load body metrics"
+          description={metricsQuery.error instanceof Error ? metricsQuery.error.message : undefined}
+          onRetry={() => void metricsQuery.refetch()}
+        />
+      ) : (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Weight trend</CardTitle>
+              <CardDescription>Your logged bodyweight over time.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {metricsQuery.isLoading ? (
+                <Skeleton className="h-48" />
+              ) : trend.length >= 2 ? (
+                <LineTrendChart
+                  data={trend.map((point) => ({ label: shortDate(point.recordedAt), value: point.value }))}
+                  valueFormatter={(value) => `${value} ${unit}`}
+                />
+              ) : (
+                <EmptyState
+                  icon={Scale}
+                  title="Not enough data yet"
+                  description="Log at least two bodyweight entries to see your trend."
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>History</CardTitle>
+              <CardDescription>Every entry, most recent first.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {metricsQuery.isLoading ? (
+                Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-16" />)
+              ) : data?.entries.length ? (
+                data.entries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="surface-panel flex items-start justify-between gap-3 p-4"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <p className="num font-semibold text-ink">
+                          {entry.weight != null ? `${entry.weight} ${unit}` : "—"}
+                        </p>
+                        <p className="eyebrow">{new Date(entry.recordedAt).toLocaleDateString()}</p>
+                      </div>
+                      {entry.measurements && Object.keys(entry.measurements).length ? (
+                        <p className="num mt-1 text-sm text-ink-muted">
+                          {Object.entries(entry.measurements)
+                            .map(([key, value]) => `${key} ${value}cm`)
+                            .join(" · ")}
+                        </p>
+                      ) : null}
+                      {entry.note ? <p className="mt-1 text-sm italic text-ink-soft">{entry.note}</p> : null}
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Delete entry"
+                      disabled={deleteMutation.isPending}
+                      onClick={() => deleteMutation.mutate(entry.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  {entry.measurements && Object.keys(entry.measurements).length ? (
-                    <p className="mt-1 text-sm text-ink-muted">
-                      {Object.entries(entry.measurements)
-                        .map(([key, value]) => `${key} ${value}cm`)
-                        .join(" · ")}
-                    </p>
-                  ) : null}
-                  {entry.note ? <p className="mt-1 text-sm text-ink-muted">{entry.note}</p> : null}
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label="Delete entry"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate(entry.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))
-          ) : (
-            <EmptyHint copy="No entries yet. Log your first bodyweight to get started." />
-          )}
-        </CardContent>
-      </Card>
+                ))
+              ) : (
+                <EmptyState
+                  icon={Scale}
+                  title="No entries yet"
+                  description="Log your first bodyweight to get started."
+                  action={
+                    <Button size="sm" onClick={() => setDialogOpen(true)}>
+                      <Plus className="h-4 w-4" />
+                      Log entry
+                    </Button>
+                  }
+                />
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 };
-
-const EmptyHint = ({ copy }: { copy: string }) => (
-  <div className="rounded-md border border-dashed border-rule p-4 text-sm text-ink-muted">{copy}</div>
-);

@@ -1,20 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Dumbbell, TrendingUp, Trophy } from "lucide-react";
+import { CalendarDays, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
-import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard } from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
-import { ScreenHero } from "@/components/ui/screen-hero";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
 import { LineTrendChart } from "@/components/progress/charts/line-trend-chart";
 import { VolumeBarChart } from "@/components/progress/charts/volume-bar-chart";
 import { formatVolume } from "@/lib/units";
@@ -36,11 +36,10 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
 
   if (meQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-72" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-72" />
+      </div>
     );
   }
 
@@ -52,10 +51,24 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
     );
   }
 
+  if (progressQuery.isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Progress" title="Exercise history" backHref="/progress" />
+        <ErrorState
+          title="Couldn't load this exercise"
+          description={progressQuery.error instanceof Error ? progressQuery.error.message : undefined}
+          onRetry={() => void progressQuery.refetch()}
+        />
+      </div>
+    );
+  }
+
   if (progressQuery.isLoading || !progressQuery.data) {
     return (
-      <div className="space-y-4">
-        {Array.from({ length: 4 }).map((_, index) => (
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        {Array.from({ length: 3 }).map((_, index) => (
           <Skeleton key={index} className="h-48" />
         ))}
       </div>
@@ -71,21 +84,31 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
   );
 
   return (
-    <div className="app-grid">
-      <ScreenHero
+    <div className="space-y-6">
+      <PageHeader
         eyebrow={progress.exercise.isSystem ? "System exercise" : "Custom exercise"}
         title={progress.exercise.name}
-        description={`${progress.exercise.equipmentType}${progress.exercise.attachment ? ` • ${progress.exercise.attachment}` : ""}`}
-        actions={<BackButton fallbackHref="/progress" label="Back to progress" />}
-        stats={
-          <>
-            <MetricCard icon={CalendarDays} label="Sessions" value={String(progress.summary.totalSessions)} />
-            <MetricCard icon={Dumbbell} label="Volume" value={formatVolume(progress.summary.totalVolume, preferredUnit, { compact: true })} />
-            <MetricCard icon={TrendingUp} label="Best e1RM" value={progress.summary.bestEstimatedOneRepMax ? Math.round(progress.summary.bestEstimatedOneRepMax).toString() : "-"} />
-            <MetricCard icon={Trophy} label="PRs" value={String(progress.summary.personalRecordCount)} />
-          </>
-        }
+        description={`${progress.exercise.equipmentType}${progress.exercise.attachment ? ` · ${progress.exercise.attachment}` : ""}`}
+        backHref="/progress"
       />
+
+      <div className="grid grid-cols-2 gap-4 border-y border-rule py-4 sm:grid-cols-4">
+        <Stat label="Sessions" value={String(progress.summary.totalSessions)} />
+        <Stat
+          label="Volume"
+          value={formatVolume(progress.summary.totalVolume, preferredUnit, { compact: true })}
+        />
+        <Stat
+          label="Best e1RM"
+          value={progress.summary.bestEstimatedOneRepMax ? Math.round(progress.summary.bestEstimatedOneRepMax).toString() : "—"}
+          highlight={progress.summary.bestEstimatedOneRepMax !== null}
+        />
+        <Stat
+          label="PRs"
+          value={String(progress.summary.personalRecordCount)}
+          highlight={progress.summary.personalRecordCount > 0}
+        />
+      </div>
 
       <Card>
         <CardHeader>
@@ -99,6 +122,7 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
             <SectionLabel>Estimated 1RM</SectionLabel>
             {progress.estimatedOneRepMaxHistory.filter((point) => point.value !== null).length >= 2 ? (
               <LineTrendChart
+                tone="pr"
                 data={progress.estimatedOneRepMaxHistory.map((point) => ({
                   label: shortDate(point.completedAt),
                   value: point.value,
@@ -110,12 +134,16 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
                 <TrendRow
                   key={`e1rm-${point.completedAt}`}
                   label={new Date(point.completedAt).toLocaleDateString()}
-                  value={point.value ? Math.round(point.value).toString() : "-"}
+                  value={point.value ? Math.round(point.value).toString() : "—"}
                   progressValue={point.value ? (point.value / bestOneRepMax) * 100 : 0}
                 />
               ))
             ) : (
-              <EmptyHint copy="No weighted exposures yet for this movement." />
+              <EmptyState
+                className="py-6"
+                title="No weighted exposures yet"
+                description="Log weighted sets for this movement to start the e1RM trend."
+              />
             )}
           </div>
           <div className="space-y-3">
@@ -138,7 +166,11 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
                 />
               ))
             ) : (
-              <EmptyHint copy="Volume history appears after completed sessions." />
+              <EmptyState
+                className="py-6"
+                title="No volume history yet"
+                description="Volume history appears after completed sessions."
+              />
             )}
           </div>
         </CardContent>
@@ -155,29 +187,39 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
               <Link
                 key={`${session.workoutId}-${session.completedAt}`}
                 href={`/workouts/${session.workoutId}`}
-                className="block rounded-md border border-rule bg-surface p-4 transition-colors hover:bg-card"
+                className="surface-panel block p-4 transition-colors hover:bg-surface-raised"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-ink">{session.workoutTitle}</p>
-                      <Badge variant={session.wasPlanned ? "default" : "secondary"}>
+                      <p className="truncate font-semibold text-ink">{session.workoutTitle}</p>
+                      <Badge variant={session.wasPlanned ? "default" : "secondary"} caps>
                         {session.wasPlanned ? "Planned" : "Quick"}
                       </Badge>
                     </div>
-                    <p className="mt-1 text-sm text-ink-muted">{new Date(session.completedAt).toLocaleString()}</p>
+                    <p className="num mt-1 text-sm text-ink-muted">{new Date(session.completedAt).toLocaleString()}</p>
                   </div>
-                  <Badge variant="outline">{session.personalRecordCount} PRs</Badge>
+                  {session.personalRecordCount > 0 ? (
+                    <Badge variant="pr" caps>{session.personalRecordCount} PR{session.personalRecordCount === 1 ? "" : "s"}</Badge>
+                  ) : null}
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-                  <MiniStat label="Best set" value={session.bestSetLabel} />
-                  <MiniStat label="e1RM" value={session.estimatedOneRepMax ? Math.round(session.estimatedOneRepMax).toString() : "-"} />
-                  <MiniStat label="Volume" value={formatVolume(session.volume, preferredUnit)} />
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <Stat compact label="Best set" value={session.bestSetLabel} />
+                  <Stat
+                    compact
+                    label="e1RM"
+                    value={session.estimatedOneRepMax ? Math.round(session.estimatedOneRepMax).toString() : "—"}
+                  />
+                  <Stat compact label="Volume" value={formatVolume(session.volume, preferredUnit)} />
                 </div>
               </Link>
             ))
           ) : (
-            <EmptyHint copy="No completed sessions logged for this exercise yet." />
+            <EmptyState
+              icon={CalendarDays}
+              title="No sessions yet"
+              description="No completed sessions logged for this exercise yet."
+            />
           )}
         </CardContent>
       </Card>
@@ -190,18 +232,22 @@ export const ExerciseProgressScreen = ({ exerciseId }: { exerciseId: string }) =
         <CardContent className="space-y-3">
           {progress.personalRecordTimeline.length ? (
             progress.personalRecordTimeline.map((entry) => (
-              <div key={`${entry.workoutId}-${entry.completedAt}`} className="rounded-md border border-rule bg-surface p-4">
+              <div key={`${entry.workoutId}-${entry.completedAt}`} className="surface-panel p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-ink">{entry.workoutTitle}</p>
-                    <p className="mt-1 text-sm text-ink-muted">{new Date(entry.completedAt).toLocaleString()}</p>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-ink">{entry.workoutTitle}</p>
+                    <p className="num mt-1 text-sm text-ink-muted">{new Date(entry.completedAt).toLocaleString()}</p>
                   </div>
-                  <Badge>{entry.count} PRs</Badge>
+                  <Badge variant="pr" caps>{entry.count} PR{entry.count === 1 ? "" : "s"}</Badge>
                 </div>
               </div>
             ))
           ) : (
-            <EmptyHint copy="This exercise has not produced a recorded PR yet." />
+            <EmptyState
+              icon={Trophy}
+              title="No PRs yet"
+              description="This exercise has not produced a recorded PR yet."
+            />
           )}
         </CardContent>
       </Card>
@@ -218,28 +264,15 @@ const TrendRow = ({
   value: string;
   progressValue: number;
 }) => (
-  <div className="rounded-md border border-rule bg-surface p-4">
+  <div className="surface-panel p-4">
     <div className="flex items-center justify-between gap-3 text-sm">
       <span className="font-medium text-ink">{label}</span>
-      <span className="text-ink-muted">{value}</span>
+      <span className="num text-ink-muted">{value}</span>
     </div>
     <Progress className="mt-3" value={progressValue} />
   </div>
 );
 
-const MiniStat = ({ label, value }: { label: string; value: string }) => (
-  <div>
-    <p className="text-[10px] uppercase tracking-[0.08em] text-ink-muted">{label}</p>
-    <p className="mt-1 font-semibold text-ink">{value}</p>
-  </div>
-);
-
 const SectionLabel = ({ children }: { children: ReactNode }) => (
-  <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">{children}</p>
-);
-
-const EmptyHint = ({ copy }: { copy: string }) => (
-  <div className="rounded-md border border-dashed border-rule p-4 text-sm text-ink-muted">
-    {copy}
-  </div>
+  <p className="eyebrow">{children}</p>
 );

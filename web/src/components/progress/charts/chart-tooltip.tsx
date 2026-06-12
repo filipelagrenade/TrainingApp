@@ -21,8 +21,8 @@ export const ChartTooltip = ({
 
   return (
     <div className="rounded-md border border-rule bg-surface-raised px-3 py-2 shadow-sm">
-      <p className="text-[10px] uppercase tracking-[0.08em] text-ink-muted">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-ink">
+      <p className="eyebrow">{label}</p>
+      <p className="num mt-0.5 text-sm font-semibold text-ink">
         {rawValue === null ? "--" : valueFormatter ? valueFormatter(rawValue) : rawValue}
       </p>
     </div>

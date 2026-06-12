@@ -2,18 +2,45 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { Archive, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AuthCard } from "@/components/auth/auth-card";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import { ScreenHero } from "@/components/ui/screen-hero";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatBlock } from "@/components/ui/stat-block";
+import { Stat } from "@/components/ui/stat";
 import { apiClient } from "@/lib/api-client";
+import type { WorkoutSession } from "@/lib/types";
+import { formatVolume, sumVolumeInKilograms } from "@/lib/units";
 import { formatDuration } from "@/lib/workout-tracking";
+
+/**
+ * Derives completed-set count and volume from the session's persisted draft
+ * (stored in kilograms). Returns null when the draft has no completed sets,
+ * so older sessions without draft data simply omit the badges.
+ */
+const draftTotals = (workout: WorkoutSession): { sets: number; volumeKg: number } | null => {
+  const exercises = workout.savedDraft?.exercises;
+  if (!exercises?.length) {
+    return null;
+  }
+
+  let sets = 0;
+  let volumeKg = 0;
+
+  for (const exercise of exercises) {
+    const completedSets = exercise.sets.filter((set) => set.completed === true);
+    sets += completedSets.length;
+    volumeKg += sumVolumeInKilograms(completedSets, exercise.unitMode);
+  }
+
+  return sets > 0 ? { sets, volumeKg } : null;
+};
 
 export const HistoryScreen = () => {
   const [query, setQuery] = useState("");
@@ -42,11 +69,10 @@ export const HistoryScreen = () => {
 
   if (meQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-64" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-64" />
+      </div>
     );
   }
 
@@ -58,89 +84,119 @@ export const HistoryScreen = () => {
     );
   }
 
+  const preferredUnit = meQuery.data.user.preferredUnit;
   const workouts = workoutsQuery.data ?? [];
   const totalXp = workouts.reduce((sum, w) => sum + w.totalXp, 0);
   const plannedCount = workouts.filter((w) => w.wasPlanned).length;
 
   return (
-    <div className="space-y-10">
-      <ScreenHero
+    <div className="space-y-6">
+      <PageHeader
         eyebrow="History"
         title="Training archive"
         description="Every session, in chronological order."
-        stats={
-          <>
-            <StatBlock label="Sessions" value={String(workouts.length)} />
-            <StatBlock label="Planned" value={String(plannedCount)} />
-            <StatBlock label="XP earned" value={String(totalXp)} />
-          </>
-        }
       />
 
-      <div>
+      <div className="grid grid-cols-3 gap-4 border-y border-rule py-4">
+        <Stat label="Sessions" value={String(workouts.length)} />
+        <Stat label="Planned" value={String(plannedCount)} />
+        <Stat label="XP earned" value={String(totalXp)} />
+      </div>
+
+      <div className="relative">
         <label htmlFor="history-search" className="sr-only">Search workouts</label>
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
         <Input
           id="history-search"
+          className="pl-9"
           placeholder="Search title, entry type, or notes"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
 
-      <ol className="divide-y divide-rule border-t border-rule">
-        {workoutsQuery.isLoading ? (
-          Array.from({ length: 5 }).map((_, index) => (
-            <li key={index} className="py-6">
-              <Skeleton className="h-5 w-2/3" />
-            </li>
-          ))
-        ) : filteredWorkouts.length ? (
-          filteredWorkouts.map((workout) => {
-            const date = workout.completedAt ? new Date(workout.completedAt) : null;
-            return (
-              <li key={workout.id}>
-                <Link
-                  href={`/workouts/${workout.id}`}
-                  className="grid grid-cols-[72px_1fr] items-baseline gap-x-4 gap-y-1 py-6 transition-colors hover:bg-surface-sunken -mx-2 px-2"
-                >
-                  <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted leading-tight">
-                    {date ? (
-                      <>
-                        {format(date, "EEE")}
-                        <br />
-                        <span className="text-ink">{format(date, "LLL d")}</span>
-                      </>
-                    ) : (
-                      <span>In progress</span>
-                    )}
-                  </span>
+      {workoutsQuery.isError ? (
+        <ErrorState
+          title="Couldn't load your history"
+          description={workoutsQuery.error instanceof Error ? workoutsQuery.error.message : undefined}
+          onRetry={() => void workoutsQuery.refetch()}
+        />
+      ) : (
+        <ol className="divide-y divide-rule border-t border-rule">
+          {workoutsQuery.isLoading ? (
+            Array.from({ length: 5 }).map((_, index) => (
+              <li key={index} className="space-y-2 py-6">
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-4 w-1/3" />
+              </li>
+            ))
+          ) : filteredWorkouts.length ? (
+            filteredWorkouts.map((workout) => {
+              const date = workout.completedAt ? new Date(workout.completedAt) : null;
+              const totals = draftTotals(workout);
 
-                  <div className="space-y-1.5 min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <span className="font-display text-xl text-ink truncate">{workout.title}</span>
-                      {!workout.wasPlanned ? (
-                        <Badge variant="outline">Quick</Badge>
+              return (
+                <li key={workout.id}>
+                  <Link
+                    href={`/workouts/${workout.id}`}
+                    className="-mx-2 grid grid-cols-[72px_1fr] items-baseline gap-x-4 gap-y-1 px-2 py-6 transition-colors hover:bg-surface-sunken"
+                  >
+                    <span className="eyebrow leading-tight">
+                      {date ? (
+                        <>
+                          {format(date, "EEE")}
+                          <br />
+                          <span className="text-ink">{format(date, "LLL d")}</span>
+                        </>
+                      ) : (
+                        <span>In progress</span>
+                      )}
+                    </span>
+
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="truncate font-display text-xl text-ink">{workout.title}</span>
+                        {!workout.wasPlanned ? (
+                          <Badge variant="outline" caps>Quick</Badge>
+                        ) : null}
+                      </div>
+                      <p className="num text-xs text-ink-muted">
+                        {formatDuration(workout.totalDurationSeconds)}
+                        {totals ? (
+                          <>
+                            {" "}· {totals.sets} set{totals.sets === 1 ? "" : "s"}
+                            {totals.volumeKg > 0
+                              ? ` · ${formatVolume(totals.volumeKg, preferredUnit, { compact: true })}`
+                              : ""}
+                          </>
+                        ) : null}
+                        {" "}· {workout.totalXp} xp
+                      </p>
+                      {workout.notes ? (
+                        <p className="line-clamp-2 text-sm italic leading-6 text-ink-soft">
+                          {workout.notes}
+                        </p>
                       ) : null}
                     </div>
-                    <p className="font-mono text-xs tabular-nums text-ink-muted">
-                      {formatDuration(workout.totalDurationSeconds)} · {workout.totalXp} xp
-                    </p>
-                    {workout.notes ? (
-                      <p className="line-clamp-2 text-sm text-ink-soft leading-6 italic">
-                        {workout.notes}
-                      </p>
-                    ) : null}
-                  </div>
-                </Link>
-              </li>
-            );
-          })
-        ) : (
-          <li className="py-12 text-center text-sm text-ink-muted">
-            No workouts match that search yet.
-          </li>
-        )}
-      </ol>
+                  </Link>
+                </li>
+              );
+            })
+          ) : (
+            <li className="py-6">
+              <EmptyState
+                icon={Archive}
+                title={query.trim() ? "No workouts match that search" : "No workouts yet"}
+                description={
+                  query.trim()
+                    ? "Try a different title, entry type, or note."
+                    : "Completed sessions land here automatically."
+                }
+              />
+            </li>
+          )}
+        </ol>
+      )}
     </div>
   );
 };
