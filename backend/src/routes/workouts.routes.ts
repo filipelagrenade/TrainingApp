@@ -93,9 +93,11 @@ const substitutionSchema = z.object({
 
 const supersetSchema = z.object({
   exerciseIndexes: z
-    .tuple([z.coerce.number().int().min(0), z.coerce.number().int().min(0)])
-    .refine(([first, second]) => first !== second, {
-      message: "Choose two different exercises.",
+    .array(z.coerce.number().int().min(0))
+    .min(2)
+    .max(6)
+    .refine((indexes) => new Set(indexes).size === indexes.length, {
+      message: "Choose different exercises.",
     }),
 });
 

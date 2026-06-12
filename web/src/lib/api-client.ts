@@ -285,7 +285,7 @@ export const apiClient = {
     request<WorkoutDraft>(`/workouts/${workoutId}/substitute/${exerciseIndex}`, {
       method: "DELETE",
     }),
-  pairWorkoutSuperset: (workoutId: string, payload: { exerciseIndexes: [number, number] }) =>
+  pairWorkoutSuperset: (workoutId: string, payload: { exerciseIndexes: number[] }) =>
     request<WorkoutDraft>(`/workouts/${workoutId}/supersets`, {
       method: "POST",
       body: JSON.stringify(payload),

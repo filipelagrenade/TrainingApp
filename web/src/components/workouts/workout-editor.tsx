@@ -396,25 +396,36 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
         return;
       }
 
-      // Superset position 1 hands off to the partner card instead of resting,
-      // but only while the partner still has work to do.
-      const partnerIndex = exercise.supersetGroupId
-        ? draft.exercises.findIndex(
-            (candidate, index) =>
-              index !== exerciseIndex && candidate.supersetGroupId === exercise.supersetGroupId,
-          )
-        : -1;
-      const partnerHasIncompleteSet =
-        partnerIndex >= 0 &&
-        draft.exercises[partnerIndex].sets.some((entry) => entry.completed !== true);
+      // Superset/circuit round-robin: hand off to the next group member (cyclic
+      // by position) that still has an incomplete set. Rest starts only when the
+      // cycle wraps around — i.e. this was the last member with work in the round.
+      let groupScrollHandled = false;
+      if (exercise.supersetGroupId) {
+        const members = draft.exercises
+          .map((candidate, index) => ({ candidate, index }))
+          .filter(({ candidate }) => candidate.supersetGroupId === exercise.supersetGroupId)
+          .sort(
+            (a, b) =>
+              (a.candidate.supersetPosition ?? 0) - (b.candidate.supersetPosition ?? 0),
+          );
+        const memberOrder = members.findIndex(({ index }) => index === exerciseIndex);
 
-      if (
-        exercise.supersetGroupId &&
-        partnerHasIncompleteSet &&
-        (exercise.supersetPosition ?? 1) === 1
-      ) {
-        scrollToExercise(partnerIndex);
-        return;
+        if (memberOrder >= 0) {
+          for (let step = 1; step < members.length; step += 1) {
+            const candidateOrder = memberOrder + step;
+            const next = members[candidateOrder % members.length];
+            if (next.candidate.sets.some((entry) => entry.completed !== true)) {
+              scrollToExercise(next.index);
+              groupScrollHandled = true;
+              if (candidateOrder < members.length) {
+                // Next member is later in the cycle: hand off without resting.
+                return;
+              }
+              // Wrapped around: the round is done, fall through to start rest.
+              break;
+            }
+          }
+        }
       }
 
       const nextSet = exercise.sets[setIndex + 1];
@@ -431,7 +442,7 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       const isLastIncomplete = exercise.sets.every(
         (candidate, index) => index === setIndex || candidate.completed === true,
       );
-      if (isLastIncomplete) {
+      if (isLastIncomplete && !groupScrollHandled) {
         const nextIndex = draft.exercises.findIndex(
           (candidate, index) =>
             index > exerciseIndex && candidate.sets.some((entry) => entry.completed !== true),

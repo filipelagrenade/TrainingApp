@@ -1209,38 +1209,65 @@ export const pairWorkoutSuperset = async (
   userId: string,
   workoutId: string,
   input: {
-    exerciseIndexes: [number, number];
+    exerciseIndexes: number[];
   },
 ) => {
   const workout = await getOwnedWorkout(userId, workoutId);
   const draft = hydrateWorkoutDraft(workout, await getPreferredUnitForUser(userId));
-  const [firstIndex, secondIndex] = input.exerciseIndexes;
+  const { exerciseIndexes } = input;
 
   if (
-    !draft.exercises[firstIndex] ||
-    !draft.exercises[secondIndex] ||
-    firstIndex === secondIndex
+    exerciseIndexes.length < 2 ||
+    exerciseIndexes.length > 6 ||
+    new Set(exerciseIndexes).size !== exerciseIndexes.length ||
+    exerciseIndexes.some((exerciseIndex) => !draft.exercises[exerciseIndex])
   ) {
-    throw new AppError(400, "INVALID_SUPERSET_PAIR", "Choose two different exercises to pair.");
+    throw new AppError(
+      400,
+      "INVALID_SUPERSET_PAIR",
+      "Choose two to six different exercises to group.",
+    );
   }
 
-  const groupId = `superset-${Date.now()}`;
+  // Members may be ungrouped, or belong to one shared existing group — passing a
+  // group's indexes plus new ones extends that group (the "add to circuit" path).
+  const existingGroupIds = new Set(
+    exerciseIndexes
+      .map((exerciseIndex) => draft.exercises[exerciseIndex].supersetGroupId)
+      .filter((groupId): groupId is string => Boolean(groupId)),
+  );
+  if (existingGroupIds.size > 1) {
+    throw new AppError(
+      400,
+      "INVALID_SUPERSET_PAIR",
+      "Exercises must be ungrouped or members of the same superset group.",
+    );
+  }
+
+  const groupId = [...existingGroupIds][0] ?? `superset-${Date.now()}`;
+  const positionByExerciseIndex = new Map(
+    exerciseIndexes.map((exerciseIndex, order) => [exerciseIndex, order + 1]),
+  );
+
   const nextDraft: WorkoutDraft = {
     ...draft,
     exercises: draft.exercises.map((exercise, index) => {
-      if (index === firstIndex) {
+      const position = positionByExerciseIndex.get(index);
+      if (position !== undefined) {
         return {
           ...exercise,
           supersetGroupId: groupId,
-          supersetPosition: 1,
+          supersetPosition: position,
         };
       }
 
-      if (index === secondIndex) {
+      // Existing members omitted from the request fall out of the group, so the
+      // group always matches exactly the indexes supplied.
+      if (exercise.supersetGroupId === groupId) {
         return {
           ...exercise,
-          supersetGroupId: groupId,
-          supersetPosition: 2,
+          supersetGroupId: null,
+          supersetPosition: null,
         };
       }
 

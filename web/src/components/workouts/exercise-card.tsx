@@ -11,6 +11,7 @@ import {
   Settings2,
   Shuffle,
   Trash2,
+  Unlink,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -74,6 +75,11 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
     exercise.unilateral === true ||
     exercise.sets.some((set) => set.trackingData?.unilateral === true);
   const supersetHue = exercise.supersetGroupId ? supersetHueFor(exercise.supersetGroupId) : null;
+  const supersetSize = exercise.supersetGroupId
+    ? draft.exercises.filter(
+        (candidate) => candidate.supersetGroupId === exercise.supersetGroupId,
+      ).length
+    : 0;
 
   // Modal sheets sit under the keypad's z-index; close (and commit) it first.
   const openSheet = (kind: ExerciseSheetKind) => {
@@ -136,7 +142,11 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
               : exercise.repMin || exercise.repMax
                 ? ` • ${exercise.repMin ?? "-"}–${exercise.repMax ?? "-"} reps`
                 : ""}
-            {exercise.supersetGroupId ? " • superset" : ""}
+            {exercise.supersetGroupId
+              ? supersetSize >= 3
+                ? ` • circuit · ${supersetSize}`
+                : " • superset"
+              : ""}
           </p>
           {exercise.substitutedFromExerciseName ? (
             <p className="mt-1 text-xs text-ink-muted">
@@ -180,7 +190,12 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
       </div>
 
       {actionsOpen ? (
-        <div className="mt-2 grid grid-cols-5 gap-1.5">
+        <div
+          className={cn(
+            "mt-2 grid gap-1.5",
+            exercise.supersetGroupId ? "grid-cols-6" : "grid-cols-5",
+          )}
+        >
           <Button
             className="h-auto flex-col gap-1 py-2 text-[11px]"
             type="button"
@@ -199,6 +214,15 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
             <Shuffle className="h-4 w-4" />
             Swap
           </Button>
+          <Button
+            className="h-auto flex-col gap-1 py-2 text-[11px]"
+            type="button"
+            variant="outline"
+            onClick={() => openSheet("superset")}
+          >
+            <Link2 className="h-4 w-4" />
+            Circuit
+          </Button>
           {exercise.supersetGroupId ? (
             <Button
               className="h-auto flex-col gap-1 py-2 text-[11px]"
@@ -206,20 +230,10 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
               variant="outline"
               onClick={() => unpairSuperset(exercise.supersetGroupId as string)}
             >
-              <Link2 className="h-4 w-4" />
-              Unpair
+              <Unlink className="h-4 w-4" />
+              {supersetSize >= 3 ? "Ungroup" : "Unpair"}
             </Button>
-          ) : (
-            <Button
-              className="h-auto flex-col gap-1 py-2 text-[11px]"
-              type="button"
-              variant="outline"
-              onClick={() => openSheet("superset")}
-            >
-              <Link2 className="h-4 w-4" />
-              Pair
-            </Button>
-          )}
+          ) : null}
           <Button
             className="h-auto flex-col gap-1 py-2 text-[11px]"
             type="button"
