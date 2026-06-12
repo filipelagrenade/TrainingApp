@@ -2,7 +2,9 @@ import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const repoRoot = path.resolve(__dirname, "..");
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+// Must be localhost (not 127.0.0.1): the backend CORS allowlist is
+// APP_URL=http://localhost:3000 and the auth cookie is scoped to localhost.
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const useExternalBaseUrl = Boolean(process.env.PLAYWRIGHT_BASE_URL);
 
 export default defineConfig({

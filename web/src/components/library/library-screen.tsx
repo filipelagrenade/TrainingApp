@@ -182,27 +182,7 @@ export const LibraryScreen = () => {
       });
   }, [exerciseQuery, exerciseScope, exercises]);
 
-  if (meQuery.isLoading) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-72" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (meQuery.isError || !meQuery.data) {
-    return (
-      <div className="grid min-h-[calc(100vh-8rem)] place-items-center">
-        <AuthCard onSuccess={() => meQuery.refetch()} />
-      </div>
-    );
-  }
-
-  const programs = programsQuery.data ?? [];
-  const templates = templatesQuery.data ?? [];
-  const deleteExerciseTarget = exercises.find((exercise) => exercise.id === deleteExerciseId) ?? null;
+  // Hooks must run on every render: keep this memo above the early returns below.
   const availableDeleteReplacementTargets = exercises.filter(
     (exercise) => exercise.id !== deleteExerciseId,
   );
@@ -239,6 +219,28 @@ export const LibraryScreen = () => {
           .includes(normalizedQuery);
       });
   }, [availableDeleteReplacementTargets, deleteReplacementQuery, deleteReplacementScope]);
+
+  if (meQuery.isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <Skeleton className="h-72" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (meQuery.isError || !meQuery.data) {
+    return (
+      <div className="grid min-h-[calc(100vh-8rem)] place-items-center">
+        <AuthCard onSuccess={() => meQuery.refetch()} />
+      </div>
+    );
+  }
+
+  const programs = programsQuery.data ?? [];
+  const templates = templatesQuery.data ?? [];
+  const deleteExerciseTarget = exercises.find((exercise) => exercise.id === deleteExerciseId) ?? null;
 
   const requestStartWorkout = (payload: { entryType: "TEMPLATE"; templateId: string }) => {
     if (inProgressWorkout?.id) {

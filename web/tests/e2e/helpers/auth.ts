@@ -22,7 +22,7 @@ export const registerWithFreshUser = async (page: Page) => {
   await page.getByLabel("Email").last().fill(user.email);
   await page.getByLabel("Password").last().fill(user.password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByText(`Welcome back, ${user.displayName}`)).toBeVisible();
+  await expect(page.getByRole("heading", { name: user.displayName })).toBeVisible();
 
   return user;
 };

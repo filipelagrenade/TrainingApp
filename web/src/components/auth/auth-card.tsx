@@ -72,12 +72,13 @@ export const AuthCard = ({ onSuccess }: AuthCardProps) => {
         </p>
       </header>
 
-      <div className="flex justify-center gap-6 border-b border-rule">
+      <div role="tablist" aria-label="Authentication mode" className="flex justify-center gap-6 border-b border-rule">
         {(["login", "register"] as Mode[]).map((m) => (
           <button
             key={m}
             type="button"
-            aria-pressed={mode === m}
+            role="tab"
+            aria-selected={mode === m}
             onClick={() => setMode(m)}
             className={cn(
               "touch-target relative pb-3 text-sm transition-colors",
