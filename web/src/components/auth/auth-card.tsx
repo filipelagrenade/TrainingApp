@@ -77,9 +77,10 @@ export const AuthCard = ({ onSuccess }: AuthCardProps) => {
           <button
             key={m}
             type="button"
+            aria-pressed={mode === m}
             onClick={() => setMode(m)}
             className={cn(
-              "relative pb-3 text-sm transition-colors",
+              "touch-target relative pb-3 text-sm transition-colors",
               mode === m ? "text-ink" : "text-ink-muted hover:text-ink",
             )}
           >
@@ -96,11 +97,16 @@ export const AuthCard = ({ onSuccess }: AuthCardProps) => {
           className="space-y-5"
           onSubmit={loginForm.handleSubmit((values) => loginMutation.mutate(values))}
         >
-          <Field id="login-email" label="Email">
-            <Input id="login-email" type="email" {...loginForm.register("email")} />
+          <Field id="login-email" label="Email" error={loginForm.formState.errors.email?.message}>
+            <Input id="login-email" type="email" autoComplete="email" {...loginForm.register("email")} />
           </Field>
-          <Field id="login-password" label="Password">
-            <Input id="login-password" type="password" {...loginForm.register("password")} />
+          <Field id="login-password" label="Password" error={loginForm.formState.errors.password?.message}>
+            <Input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              {...loginForm.register("password")}
+            />
           </Field>
           <Button className="w-full" type="submit" disabled={loginMutation.isPending}>
             {loginMutation.isPending ? "Signing in…" : "Sign in"}
@@ -111,14 +117,27 @@ export const AuthCard = ({ onSuccess }: AuthCardProps) => {
           className="space-y-5"
           onSubmit={registerForm.handleSubmit((values) => registerMutation.mutate(values))}
         >
-          <Field id="register-name" label="Display name">
-            <Input id="register-name" {...registerForm.register("displayName")} />
+          <Field
+            id="register-name"
+            label="Display name"
+            error={registerForm.formState.errors.displayName?.message}
+          >
+            <Input id="register-name" autoComplete="name" {...registerForm.register("displayName")} />
           </Field>
-          <Field id="register-email" label="Email">
-            <Input id="register-email" type="email" {...registerForm.register("email")} />
+          <Field id="register-email" label="Email" error={registerForm.formState.errors.email?.message}>
+            <Input id="register-email" type="email" autoComplete="email" {...registerForm.register("email")} />
           </Field>
-          <Field id="register-password" label="Password">
-            <Input id="register-password" type="password" {...registerForm.register("password")} />
+          <Field
+            id="register-password"
+            label="Password"
+            error={registerForm.formState.errors.password?.message}
+          >
+            <Input
+              id="register-password"
+              type="password"
+              autoComplete="new-password"
+              {...registerForm.register("password")}
+            />
           </Field>
           <Button className="w-full" type="submit" disabled={registerMutation.isPending}>
             {registerMutation.isPending ? "Creating account…" : "Create account"}
@@ -132,14 +151,17 @@ export const AuthCard = ({ onSuccess }: AuthCardProps) => {
 const Field = ({
   id,
   label,
+  error,
   children,
 }: {
   id: string;
   label: string;
+  error?: string;
   children: React.ReactNode;
 }) => (
   <div className="space-y-2">
     <Label htmlFor={id}>{label}</Label>
     {children}
+    {error ? <p className="text-xs text-danger">{error}</p> : null}
   </div>
 );

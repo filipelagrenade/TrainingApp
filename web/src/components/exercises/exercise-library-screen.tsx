@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dumbbell, Layers3, Search, TrendingUp } from "lucide-react";
+import { Dumbbell, Search, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
-import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,10 +20,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import { MetricCard } from "@/components/ui/metric-card";
-import { ScreenHero } from "@/components/ui/screen-hero";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const ExerciseLibraryScreen = () => {
@@ -66,10 +67,6 @@ export const ExerciseLibraryScreen = () => {
     const normalizedQuery = query.trim().toLowerCase();
     const exercises = exercisesQuery.data ?? [];
 
-    if (!normalizedQuery) {
-      return exercises;
-    }
-
     return exercises
       .filter((exercise) => {
         if (scope === "system") {
@@ -82,8 +79,12 @@ export const ExerciseLibraryScreen = () => {
 
         return true;
       })
-      .filter((exercise) =>
-        [
+      .filter((exercise) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [
           exercise.name,
           exercise.equipmentType,
           exercise.machineType ?? "",
@@ -93,8 +94,8 @@ export const ExerciseLibraryScreen = () => {
         ]
           .join(" ")
           .toLowerCase()
-          .includes(normalizedQuery),
-      );
+          .includes(normalizedQuery);
+      });
   }, [exercisesQuery.data, query, scope]);
 
   const exercises = exercisesQuery.data ?? [];
@@ -139,66 +140,65 @@ export const ExerciseLibraryScreen = () => {
 
   if (meQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-64" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-64" />
+      </div>
     );
   }
 
   if (meQuery.isError || !meQuery.data) {
     return (
-      <div className="grid min-h-[calc(100vh-3rem)] place-items-center">
+      <div className="grid min-h-[calc(100vh-8rem)] place-items-center">
         <AuthCard onSuccess={() => meQuery.refetch()} />
       </div>
     );
   }
 
   return (
-    <div className="app-grid">
-      <ScreenHero
+    <div className="space-y-6">
+      <PageHeader
+        backHref="/"
         eyebrow="Exercises"
         title="Exercise library"
-        actions={
-          <>
-            <BackButton />
-          </>
-        }
-        stats={
-          <>
-            <MetricCard icon={Dumbbell} label="Total" value={String(exercises.length)} />
-            <MetricCard icon={Layers3} label="Custom" value={String(customCount)} />
-            <MetricCard icon={Layers3} label="System" value={String(exercises.length - customCount)} />
-          </>
-        }
+        description="Every movement you can log — system staples and your own."
+        actions={<ExerciseCreatorDialog triggerLabel="Add exercise" />}
       />
 
-      <Card>
-        <CardHeader className="space-y-4">
-          <ExerciseCreatorDialog className="w-full" triggerLabel="Add custom exercise" />
-          <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="system">System</TabsTrigger>
-              <TabsTrigger value="custom">Custom</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-            <Input
-              className="pl-9"
-              aria-label="Search exercises"
-              placeholder="Search exercise, machine, attachment, or muscle"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-        </CardHeader>
-      </Card>
+      <div className="grid grid-cols-3 gap-4 border-y border-rule py-4">
+        <Stat label="Total" value={String(exercises.length)} />
+        <Stat label="Custom" value={String(customCount)} />
+        <Stat label="System" value={String(exercises.length - customCount)} />
+      </div>
+
+      <div className="space-y-4">
+        <Tabs value={scope} onValueChange={(value) => setScope(value as "all" | "system" | "custom")}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="system">System</TabsTrigger>
+            <TabsTrigger value="custom">Custom</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+          <Input
+            className="pl-9"
+            aria-label="Search exercises"
+            placeholder="Search exercise, machine, attachment, or muscle"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {exercisesQuery.isLoading ? (
+        {exercisesQuery.isError ? (
+          <ErrorState
+            className="sm:col-span-2 xl:col-span-3"
+            title="Couldn't load exercises"
+            onRetry={() => void exercisesQuery.refetch()}
+          />
+        ) : exercisesQuery.isLoading ? (
           Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-48" />)
         ) : filteredExercises.length ? (
           filteredExercises.map((exercise) => (
@@ -222,7 +222,7 @@ export const ExerciseLibraryScreen = () => {
               <CardContent className="space-y-3 text-sm">
                 <InfoRow label="Load" value={exercise.loadType.replaceAll("_", " ")} />
                 <div>
-                  <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">Primary muscles</p>
+                  <p className="eyebrow">Primary muscles</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {exercise.primaryMuscles.map((muscle) => (
                       <Badge key={muscle} variant="outline">
@@ -256,11 +256,12 @@ export const ExerciseLibraryScreen = () => {
             </Card>
           ))
         ) : (
-          <Card className="sm:col-span-2 xl:col-span-3">
-            <CardContent className="p-6 text-center text-sm text-ink-muted">
-              No exercises match that search yet.
-            </CardContent>
-          </Card>
+          <EmptyState
+            className="sm:col-span-2 xl:col-span-3"
+            icon={Dumbbell}
+            title="No exercises match that search"
+            description="Try a different name, machine, attachment, or muscle."
+          />
         )}
       </div>
 
@@ -401,7 +402,7 @@ export const ExerciseLibraryScreen = () => {
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
   <div>
-    <p className="text-xs uppercase tracking-[0.08em] text-ink-muted">{label}</p>
+    <p className="eyebrow">{label}</p>
     <p className="mt-1 font-medium text-ink">{value}</p>
   </div>
 );

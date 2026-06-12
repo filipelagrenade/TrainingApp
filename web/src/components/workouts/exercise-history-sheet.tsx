@@ -1,11 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Dumbbell, TrendingUp, Trophy } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard } from "@/components/ui/metric-card";
+import { Stat } from "@/components/ui/stat";
 import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
@@ -70,11 +69,11 @@ export const ExerciseHistorySheet = ({
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-4 gap-3">
-                <MetricCard compact icon={CalendarDays} label="Sessions" value={String(progress.summary.totalSessions)} />
-                <MetricCard compact icon={Dumbbell} label="Volume" value={formatVolume(progress.summary.totalVolume, preferredUnit, { compact: true })} />
-                <MetricCard compact icon={TrendingUp} label="Best e1RM" value={progress.summary.bestEstimatedOneRepMax ? Math.round(progress.summary.bestEstimatedOneRepMax).toString() : "-"} />
-                <MetricCard compact icon={Trophy} label="PRs" value={String(progress.summary.personalRecordCount)} />
+              <div className="grid grid-cols-4 gap-3 border-y border-rule py-3">
+                <Stat compact label="Sessions" value={String(progress.summary.totalSessions)} />
+                <Stat compact label="Volume" value={formatVolume(progress.summary.totalVolume, preferredUnit, { compact: true })} />
+                <Stat compact label="Best e1RM" value={progress.summary.bestEstimatedOneRepMax ? Math.round(progress.summary.bestEstimatedOneRepMax).toString() : "-"} />
+                <Stat compact label="PRs" value={String(progress.summary.personalRecordCount)} />
               </div>
 
               {progress.estimatedOneRepMaxHistory.length > 0 && (
