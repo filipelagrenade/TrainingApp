@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Share2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,10 @@ import {
 } from "@/components/ui/dialog";
 import { MuscleMap } from "@/components/ui/muscle-map";
 import { Stat } from "@/components/ui/stat";
+import { ShareCardDialog } from "@/components/workouts/share-card-dialog";
 import { apiClient } from "@/lib/api-client";
 import { computeMuscleIntensities } from "@/lib/muscle-volume";
+import type { ShareCardData } from "@/lib/share-card";
 import type { WorkoutSessionDetail } from "@/lib/types";
 import { formatVolume, sumVolumeInKilograms } from "@/lib/units";
 import { formatDuration } from "@/lib/workout-tracking";
@@ -45,6 +47,23 @@ export const CompletedWorkoutView = ({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+
+  // The finish-flow toast deep-links here with ?share=1 to open the share
+  // card straight after completing a workout. Strip the param once consumed.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("share") === "1") {
+      setShareOpen(true);
+      params.delete("share");
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${query ? `?${query}` : ""}`,
+      );
+    }
+  }, []);
 
   const deleteMutation = useMutation({
     mutationFn: () => apiClient.deleteWorkout(session.id),
@@ -101,6 +120,34 @@ export const CompletedWorkoutView = ({
     };
   }, [session]);
 
+  const shareData = useMemo<ShareCardData>(() => {
+    const completedAt = session.completedAt ? new Date(session.completedAt) : null;
+    const dateLabel = completedAt?.toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+    const minutes = session.totalDurationSeconds
+      ? Math.max(1, Math.round(session.totalDurationSeconds / 60))
+      : null;
+
+    return {
+      heading: session.title,
+      subheading:
+        [dateLabel, minutes ? `${minutes} min` : null].filter(Boolean).join(" · ") ||
+        "Completed workout",
+      stats: [
+        { label: "Volume", value: formatVolume(stats.volume, preferredUnit) },
+        { label: "Sets", value: String(stats.sets) },
+        { label: "Reps", value: String(stats.reps) },
+        { label: "XP", value: String(session.totalXp) },
+        { label: "Duration", value: formatDuration(session.totalDurationSeconds) },
+        { label: "Exercises", value: String(stats.exercises) },
+      ],
+      highlight: stats.prs > 0 ? `${stats.prs} PR${stats.prs === 1 ? "" : "s"}` : null,
+    };
+  }, [session, stats, preferredUnit]);
+
   return (
     <div className="app-grid">
       <Card>
@@ -114,6 +161,10 @@ export const CompletedWorkoutView = ({
               </CardDescription>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={() => setShareOpen(true)}>
+                <Share2 className="h-4 w-4" />
+                Share
+              </Button>
               <Button variant="outline" onClick={onEdit}>
                 <Pencil className="h-4 w-4" />
                 Edit workout
@@ -258,6 +309,8 @@ export const CompletedWorkoutView = ({
           })}
         </CardContent>
       </Card>
+
+      <ShareCardDialog open={shareOpen} onOpenChange={setShareOpen} data={shareData} />
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>

@@ -85,7 +85,15 @@ export const FinishFlow = ({
 
   const applyCompletionSuccess = (result: CompletionResult | null) => {
     pendingCompletionLineupRef.current = null;
-    toast.success(<CompletionToast result={result} />);
+    // Non-blocking share entry point: the toast survives the navigation home
+    // and deep-links back to the completed view, which auto-opens the share
+    // card dialog when it sees ?share=1.
+    toast.success(<CompletionToast result={result} />, {
+      action: {
+        label: "Share",
+        onClick: () => router.push(`/workouts/${sessionId}?share=1`),
+      },
+    });
     setKeepChangesOpen(false);
     router.push("/");
   };

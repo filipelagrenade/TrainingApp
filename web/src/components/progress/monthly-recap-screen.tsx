@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarRange, ChevronLeft, ChevronRight, Minus, Moon, TrendingDown, TrendingUp } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, Minus, Moon, Share2, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { apiClient } from "@/lib/api-client";
 import { AuthCard } from "@/components/auth/auth-card";
@@ -15,8 +15,10 @@ import { MuscleMap } from "@/components/ui/muscle-map";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stat } from "@/components/ui/stat";
+import { ShareCardDialog } from "@/components/workouts/share-card-dialog";
 import { normalizeMuscleMeasures } from "@/lib/muscle-volume";
 import { currentMonthKey, formatDurationHoursMinutes, formatMonthKeyLabel, shiftMonthKey } from "@/lib/recap";
+import type { ShareCardData } from "@/lib/share-card";
 import type { MonthlyRecap } from "@/lib/types";
 import type { PreferredUnit } from "@/lib/units";
 import { formatVolume } from "@/lib/units";
@@ -232,6 +234,7 @@ const RecapBody = ({ recap, preferredUnit }: { recap: MonthlyRecap; preferredUni
 
 export const MonthlyRecapScreen = () => {
   const [month, setMonth] = useState(() => currentMonthKey());
+  const [shareOpen, setShareOpen] = useState(false);
   const isCurrentMonth = month === currentMonthKey();
 
   const meQuery = useQuery({
@@ -244,6 +247,33 @@ export const MonthlyRecapScreen = () => {
     queryFn: () => apiClient.getMonthlyRecap(month),
     enabled: meQuery.isSuccess,
   });
+
+  const sharePreferredUnit = meQuery.data?.user.preferredUnit ?? "kg";
+  const shareData = useMemo<ShareCardData | null>(() => {
+    const shareRecap = recapQuery.data;
+    if (!shareRecap || shareRecap.sessions === 0) {
+      return null;
+    }
+    return {
+      heading: shareRecap.monthLabel,
+      subheading: "Monthly recap",
+      stats: [
+        { label: "Workouts", value: String(shareRecap.sessions) },
+        {
+          label: "Volume",
+          value: formatVolume(shareRecap.totalVolume, sharePreferredUnit, { compact: true }),
+        },
+        { label: "Time", value: formatDurationHoursMinutes(shareRecap.totalDurationSeconds) },
+        { label: "PRs", value: String(shareRecap.prCount) },
+        { label: "Active days", value: String(shareRecap.activeDays) },
+        { label: "XP", value: String(shareRecap.xpEarned) },
+      ],
+      highlight:
+        shareRecap.prCount > 0
+          ? `${shareRecap.prCount} PR${shareRecap.prCount === 1 ? "" : "s"}`
+          : null,
+    };
+  }, [recapQuery.data, sharePreferredUnit]);
 
   if (meQuery.isLoading) {
     return (
@@ -274,6 +304,15 @@ export const MonthlyRecapScreen = () => {
         description="Your month of training, in numbers."
         actions={
           <>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label="Share recap"
+              disabled={!shareData}
+              onClick={() => setShareOpen(true)}
+            >
+              <Share2 className="h-4 w-4" />
+            </Button>
             <Button
               size="icon"
               variant="outline"
@@ -312,6 +351,10 @@ export const MonthlyRecapScreen = () => {
       ) : (
         <RecapBody recap={recap} preferredUnit={preferredUnit} />
       )}
+
+      {shareData ? (
+        <ShareCardDialog open={shareOpen} onOpenChange={setShareOpen} data={shareData} />
+      ) : null}
     </div>
   );
 };
