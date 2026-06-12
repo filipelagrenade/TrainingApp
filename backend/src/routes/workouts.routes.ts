@@ -13,6 +13,7 @@ import {
   completeWorkout,
   deleteCompletedWorkout,
   getInProgressWorkout,
+  getPreviousSets,
   getWorkout,
   listRecentWorkouts,
   pairWorkoutSuperset,
@@ -35,6 +36,7 @@ const trackingDataSchema = z.record(
 const draftSchema = z.object({
   title: z.string().min(2).max(80),
   notes: z.string().max(400).optional(),
+  formativeWeek: z.boolean().optional(),
   exercises: z.array(
     z.object({
       exerciseId: z.string().nullable(),
@@ -183,6 +185,21 @@ workoutsRouter.get("/export", async (request, response, next) => {
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.setHeader("Content-Disposition", `attachment; filename="liftiq-workouts-${stamp}.json"`);
     response.status(200).send(JSON.stringify(data, null, 2));
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.get("/previous-sets", async (request, response, next) => {
+  try {
+    const parseIds = (value: unknown) =>
+      typeof value === "string" && value.length ? value.split(",").filter(Boolean) : [];
+
+    const result = await getPreviousSets(request.currentUser!.id, {
+      exerciseIds: parseIds(request.query.exerciseIds),
+      slotIds: parseIds(request.query.slotIds),
+    });
+    sendSuccess(response, result);
   } catch (error) {
     next(error);
   }

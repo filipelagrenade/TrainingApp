@@ -14,6 +14,7 @@ import type {
   Exercise,
   ExerciseSubstitutes,
   LeaderboardEntry,
+  PreviousSetsResponse,
   ProfileView,
   Program,
   ProgramDraft,
@@ -143,6 +144,12 @@ export const apiClient = {
     }),
   getProgramProgression: (programId: string) =>
     request<ProgramProgression>(`/programs/${programId}/progression`),
+  getPreviousSets: (input: { exerciseIds: string[]; slotIds: string[] }) => {
+    const params = new URLSearchParams();
+    if (input.exerciseIds.length) params.set("exerciseIds", input.exerciseIds.join(","));
+    if (input.slotIds.length) params.set("slotIds", input.slotIds.join(","));
+    return request<PreviousSetsResponse>(`/workouts/previous-sets?${params.toString()}`);
+  },
   getExercises: () => request<Exercise[]>("/exercises"),
   getExerciseSubstitutes: (exerciseId: string) =>
     request<ExerciseSubstitutes>(`/exercises/${exerciseId}/substitutes`),

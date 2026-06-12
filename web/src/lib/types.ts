@@ -125,6 +125,26 @@ export type ProgramProgression = {
   tracks: ProgressionSlotInfo[];
 };
 
+export type PreviousSetEntry = {
+  setNumber: number;
+  weight: number | null;
+  reps: number;
+  rpe: number | null;
+  setType: WorkoutSetType;
+  isWorkingSet: boolean;
+  trackingData: WorkoutSetTrackingData | null;
+};
+
+export type PreviousSets = {
+  completedAt: string;
+  sets: PreviousSetEntry[];
+};
+
+export type PreviousSetsResponse = {
+  byExercise: Record<string, PreviousSets>;
+  bySlot: Record<string, PreviousSets>;
+};
+
 export type WorkoutSetType =
   | "NORMAL"
   | "WARMUP"

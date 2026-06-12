@@ -1907,3 +1907,110 @@ export const updateCompletedWorkout = async (
     return updated;
   });
 };
+
+export type PreviousSetEntry = {
+  setNumber: number;
+  weight: number | null;
+  reps: number;
+  rpe: number | null;
+  setType: WorkoutSetType;
+  isWorkingSet: boolean;
+  trackingData: Prisma.JsonValue | null;
+};
+
+export type PreviousSets = {
+  completedAt: string;
+  sets: PreviousSetEntry[];
+};
+
+const toPreviousSets = (
+  row: {
+    unitMode: string;
+    session: { completedAt: Date | null };
+    sets: Array<{
+      setNumber: number;
+      weight: number | null;
+      reps: number;
+      rpe: number | null;
+      setType: WorkoutSetType;
+      isWorkingSet: boolean;
+      trackingData: Prisma.JsonValue;
+    }>;
+  },
+  preferredUnit: "kg" | "lb",
+): PreviousSets => ({
+  completedAt: row.session.completedAt?.toISOString() ?? "",
+  sets: row.sets.map((set) => ({
+    setNumber: set.setNumber,
+    weight: typeof set.weight === "number" ? toPreferredUnit(set.weight, preferredUnit) : null,
+    reps: set.reps,
+    rpe: set.rpe,
+    setType: set.setType,
+    isWorkingSet: set.isWorkingSet,
+    trackingData: convertTrackingDataToPreferredUnit(
+      normalizeTrackingData(set.trackingData),
+      preferredUnit,
+    ),
+  })),
+});
+
+/**
+ * Per-set values from the most recent completed session, for the "Previous"
+ * column. Keyed both by exercise (anywhere) and by program slot, so the client
+ * can honor the previous-value scope setting.
+ */
+export const getPreviousSets = async (
+  userId: string,
+  input: { exerciseIds: string[]; slotIds: string[] },
+) => {
+  const preferredUnit = await getPreferredUnitForUser(userId);
+  const exerciseIds = [...new Set(input.exerciseIds)].slice(0, 50);
+  const slotIds = [...new Set(input.slotIds)].slice(0, 50);
+
+  const include = {
+    sets: { orderBy: { setNumber: "asc" as const } },
+    session: { select: { completedAt: true } },
+  };
+
+  const [byExerciseRows, bySlotRows] = await Promise.all([
+    Promise.all(
+      exerciseIds.map((exerciseId) =>
+        prisma.workoutExercise.findFirst({
+          where: { exerciseId, session: { userId, status: WorkoutStatus.COMPLETED } },
+          orderBy: { session: { completedAt: "desc" } },
+          include,
+        }),
+      ),
+    ),
+    Promise.all(
+      slotIds.map((slotId) =>
+        prisma.workoutExercise.findFirst({
+          where: {
+            sourceProgramExerciseId: slotId,
+            session: { userId, status: WorkoutStatus.COMPLETED },
+          },
+          orderBy: { session: { completedAt: "desc" } },
+          include,
+        }),
+      ),
+    ),
+  ]);
+
+  const byExercise: Record<string, PreviousSets> = {};
+  exerciseIds.forEach((exerciseId, index) => {
+    const row = byExerciseRows[index];
+    if (row) {
+      byExercise[exerciseId] = toPreviousSets(row, preferredUnit);
+    }
+  });
+
+  const bySlot: Record<string, PreviousSets> = {};
+  slotIds.forEach((slotId, index) => {
+    const row = bySlotRows[index];
+    if (row) {
+      bySlot[slotId] = toPreviousSets(row, preferredUnit);
+    }
+  });
+
+  return { byExercise, bySlot };
+};
