@@ -2,7 +2,7 @@ import { WorkoutStatus } from "@prisma/client";
 
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
-import type { Exercise } from "@prisma/client";
+import type { Exercise, Prisma } from "@prisma/client";
 import { sumVolumeInKilograms } from "../lib/units";
 import { getChallengeSummary } from "./challenge.service";
 
@@ -60,6 +60,8 @@ const summarizeSets = (
     bestSetLabel: bestSet?.label ?? "-",
     estimatedOneRepMax: bestSet?.estimatedOneRepMax ?? null,
     personalRecordCount: sourceSets.filter((set) => set.isPersonalRecord).length,
+    setCount: sourceSets.length,
+    repCount: sourceSets.reduce((sum, set) => sum + set.reps, 0),
   };
 };
 
@@ -442,6 +444,243 @@ export const getProgressOverview = async (userId: string) => {
     recentPrs,
     exerciseTrends,
     challengeSummary,
+  };
+};
+
+// ---------------------------------------------------------------------------
+// Monthly recap
+// ---------------------------------------------------------------------------
+
+const MONTH_KEY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+const toMonthKey = (date: Date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+
+const toDayKey = (date: Date) =>
+  `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`;
+
+// Monday 00:00 UTC of the ISO week containing the given instant.
+const isoWeekStartUtc = (date: Date) => {
+  const value = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7));
+  return value;
+};
+
+// Resolves the requested recap month (defaulting to the current month) into
+// UTC range boundaries. Future months are rejected.
+export const resolveRecapMonth = (month: string | undefined, now = new Date()) => {
+  const currentKey = toMonthKey(now);
+  const key = month ?? currentKey;
+
+  if (!MONTH_KEY_PATTERN.test(key)) {
+    throw new AppError(400, "INVALID_MONTH", "Month must use the YYYY-MM format.");
+  }
+
+  // Zero-padded YYYY-MM keys compare correctly as strings.
+  if (key > currentKey) {
+    throw new AppError(400, "FUTURE_MONTH", "Recaps are only available for past or current months.");
+  }
+
+  const [year, monthNumber] = key.split("-").map(Number);
+
+  return {
+    key,
+    monthLabel: new Date(Date.UTC(year, monthNumber - 1, 1)).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }),
+    monthStart: new Date(Date.UTC(year, monthNumber - 1, 1)),
+    nextMonthStart: new Date(Date.UTC(year, monthNumber, 1)),
+    previousMonthStart: new Date(Date.UTC(year, monthNumber - 2, 1)),
+  };
+};
+
+type RecapSession = {
+  completedAt: Date | null;
+  wasPlanned: boolean;
+  totalXp: number;
+  totalDurationSeconds: number | null;
+  exercises: Array<{
+    exerciseId: string | null;
+    exerciseName: string;
+    unitMode: string;
+    sets: Array<{
+      weight: number | null;
+      reps: number;
+      isWorkingSet: boolean;
+      isPersonalRecord?: boolean;
+      trackingData?: Prisma.JsonValue | null;
+    }>;
+  }>;
+};
+
+type RecapMuscleLookup = Map<string, { primaryMuscles: string[]; secondaryMuscles: string[] }>;
+
+// Pure aggregation over a month of completed sessions; volumes stay in kg
+// (the web client converts to the user's preferred unit for display).
+export const buildMonthlyRecapStats = (sessions: RecapSession[], muscleLookup: RecapMuscleLookup) => {
+  const activeDayKeys = new Set<string>();
+  const weekSessionCounts = new Map<string, number>();
+  const exerciseAggregates = new Map<
+    string,
+    { exerciseId: string | null; name: string; sets: number; volume: number }
+  >();
+  const muscleAggregates = new Map<string, number>();
+
+  let sessionCount = 0;
+  let plannedSessions = 0;
+  let totalVolume = 0;
+  let totalSets = 0;
+  let totalReps = 0;
+  let totalDurationSeconds = 0;
+  let xpEarned = 0;
+  let prCount = 0;
+
+  for (const session of sessions) {
+    if (!session.completedAt) {
+      continue;
+    }
+
+    sessionCount += 1;
+    plannedSessions += session.wasPlanned ? 1 : 0;
+    totalDurationSeconds += session.totalDurationSeconds ?? 0;
+    xpEarned += session.totalXp;
+    activeDayKeys.add(toDayKey(session.completedAt));
+
+    const weekKey = isoWeekStartUtc(session.completedAt).toISOString();
+    weekSessionCounts.set(weekKey, (weekSessionCounts.get(weekKey) ?? 0) + 1);
+
+    for (const exercise of session.exercises) {
+      const summary = summarizeSets(exercise.sets, exercise.unitMode);
+      totalVolume += summary.volume;
+      totalSets += summary.setCount;
+      totalReps += summary.repCount;
+      prCount += summary.personalRecordCount;
+
+      const aggregateKey = exercise.exerciseId ?? `name:${exercise.exerciseName}`;
+      const aggregate = exerciseAggregates.get(aggregateKey) ?? {
+        exerciseId: exercise.exerciseId,
+        name: exercise.exerciseName,
+        sets: 0,
+        volume: 0,
+      };
+      aggregate.sets += summary.setCount;
+      aggregate.volume += summary.volume;
+      exerciseAggregates.set(aggregateKey, aggregate);
+
+      const muscles = exercise.exerciseId ? muscleLookup.get(exercise.exerciseId) : undefined;
+      for (const muscle of muscles?.primaryMuscles ?? []) {
+        muscleAggregates.set(muscle, (muscleAggregates.get(muscle) ?? 0) + summary.volume);
+      }
+      for (const muscle of muscles?.secondaryMuscles ?? []) {
+        muscleAggregates.set(muscle, (muscleAggregates.get(muscle) ?? 0) + summary.volume * 0.5);
+      }
+    }
+  }
+
+  const bestWeek = [...weekSessionCounts.entries()].reduce<{
+    startDate: string;
+    sessions: number;
+  } | null>((best, [startDate, count]) => {
+    if (!best || count > best.sessions || (count === best.sessions && startDate < best.startDate)) {
+      return { startDate, sessions: count };
+    }
+    return best;
+  }, null);
+
+  return {
+    sessions: sessionCount,
+    plannedSessions,
+    totalVolume,
+    totalSets,
+    totalReps,
+    totalDurationSeconds,
+    xpEarned,
+    prCount,
+    activeDays: activeDayKeys.size,
+    bestWeek,
+    topExercises: [...exerciseAggregates.values()]
+      .sort((left, right) => right.volume - left.volume)
+      .slice(0, 5),
+    muscleVolumes: [...muscleAggregates.entries()]
+      .map(([muscle, volume]) => ({ muscle, volume }))
+      .sort((left, right) => right.volume - left.volume),
+  };
+};
+
+export const getMonthlyRecap = async (userId: string, month?: string) => {
+  const { key, monthLabel, monthStart, nextMonthStart, previousMonthStart } = resolveRecapMonth(month);
+
+  // One query covers the recap month plus the month before it (for deltas).
+  const sessions = await prisma.workoutSession.findMany({
+    where: {
+      userId,
+      status: WorkoutStatus.COMPLETED,
+      completedAt: {
+        gte: previousMonthStart,
+        lt: nextMonthStart,
+      },
+    },
+    include: {
+      exercises: {
+        include: {
+          sets: true,
+        },
+      },
+    },
+  });
+
+  const currentSessions = sessions.filter(
+    (session) => session.completedAt && session.completedAt >= monthStart,
+  );
+  const previousSessions = sessions.filter(
+    (session) => session.completedAt && session.completedAt < monthStart,
+  );
+
+  const exerciseIds = [
+    ...new Set(
+      currentSessions.flatMap((session) =>
+        session.exercises.flatMap((exercise) => (exercise.exerciseId ? [exercise.exerciseId] : [])),
+      ),
+    ),
+  ];
+
+  const muscleLookup: RecapMuscleLookup = exerciseIds.length
+    ? new Map(
+        (
+          await prisma.exercise.findMany({
+            where: {
+              id: {
+                in: exerciseIds,
+              },
+            },
+            select: {
+              id: true,
+              primaryMuscles: true,
+              secondaryMuscles: true,
+            },
+          })
+        ).map((exercise) => [exercise.id, exercise]),
+      )
+    : new Map();
+
+  const stats = buildMonthlyRecapStats(currentSessions, muscleLookup);
+  const previousStats = previousSessions.length
+    ? buildMonthlyRecapStats(previousSessions, new Map())
+    : null;
+
+  return {
+    month: key,
+    monthLabel,
+    ...stats,
+    previousMonth: previousStats
+      ? {
+          sessions: previousStats.sessions,
+          totalVolume: previousStats.totalVolume,
+          prCount: previousStats.prCount,
+        }
+      : null,
   };
 };
 

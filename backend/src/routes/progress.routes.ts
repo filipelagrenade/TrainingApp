@@ -1,17 +1,41 @@
 import { Router } from "express";
+import { z } from "zod";
 
+import { AppError } from "../lib/errors";
 import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
-import { getExerciseProgress, getProgressOverview } from "../services/progress.service";
+import { getExerciseProgress, getMonthlyRecap, getProgressOverview } from "../services/progress.service";
 
 const progressRouter = Router();
 
 progressRouter.use(requireAuth);
 
+const recapQuerySchema = z.object({
+  month: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Month must use the YYYY-MM format.")
+    .optional(),
+});
+
 progressRouter.get("/overview", async (request, response, next) => {
   try {
     const overview = await getProgressOverview(request.currentUser!.id);
     sendSuccess(response, overview);
+  } catch (error) {
+    next(error);
+  }
+});
+
+progressRouter.get("/recap", async (request, response, next) => {
+  try {
+    const parsed = recapQuerySchema.safeParse(request.query);
+
+    if (!parsed.success) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid query parameters", parsed.error.flatten());
+    }
+
+    const recap = await getMonthlyRecap(request.currentUser!.id, parsed.data.month);
+    sendSuccess(response, recap);
   } catch (error) {
     next(error);
   }

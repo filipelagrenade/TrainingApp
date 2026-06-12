@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, ChevronRight, Scale, TrendingUp, Trophy } from "lucide-react";
+import { BarChart3, CalendarDays, ChevronRight, Scale, TrendingUp, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -20,6 +20,7 @@ import { Stat } from "@/components/ui/stat";
 import { XpBar } from "@/components/ui/xp-bar";
 import { VolumeBarChart } from "@/components/progress/charts/volume-bar-chart";
 import { normalizeMuscleMeasures } from "@/lib/muscle-volume";
+import { currentMonthKey, formatMonthKeyLabel } from "@/lib/recap";
 import { formatVolume } from "@/lib/units";
 import {
   ChallengeBadgeToken,
@@ -240,6 +241,22 @@ export const ProgressScreen = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Link
+            href="/progress/recap"
+            className="surface-panel flex min-h-[var(--touch-min)] items-center justify-between gap-3 p-4 transition-colors hover:bg-surface-raised"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-accent">
+                <CalendarDays className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-semibold text-ink">Monthly recap</p>
+                <p className="text-sm text-ink-muted">{formatMonthKeyLabel(currentMonthKey())} recap</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+          </Link>
 
           <Link
             href="/body"

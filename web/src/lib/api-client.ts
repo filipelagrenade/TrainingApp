@@ -14,6 +14,7 @@ import type {
   Exercise,
   ExerciseSubstitutes,
   LeaderboardEntry,
+  MonthlyRecap,
   PreviousSetsResponse,
   ProfileView,
   Program,
@@ -87,6 +88,8 @@ export const apiClient = {
   getProgressOverview: () => request<ProgressOverview>("/progress/overview"),
   getExerciseProgress: (exerciseId: string) =>
     request<ExerciseProgressDetail>(`/progress/exercises/${exerciseId}`),
+  getMonthlyRecap: (month?: string) =>
+    request<MonthlyRecap>(`/progress/recap${month ? `?month=${encodeURIComponent(month)}` : ""}`),
   getMyProfile: () => request<ProfileView>("/profile/me"),
   getProfile: (userId: string) => request<ProfileView>(`/profile/${userId}`),
   updateProfileShowcase: (payload: {

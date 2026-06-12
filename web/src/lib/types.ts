@@ -721,6 +721,37 @@ export type ProgressOverview = {
   challengeSummary: ProgressChallengeSummary;
 };
 
+export type MonthlyRecapTopExercise = {
+  exerciseId: string | null;
+  name: string;
+  sets: number;
+  volume: number;
+};
+
+export type MonthlyRecapMuscleVolume = {
+  muscle: string;
+  volume: number;
+};
+
+/** Monthly training recap. All volumes are in kg; format with `formatVolume`. */
+export type MonthlyRecap = {
+  month: string;
+  monthLabel: string;
+  sessions: number;
+  plannedSessions: number;
+  totalVolume: number;
+  totalSets: number;
+  totalReps: number;
+  totalDurationSeconds: number;
+  xpEarned: number;
+  prCount: number;
+  activeDays: number;
+  bestWeek: { startDate: string; sessions: number } | null;
+  topExercises: MonthlyRecapTopExercise[];
+  muscleVolumes: MonthlyRecapMuscleVolume[];
+  previousMonth: { sessions: number; totalVolume: number; prCount: number } | null;
+};
+
 export type BodyMetricEntry = {
   id: string;
   weight: number | null;
