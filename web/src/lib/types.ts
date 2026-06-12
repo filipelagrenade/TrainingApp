@@ -436,6 +436,8 @@ export type WorkoutDraftSet = {
 };
 
 export type WorkoutDraftExercise = {
+  /** Client-only stable identity for list reordering; stripped by the server. */
+  clientKey?: string;
   exerciseId: string | null;
   exerciseName: string;
   exerciseCategory: ExerciseCategory;

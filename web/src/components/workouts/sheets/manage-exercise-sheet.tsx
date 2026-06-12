@@ -55,6 +55,7 @@ export const ManageExerciseSheet = ({
     moveExercise,
     persistExercisePreference,
     preferredUnit,
+    setExerciseUnilateral,
     updateExercise,
   } = useWorkoutEditor();
 
@@ -71,20 +72,7 @@ export const ManageExerciseSheet = ({
     : false;
   const exerciseIsUnilateral = exercise.unilateral === true;
 
-  const setUnilateral = (unilateral: boolean) => {
-    updateExercise(exerciseIndex, (current) => ({
-      ...current,
-      unilateral,
-      sets: current.sets.map((set) =>
-        (set.trackingData?.unilateral === true) === unilateral
-          ? set
-          : toggleSetUnilateral(set, current),
-      ),
-    }));
-    if (exercise.exerciseId) {
-      persistExercisePreference(exercise.exerciseId, { unilateral });
-    }
-  };
+  const setUnilateral = (unilateral: boolean) => setExerciseUnilateral(exerciseIndex, unilateral);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

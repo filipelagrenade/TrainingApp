@@ -1,7 +1,9 @@
 "use client";
 
+import { Reorder, useDragControls } from "framer-motion";
 import {
   Flame,
+  GripVertical,
   History,
   Link2,
   MoreHorizontal,
@@ -12,7 +14,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CoachChip } from "@/components/ui/coach-chip";
 import { useKeypad } from "@/components/ui/keypad-context";
@@ -34,11 +35,13 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
     openExerciseSheet,
     registerCardElement,
     removeExercise,
+    setExerciseUnilateral,
     supersetHueFor,
     unpairSuperset,
   } = useWorkoutEditor();
 
   const { closeKeypad } = useKeypad();
+  const dragControls = useDragControls();
   const [actionsOpen, setActionsOpen] = useState(false);
   const [removeArmed, setRemoveArmed] = useState(false);
   const removeTimerRef = useRef<number | null>(null);
@@ -92,16 +95,35 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
   };
 
   return (
-    <section
-      ref={(element) => registerCardElement(exerciseIndex, element)}
-      className={cn("surface-card scroll-mt-28 p-3", supersetHue !== null && "border-l-4")}
+    <Reorder.Item
+      as="section"
+      value={exercise.clientKey ?? `${exercise.exerciseName}-${exerciseIndex}`}
+      dragListener={false}
+      dragControls={dragControls}
+      whileDrag={{ scale: 1.015, zIndex: 25, boxShadow: "0 10px 30px hsl(var(--shadow-active) / 0.45)" }}
+      ref={(element: HTMLElement | null) => registerCardElement(exerciseIndex, element)}
+      className={cn(
+        "surface-card relative scroll-mt-28 p-3",
+        supersetHue !== null && "border-l-4",
+      )}
       style={
         supersetHue !== null
           ? { borderLeftColor: `hsl(${supersetHue} 70% 55%)` }
           : undefined
       }
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start gap-1.5">
+        <button
+          aria-label={`Drag to reorder ${exercise.exerciseName}`}
+          className="-ml-1.5 flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-ink-subtle active:cursor-grabbing active:text-ink"
+          type="button"
+          onPointerDown={(event) => {
+            closeKeypad();
+            dragControls.start(event);
+          }}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-display text-lg font-semibold tracking-editorial text-ink">
             {exercise.exerciseName}
@@ -124,10 +146,25 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {exerciseIsUnilateral ? (
-            <Badge variant="outline" className="px-2 py-0 text-[10px]">
+          {!isCardio ? (
+            <Button
+              aria-label={
+                exerciseIsUnilateral
+                  ? `Switch ${exercise.exerciseName} to bilateral`
+                  : `Switch ${exercise.exerciseName} to unilateral (left/right)`
+              }
+              aria-pressed={exerciseIsUnilateral}
+              className={cn(
+                "h-8 px-2 text-[11px] font-semibold",
+                exerciseIsUnilateral && "border-accent bg-accent-soft text-accent",
+              )}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => setExerciseUnilateral(exerciseIndex, !exerciseIsUnilateral)}
+            >
               L/R
-            </Badge>
+            </Button>
           ) : null}
           <Button
             aria-expanded={actionsOpen}
@@ -270,6 +307,6 @@ export const ExerciseCard = ({ exerciseIndex }: { exerciseIndex: number }) => {
           </Button>
         ) : null}
       </div>
-    </section>
+    </Reorder.Item>
   );
 };

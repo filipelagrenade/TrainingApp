@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Reorder } from "framer-motion";
 import { Plus, Sparkles } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -26,7 +27,7 @@ import type {
   WorkoutDraftExercise,
   WorkoutSetTrackingData,
 } from "@/lib/types";
-import { deriveNormalizedWeight } from "@/lib/workout-tracking";
+import { deriveNormalizedWeight, toggleSetUnilateral } from "@/lib/workout-tracking";
 
 import { CompletedWorkoutView } from "./completed-workout-view";
 import { ExerciseCard } from "./exercise-card";
@@ -499,6 +500,49 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     [draftApi],
   );
 
+  const reorderExercises = useCallback(
+    (orderedClientKeys: string[]) => {
+      draftApi.ensureWorkoutResumed();
+      draftApi.setDraft((current) => {
+        if (!current || current.exercises.length !== orderedClientKeys.length) {
+          return current;
+        }
+
+        const byKey = new Map(
+          current.exercises.map((exercise) => [exercise.clientKey ?? "", exercise]),
+        );
+        const reordered = orderedClientKeys.map((key) => byKey.get(key));
+
+        if (reordered.some((exercise) => exercise === undefined)) {
+          return current;
+        }
+
+        return { ...current, exercises: reordered as typeof current.exercises };
+      });
+      // Per-exercise sheets are closed while dragging, so no index fixup needed here.
+    },
+    [draftApi],
+  );
+
+  const setExerciseUnilateral = useCallback(
+    (exerciseIndex: number, unilateral: boolean) => {
+      const target = draftApi.draft?.exercises[exerciseIndex];
+      draftApi.updateExercise(exerciseIndex, (current) => ({
+        ...current,
+        unilateral,
+        sets: current.sets.map((set) =>
+          (set.trackingData?.unilateral === true) === unilateral
+            ? set
+            : toggleSetUnilateral(set, current),
+        ),
+      }));
+      if (target?.exerciseId) {
+        persistExercisePreference(target.exerciseId, { unilateral });
+      }
+    },
+    [draftApi, persistExercisePreference],
+  );
+
   // ---- Loading / completed routing ----------------------------------------------
   if (sessionQuery.isError) {
     return (
@@ -560,6 +604,8 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     applySuggestedWeight: draftApi.applySuggestedWeight,
     removeExercise,
     moveExercise,
+    reorderExercises,
+    setExerciseUnilateral,
     restTimer,
     openExerciseSheet: (kind, index) => setExerciseSheet({ kind, index }),
     openPlateCalc: (exerciseIndex, setIndex) => setPlateCalc({ exerciseIndex, setIndex }),
@@ -614,9 +660,20 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
               </div>
             ) : null}
 
-            {draft.exercises.map((exercise, index) => (
-              <ExerciseCard key={`${exercise.exerciseName}-${index}`} exerciseIndex={index} />
-            ))}
+            <Reorder.Group
+              axis="y"
+              as="div"
+              className="space-y-3"
+              values={draft.exercises.map((exercise) => exercise.clientKey ?? "")}
+              onReorder={reorderExercises}
+            >
+              {draft.exercises.map((exercise, index) => (
+                <ExerciseCard
+                  key={exercise.clientKey ?? `${exercise.exerciseName}-${index}`}
+                  exerciseIndex={index}
+                />
+              ))}
+            </Reorder.Group>
 
             {draft.exercises.length === 0 ? (
               <EmptyState

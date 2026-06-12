@@ -60,6 +60,24 @@ const applyPreferenceToDraft = (
   return syncAdvancedSetTracking(next);
 };
 
+let clientKeyCounter = 0;
+const nextClientKey = () => `ex-${Date.now().toString(36)}-${(clientKeyCounter += 1)}`;
+
+// Stable per-exercise identity for drag-reorder. Server drafts and freshly
+// added exercises arrive without keys; assign them without cloning the rest.
+const withClientKeys = (draft: WorkoutDraft | null): WorkoutDraft | null => {
+  if (!draft || draft.exercises.every((exercise) => exercise.clientKey)) {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    exercises: draft.exercises.map((exercise) =>
+      exercise.clientKey ? exercise : { ...exercise, clientKey: nextClientKey() },
+    ),
+  };
+};
+
 export const useWorkoutDraft = ({
   sessionId,
   session,
@@ -73,7 +91,14 @@ export const useWorkoutDraft = ({
   resumePending: boolean;
   autosavePaused: boolean;
 }) => {
-  const [draft, setDraft] = useState<WorkoutDraft | null>(null);
+  const [draft, setDraftRaw] = useState<WorkoutDraft | null>(null);
+  const setDraft: typeof setDraftRaw = useCallback(
+    (action) =>
+      setDraftRaw((current) =>
+        withClientKeys(typeof action === "function" ? action(current) : action),
+      ),
+    [],
+  );
   const [syncState, setSyncState] = useState<SyncState>("synced");
 
   const hydratedRef = useRef(false);

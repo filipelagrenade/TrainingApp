@@ -70,6 +70,10 @@ export type WorkoutEditorContextValue = {
   applySuggestedWeight: (exerciseIndex: number) => void;
   removeExercise: (exerciseIndex: number) => void;
   moveExercise: (fromIndex: number, toIndex: number) => void;
+  /** Reorders the exercise list to match the given clientKey order (drag handle). */
+  reorderExercises: (orderedClientKeys: string[]) => void;
+  /** Exercise-level unilateral toggle: flips all sets and persists the sticky pref. */
+  setExerciseUnilateral: (exerciseIndex: number, unilateral: boolean) => void;
   restTimer: RestTimerApi;
   openExerciseSheet: (kind: ExerciseSheetKind, exerciseIndex: number) => void;
   openPlateCalc: (exerciseIndex: number, setIndex: number) => void;
