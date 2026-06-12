@@ -106,6 +106,7 @@ export type UserExercisePreference = {
   unilateral: boolean | null;
   trackingMode: TrackingMode | null;
   barWeight: number | null;
+  restSeconds: number | null;
 };
 
 export type ProgressionSlotInfo = {
@@ -451,6 +452,8 @@ export type WorkoutDraftExercise = {
   unilateral?: boolean;
   notes?: string;
   prescribedSetCount?: number | null;
+  /** Per-exercise rest override in seconds; null/undefined falls back to global settings. */
+  restSeconds?: number | null;
   repMin?: number | null;
   repMax?: number | null;
   suggestedWeight?: number | null;

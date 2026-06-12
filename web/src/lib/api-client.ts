@@ -132,6 +132,7 @@ export const apiClient = {
       unilateral?: boolean | null;
       trackingMode?: TrackingMode | null;
       barWeight?: number | null;
+      restSeconds?: number | null;
     },
   ) =>
     request<{ preference: UserExercisePreference }>(`/exercises/${exerciseId}/preference`, {

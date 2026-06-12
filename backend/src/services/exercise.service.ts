@@ -290,6 +290,7 @@ export type ExercisePreferenceInput = {
   unilateral?: boolean | null;
   trackingMode?: TrackingMode | null;
   barWeight?: number | null;
+  restSeconds?: number | null;
 };
 
 export const listUserExercisePreferences = async (userId: string) =>
@@ -334,6 +335,7 @@ export const upsertUserExercisePreference = async (
     ...(input.unilateral !== undefined ? { unilateral: input.unilateral } : {}),
     ...(input.trackingMode !== undefined ? { trackingMode: input.trackingMode } : {}),
     ...(input.barWeight !== undefined ? { barWeight: input.barWeight } : {}),
+    ...(input.restSeconds !== undefined ? { restSeconds: input.restSeconds } : {}),
   };
 
   return prisma.userExercisePreference.upsert({

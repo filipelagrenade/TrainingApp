@@ -2,10 +2,12 @@
 
 import { ArrowDown, ArrowUp } from "lucide-react";
 
+import { RestControl } from "@/components/programs/prescription-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NullableNumberInput } from "@/components/ui/nullable-number-input";
+import { Segmented } from "@/components/ui/segmented";
 import {
   Select,
   SelectContent,
@@ -56,6 +58,7 @@ export const ManageExerciseSheet = ({
     persistExercisePreference,
     preferredUnit,
     setExerciseUnilateral,
+    settings,
     updateExercise,
   } = useWorkoutEditor();
 
@@ -73,6 +76,16 @@ export const ManageExerciseSheet = ({
   const exerciseIsUnilateral = exercise.unilateral === true;
 
   const setUnilateral = (unilateral: boolean) => setExerciseUnilateral(exerciseIndex, unilateral);
+
+  const restOverride = exercise.restSeconds ?? null;
+
+  /** Updates the draft and persists the sticky preference (null clears the override). */
+  const setRestOverride = (value: number | null) => {
+    updateExercise(exerciseIndex, (current) => ({ ...current, restSeconds: value }));
+    if (exercise.exerciseId) {
+      persistExercisePreference(exercise.exerciseId, { restSeconds: value });
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -243,6 +256,42 @@ export const ManageExerciseSheet = ({
                 </div>
               ) : null}
             </div>
+
+            {!isCardio ? (
+              <div className="space-y-2">
+                <Label>Rest between sets</Label>
+                <Segmented
+                  size="sm"
+                  options={[
+                    { value: "default", label: "Default" },
+                    { value: "override", label: "Override" },
+                  ]}
+                  value={restOverride === null ? "default" : "override"}
+                  onChange={(next) =>
+                    setRestOverride(
+                      next === "default" ? null : restOverride ?? settings.rest.workingSeconds,
+                    )
+                  }
+                />
+                {restOverride !== null ? (
+                  <>
+                    <RestControl
+                      key={exercise.clientKey ?? String(exerciseIndex)}
+                      value={restOverride}
+                      onChange={setRestOverride}
+                    />
+                    <p className="text-xs text-ink-muted">
+                      Remembered for this exercise in future workouts.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-ink-muted">
+                    Uses your rest timer setting ({settings.rest.workingSeconds}s after working
+                    sets).
+                  </p>
+                )}
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label>Notes</Label>

@@ -43,6 +43,7 @@ const preferenceSchema = z.object({
   unilateral: z.boolean().nullable().optional(),
   trackingMode: z.nativeEnum(TrackingMode).nullable().optional(),
   barWeight: z.number().positive().max(100).nullable().optional(),
+  restSeconds: z.number().int().min(5).max(900).nullable().optional(),
 });
 
 exercisesRouter.use(requireAuth);

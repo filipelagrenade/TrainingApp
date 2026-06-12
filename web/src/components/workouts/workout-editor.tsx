@@ -433,8 +433,12 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
       if (!restSuppressed && settings.rest.autoStart && exercise.exerciseCategory !== "CARDIO") {
         const isWorking = set.isWorkingSet !== false && set.setType !== "WARMUP";
+        // Per-exercise rest override beats the global setting for working sets;
+        // warm-ups always use the global warm-up rest.
         restTimer.start(
-          isWorking ? settings.rest.workingSeconds : settings.rest.warmupSeconds,
+          isWorking
+            ? exercise.restSeconds ?? settings.rest.workingSeconds
+            : settings.rest.warmupSeconds,
           exercise.exerciseName,
         );
       }

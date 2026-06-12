@@ -32,7 +32,7 @@ import type { SyncState } from "../workout-editor-context";
 
 const AUTOSAVE_DEBOUNCE_MS = 700;
 
-/** Applies sticky user exercise preferences (tracking mode, unilateral) to a fresh draft. */
+/** Applies sticky user exercise preferences (tracking mode, unilateral, rest) to a fresh draft. */
 const applyPreferenceToDraft = (
   exercise: WorkoutDraftExercise,
   preference: UserExercisePreference | undefined,
@@ -45,6 +45,10 @@ const applyPreferenceToDraft = (
 
   if (preference.trackingMode && preference.trackingMode !== next.trackingMode) {
     next = changeExerciseTrackingMode(next, preference.trackingMode);
+  }
+
+  if (typeof preference.restSeconds === "number" && next.restSeconds == null) {
+    next = { ...next, restSeconds: preference.restSeconds };
   }
 
   if (preference.unilateral === true && next.exerciseCategory !== "CARDIO") {

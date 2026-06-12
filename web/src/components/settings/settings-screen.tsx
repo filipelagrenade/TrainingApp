@@ -51,6 +51,9 @@ const describePreference = (preference: UserExercisePreference): string => {
   if (preference.barWeight !== null) {
     parts.push(`Bar weight ${preference.barWeight}`);
   }
+  if (typeof preference.restSeconds === "number") {
+    parts.push(`Rest ${formatSeconds(preference.restSeconds)}`);
+  }
   return parts.length ? parts.join(" • ") : "Customised mid-workout";
 };
 

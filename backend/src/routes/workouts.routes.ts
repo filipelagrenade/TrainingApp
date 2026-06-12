@@ -52,6 +52,7 @@ const draftSchema = z.object({
       unilateral: z.boolean().optional(),
       notes: z.string().max(300).optional(),
       prescribedSetCount: z.coerce.number().int().nullable().optional(),
+      restSeconds: z.coerce.number().int().min(5).max(900).nullable().optional(),
       repMin: z.coerce.number().int().nullable().optional(),
       repMax: z.coerce.number().int().nullable().optional(),
       suggestedWeight: z.coerce.number().nullable().optional(),

@@ -64,6 +64,7 @@ type WorkoutDraftExercise = {
   unilateral?: boolean;
   notes?: string;
   prescribedSetCount?: number | null;
+  restSeconds?: number | null;
   repMin?: number | null;
   repMax?: number | null;
   suggestedWeight?: number | null;
@@ -86,6 +87,23 @@ export type WorkoutDraft = {
 };
 
 type WorkoutSessionRecord = Prisma.WorkoutSessionGetPayload<Record<string, never>>;
+
+/** Prisma schema default for ProgramWorkoutExercise/TemplateExercise.restSeconds. */
+const DEFAULT_SLOT_REST_SECONDS = 120;
+
+/**
+ * Slot rest prescription wins over the user's sticky exercise preference.
+ * Trade-off: the schema default of 120 is indistinguishable from an explicit
+ * 120s prescription, so when the slot value is exactly 120 AND a preference
+ * exists, the preference wins — explicit-looking (non-120) values always win.
+ */
+const resolveDraftRestSeconds = (
+  slotRestSeconds: number,
+  preferenceRestSeconds: number | null | undefined,
+): number =>
+  slotRestSeconds === DEFAULT_SLOT_REST_SECONDS && typeof preferenceRestSeconds === "number"
+    ? preferenceRestSeconds
+    : slotRestSeconds;
 
 const BASE_WORKOUT_XP = 100;
 const PR_XP = 40;
@@ -244,6 +262,7 @@ const buildProgramDraft = async (
           unilateral: exercise.unilateral || preference?.unilateral === true,
           notes: exercise.notes ?? undefined,
           prescribedSetCount: exercise.sets,
+          restSeconds: resolveDraftRestSeconds(exercise.restSeconds, preference?.restSeconds),
           repMin: exercise.repMin,
           repMax: exercise.repMax,
           suggestedWeight: recommendation.weight,
@@ -340,6 +359,7 @@ const buildTemplateDraft = async (
       unilateral: exercise.unilateral || preference?.unilateral === true,
       notes: exercise.notes ?? undefined,
       prescribedSetCount: exercise.sets,
+      restSeconds: resolveDraftRestSeconds(exercise.restSeconds, preference?.restSeconds),
       repMin: exercise.repMin,
       repMax: exercise.repMax,
       suggestedWeight: exercise.startWeight,

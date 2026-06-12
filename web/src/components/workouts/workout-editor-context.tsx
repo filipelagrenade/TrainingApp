@@ -36,6 +36,7 @@ export type ExercisePreferencePayload = {
   unilateral?: boolean | null;
   trackingMode?: TrackingMode | null;
   barWeight?: number | null;
+  restSeconds?: number | null;
 };
 
 export type WorkoutEditorContextValue = {
