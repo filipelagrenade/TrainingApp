@@ -29,8 +29,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FAFAFA",
+  themeColor: "#0A0B12",
 };
+
+// Applies the stored theme before first paint so light-theme users don't get
+// a dark flash (the provider takes over after hydration).
+const themeInitScript = `(function(){try{var t=localStorage.getItem("liftiq-theme");document.documentElement.dataset.theme=t==="light"||t==="paper"||t==="bone"||t==="warm-lift"||t==="neon-gym"?"light":"dark";}catch(e){}})()`;
 
 export default function RootLayout({
   children,
@@ -38,7 +42,10 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="paper">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className={`${sansFont.variable} ${displayFont.variable} ${monoFont.variable} antialiased`}
       >
