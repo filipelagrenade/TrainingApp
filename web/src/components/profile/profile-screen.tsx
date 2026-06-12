@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { ArrowRight, Copy, Sparkles, Trophy } from "lucide-react";
+import { ArrowRight, Copy, Medal, Trophy } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -16,14 +16,19 @@ import {
   getChallengeIcon,
   getChallengeRankLabel,
 } from "@/components/challenges/challenge-ui";
-import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard } from "@/components/ui/metric-card";
-import { ScreenHero } from "@/components/ui/screen-hero";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { XpBar } from "@/components/ui/xp-bar";
+
+/** Mirrors backend `levelFromXp` (gamification.service.ts): level = floor(xp / 600) + 1. */
+const XP_PER_LEVEL = 600;
 
 export const ProfileScreen = ({ userId }: { userId?: string }) => {
   const params = useParams<{ userId?: string }>();
@@ -67,11 +72,10 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
 
   if (meQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-72" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-72" />
+      </div>
     );
   }
 
@@ -83,21 +87,23 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
     );
   }
 
+  if (profileQuery.isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Profile" title="Profile" backHref="/social" />
+        <ErrorState
+          title="Couldn't load this profile"
+          onRetry={() => void profileQuery.refetch()}
+        />
+      </div>
+    );
+  }
+
   if (profileQuery.isLoading || !profileQuery.data) {
     return (
-      <div className="app-grid">
-        <ScreenHero
-          eyebrow="Profile"
-          title="Profile"
-          actions={<BackButton fallbackHref="/social" />}
-          stats={
-            <>
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-            </>
-          }
-        />
+      <div className="space-y-6">
+        <PageHeader eyebrow="Profile" title="Profile" backHref="/social" />
+        <Skeleton className="h-32" />
         <Skeleton className="h-64" />
       </div>
     );
@@ -108,44 +114,44 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
   const featured = profile.showcase.featuredFamilies;
   const selectableTitles = profile.showcase.unlockedTitles;
   const selectableBadges = profile.showcase.unlockedBadges;
+  const xpIntoLevel = Math.min(
+    XP_PER_LEVEL,
+    Math.max(0, user.xpTotal - (user.level - 1) * XP_PER_LEVEL),
+  );
 
   return (
-    <div className="app-grid">
-      <ScreenHero
-        eyebrow="Profile"
-        title={user.displayName}
-        actions={<BackButton fallbackHref="/social" />}
-        stats={
-          <>
-            <MetricCard icon={Sparkles} label="Level" value={String(user.level)} />
-            <MetricCard icon={Trophy} label="XP" value={String(user.xpTotal)} />
-            <MetricCard icon={Trophy} label="Featured ranks" value={String(featured.length)} />
-          </>
-        }
-      />
+    <div className="space-y-6">
+      <PageHeader eyebrow="Profile" title={user.displayName} backHref="/social" />
 
-      <Card>
-        <CardHeader className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
-            {user.selectedBadgeLabel ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-rule bg-surface px-3 py-1.5 text-sm">
-                <ChallengeBadgeToken
-                  iconKey={user.selectedBadgeIconKey ?? "award"}
-                  rank={featured[0]?.currentRank ?? null}
-                  className="h-7 w-7"
-                />
-                <span>{user.selectedBadgeLabel}</span>
-              </div>
-            ) : null}
-            {!user.selectedTitleLabel && !user.selectedBadgeLabel ? (
-              <Badge variant="outline">No showcase rewards selected yet</Badge>
-            ) : null}
+      {/* Level + XP header — the only gradient surface on this screen (XpBar) */}
+      <Card className="space-y-4 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="eyebrow">Level</p>
+            <p className="num text-3xl font-bold leading-tight text-ink">{user.level}</p>
           </div>
-          <CardDescription>
-            Featured challenge ranks and unlocked showcase rewards.
-          </CardDescription>
-        </CardHeader>
+          <div className="grid grid-cols-2 gap-6 text-right">
+            <Stat label="Total XP" value={user.xpTotal.toLocaleString()} />
+            <Stat label="Featured" value={String(featured.length)} hint="ranks" />
+          </div>
+        </div>
+        <XpBar value={xpIntoLevel} max={XP_PER_LEVEL} label={`To level ${user.level + 1}`} />
+        <div className="flex flex-wrap items-center gap-2">
+          {user.selectedTitleLabel ? <Badge variant="secondary">{user.selectedTitleLabel}</Badge> : null}
+          {user.selectedBadgeLabel ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-rule bg-surface px-3 py-1.5 text-sm">
+              <ChallengeBadgeToken
+                iconKey={user.selectedBadgeIconKey ?? "award"}
+                rank={featured[0]?.currentRank ?? null}
+                className="h-7 w-7"
+              />
+              <span className="text-ink">{user.selectedBadgeLabel}</span>
+            </div>
+          ) : null}
+          {!user.selectedTitleLabel && !user.selectedBadgeLabel ? (
+            <Badge variant="outline">No showcase rewards selected yet</Badge>
+          ) : null}
+        </div>
       </Card>
 
       <Card>
@@ -164,10 +170,8 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-ink">{family.title}</p>
-                      <p className="text-sm text-ink-muted">
-                        {family.progress} progress
-                      </p>
+                      <p className="truncate font-semibold text-ink">{family.title}</p>
+                      <p className="num text-sm text-ink-muted">{family.progress} progress</p>
                     </div>
                   </div>
                   <ChallengeRankBadge rank={family.currentRank} />
@@ -175,9 +179,11 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
               );
             })
           ) : (
-            <div className="surface-panel-soft p-4 text-sm text-ink-muted">
-              Start training and the strongest ranks will appear here.
-            </div>
+            <EmptyState
+              icon={Trophy}
+              title="No featured ranks yet"
+              description="Start training and the strongest ranks will appear here."
+            />
           )}
         </CardContent>
       </Card>
@@ -194,15 +200,13 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
 
               return (
                 <div key={`${unlock.familyId}-${unlock.rank}`} className="surface-panel-soft flex items-center justify-between gap-3 p-4">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-accent">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-ink">{unlock.familyTitle}</p>
-                      <p className="text-sm text-ink-muted">
-                        {getChallengeRankLabel(unlock.rank)}
-                      </p>
+                      <p className="truncate font-semibold text-ink">{unlock.familyTitle}</p>
+                      <p className="text-sm text-ink-muted">{getChallengeRankLabel(unlock.rank)}</p>
                     </div>
                   </div>
                   <ChallengeRankBadge rank={unlock.rank} />
@@ -210,9 +214,11 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
               );
             })
           ) : (
-            <div className="surface-panel-soft p-4 text-sm text-ink-muted">
-              Tier-ups will appear here once the challenge ladder starts moving.
-            </div>
+            <EmptyState
+              icon={Medal}
+              title="No tier-ups yet"
+              description="Tier-ups will appear here once the challenge ladder starts moving."
+            />
           )}
         </CardContent>
       </Card>
@@ -225,11 +231,11 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
           </CardHeader>
           <CardContent className="space-y-3">
             {profile.copyablePrograms.map((program) => (
-              <div key={program.id} className="flex items-center justify-between gap-3 rounded-md border border-rule bg-surface p-4">
+              <div key={program.id} className="surface-panel flex items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="font-semibold text-ink">{program.name}</p>
                   <p className="mt-0.5 text-sm text-ink-muted">
-                    {program.goal} • {program.weekCount} weeks
+                    {program.goal} · <span className="num">{program.weekCount}</span> weeks
                   </p>
                   {program.description ? (
                     <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{program.description}</p>
@@ -238,10 +244,11 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-11 shrink-0"
                   onClick={() => copyProgramMutation.mutate(program.id)}
                   disabled={copyProgramMutation.isPending}
                 >
-                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  <Copy className="h-3.5 w-3.5" />
                   Copy
                 </Button>
               </div>
@@ -253,13 +260,13 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
       {profile.editable ? (
         <Link
           href="/achievements"
-          className="flex items-center justify-between rounded-md border border-rule px-4 py-4 transition-colors hover:bg-surface-sunken"
+          className="surface-panel flex min-h-[var(--touch-min)] items-center justify-between gap-3 px-4 py-4 transition-colors hover:bg-surface-sunken"
         >
           <div>
             <p className="font-display font-semibold text-ink">Achievements</p>
             <p className="text-sm text-ink-muted">Full challenge library and progress tracking</p>
           </div>
-          <ArrowRight className="h-4 w-4 text-ink-muted shrink-0" />
+          <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted" />
         </Link>
       ) : null}
 
@@ -280,6 +287,7 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
                   active={!user.selectedTitleKey}
                   label="No title"
                   helper="Show nothing for the profile title."
+                  disabled={showcaseMutation.isPending}
                   onClick={() => showcaseMutation.mutate({ selectedTitleKey: null })}
                 />
                 {selectableTitles.map((title: ChallengeRewardItem) => (
@@ -287,7 +295,8 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
                     key={title.key}
                     active={user.selectedTitleKey === title.key}
                     label={title.label}
-                    helper={`${title.familyTitle} • ${getChallengeRankLabel(title.rank)}`}
+                    helper={`${title.familyTitle} · ${getChallengeRankLabel(title.rank)}`}
+                    disabled={showcaseMutation.isPending}
                     onClick={() => showcaseMutation.mutate({ selectedTitleKey: title.key })}
                   />
                 ))}
@@ -297,6 +306,7 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
                   active={!user.selectedBadgeKey}
                   label="No badge"
                   helper="Show nothing for the profile badge."
+                  disabled={showcaseMutation.isPending}
                   onClick={() => showcaseMutation.mutate({ selectedBadgeKey: null })}
                 />
                 {selectableBadges.map((badge: ChallengeRewardItem) => (
@@ -304,9 +314,10 @@ export const ProfileScreen = ({ userId }: { userId?: string }) => {
                     key={badge.key}
                     active={user.selectedBadgeKey === badge.key}
                     label={badge.label}
-                    helper={`${badge.familyTitle} • ${getChallengeRankLabel(badge.rank)}`}
+                    helper={`${badge.familyTitle} · ${getChallengeRankLabel(badge.rank)}`}
                     iconKey={badge.iconKey}
                     rank={badge.rank}
+                    disabled={showcaseMutation.isPending}
                     onClick={() => showcaseMutation.mutate({ selectedBadgeKey: badge.key })}
                   />
                 ))}
@@ -325,6 +336,7 @@ const ShowcaseChoice = ({
   helper,
   iconKey,
   rank,
+  disabled,
   onClick,
 }: {
   active: boolean;
@@ -332,23 +344,25 @@ const ShowcaseChoice = ({
   helper: string;
   iconKey?: string | null;
   rank?: ChallengeFamily["currentRank"];
+  disabled?: boolean;
   onClick: () => void;
 }) => (
   <button
     type="button"
     onClick={onClick}
+    disabled={disabled}
     aria-pressed={active}
-    className={`surface-panel-soft flex w-full items-center justify-between gap-3 p-4 text-left transition-colors ${
-      active ? "border-rule-strong bg-surface-sunken" : ""
+    className={`surface-panel-soft flex min-h-[var(--touch-min)] w-full items-center justify-between gap-3 p-4 text-left transition-colors disabled:opacity-60 ${
+      active ? "border-rule-strong bg-surface-sunken" : "hover:border-rule-strong"
     }`}
   >
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center gap-2">
         {iconKey ? <ChallengeBadgeToken iconKey={iconKey} rank={rank ?? null} className="h-7 w-7" /> : null}
-        <p className="font-semibold text-ink">{label}</p>
+        <p className="truncate font-semibold text-ink">{label}</p>
       </div>
       <p className="text-sm text-ink-muted">{helper}</p>
     </div>
-    {active ? <Badge>Selected</Badge> : <Badge variant="outline">Choose</Badge>}
+    {active ? <Badge variant="pr">Selected</Badge> : <Badge variant="outline">Choose</Badge>}
   </button>
 );

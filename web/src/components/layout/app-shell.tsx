@@ -19,7 +19,7 @@ export const AppShell = ({
     <ContextStrip />
     <BuildBadge />
     {showBell ? (
-      <div className="fixed right-4 top-0 z-40 flex h-9 items-center">
+      <div className="fixed right-4 top-0 z-40 flex h-11 items-center">
         <NotificationBell />
       </div>
     ) : null}

@@ -49,24 +49,33 @@ const rankLabelMap: Record<ChallengeRank, string> = {
   GOD: "God",
 };
 
-const rankClassMap: Record<ChallengeRank, string> = {
-  ROOKIE: "border-zinc-500/40 bg-zinc-500/15 text-zinc-100",
-  REGULAR: "border-sky-400/45 bg-sky-400/18 text-sky-50",
-  DEDICATED: "border-emerald-400/45 bg-emerald-400/18 text-emerald-50",
-  SERIOUS: "border-violet-400/45 bg-violet-400/18 text-violet-50",
-  SAVAGE: "border-rose-400/50 bg-rose-400/20 text-rose-50",
-  TITAN: "border-amber-300/55 bg-amber-300/20 text-amber-50",
-  GOD: "border-fuchsia-300/60 bg-fuchsia-400/24 text-fuchsia-50",
+/**
+ * Token-only rank bands (no raw palette colors):
+ * - low ranks (Rookie/Regular) stay quiet — rules + muted ink
+ * - mid ranks (Dedicated/Serious/Savage) adopt the accent at rising strength
+ * - top ranks (Titan/God) are tier-celebration surfaces, the one legal home
+ *   of the progression gradient on these screens.
+ */
+const GRADIENT_RANKS: ReadonlySet<ChallengeRank> = new Set(["TITAN", "GOD"]);
+
+const rankBadgeClassMap: Record<ChallengeRank, string> = {
+  ROOKIE: "border-rule bg-surface-sunken text-ink-muted",
+  REGULAR: "border-rule-strong bg-surface-sunken text-ink-soft",
+  DEDICATED: "border-accent/30 bg-accent-soft text-accent",
+  SERIOUS: "border-accent/50 bg-accent-soft text-accent",
+  SAVAGE: "border-accent bg-accent-soft text-accent",
+  TITAN: "border-pr/40 bg-pr-soft",
+  GOD: "border-pr/60 bg-pr-soft",
 };
 
 const rankTokenClassMap: Record<ChallengeRank, string> = {
-  ROOKIE: "border-zinc-400/65 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_56%),linear-gradient(135deg,rgba(113,113,122,0.72),rgba(24,24,27,0.96))] text-zinc-50 shadow-[0_0_22px_rgba(63,63,70,0.42)]",
-  REGULAR: "border-sky-300/70 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.2),_transparent_56%),linear-gradient(135deg,rgba(56,189,248,0.82),rgba(12,74,110,0.98))] text-sky-50 shadow-[0_0_26px_rgba(56,189,248,0.44)]",
-  DEDICATED: "border-emerald-300/70 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.2),_transparent_56%),linear-gradient(135deg,rgba(52,211,153,0.82),rgba(6,78,59,0.98))] text-emerald-50 shadow-[0_0_26px_rgba(52,211,153,0.44)]",
-  SERIOUS: "border-violet-300/75 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.2),_transparent_56%),linear-gradient(135deg,rgba(192,132,252,0.84),rgba(76,29,149,0.98))] text-violet-50 shadow-[0_0_28px_rgba(168,85,247,0.48)]",
-  SAVAGE: "border-rose-300/80 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.2),_transparent_56%),linear-gradient(135deg,rgba(251,113,133,0.9),rgba(159,18,57,0.98))] text-rose-50 shadow-[0_0_32px_rgba(244,63,94,0.52)]",
-  TITAN: "border-amber-200/85 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.24),_transparent_56%),linear-gradient(135deg,rgba(251,191,36,0.92),rgba(154,52,18,0.98))] text-amber-50 shadow-[0_0_32px_rgba(251,191,36,0.56)]",
-  GOD: "border-fuchsia-200/90 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.3),_transparent_56%),linear-gradient(135deg,rgba(244,114,182,0.94),rgba(147,51,234,0.88),rgba(34,211,238,0.82))] text-white shadow-[0_0_36px_rgba(232,121,249,0.62)]",
+  ROOKIE: "border-rule bg-surface-sunken text-ink-muted",
+  REGULAR: "border-rule-strong bg-surface-sunken text-ink-soft",
+  DEDICATED: "border-accent/30 bg-accent-soft text-accent",
+  SERIOUS: "border-accent/50 bg-accent-soft text-accent",
+  SAVAGE: "border-accent bg-accent-soft text-accent",
+  TITAN: "border-transparent bg-progression-gradient text-accent-foreground",
+  GOD: "border-transparent bg-progression-gradient text-accent-foreground ring-2 ring-pr/40 ring-offset-2 ring-offset-surface",
 };
 
 export const getChallengeIcon = (iconKey: string): LucideIcon => iconMap[iconKey] ?? Shield;
@@ -81,9 +90,7 @@ export const formatChallengeUnit = (
 ) => `${value} ${value === 1 ? unitSingular : unitPlural}`;
 
 export const getChallengeTokenClasses = (rank: ChallengeRank | null) =>
-  rank
-    ? rankTokenClassMap[rank]
-    : "border-rule bg-surface text-ink-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
+  rank ? rankTokenClassMap[rank] : "border-rule bg-surface text-ink-muted";
 
 export const ChallengeRankBadge = ({
   rank,
@@ -103,12 +110,14 @@ export const ChallengeRankBadge = ({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
-        rankClassMap[rank],
+        "inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.08em]",
+        rankBadgeClassMap[rank],
         className,
       )}
     >
-      {rankLabelMap[rank]}
+      <span className={GRADIENT_RANKS.has(rank) ? "text-progression-gradient" : undefined}>
+        {rankLabelMap[rank]}
+      </span>
     </div>
   );
 };
@@ -132,11 +141,8 @@ export const ChallengeToken = ({
         className,
       )}
     >
-      <div className="absolute inset-[5px] rounded-full border border-white/20" />
-      <div className="absolute inset-[11px] rounded-full bg-black/18" />
-      <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]">
-        <Icon className="h-7 w-7" />
-      </div>
+      <div aria-hidden className="absolute inset-1.5 rounded-full border border-current opacity-20" />
+      <Icon className="h-8 w-8" />
     </div>
   );
 };
@@ -155,7 +161,7 @@ export const ChallengeBadgeToken = ({
   return (
     <div
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-[0_0_14px_rgba(255,255,255,0.08)]",
+        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
         getChallengeTokenClasses(rank),
         className,
       )}

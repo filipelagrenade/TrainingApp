@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Award, BadgeCheck, Search, Sparkles, Trophy } from "lucide-react";
+import { Search, Trophy } from "lucide-react";
 import Link from "next/link";
 
 import { apiClient } from "@/lib/api-client";
@@ -15,24 +15,27 @@ import {
   formatChallengeUnit,
   getChallengeRankLabel,
 } from "@/components/challenges/challenge-ui";
-import { BackButton } from "@/components/ui/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import { MetricCard } from "@/components/ui/metric-card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
-import { ScreenHero } from "@/components/ui/screen-hero";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const defaultCategory: ChallengeCategory = "CONSISTENCY";
+
+type VisibilityFilter = "all" | "in_progress" | "completed" | "locked";
 
 export const AchievementLibraryScreen = () => {
   const [category, setCategory] = useState<ChallengeCategory>(defaultCategory);
   const [selectedFamily, setSelectedFamily] = useState<ChallengeFamily | null>(null);
   const [search, setSearch] = useState("");
-  const [visibilityFilter, setVisibilityFilter] = useState<"all" | "in_progress" | "completed" | "locked">("all");
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>("all");
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -46,11 +49,10 @@ export const AchievementLibraryScreen = () => {
 
   if (meQuery.isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <Skeleton className="h-64" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-64" />
+      </div>
     );
   }
 
@@ -62,21 +64,27 @@ export const AchievementLibraryScreen = () => {
     );
   }
 
+  if (challengeQuery.isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Challenges" title="Challenge library" backHref="/progress" />
+        <ErrorState
+          title="Couldn't load the challenge library"
+          onRetry={() => void challengeQuery.refetch()}
+        />
+      </div>
+    );
+  }
+
   if (challengeQuery.isLoading || !challengeQuery.data) {
     return (
-      <div className="app-grid">
-        <ScreenHero
-          eyebrow="Challenges"
-          title="Challenges"
-          actions={<BackButton fallbackHref="/progress" />}
-          stats={
-            <>
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-            </>
-          }
-        />
+      <div className="space-y-6">
+        <PageHeader eyebrow="Challenges" title="Challenge library" backHref="/progress" />
+        <div className="grid grid-cols-3 gap-4 border-y border-rule py-4">
+          <Skeleton className="h-12" />
+          <Skeleton className="h-12" />
+          <Skeleton className="h-12" />
+        </div>
         <Skeleton className="h-16" />
         <Skeleton className="h-[28rem]" />
       </div>
@@ -123,33 +131,30 @@ export const AchievementLibraryScreen = () => {
 
   return (
     <>
-      <div className="app-grid">
-        <ScreenHero
+      <div className="space-y-6">
+        <PageHeader
           eyebrow="Challenges"
           title="Challenge library"
-          actions={<BackButton fallbackHref="/progress" />}
-          stats={
-            <>
-              <MetricCard
-                icon={Trophy}
-                label="Tier unlocks"
-                value={`${library.summary.unlockedTierCount}/${library.summary.totalTierCount}`}
-              />
-              <MetricCard
-                icon={Award}
-                label="Families ranked"
-                value={`${library.summary.unlockedFamilyCount}/${library.summary.totalFamilyCount}`}
-              />
-              <MetricCard
-                icon={BadgeCheck}
-                label="Profile rewards"
-                value={String(
-                  library.summary.unlockedTitles.length + library.summary.unlockedBadges.length,
-                )}
-              />
-            </>
-          }
+          description="Tier ladders across every training discipline — climb from Rookie to God."
+          backHref="/progress"
         />
+
+        <div className="grid grid-cols-3 gap-4 border-y border-rule py-4">
+          <Stat
+            label="Tier unlocks"
+            value={`${library.summary.unlockedTierCount}/${library.summary.totalTierCount}`}
+          />
+          <Stat
+            label="Families ranked"
+            value={`${library.summary.unlockedFamilyCount}/${library.summary.totalFamilyCount}`}
+          />
+          <Stat
+            label="Profile rewards"
+            value={String(
+              library.summary.unlockedTitles.length + library.summary.unlockedBadges.length,
+            )}
+          />
+        </div>
 
         <Card>
           <CardHeader className="space-y-3">
@@ -158,7 +163,10 @@ export const AchievementLibraryScreen = () => {
                 <CardTitle>Showcase rewards</CardTitle>
                 <CardDescription>Titles and badges unlock through challenge tiers.</CardDescription>
               </div>
-              <Link href="/profile" className="text-sm font-semibold text-accent">
+              <Link
+                href="/profile"
+                className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-accent hover:underline"
+              >
                 Open profile
               </Link>
             </div>
@@ -176,32 +184,29 @@ export const AchievementLibraryScreen = () => {
           </CardHeader>
         </Card>
 
-        <Card>
-          <CardContent className="space-y-4 p-4">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-              <Input
-                className="pl-9"
-                placeholder="Search challenges"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </div>
-            <Tabs
-              value={visibilityFilter}
-              onValueChange={(value) =>
-                setVisibilityFilter(value as "all" | "in_progress" | "completed" | "locked")
-              }
-            >
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="in_progress">Moving</TabsTrigger>
-                <TabsTrigger value="completed">Done</TabsTrigger>
-                <TabsTrigger value="locked">Locked</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+            <Input
+              className="pl-9"
+              aria-label="Search challenges"
+              placeholder="Search challenges"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <Tabs
+            value={visibilityFilter}
+            onValueChange={(value) => setVisibilityFilter(value as VisibilityFilter)}
+          >
+            <TabsList className="w-full justify-start overflow-x-auto">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="in_progress">Moving</TabsTrigger>
+              <TabsTrigger value="completed">Done</TabsTrigger>
+              <TabsTrigger value="locked">Locked</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
         <Tabs value={activeCategory.key} onValueChange={(value) => setCategory(value as ChallengeCategory)}>
           <TabsList className="w-full justify-start overflow-x-auto">
@@ -221,17 +226,17 @@ export const AchievementLibraryScreen = () => {
                       key={family.id}
                       type="button"
                       onClick={() => setSelectedFamily(family)}
-                      className="surface-panel-soft flex min-h-[12.5rem] flex-col items-center gap-3 rounded-md px-4 py-5 text-center transition-transform duration-200 "
+                      className="surface-panel flex min-h-[12.5rem] flex-col items-center gap-3 rounded-md px-4 py-5 text-center transition-colors hover:bg-surface-sunken"
                     >
                       <ChallengeToken iconKey={family.iconKey} rank={family.currentRank} />
                       <div className="space-y-1">
                         <p className="text-sm font-semibold text-ink">{family.title}</p>
-                        <p className="text-[11px] uppercase tracking-[0.08em] text-ink-muted">
-                          {family.currentRank ? getChallengeRankLabel(family.currentRank) : "Unranked"}
+                        <p className="eyebrow">
+                          {getChallengeRankLabel(family.currentRank)}
                         </p>
                       </div>
                       <div className="w-full space-y-2">
-                        <div className="flex items-center justify-between text-xs text-ink-muted">
+                        <div className="num flex items-center justify-between text-xs text-ink-muted">
                           <span>{formatChallengeUnit(family.progress, family.unitSingular, family.unitPlural)}</span>
                           <span>
                             {formatChallengeUnit(
@@ -253,11 +258,11 @@ export const AchievementLibraryScreen = () => {
                   ))}
                 </div>
               ) : (
-                <Card>
-                  <CardContent className="p-6 text-sm text-ink-muted">
-                    No challenges match the current filters.
-                  </CardContent>
-                </Card>
+                <EmptyState
+                  icon={Trophy}
+                  title="No challenges match"
+                  description="Adjust the search or visibility filters to see more of the ladder."
+                />
               )}
             </TabsContent>
           ))}
@@ -293,12 +298,13 @@ const ChallengeFamilySheet = ({
     <Sheet open={Boolean(family)} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
+        onOpenAutoFocus={(event) => event.preventDefault()}
         className="flex h-[85vh] max-h-[85vh] flex-col overflow-hidden rounded-t-md border-rule p-0"
       >
         {family ? (
           <>
             <div className="border-b border-rule bg-background px-5 pb-5 pt-8">
-              <SheetHeader className="items-center text-center">
+              <SheetHeader className="items-center border-b-0 px-0 py-0 text-center">
                 <ChallengeToken iconKey={family.iconKey} rank={family.currentRank} className="mx-auto" />
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center justify-center gap-2">
@@ -307,13 +313,15 @@ const ChallengeFamilySheet = ({
                   </div>
                   <SheetDescription>{family.description}</SheetDescription>
                 </div>
-                <Badge variant="outline">{family.categoryLabel}</Badge>
+                <Badge variant="outline" caps>
+                  {family.categoryLabel}
+                </Badge>
               </SheetHeader>
             </div>
 
             <div className="drawer-scroll-region px-5 py-6">
               <div className="space-y-6">
-                <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="grid grid-cols-3 gap-3">
                   <SummaryCell label="Progress" value={String(family.progress)} />
                   <SummaryCell label="Rank" value={getChallengeRankLabel(family.currentRank)} />
                   <SummaryCell
@@ -337,7 +345,7 @@ const ChallengeFamilySheet = ({
                         ? `${family.nextTier.remaining} to ${getChallengeRankLabel(family.nextTier.rank)}`
                         : "All ranks unlocked"}
                     </span>
-                    <span className="font-medium text-ink">
+                    <span className="num font-medium text-ink">
                       {family.nextTier
                         ? `${formatChallengeUnit(
                             family.progress,
@@ -377,18 +385,18 @@ const TierRow = ({
 }) => (
   <div
     className={`surface-panel-soft flex items-center justify-between gap-3 px-4 py-3 ${
-      tier.unlocked ? "border-rule-strong bg-surface-sunken" : ""
+      tier.unlocked ? "border-rule-strong" : "opacity-80"
     }`}
   >
     <div className="min-w-0">
       <div className="flex flex-wrap items-center gap-2">
         <ChallengeRankBadge rank={tier.rank} />
-        <span className="text-sm text-ink-muted">
+        <span className="num text-sm text-ink-muted">
           {formatChallengeUnit(tier.threshold, family.unitSingular, family.unitPlural)}
         </span>
       </div>
-      <div className="mt-1 flex flex-wrap gap-2 text-xs text-ink-muted">
-        <span>{tier.xpReward} XP</span>
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+        <span className="num">{tier.xpReward} XP</span>
         {tier.titleRewardLabel ? <span>Title: {tier.titleRewardLabel}</span> : null}
         {tier.badgeRewardLabel ? (
           <span className="inline-flex items-center gap-2">
@@ -402,13 +410,21 @@ const TierRow = ({
         ) : null}
       </div>
     </div>
-    {tier.unlocked ? <Badge>Unlocked</Badge> : <Badge variant="outline">Locked</Badge>}
+    {tier.unlocked ? (
+      <Badge variant="pr" caps>
+        Unlocked
+      </Badge>
+    ) : (
+      <Badge variant="outline" caps>
+        Locked
+      </Badge>
+    )}
   </div>
 );
 
 const SummaryCell = ({ label, value }: { label: string; value: string }) => (
   <div className="surface-panel-soft rounded-md px-4 py-3 text-center">
-    <p className="text-[10px] uppercase tracking-[0.08em] text-ink-muted">{label}</p>
-    <p className="mt-1 text-lg font-semibold text-ink">{value}</p>
+    <p className="eyebrow">{label}</p>
+    <p className="num mt-1 truncate text-lg font-semibold text-ink">{value}</p>
   </div>
 );
