@@ -6,6 +6,14 @@ on:
       - main
   workflow_dispatch:
 
+# Serialize deploys: a newer push cancels any in-flight run so concurrent jobs
+# never fight over the single droplet's git checkout + docker build (which was
+# causing SSH connection-reset failures). The newest run pulls all of main, so
+# cancelling older runs loses nothing.
+concurrency:
+  group: publish-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
