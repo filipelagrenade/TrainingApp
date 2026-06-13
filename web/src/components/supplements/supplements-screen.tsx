@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Library } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 
 import { AuthCard } from "@/components/auth/auth-card";
+import { SupplementLibrary } from "@/components/supplements/supplement-library";
 import { SupplementTodayTab } from "@/components/supplements/supplement-today";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -50,13 +51,8 @@ export const SupplementsScreen = () => {
           <SupplementTodayTab />
         </TabsContent>
 
-        {/* Placeholder — replaced by <SupplementLibrary/> in the next task. */}
         <TabsContent value="library">
-          <EmptyState
-            icon={Library}
-            title="Manage your supplements here"
-            description="The catalog, stacks, cycles, and schedules editor is coming next."
-          />
+          <SupplementLibrary />
         </TabsContent>
 
         {/* Placeholder — replaced by <SupplementInsights/> in the next task. */}
