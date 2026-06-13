@@ -81,10 +81,6 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   >(null);
   const [cardioLoggerOpen, setCardioLoggerOpen] = useState(false);
 
-  // Auth is already guaranteed (the `user` prop is server-resolved), but we gate
-  // the cardio lookup on a `me` query to match the cardio module's convention.
-  const meQuery = useQuery({ queryKey: ["me"], queryFn: apiClient.getMe, retry: false });
-
   // "Cardio today": there is no dedicated /cardio/today endpoint, so we ask the
   // calendar for a single-day window (today..today, both in UTC) and read the one
   // returned day. The queryKey shares the `["cardio-calendar"]` prefix the logger
@@ -93,7 +89,7 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const cardioTodayQuery = useQuery({
     queryKey: ["cardio-calendar", todayKey, todayKey],
     queryFn: () => apiClient.getCardioCalendar({ from: todayKey, to: todayKey }),
-    enabled: meQuery.isSuccess,
+    enabled: Boolean(user),
   });
 
   const activeProgramQuery = useQuery({
