@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowRight, Dumbbell, Settings, SkipForward, Zap } from "lucide-react";
+import { Activity, ArrowRight, Dumbbell, Plus, Settings, SkipForward, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { ActiveProgram, ProgramWorkout, Readiness, User } from "@/lib/types";
 import { calculateSessionDurationSeconds, formatDuration } from "@/lib/workout-tracking";
+import { CardioLoggerSheet } from "@/components/cardio/cardio-logger-sheet";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { NotificationBell } from "@/components/notifications/notification-sheet";
 import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
@@ -28,6 +29,18 @@ import { XpBar } from "@/components/ui/xp-bar";
 
 /** Mirrors backend `levelFromXp` (gamification.service.ts): level = floor(xp / 600) + 1. */
 const XP_PER_LEVEL = 600;
+
+/**
+ * Today's date as a `YYYY-MM-DD` key in UTC. The backend groups cardio by UTC
+ * day, so the "Cardio today" lookup must build its key in UTC to match the day
+ * the server would bucket a just-logged session into (see cardio-screen.tsx).
+ */
+const todayUtcKey = () => {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    now.getUTCDate(),
+  ).padStart(2, "0")}`;
+};
 
 const greetingFor = (now: Date) => {
   const hour = now.getHours();
@@ -66,6 +79,22 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const [readinessPending, setReadinessPending] = useState<
     { entryType: "PROGRAM"; programWorkoutId: string } | null
   >(null);
+  const [cardioLoggerOpen, setCardioLoggerOpen] = useState(false);
+
+  // Auth is already guaranteed (the `user` prop is server-resolved), but we gate
+  // the cardio lookup on a `me` query to match the cardio module's convention.
+  const meQuery = useQuery({ queryKey: ["me"], queryFn: apiClient.getMe, retry: false });
+
+  // "Cardio today": there is no dedicated /cardio/today endpoint, so we ask the
+  // calendar for a single-day window (today..today, both in UTC) and read the one
+  // returned day. The queryKey shares the `["cardio-calendar"]` prefix the logger
+  // sheet invalidates on save, so logging refreshes this card automatically.
+  const todayKey = todayUtcKey();
+  const cardioTodayQuery = useQuery({
+    queryKey: ["cardio-calendar", todayKey, todayKey],
+    queryFn: () => apiClient.getCardioCalendar({ from: todayKey, to: todayKey }),
+    enabled: meQuery.isSuccess,
+  });
 
   const activeProgramQuery = useQuery({
     queryKey: ["active-program"],
@@ -146,6 +175,13 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const inProgressWorkout = inProgressWorkoutQuery.data;
   const recentWorkouts = workoutsQuery.data ?? [];
   const pendingInvites = invitesQuery.data ?? [];
+
+  // Today's single calendar day (or zeros when nothing is logged yet). The
+  // calendar omits empty days, so an absent entry means no cardio today.
+  const cardioToday = cardioTodayQuery.data?.days.find((day) => day.date === todayKey) ?? null;
+  const cardioMinutes = cardioToday?.minutes ?? 0;
+  const cardioCalories = cardioToday?.calories ?? 0;
+  const hasCardioToday = cardioMinutes > 0 || cardioCalories > 0;
 
   const greeting = greetingFor(new Date());
 
@@ -279,6 +315,67 @@ export const DashboardScreen = ({ user }: { user: User }) => {
               </div>
             </div>
           </Card>
+
+          {/* Today hub — compact daily cards. A "Supplements today" card will be
+              added as a sibling in this grid in a later phase. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* Cardio today — non-blocking: an error here renders a quiet fallback
+                rather than breaking the dashboard. */}
+            <Card className="p-4">
+              {cardioTodayQuery.isLoading ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-7 w-32" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Link
+                    href="/cardio"
+                    className="-m-1 block rounded-md p-1 transition-colors hover:bg-surface-sunken"
+                    aria-label="Open cardio"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-ink-muted" />
+                      <p className="eyebrow">Cardio today</p>
+                    </div>
+                    {cardioTodayQuery.isError ? (
+                      <p className="mt-2 text-sm text-ink-muted">
+                        Couldn’t load today’s cardio.
+                      </p>
+                    ) : hasCardioToday ? (
+                      <div className="mt-2 flex items-baseline gap-4">
+                        <p className="num text-2xl font-semibold text-ink">
+                          {cardioMinutes}
+                          <span className="ml-1 text-sm font-normal text-ink-muted">min</span>
+                        </p>
+                        <p className="num text-2xl font-semibold text-ink">
+                          {cardioCalories}
+                          <span className="ml-1 text-sm font-normal text-ink-muted">kcal</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-ink-muted">No cardio yet today</p>
+                    )}
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setCardioLoggerOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Log cardio
+                  </Button>
+                </div>
+              )}
+            </Card>
+
+            {/* Supplements today card goes here (later phase). */}
+          </div>
 
           {/* Next-workout card */}
           {activeProgram && currentWeek ? (
@@ -600,6 +697,8 @@ export const DashboardScreen = ({ user }: { user: User }) => {
           </section>
         </>
       )}
+
+      <CardioLoggerSheet open={cardioLoggerOpen} onOpenChange={setCardioLoggerOpen} />
 
       <ReadinessSheet
         open={Boolean(readinessPending)}
