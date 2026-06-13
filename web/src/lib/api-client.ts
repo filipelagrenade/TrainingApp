@@ -70,6 +70,16 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
+export interface PushSubscribeInput {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  userAgent?: string;
+}
+
+export interface PushUnsubscribeInput {
+  endpoint: string;
+}
+
 export class HttpError extends Error {
   readonly code: string;
   /** HTTP status code, when the failure came from a server response (not a network error). */
@@ -597,5 +607,26 @@ export const apiClient = {
     request<SupplementInventory>(`/supplements/inventory/${supplementId}`, {
       method: "PUT",
       body: JSON.stringify(body),
+    }),
+
+  // ---------------------------------------------------------------------------
+  // Web Push (backend: push.routes.ts, mounted at /push)
+  // ---------------------------------------------------------------------------
+
+  // `publicKey` is null when push is disabled server-side (no VAPID keys configured).
+  getVapidPublicKey: () => request<{ publicKey: string | null }>("/push/vapid-public-key"),
+  subscribePush: (body: PushSubscribeInput) =>
+    request<{ ok: boolean }>("/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  unsubscribePush: (body: PushUnsubscribeInput) =>
+    request<{ ok: boolean }>("/push/unsubscribe", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  sendTestPush: () =>
+    request<{ ok: boolean }>("/push/test", {
+      method: "POST",
     }),
 };

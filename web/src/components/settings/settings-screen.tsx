@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { apiClient } from "@/lib/api-client";
 import type { UserExercisePreference, UserSettings } from "@/lib/types";
+import { usePushNotifications, type PushNotificationsApi } from "@/lib/use-push-notifications";
 import { cn } from "@/lib/utils";
 
 const REST_PRESETS = [
@@ -61,6 +62,7 @@ const describePreference = (preference: UserExercisePreference): string => {
 
 export const SettingsScreen = () => {
   const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">("unsupported");
+  const push = usePushNotifications();
   const migrationRan = useRef(false);
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -549,6 +551,14 @@ export const SettingsScreen = () => {
 
       <Section
         eyebrow="11"
+        title="Reminders"
+        description="Push reminders for supplement schedules. This switch controls whether THIS device/browser receives them — each schedule also has its own reminder toggle in the schedule editor."
+      >
+        <RemindersControl push={push} />
+      </Section>
+
+      <Section
+        eyebrow="12"
         title="Your data"
         description="Export every completed workout. It's yours — take it anywhere."
       >
@@ -564,7 +574,7 @@ export const SettingsScreen = () => {
         </div>
       </Section>
 
-      <Section eyebrow="12" title="Account" description="Sign out on this device.">
+      <Section eyebrow="13" title="Account" description="Sign out on this device.">
         <Button
           variant="outline"
           className="text-danger border-danger/40 hover:bg-danger/5"
@@ -624,6 +634,75 @@ const ToggleRow = ({
     <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
   </div>
 );
+
+/**
+ * Device-level Web Push toggle for supplement reminders. Reflects the live
+ * subscription/permission state and disables itself when push is unsupported,
+ * blocked, or the server has no VAPID keys.
+ */
+const RemindersControl = ({ push }: { push: PushNotificationsApi }) => {
+  const { supported, permission, subscribed, serverEnabled, busy, enable, disable, sendTest } =
+    push;
+
+  const serverDisabled = serverEnabled === false;
+  const blocked = permission === "denied";
+  const toggleDisabled = busy || !supported || serverDisabled || (blocked && !subscribed);
+
+  let statusLine: string;
+  if (!supported) {
+    statusLine = "Not available on this device";
+  } else if (serverDisabled) {
+    statusLine = "Not available on the server";
+  } else if (subscribed) {
+    statusLine = "Enabled on this device";
+  } else if (blocked) {
+    statusLine = "Blocked in browser";
+  } else {
+    statusLine = "Off";
+  }
+
+  let hint: string;
+  if (!supported) {
+    hint = "This browser doesn't support push notifications.";
+  } else if (serverDisabled) {
+    hint = "Push notifications are turned off on the server right now.";
+  } else if (blocked) {
+    hint = "Notifications are blocked — enable them in your browser settings, then try again.";
+  } else {
+    hint = "Receive supplement reminders on this device, even when the app is closed.";
+  }
+
+  const handleToggle = (checked: boolean) => {
+    if (checked) {
+      void enable();
+    } else {
+      void disable();
+    }
+  };
+
+  return (
+    <div className="max-w-md space-y-4">
+      <div className="flex items-center justify-between gap-3 border-y border-rule py-4">
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-ink">Supplement reminders</p>
+          <p className="text-sm text-ink-muted">{statusLine}</p>
+        </div>
+        <Switch
+          aria-label="Supplement reminders"
+          checked={subscribed}
+          disabled={toggleDisabled}
+          onCheckedChange={handleToggle}
+        />
+      </div>
+      <p className="text-sm text-ink-muted leading-6">{hint}</p>
+      {subscribed ? (
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => void sendTest()}>
+          Send test notification
+        </Button>
+      ) : null}
+    </div>
+  );
+};
 
 /** Preset segmented control plus a 15-second custom stepper for one rest duration. */
 const RestDurationControl = ({

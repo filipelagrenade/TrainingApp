@@ -14,8 +14,13 @@
 // Every handler is wrapped so a cache miss/throw can never block the response — it
 // always falls through to a plain network fetch.
 
-const CACHE_NAME = "liftiq-v4";
+const CACHE_NAME = "liftiq-v5";
 const SHELL_URL = "/";
+
+// App icon/badge reused for all notifications (rest timer + Web Push). The
+// manifest ships a single SVG icon; browsers that can't rasterize SVG for a
+// notification fall back to their default, which is harmless.
+const APP_ICON = "/icon.svg";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -163,29 +168,99 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// ── Web Push ────────────────────────────────────────────────────────────────
+// Server-sent reminders (e.g. supplement schedules). The payload is JSON:
+//   { title, body, data: { url, scheduleId, ... }, icon?, badge?, tag? }
+// We tag by data.scheduleId (or an explicit tag) so a repeat reminder REPLACES
+// the previous one rather than stacking. Every access is guarded so a sparse or
+// non-JSON payload still produces a sane default notification.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    // Non-JSON payload (or none): fall back to text body, else defaults.
+    try {
+      const text = event.data ? event.data.text() : "";
+      payload = text ? { body: text } : {};
+    } catch {
+      payload = {};
+    }
+  }
+
+  const data = payload && typeof payload.data === "object" && payload.data ? payload.data : {};
+  const title = typeof payload.title === "string" && payload.title ? payload.title : "LiftIQ";
+  const body =
+    typeof payload.body === "string" && payload.body ? payload.body : "You have a reminder.";
+  const tag =
+    (typeof payload.tag === "string" && payload.tag) ||
+    (typeof data.scheduleId === "string" && data.scheduleId) ||
+    undefined;
+
+  const options = {
+    body,
+    data,
+    icon: typeof payload.icon === "string" && payload.icon ? payload.icon : APP_ICON,
+    badge: typeof payload.badge === "string" && payload.badge ? payload.badge : APP_ICON,
+    tag,
+    renotify: Boolean(tag),
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options).catch(() => undefined),
+  );
+});
+
 // Lock-screen action buttons (−15s / +15s / Skip) drive the in-page timer:
 // forward the action to every open client; a body tap (no action) just focuses
 // the app. The page's REST_ACTION listener calls adjust()/skip() so the
 // authoritative in-page interval stays the single source of truth.
+//
+// EXTENDED for Web Push: a pushed notification carries data.url (e.g. supplement
+// reminders → "/supplements"). When there's no rest action, focus an existing
+// client at that URL (navigating it there if it supports navigate) or open a new
+// window — matching the rest-timer's focus-or-open logic.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const action = event.action;
+  const data = event.notification.data || {};
+  const targetUrl = typeof data.url === "string" && data.url ? data.url : null;
+
+  const isRestAction =
+    action === "rest-minus" || action === "rest-plus" || action === "rest-skip";
 
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clients) => {
-        if (action === "rest-minus" || action === "rest-plus" || action === "rest-skip") {
+        if (isRestAction) {
           for (const client of clients) {
             client.postMessage({ type: "REST_ACTION", action });
           }
         }
+
+        // Push notification with a destination URL and no rest action: focus an
+        // open client (navigating it to the URL where supported) or open a new one.
+        if (targetUrl && !isRestAction) {
+          const existing = clients.find(Boolean);
+          if (existing) {
+            if ("navigate" in existing && typeof existing.navigate === "function") {
+              return existing.navigate(targetUrl).then((navigated) =>
+                (navigated || existing).focus(),
+              ).catch(() => existing.focus());
+            }
+            return existing.focus();
+          }
+          return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+        }
+
         const target = clients.find(Boolean);
         if (target) {
           return target.focus();
         }
-        // No open window: open the app so the page can take over the timer.
-        return self.clients.openWindow ? self.clients.openWindow("/") : undefined;
+        // No open window: open the app (rest timer) or the push target URL.
+        const openUrl = targetUrl || "/";
+        return self.clients.openWindow ? self.clients.openWindow(openUrl) : undefined;
       })
       .catch(() => undefined),
   );
