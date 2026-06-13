@@ -13,7 +13,6 @@ import { sendSuccess } from "../lib/http";
 import { requireAuth } from "../middleware/auth";
 import {
   addStackMember,
-  archiveSupplement,
   createCycle,
   createSchedule,
   createStack,
@@ -478,11 +477,7 @@ supplementsRouter.get("/:id", async (request, response, next) => {
 supplementsRouter.patch("/:id", async (request, response, next) => {
   try {
     const body = parseBody(supplementUpdateSchema, request.body);
-    const { archived, ...fields } = body;
-    if (archived !== undefined) {
-      await archiveSupplement(userId(request), request.params.id, archived);
-    }
-    sendSuccess(response, await updateSupplement(userId(request), request.params.id, fields));
+    sendSuccess(response, await updateSupplement(userId(request), request.params.id, body));
   } catch (error) {
     next(error);
   }

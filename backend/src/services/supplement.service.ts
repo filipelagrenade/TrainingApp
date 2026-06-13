@@ -366,7 +366,7 @@ export const getSupplement = async (userId: string, id: string) => {
 export const updateSupplement = async (
   userId: string,
   id: string,
-  input: Partial<SupplementInput>,
+  input: Partial<SupplementInput> & { archived?: boolean },
 ) => {
   await findOwnedSupplement(userId, id);
   const row = await prisma.supplement.update({
@@ -384,15 +384,10 @@ export const updateSupplement = async (
       color: input.color !== undefined ? input.color : undefined,
       icon: input.icon !== undefined ? input.icon : undefined,
       notes: input.notes !== undefined ? input.notes : undefined,
+      // Soft-archive (sets `archived`); keeps history/intakes intact.
+      archived: input.archived !== undefined ? input.archived : undefined,
     },
   });
-  return serializeSupplement(row);
-};
-
-/** Soft-archive (sets `archived`); keeps history/intakes intact. */
-export const archiveSupplement = async (userId: string, id: string, archived = true) => {
-  await findOwnedSupplement(userId, id);
-  const row = await prisma.supplement.update({ where: { id }, data: { archived } });
   return serializeSupplement(row);
 };
 
