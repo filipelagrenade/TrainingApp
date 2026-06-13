@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   Archive,
   ArchiveRestore,
   CalendarClock,
@@ -299,7 +300,23 @@ const SupplementCard = ({
             ? "No schedules"
             : `${scheduleCount} schedule${scheduleCount === 1 ? "" : "s"}`}
         </span>
-        {supplement.servingsPerContainer !== null ? (
+        {supplement.inventory ? (
+          supplement.inventory.lowStock ? (
+            <Badge variant="outline" className="gap-1 border-danger/40 text-danger">
+              <AlertTriangle className="h-3 w-3" />
+              <span className="num">
+                {formatAmount(supplement.inventory.servingsRemaining)} left
+              </span>
+            </Badge>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <Package className="h-3.5 w-3.5 text-ink-subtle" />
+              <span className="num">
+                {formatAmount(supplement.inventory.servingsRemaining)} left
+              </span>
+            </span>
+          )
+        ) : supplement.servingsPerContainer !== null ? (
           <span className="inline-flex items-center gap-1">
             <Package className="h-3.5 w-3.5 text-ink-subtle" />
             <span className="num">{supplement.servingsPerContainer}/container</span>

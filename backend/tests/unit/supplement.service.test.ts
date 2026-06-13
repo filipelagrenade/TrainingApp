@@ -4,6 +4,8 @@ import {
   estimateDailyServings,
   resolveCalendarRange,
   resolveTodayDate,
+  serializeSchedule,
+  serializeSupplement,
   type InventorySnapshot,
 } from "../../src/services/supplement.service";
 
@@ -142,5 +144,83 @@ describe("resolveCalendarRange", () => {
 
   it("rejects an over-long range", () => {
     expect(() => resolveCalendarRange("2024-01-01", "2026-01-01")).toThrow();
+  });
+});
+
+describe("serializeSchedule", () => {
+  const baseRow = {
+    id: "sch_1",
+    supplementId: "sup_1",
+    stackId: null,
+    cycleId: null,
+    cyclePhaseId: null,
+    doseAmount: 5,
+    doseUnit: "g",
+    withFood: null,
+    slot: "MORNING" as const,
+    clockTime: null,
+    freq: "DAILY" as const,
+    interval: 1,
+    byWeekday: [],
+    timesPerDay: 1,
+    isPrn: false,
+    startDate: new Date("2026-06-01T00:00:00.000Z"),
+    endDate: null,
+    reminderEnabled: true,
+    reminderWindowMins: 45,
+  };
+
+  it("round-trips reminder fields so the editor can read them back", () => {
+    const out = serializeSchedule(baseRow);
+    expect(out.reminderEnabled).toBe(true);
+    expect(out.reminderWindowMins).toBe(45);
+  });
+});
+
+describe("serializeSupplement", () => {
+  const baseSupplement = {
+    id: "sup_1",
+    name: "Creatine",
+    brand: null,
+    form: "POWDER" as const,
+    defaultUnit: "g",
+    servingSize: null,
+    servingUnit: null,
+    servingsPerContainer: null,
+    tags: [],
+    color: null,
+    icon: null,
+    notes: null,
+    archived: false,
+    createdAt: new Date("2026-06-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+  };
+
+  it("serializes inventory with a computed lowStock flag (inclusive)", () => {
+    const out = serializeSupplement({
+      ...baseSupplement,
+      inventory: {
+        servingsRemaining: 7,
+        lowStockThresholdServings: 7,
+        containerSize: 30,
+        autoDecrement: true,
+        reorderUrl: "https://x",
+        remindBeforeDays: 5,
+      },
+    });
+    expect(out.inventory).toEqual({
+      servingsRemaining: 7,
+      lowStockThresholdServings: 7,
+      containerSize: 30,
+      autoDecrement: true,
+      reorderUrl: "https://x",
+      remindBeforeDays: 5,
+      lowStock: true,
+    });
+  });
+
+  it("serializes inventory to null when absent", () => {
+    expect(serializeSupplement(baseSupplement).inventory).toBeNull();
+    expect(serializeSupplement({ ...baseSupplement, inventory: null }).inventory).toBeNull();
   });
 });

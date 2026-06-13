@@ -1059,6 +1059,19 @@ export type Supplement = {
   archived: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Inventory summary for the live low-stock chip + editor pre-seed; null when none. */
+  inventory: SupplementInventorySummary | null;
+};
+
+/** Inventory summary embedded on a serialized supplement (`serializeSupplementInventory`). */
+export type SupplementInventorySummary = {
+  servingsRemaining: number;
+  lowStockThresholdServings: number;
+  containerSize: number | null;
+  autoDecrement: boolean;
+  reorderUrl: string | null;
+  remindBeforeDays: number;
+  lowStock: boolean;
 };
 
 /** A member entry within a stack (`serializeStack` members). */
@@ -1099,6 +1112,8 @@ export type SupplementSchedule = {
   isPrn: boolean;
   startDate: string;
   endDate: string | null;
+  reminderEnabled: boolean;
+  reminderWindowMins: number;
 };
 
 /** A single phase within a cycle (`serializeCycle` phases). */

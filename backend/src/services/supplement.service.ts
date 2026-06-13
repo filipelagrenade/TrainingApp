@@ -149,6 +149,8 @@ type ScheduleRow = {
   isPrn: boolean;
   startDate: Date;
   endDate: Date | null;
+  reminderEnabled: boolean;
+  reminderWindowMins: number;
 };
 
 type CycleRow = {
@@ -194,7 +196,31 @@ const toCycleInput = (cycle: CycleRow): CycleInput => ({
 // Serializers
 // ---------------------------------------------------------------------------
 
-const serializeSupplement = (s: {
+type SupplementInventoryRow = {
+  servingsRemaining: number;
+  lowStockThresholdServings: number;
+  containerSize: number | null;
+  autoDecrement: boolean;
+  reorderUrl: string | null;
+  remindBeforeDays: number;
+};
+
+/**
+ * Inventory summary embedded on a serialized supplement — enough to both render
+ * a live low-stock chip on the Library list and pre-seed the editor's inventory
+ * form. `lowStock` mirrors the run-out chip's threshold rule (inclusive).
+ */
+const serializeSupplementInventory = (inv: SupplementInventoryRow) => ({
+  servingsRemaining: inv.servingsRemaining,
+  lowStockThresholdServings: inv.lowStockThresholdServings,
+  containerSize: inv.containerSize,
+  autoDecrement: inv.autoDecrement,
+  reorderUrl: inv.reorderUrl,
+  remindBeforeDays: inv.remindBeforeDays,
+  lowStock: inv.servingsRemaining <= inv.lowStockThresholdServings,
+});
+
+export const serializeSupplement = (s: {
   id: string;
   name: string;
   brand: string | null;
@@ -210,6 +236,7 @@ const serializeSupplement = (s: {
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;
+  inventory?: SupplementInventoryRow | null;
 }) => ({
   id: s.id,
   name: s.name,
@@ -226,9 +253,10 @@ const serializeSupplement = (s: {
   archived: s.archived,
   createdAt: s.createdAt.toISOString(),
   updatedAt: s.updatedAt.toISOString(),
+  inventory: s.inventory ? serializeSupplementInventory(s.inventory) : null,
 });
 
-const serializeSchedule = (row: ScheduleRow & { createdAt?: Date; updatedAt?: Date }) => ({
+export const serializeSchedule = (row: ScheduleRow & { createdAt?: Date; updatedAt?: Date }) => ({
   id: row.id,
   supplementId: row.supplementId,
   stackId: row.stackId,
@@ -246,6 +274,8 @@ const serializeSchedule = (row: ScheduleRow & { createdAt?: Date; updatedAt?: Da
   isPrn: row.isPrn,
   startDate: row.startDate.toISOString(),
   endDate: row.endDate ? row.endDate.toISOString() : null,
+  reminderEnabled: row.reminderEnabled,
+  reminderWindowMins: row.reminderWindowMins,
 });
 
 const serializeInventory = (inv: {
@@ -354,12 +384,17 @@ export const listSupplements = async (
   const rows = await prisma.supplement.findMany({
     where: { userId, ...(options.includeArchived ? {} : { archived: false }) },
     orderBy: { name: "asc" },
+    include: { inventory: true },
   });
   return rows.map(serializeSupplement);
 };
 
 export const getSupplement = async (userId: string, id: string) => {
-  const row = await findOwnedSupplement(userId, id);
+  await findOwnedSupplement(userId, id);
+  const row = await prisma.supplement.findUniqueOrThrow({
+    where: { id },
+    include: { inventory: true },
+  });
   return serializeSupplement(row);
 };
 

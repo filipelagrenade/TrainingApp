@@ -304,8 +304,6 @@ const emptyScheduleForm = (defaultUnit: string): ScheduleFormState => ({
   timesPerDay: 1,
   startDate: todayDateInput(),
   endDate: "",
-  // Reminder fields are write-only (not echoed back by the API), so on edit they
-  // reset to defaults rather than seeding from the saved schedule.
   reminderEnabled: false,
   reminderWindowMins: 60,
 });
@@ -323,8 +321,8 @@ const fromSchedule = (schedule: SupplementSchedule): ScheduleFormState => ({
   timesPerDay: schedule.timesPerDay,
   startDate: isoToDateInput(schedule.startDate),
   endDate: schedule.endDate ? isoToDateInput(schedule.endDate) : "",
-  reminderEnabled: false,
-  reminderWindowMins: 60,
+  reminderEnabled: schedule.reminderEnabled,
+  reminderWindowMins: schedule.reminderWindowMins,
 });
 
 const ScheduleEditorSheet = ({

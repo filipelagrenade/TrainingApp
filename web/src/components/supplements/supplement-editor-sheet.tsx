@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Segmented } from "@/components/ui/segmented";
 import {
   Sheet,
   SheetContent,
@@ -31,6 +30,7 @@ import { apiClient } from "@/lib/api-client";
 import type {
   CreateSupplementInput,
   Supplement,
+  SupplementInventorySummary,
   SuppForm,
   UpdateSupplementInput,
   UpsertInventoryInput,
@@ -56,9 +56,10 @@ type SupplementForm = {
   notes: string;
 };
 
-// Inventory has no GET endpoint (upsert-only, 1:1). The editor exposes the fields
-// so they can be set/overwritten; when editing an existing supplement we can't
-// pre-seed current inventory, so these start blank and only PUT when touched.
+// Inventory is upsert-only (1:1) but its current state now rides along on the
+// serialized supplement, so the editor pre-seeds the displayed values when
+// editing. We still only PUT when the user touches the section, so re-saving a
+// supplement without touching inventory leaves existing stock untouched.
 type InventoryForm = {
   touched: boolean;
   servingsRemaining: number | null;
@@ -90,6 +91,18 @@ const emptyInventoryForm = (): InventoryForm => ({
   autoDecrement: true,
   reorderUrl: "",
   remindBeforeDays: 5,
+});
+
+// Seed the displayed inventory values from existing stock. `touched` stays false
+// so re-saving without editing the section won't re-PUT (and overwrite) stock.
+const fromInventory = (inventory: SupplementInventorySummary): InventoryForm => ({
+  touched: false,
+  servingsRemaining: inventory.servingsRemaining,
+  lowStockThresholdServings: inventory.lowStockThresholdServings,
+  containerSize: inventory.containerSize,
+  autoDecrement: inventory.autoDecrement,
+  reorderUrl: inventory.reorderUrl ?? "",
+  remindBeforeDays: inventory.remindBeforeDays,
 });
 
 const fromSupplement = (supplement: Supplement): SupplementForm => ({
@@ -126,7 +139,9 @@ export const SupplementEditorSheet = ({
   useEffect(() => {
     if (!open) return;
     setForm(supplement ? fromSupplement(supplement) : emptySupplementForm());
-    setInventory(emptyInventoryForm());
+    setInventory(
+      supplement?.inventory ? fromInventory(supplement.inventory) : emptyInventoryForm(),
+    );
     setTagDraft("");
   }, [open, supplement]);
 
@@ -248,18 +263,27 @@ export const SupplementEditorSheet = ({
 
             <div className="space-y-1.5">
               <Label>Form</Label>
-              <Segmented
-                options={FORM_OPTIONS.slice(0, 3)}
-                value={FORM_OPTIONS.slice(0, 3).some((o) => o.value === form.form) ? form.form : null}
-                onChange={(value) => set("form", value)}
-                size="sm"
-              />
-              <Segmented
-                options={FORM_OPTIONS.slice(3)}
-                value={FORM_OPTIONS.slice(3).some((o) => o.value === form.form) ? form.form : null}
-                onChange={(value) => set("form", value)}
-                size="sm"
-              />
+              <div className="grid grid-cols-3 gap-2">
+                {FORM_OPTIONS.map((option) => {
+                  const active = option.value === form.form;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => set("form", option.value)}
+                      className={cn(
+                        "rounded-md border px-3 py-2 text-xs font-medium transition-colors touch-target",
+                        active
+                          ? "border-accent bg-accent/10 text-ink"
+                          : "border-rule bg-surface-sunken text-ink-muted hover:text-ink",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Units + servings */}
