@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { clearDraft } from "@/lib/draft-storage";
+import { enqueue, isConnectivityError } from "@/lib/offline-queue";
 import type { TemplateDraft, WorkoutDraft } from "@/lib/types";
 import { compareExerciseLineup, draftExerciseToTemplateExercise } from "@/lib/workout-tracking";
 
@@ -83,6 +84,27 @@ export const FinishFlow = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveTemplateOpen]);
 
+  // Offline divert: persist the completion to the IndexedDB queue and resolve the UX
+  // optimistically (clear draft, navigate home, reassuring toast). This runs ONLY when
+  // we're known-offline or the network call threw a connectivity error — the online
+  // path below is left byte-identical to before.
+  const completeOffline = (payload: WorkoutDraft) => {
+    void enqueue({
+      id: `complete-${sessionId}`,
+      kind: "complete",
+      sessionId,
+      payload,
+      queuedAt: Date.now(),
+    });
+    clearDraft(sessionId);
+    pendingCompletionLineupRef.current = null;
+    setKeepChangesOpen(false);
+    toast.message(
+      "You're offline — workout saved, it'll finish syncing when you reconnect.",
+    );
+    router.push("/");
+  };
+
   const applyCompletionSuccess = (result: CompletionResult | null) => {
     pendingCompletionLineupRef.current = null;
     // Non-blocking share entry point: the toast survives the navigation home
@@ -128,6 +150,12 @@ export const FinishFlow = ({
       ]);
     },
     onError: (error: Error) => {
+      // A real connectivity failure mid-completion diverts to the offline queue
+      // instead of surfacing an error; every other (server) error is unchanged.
+      if (isConnectivityError(error)) {
+        completeOffline(completeMutation.variables ?? draft);
+        return;
+      }
       onAutosavePauseChange(false);
       toast.error(error.message);
     },
@@ -207,6 +235,13 @@ export const FinishFlow = ({
     pendingCompletionLineupRef.current = compareExerciseLineup(draft, session.originDraft);
     onAutosavePauseChange(true);
     onFinishOpenChange(false);
+
+    // Known-offline: skip the doomed network attempt and queue immediately.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      completeOffline(draft);
+      return;
+    }
+
     completeMutation.mutate(draft);
   };
 

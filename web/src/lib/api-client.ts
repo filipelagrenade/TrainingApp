@@ -40,12 +40,15 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
-class HttpError extends Error {
+export class HttpError extends Error {
   readonly code: string;
+  /** HTTP status code, when the failure came from a server response (not a network error). */
+  readonly status?: number;
 
-  constructor(message: string, code = "REQUEST_FAILED") {
+  constructor(message: string, code = "REQUEST_FAILED", status?: number) {
     super(message);
     this.code = code;
+    this.status = status;
   }
 }
 
@@ -77,7 +80,9 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   }
 
   if (!response.ok || !json.success) {
-    const error = json.success ? new HttpError("Request failed") : new HttpError(json.error.message, json.error.code);
+    const error = json.success
+      ? new HttpError("Request failed", "REQUEST_FAILED", response.status)
+      : new HttpError(json.error.message, json.error.code, response.status);
     throw error;
   }
 

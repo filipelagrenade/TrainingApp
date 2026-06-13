@@ -19,6 +19,8 @@ import { ErrorState } from "@/components/ui/error-state";
 import { KeypadProvider, useKeypad } from "@/components/ui/keypad-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
+import { clearDraft } from "@/lib/draft-storage";
+import { enqueue, isConnectivityError } from "@/lib/offline-queue";
 import type {
   Exercise,
   PreviousSetEntry,
@@ -224,6 +226,24 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const queueCompletedEditOffline = useCallback(
+    (payload: WorkoutDraft) => {
+      void enqueue({
+        id: `updateCompleted-${sessionId}`,
+        kind: "updateCompleted",
+        sessionId,
+        payload,
+        queuedAt: Date.now(),
+      });
+      clearDraft(sessionId);
+      toast.message(
+        "You're offline — changes saved, they'll finish syncing when you reconnect.",
+      );
+      setCompletedEditMode(false);
+    },
+    [sessionId],
+  );
+
   const updateCompletedWorkoutMutation = useMutation({
     mutationFn: (payload: WorkoutDraft) => apiClient.updateCompletedWorkout(sessionId, payload),
     onSuccess: async () => {
@@ -233,7 +253,13 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
       toast.success("Workout updated");
       setCompletedEditMode(false);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, payload) => {
+      if (isConnectivityError(error)) {
+        queueCompletedEditOffline(payload);
+        return;
+      }
+      toast.error(error.message);
+    },
   });
 
   const persistExercisePreference = useCallback(
@@ -635,6 +661,10 @@ export const WorkoutEditor = ({ sessionId }: { sessionId: string }) => {
 
   const handleFinish = () => {
     if (isCompletedEdit) {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        queueCompletedEditOffline(draft);
+        return;
+      }
       updateCompletedWorkoutMutation.mutate(draft);
       return;
     }

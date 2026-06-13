@@ -4,8 +4,8 @@
   "description": "Program-centric training companion with fast logging and social XP loops.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4f1ea",
-  "theme_color": "#f3ede3",
+  "background_color": "#0A0B12",
+  "theme_color": "#0A0B12",
   "icons": [
     {
       "src": "/icon.svg",
