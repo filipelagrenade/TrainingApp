@@ -1,21 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Activity,
-  Bike,
-  Dumbbell,
-  Footprints,
-  Info,
-  MountainSnow,
-  PersonStanding,
-  Waves,
-} from "lucide-react";
+import { Info } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { CARDIO_ACTIVITY_META } from "@/lib/cardio-activity-meta";
 import { KeypadProvider } from "@/components/ui/keypad-context";
 import { NumberField } from "@/components/ui/number-field";
 import {
@@ -47,16 +38,24 @@ const LB_PER_KG = 2.2;
 
 type DistanceUnit = "km" | "mi";
 
-const ACTIVITY_TILES: Array<{ value: CardioActivity; label: string; icon: LucideIcon }> = [
-  { value: "TREADMILL", label: "Treadmill", icon: Footprints },
-  { value: "BIKE", label: "Bike", icon: Bike },
-  { value: "ROWER", label: "Rower", icon: Waves },
-  { value: "STAIR", label: "Stairs", icon: MountainSnow },
-  { value: "ELLIPTICAL", label: "Elliptical", icon: Dumbbell },
-  { value: "OUTDOOR_RUN", label: "Run", icon: PersonStanding },
-  { value: "OUTDOOR_WALK", label: "Walk", icon: Footprints },
-  { value: "OTHER", label: "Other", icon: Activity },
+// Activities the logger lets you pick, in display order (omits OUTDOOR_CYCLE).
+// Labels/icons come from the shared CARDIO_ACTIVITY_META — the single source.
+const SELECTABLE_ACTIVITIES: CardioActivity[] = [
+  "TREADMILL",
+  "BIKE",
+  "ROWER",
+  "STAIR",
+  "ELLIPTICAL",
+  "OUTDOOR_RUN",
+  "OUTDOOR_WALK",
+  "OTHER",
 ];
+
+const ACTIVITY_TILES = SELECTABLE_ACTIVITIES.map((value) => ({
+  value,
+  label: CARDIO_ACTIVITY_META[value].label,
+  icon: CARDIO_ACTIVITY_META[value].icon,
+}));
 
 // Which adaptive fields each activity surfaces. Duration + HR + RPE are always
 // shown and handled separately.
@@ -122,10 +121,14 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged, session }: Car
     enabled: meQuery.isSuccess,
   });
 
-  // The user's preferred unit decides the distance/speed unit shown. Distance is
-  // sent in this unit + distanceUnit; the server converts to canonical meters.
+  // The user's preferred unit decides the speed unit shown. Distance/speed are
+  // sent in the display unit + distanceUnit; the server converts to meters/km/h.
   const preferredUnit = meQuery.data?.user.preferredUnit ?? "kg";
-  const distanceUnit: DistanceUnit = preferredUnit === "lb" ? "mi" : "km";
+  // Distance unit resolves the same way as the cardio screen: prefer the explicit
+  // cardio.defaultDistanceUnit setting, falling back to the preferredUnit default.
+  const distanceUnit: DistanceUnit =
+    meQuery.data?.user.settings.cardio?.defaultDistanceUnit ??
+    (preferredUnit === "lb" ? "mi" : "km");
   const speedUnitLabel = preferredUnit === "lb" ? "mph" : "km/h";
 
   // Latest bodyweight (kg) for the live estimate, falling back when absent.
