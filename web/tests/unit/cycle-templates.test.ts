@@ -146,4 +146,31 @@ describe("inputsFromCycle", () => {
     expect(seeded.onDays).toBe(40);
     expect(seeded.offDays).toBe(20);
   });
+
+  it("UNTIL_DATE round-trips the end date from start + phase duration", () => {
+    // Derive phases as the editor would for start=2026-06-14, end=2026-06-20.
+    const derived = derivePhases(
+      "UNTIL_DATE",
+      { ...inputs, endDate: "2026-06-20" },
+      "2026-06-14",
+    );
+    expect(derived?.phases[0]?.durationDays).toBe(7);
+
+    // Build a cycle-like object as the backend would persist it.
+    const persisted = cycle({
+      type: "UNTIL_DATE",
+      startDate: "2026-06-14T00:00:00.000Z",
+      phases: derived!.phases.map((phase, index) => ({
+        id: `p${index}`,
+        order: phase.order,
+        kind: phase.kind,
+        durationDays: phase.durationDays,
+        startDelayDays: phase.startDelayDays,
+        label: null,
+      })),
+    });
+
+    const seeded = inputsFromCycle(persisted, "UNTIL_DATE");
+    expect(seeded.endDate).toBe("2026-06-20");
+  });
 });

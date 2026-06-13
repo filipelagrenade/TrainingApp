@@ -1,6 +1,6 @@
 import type { CyclePhaseInput, SupplementCycle, SupplementCyclePhase } from "@/lib/types";
 
-import { PHASE_KIND_LABEL } from "./supplement-meta";
+import { PHASE_KIND_LABEL, isoToDateInput } from "./supplement-meta";
 
 // ---------------------------------------------------------------------------
 // Cycle templates (v1). A template takes a few simple inputs and derives the
@@ -51,6 +51,17 @@ export const daysBetweenInclusive = (start: string, end: string): number => {
   const endMs = Date.parse(`${end}T00:00:00.000Z`);
   if (Number.isNaN(startMs) || Number.isNaN(endMs)) return 0;
   return Math.floor((endMs - startMs) / 86_400_000) + 1;
+};
+
+/**
+ * Add `days` whole days to a YYYY-MM-DD value using UTC math, returning a
+ * YYYY-MM-DD string. Inverse of `daysBetweenInclusive` for reconstructing the
+ * UNTIL_DATE end date from a start date + stored phase duration.
+ */
+export const addDaysToDateInput = (start: string, days: number): string => {
+  const startMs = Date.parse(`${start}T00:00:00.000Z`);
+  if (Number.isNaN(startMs)) return "";
+  return new Date(startMs + days * 86_400_000).toISOString().slice(0, 10);
 };
 
 export type DerivedCycle = {
@@ -167,8 +178,14 @@ export const inputsFromCycle = (
       };
     case "FIXED":
       return { ...base, fixedDays: cycle.phases[0]?.durationDays ?? base.fixedDays };
-    case "UNTIL_DATE":
-      return base;
+    case "UNTIL_DATE": {
+      // The ON phase stored `durationDays` as an inclusive day count from the
+      // cycle's start (same-day = 1), so endDate = startDate + (durationDays - 1).
+      const onPhase = phaseOf("ON") ?? cycle.phases[0] ?? null;
+      if (!onPhase || onPhase.durationDays < 1) return base;
+      const start = isoToDateInput(cycle.startDate);
+      return { ...base, endDate: addDaysToDateInput(start, onPhase.durationDays - 1) };
+    }
     case "LOAD_MAINTAIN":
       return {
         ...base,

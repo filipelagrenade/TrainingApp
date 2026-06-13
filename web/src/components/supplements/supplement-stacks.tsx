@@ -553,33 +553,31 @@ const StackEditorSheet = ({
                   <p className="text-xs text-ink-muted">No supplements added yet.</p>
                 )}
 
-                <div className="flex gap-2">
-                  <Select
-                    value={memberPick}
-                    onValueChange={(value) => {
-                      setMemberPick(value);
-                      addMemberMutation.mutate(value);
-                    }}
-                    disabled={availableToAdd.length === 0 || addMemberMutation.isPending}
-                  >
-                    <SelectTrigger aria-label="Add supplement to stack">
-                      <SelectValue
-                        placeholder={
-                          availableToAdd.length === 0
-                            ? "All supplements added"
-                            : "Add a supplement…"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableToAdd.map((supplement) => (
-                        <SelectItem key={supplement.id} value={supplement.id}>
-                          {supplement.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select
+                  value={memberPick}
+                  onValueChange={(value) => {
+                    setMemberPick(value);
+                    addMemberMutation.mutate(value);
+                  }}
+                  disabled={availableToAdd.length === 0 || addMemberMutation.isPending}
+                >
+                  <SelectTrigger aria-label="Add supplement to stack">
+                    <SelectValue
+                      placeholder={
+                        availableToAdd.length === 0
+                          ? "All supplements added"
+                          : "Add a supplement…"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableToAdd.map((supplement) => (
+                      <SelectItem key={supplement.id} value={supplement.id}>
+                        {supplement.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </>
             ) : null}
           </div>
