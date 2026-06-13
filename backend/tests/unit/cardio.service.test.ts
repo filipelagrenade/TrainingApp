@@ -4,9 +4,12 @@ import {
   buildCardioCalendar,
   buildCardioProgression,
   buildCardioSummary,
+  cardioSessionToBout,
+  equipmentToActivity,
   resolvePeriodWindow,
   summariseBouts,
   type CardioBout,
+  type CardioSessionRow,
 } from "../../src/services/cardio.service";
 
 const bout = (overrides: Partial<CardioBout>): CardioBout => ({
@@ -166,6 +169,77 @@ describe("buildCardioProgression", () => {
 
     const progression = buildCardioProgression(bouts, null);
     expect(progression.paceTrend).toHaveLength(1);
+  });
+});
+
+describe("equipmentToActivity", () => {
+  it("maps representative equipment strings to their CardioActivity", () => {
+    expect(equipmentToActivity("Treadmill")).toBe(CardioActivity.TREADMILL);
+    expect(equipmentToActivity("Rowing Machine")).toBe(CardioActivity.ROWER);
+    expect(equipmentToActivity("Spin Bike")).toBe(CardioActivity.BIKE);
+    expect(equipmentToActivity("Elliptical")).toBe(CardioActivity.ELLIPTICAL);
+    expect(equipmentToActivity("StairMaster")).toBe(CardioActivity.STAIR);
+  });
+
+  it("falls back to OTHER for unknown equipment", () => {
+    expect(equipmentToActivity("kettlebell")).toBe(CardioActivity.OTHER);
+    expect(equipmentToActivity("")).toBe(CardioActivity.OTHER);
+  });
+});
+
+describe("cardioSessionToBout projects estimated, not manual, calories", () => {
+  // Locks the contract at the projection point: a bout carries the engine
+  // estimate even when a (different) manual machine value exists on the row.
+  it("uses caloriesEstimated and ignores caloriesManual", () => {
+    const row: CardioSessionRow = {
+      activity: CardioActivity.TREADMILL,
+      performedAt: new Date("2026-06-10T08:00:00.000Z"),
+      durationSeconds: 1800,
+      distanceMeters: 5000,
+      avgSpeedKmh: null,
+      inclinePct: 1,
+      resistanceLevel: null,
+      avgWatts: null,
+      avgHr: null,
+      rpe: null,
+      caloriesEstimated: 280,
+      bodyweightKgAt: 80,
+    };
+    // caloriesManual exists in the DB but is NOT part of CardioSessionRow,
+    // so it can never reach projection — proven by the row type itself.
+    const projected = cardioSessionToBout(row, 75);
+    expect(projected.calories).toBe(280);
+  });
+
+  it("recomputes the estimate when caloriesEstimated is null (legacy rows)", () => {
+    const row: CardioSessionRow = {
+      activity: CardioActivity.TREADMILL,
+      performedAt: new Date("2026-06-10T08:00:00.000Z"),
+      durationSeconds: 1800,
+      distanceMeters: 5000,
+      avgSpeedKmh: null,
+      inclinePct: 1,
+      resistanceLevel: null,
+      avgWatts: null,
+      avgHr: null,
+      rpe: null,
+      caloriesEstimated: null,
+      bodyweightKgAt: 80,
+    };
+    const projected = cardioSessionToBout(row, 75);
+    expect(projected.calories).toBeGreaterThan(0);
+  });
+});
+
+describe("buildCardioProgression honours a custom weekly goal", () => {
+  it("uses the supplied weeklyGoal over the WHO default", () => {
+    const progression = buildCardioProgression(
+      [bout({ performedAt: new Date("2026-06-10T08:00:00.000Z") })],
+      CardioActivity.TREADMILL,
+      210,
+    );
+    expect(progression.weeklyGoal).toBe(210);
+    expect(progression.weeklyMinutes.every((week) => week.goal === 210)).toBe(true);
   });
 });
 

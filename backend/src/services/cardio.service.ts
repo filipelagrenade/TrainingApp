@@ -5,6 +5,7 @@ import { estimateCalories } from "../lib/calories";
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
 import { metersToKm, milesToMeters, kmToMeters } from "../lib/units";
+import { mergeUserSettings } from "../lib/user-settings";
 
 // ---------------------------------------------------------------------------
 // Shared shapes & constants
@@ -337,7 +338,7 @@ const FALLBACK_BODYWEIGHT_KG = 75;
 // Bout collection: source 1 — CardioSession rows
 // ---------------------------------------------------------------------------
 
-type CardioSessionRow = {
+export type CardioSessionRow = {
   activity: CardioActivity;
   performedAt: Date;
   durationSeconds: number;
@@ -369,7 +370,7 @@ const estimateRowCalories = (row: CardioSessionRow, fallbackBodyweightKg: number
     rpe: row.rpe ?? undefined,
   }).kcal;
 
-const cardioSessionToBout = (
+export const cardioSessionToBout = (
   row: CardioSessionRow,
   fallbackBodyweightKg: number,
 ): CardioBout => ({
@@ -417,7 +418,7 @@ const collectCardioSessionBouts = async (
 // Maps an Exercise's free-text equipmentType (and name fallbacks aren't used
 // here) onto the calorie engine's CardioActivity. Unknown equipment → OTHER so
 // it still contributes a moderate-MET estimate.
-const equipmentToActivity = (equipmentType: string): CardioActivity => {
+export const equipmentToActivity = (equipmentType: string): CardioActivity => {
   const key = equipmentType.toLowerCase();
   if (key.includes("treadmill")) return CardioActivity.TREADMILL;
   if (key.includes("row")) return CardioActivity.ROWER;
@@ -626,8 +627,16 @@ export const getCardioProgression = async (
   userId: string,
   activity?: CardioActivity,
 ): Promise<CardioProgression> => {
-  const bouts = await collectAllBouts(userId, activity);
-  return buildCardioProgression(bouts, activity ?? null);
+  const [bouts, user] = await Promise.all([
+    collectAllBouts(userId, activity),
+    prisma.user.findUnique({ where: { id: userId }, select: { settings: true } }),
+  ]);
+
+  // Respect the user's configured weekly cardio goal; falls back to
+  // WHO_WEEKLY_MINUTES (the schema default) when settings are absent.
+  const { weeklyMinutesGoal } = mergeUserSettings(user?.settings).cardio;
+
+  return buildCardioProgression(bouts, activity ?? null, weeklyMinutesGoal);
 };
 
 // ---------------------------------------------------------------------------
@@ -772,6 +781,10 @@ export const updateCardioSession = async (
 
   // Merge incoming fields over the existing row so the estimate recomputes
   // against the full picture, then re-snapshot bodyweight.
+  // Schema fields are .optional() (never null), so ?? merge is safe; keep fields
+  // .optional() not .nullable() to preserve this.
+  // maxHr/notes are intentionally excluded here: they don't affect
+  // estimateCalories, so they're irrelevant to the estimate recompute.
   const merged = {
     activity: input.activity ?? existing.activity,
     durationSeconds: input.durationSeconds ?? existing.durationSeconds,
