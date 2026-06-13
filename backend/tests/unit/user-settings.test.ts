@@ -25,6 +25,26 @@ describe("mergeUserSettings", () => {
   it("defaults the max kg plate to 20", () => {
     expect(Math.max(...DEFAULT_USER_SETTINGS.plates.kg)).toBe(20);
   });
+
+  it("defaults the cardio weekly minutes goal to 150 (WHO) and km", () => {
+    expect(DEFAULT_USER_SETTINGS.cardio).toEqual({
+      weeklyMinutesGoal: 150,
+      defaultDistanceUnit: "km",
+    });
+  });
+
+  it("deep-merges a partial cardio section over defaults", () => {
+    const merged = mergeUserSettings({ cardio: { weeklyMinutesGoal: 200 } });
+    expect(merged.cardio.weeklyMinutesGoal).toBe(200);
+    expect(merged.cardio.defaultDistanceUnit).toBe(
+      DEFAULT_USER_SETTINGS.cardio.defaultDistanceUnit,
+    );
+  });
+
+  it("ignores a malformed cardio section", () => {
+    const merged = mergeUserSettings({ cardio: { weeklyMinutesGoal: "lots" } });
+    expect(merged.cardio).toEqual(DEFAULT_USER_SETTINGS.cardio);
+  });
 });
 
 describe("userSettingsUpdateSchema", () => {

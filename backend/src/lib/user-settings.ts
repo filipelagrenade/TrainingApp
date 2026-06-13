@@ -29,11 +29,18 @@ const restSchema = z.object({
   autoStart: z.boolean(),
 });
 
+const cardioSchema = z.object({
+  // WHO recommends 150 minutes of moderate activity per week.
+  weeklyMinutesGoal: z.number().int().min(0).max(10080),
+  defaultDistanceUnit: z.enum(["km", "mi"]),
+});
+
 export const userSettingsSchema = z.object({
   advancedTracking: advancedTrackingSchema,
   plates: platesSchema,
   barWeights: barWeightsSchema,
   rest: restSchema,
+  cardio: cardioSchema,
   previousValueScope: z.enum(["slot", "anywhere"]),
 });
 
@@ -43,6 +50,7 @@ export const userSettingsUpdateSchema = z
     plates: platesSchema.partial(),
     barWeights: barWeightsSchema.partial(),
     rest: restSchema.partial(),
+    cardio: cardioSchema.partial(),
     previousValueScope: z.enum(["slot", "anywhere"]),
   })
   .partial();
@@ -58,6 +66,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   },
   barWeights: { barbell: 20, ezBar: 7.5, trapBar: 25 },
   rest: { workingSeconds: 90, warmupSeconds: 60, autoStart: true },
+  cardio: { weeklyMinutesGoal: 150, defaultDistanceUnit: "km" },
   previousValueScope: "slot",
 };
 
@@ -89,6 +98,7 @@ export const mergeUserSettings = (stored: unknown): UserSettings => {
     plates: mergeSection("plates", platesSchema.partial()),
     barWeights: mergeSection("barWeights", barWeightsSchema.partial()),
     rest: mergeSection("rest", restSchema.partial()),
+    cardio: mergeSection("cardio", cardioSchema.partial()),
     previousValueScope: sectionOrDefault(
       z.enum(["slot", "anywhere"]),
       record.previousValueScope,
@@ -105,5 +115,6 @@ export const applySettingsUpdate = (
   plates: { ...current.plates, ...update.plates },
   barWeights: { ...current.barWeights, ...update.barWeights },
   rest: { ...current.rest, ...update.rest },
+  cardio: { ...current.cardio, ...update.cardio },
   previousValueScope: update.previousValueScope ?? current.previousValueScope,
 });
