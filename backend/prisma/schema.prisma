@@ -154,6 +154,10 @@ model User {
   exercisePreferences  UserExercisePreference[]
   progressionTracks    ProgressionTrack[]
   cardioSessions       CardioSession[]
+  supplements          Supplement[]
+  supplementStacks     SupplementStack[]
+  supplementCycles     SupplementCycle[]
+  supplementIntakes    SupplementIntake[]
 }
 
 enum CardioActivity {
@@ -752,4 +756,199 @@ model WorkoutInvite {
   toUser           User     @relation("receivedInvites", fields: [toUserId], references: [id], onDelete: Cascade)
 
   @@index([toUserId, status])
+}
+
+enum SuppForm {
+  TABLET
+  CAPSULE
+  POWDER
+  LIQUID
+  INJECTION
+  OTHER
+}
+
+enum SuppSlot {
+  MORNING
+  MIDDAY
+  EVENING
+  BEDTIME
+  PRE_WORKOUT
+  INTRA_WORKOUT
+  POST_WORKOUT
+  CUSTOM
+}
+
+enum SuppFreq {
+  DAILY
+  WEEKLY
+  EVERY_N_DAYS
+  AS_NEEDED
+}
+
+enum IntakeStatus {
+  TAKEN
+  SKIPPED
+  SNOOZED
+  MISSED
+}
+
+enum CyclePhaseKind {
+  ON
+  OFF
+  LOAD
+  MAINTAIN
+  PCT
+  BRIDGE
+  BLAST
+  CRUISE
+  TAPER_STEP
+}
+
+model Supplement {
+  id                   String                  @id @default(cuid())
+  userId               String
+  name                 String
+  brand                String?
+  form                 SuppForm
+  defaultUnit          String // mg|g|mcg|IU|ml|capsule|tablet|scoop|unit
+  servingSize          Float?
+  servingUnit          String?
+  servingsPerContainer Float?
+  tags                 String[]
+  color                String?
+  icon                 String?
+  notes                String?
+  archived             Boolean                 @default(false)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules            SupplementSchedule[]
+  stackMembers         SupplementStackMember[]
+  inventory            SupplementInventory?
+  intakes              SupplementIntake[]
+
+  @@index([userId])
+}
+
+model SupplementStack {
+  id        String                  @id @default(cuid())
+  userId    String
+  name      String
+  goal      String?
+  color     String?
+  paused    Boolean                 @default(false)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members   SupplementStackMember[]
+  schedules SupplementSchedule[]
+
+  @@index([userId])
+}
+
+model SupplementStackMember {
+  id           String          @id @default(cuid())
+  stackId      String
+  supplementId String
+  sortOrder    Int             @default(0)
+  stack        SupplementStack @relation(fields: [stackId], references: [id], onDelete: Cascade)
+  supplement   Supplement      @relation(fields: [supplementId], references: [id], onDelete: Cascade)
+
+  @@unique([stackId, supplementId])
+  @@index([stackId])
+}
+
+model SupplementSchedule {
+  id                 String                @id @default(cuid())
+  supplementId       String
+  stackId            String?
+  cycleId            String?
+  cyclePhaseId       String?
+  doseAmount         Float
+  doseUnit           String
+  withFood           String? // with_food|empty_stomach|with_fat
+  slot               SuppSlot
+  clockTime          String? // "HH:mm" optional resolution of the slot
+  freq               SuppFreq
+  interval           Int                   @default(1)
+  byWeekday          Int[] // 0-6 (Sun-Sat) for WEEKLY
+  timesPerDay        Int                   @default(1)
+  isPrn              Boolean               @default(false)
+  prnMaxPerDay       Int?
+  prnMinIntervalHrs  Int?
+  startDate          DateTime
+  endDate            DateTime?
+  reminderEnabled    Boolean               @default(false)
+  reminderWindowMins Int                   @default(60)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  supplement         Supplement            @relation(fields: [supplementId], references: [id], onDelete: Cascade)
+  stack              SupplementStack?      @relation(fields: [stackId], references: [id], onDelete: SetNull)
+  cycle              SupplementCycle?      @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  cyclePhase         SupplementCyclePhase? @relation(fields: [cyclePhaseId], references: [id], onDelete: SetNull)
+
+  @@index([supplementId])
+}
+
+model SupplementCycle {
+  id        String                 @id @default(cuid())
+  userId    String
+  name      String
+  type      String
+  startDate DateTime
+  repeats   Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phases    SupplementCyclePhase[]
+  schedules SupplementSchedule[]
+
+  @@index([userId])
+}
+
+model SupplementCyclePhase {
+  id             String               @id @default(cuid())
+  cycleId        String
+  order          Int
+  kind           CyclePhaseKind
+  durationDays   Int
+  startDelayDays Int                  @default(0)
+  label          String?
+  cycle          SupplementCycle      @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  schedules      SupplementSchedule[]
+
+  @@index([cycleId])
+}
+
+model SupplementIntake {
+  id            String        @id @default(cuid())
+  userId        String
+  supplementId  String
+  scheduleId    String?
+  stackId       String?
+  cyclePhaseId  String?
+  scheduledFor  DateTime
+  loggedAt      DateTime?
+  status        IntakeStatus
+  doseAmount    Float
+  doseUnit      String
+  source        String // manual|reminder|stack_bulk
+  createdAt     DateTime      @default(now())
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supplement    Supplement    @relation(fields: [supplementId], references: [id], onDelete: Cascade)
+
+  @@index([userId, scheduledFor])
+}
+
+model SupplementInventory {
+  id                        String     @id @default(cuid())
+  supplementId              String     @unique
+  servingsRemaining         Float
+  containerSize             Float?
+  autoDecrement             Boolean    @default(true)
+  lowStockThresholdServings Float      @default(7)
+  reorderUrl                String?
+  remindBeforeDays          Int        @default(5)
+  updatedAt                 DateTime   @updatedAt
+  supplement                Supplement @relation(fields: [supplementId], references: [id], onDelete: Cascade)
 }
