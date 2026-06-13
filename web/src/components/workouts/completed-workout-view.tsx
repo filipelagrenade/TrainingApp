@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Share2, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Share2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -72,6 +72,24 @@ export const CompletedWorkoutView = ({
       await queryClient.invalidateQueries({ queryKey: ["progress-overview"] });
       toast.success("Workout deleted");
       router.push("/history");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const repeatMutation = useMutation({
+    mutationFn: () => apiClient.repeatWorkout(session.id),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
+      // If a session was already in progress, the API hands it back unchanged.
+      if (created.id !== session.id && created.status === "IN_PROGRESS") {
+        toast.success(
+          created.title === session.title
+            ? "Workout ready to go"
+            : "Resumed your in-progress workout",
+        );
+      }
+      router.push(`/workouts/${created.id}`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -161,6 +179,14 @@ export const CompletedWorkoutView = ({
               </CardDescription>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => repeatMutation.mutate()}
+                disabled={repeatMutation.isPending}
+              >
+                <RotateCcw className="h-4 w-4" />
+                {repeatMutation.isPending ? "Starting…" : "Repeat"}
+              </Button>
               <Button variant="outline" onClick={() => setShareOpen(true)}>
                 <Share2 className="h-4 w-4" />
                 Share

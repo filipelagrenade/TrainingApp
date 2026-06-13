@@ -25,6 +25,7 @@ import type {
   SocialUser,
   TemplateDraft,
   TrackingMode,
+  TrainingCalendar,
   User,
   UserExercisePreference,
   UserSettingsUpdate,
@@ -90,6 +91,13 @@ export const apiClient = {
     request<ExerciseProgressDetail>(`/progress/exercises/${exerciseId}`),
   getMonthlyRecap: (month?: string) =>
     request<MonthlyRecap>(`/progress/recap${month ? `?month=${encodeURIComponent(month)}` : ""}`),
+  getTrainingCalendar: (range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) params.set("from", range.from);
+    if (range?.to) params.set("to", range.to);
+    const query = params.toString();
+    return request<TrainingCalendar>(`/progress/calendar${query ? `?${query}` : ""}`);
+  },
   getMyProfile: () => request<ProfileView>("/profile/me"),
   getProfile: (userId: string) => request<ProfileView>(`/profile/${userId}`),
   updateProfileShowcase: (payload: {
@@ -253,6 +261,10 @@ export const apiClient = {
     request<WorkoutSession>("/workouts/start", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  repeatWorkout: (workoutId: string) =>
+    request<WorkoutSession>(`/workouts/${workoutId}/repeat`, {
+      method: "POST",
     }),
   getWorkout: (workoutId: string) => request<WorkoutSessionDetail>(`/workouts/${workoutId}`),
   saveWorkoutDraft: (workoutId: string, payload: WorkoutDraft) =>

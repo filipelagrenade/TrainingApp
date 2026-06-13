@@ -684,6 +684,195 @@ export const getMonthlyRecap = async (userId: string, month?: string) => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// Training consistency calendar
+// ---------------------------------------------------------------------------
+
+const ISO_DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const MAX_CALENDAR_RANGE_DAYS = 400;
+const DEFAULT_CALENDAR_RANGE_DAYS = 365;
+
+// Calendar days are keyed in UTC to match the monthly recap convention
+// (`toDayKey`); the web client renders the YYYY-MM-DD keys directly.
+const toIsoDayKey = (date: Date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    date.getUTCDate(),
+  ).padStart(2, "0")}`;
+
+// Midnight UTC of the given instant's calendar day.
+const startOfUtcDay = (date: Date) =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+
+const parseIsoDate = (value: string) => {
+  if (!ISO_DATE_PATTERN.test(value)) {
+    throw new AppError(400, "INVALID_DATE", "Dates must use the YYYY-MM-DD format.");
+  }
+  return new Date(`${value}T00:00:00.000Z`);
+};
+
+// Resolves the requested [from, to] window into UTC day boundaries. Defaults to
+// the trailing 365 days, caps the span at 400 days, and rejects from > to.
+export const resolveCalendarRange = (
+  from: string | undefined,
+  to: string | undefined,
+  now = new Date(),
+) => {
+  const toDate = to ? startOfUtcDay(parseIsoDate(to)) : startOfUtcDay(now);
+  const fromDate = from
+    ? startOfUtcDay(parseIsoDate(from))
+    : new Date(toDate.getTime() - (DEFAULT_CALENDAR_RANGE_DAYS - 1) * DAY_IN_MS);
+
+  if (fromDate.getTime() > toDate.getTime()) {
+    throw new AppError(400, "INVALID_DATE_RANGE", "The 'from' date must not be after 'to'.");
+  }
+
+  const spanDays = Math.floor((toDate.getTime() - fromDate.getTime()) / DAY_IN_MS) + 1;
+  if (spanDays > MAX_CALENDAR_RANGE_DAYS) {
+    throw new AppError(
+      400,
+      "DATE_RANGE_TOO_LARGE",
+      `The calendar range cannot exceed ${MAX_CALENDAR_RANGE_DAYS} days.`,
+    );
+  }
+
+  return { fromDate, toDate, spanDays };
+};
+
+type CalendarSession = {
+  completedAt: Date | null;
+  totalXp: number;
+  totalDurationSeconds: number | null;
+  exercises: Array<{
+    unitMode: string;
+    sets: Array<{
+      weight: number | null;
+      reps: number;
+      isWorkingSet: boolean;
+      isPersonalRecord?: boolean;
+      trackingData?: Prisma.JsonValue | null;
+    }>;
+  }>;
+};
+
+export type TrainingCalendarDay = {
+  date: string;
+  sessions: number;
+  volume: number;
+  durationSeconds: number;
+  xp: number;
+  prCount: number;
+};
+
+// Pure aggregation over completed sessions into per-day buckets plus streaks.
+// Volumes stay in kg (the web client converts to the user's preferred unit).
+export const buildTrainingCalendarStats = (
+  sessions: CalendarSession[],
+  fromDate: Date,
+  toDate: Date,
+  now = new Date(),
+) => {
+  const dayMap = new Map<string, TrainingCalendarDay>();
+  let totalSessions = 0;
+
+  for (const session of sessions) {
+    if (!session.completedAt) {
+      continue;
+    }
+
+    totalSessions += 1;
+    const key = toIsoDayKey(session.completedAt);
+    const day = dayMap.get(key) ?? {
+      date: key,
+      sessions: 0,
+      volume: 0,
+      durationSeconds: 0,
+      xp: 0,
+      prCount: 0,
+    };
+
+    day.sessions += 1;
+    day.xp += session.totalXp;
+    day.durationSeconds += session.totalDurationSeconds ?? 0;
+
+    for (const exercise of session.exercises) {
+      const summary = summarizeSets(exercise.sets, exercise.unitMode);
+      day.volume += summary.volume;
+      day.prCount += summary.personalRecordCount;
+    }
+
+    dayMap.set(key, day);
+  }
+
+  const trainedKeys = new Set(dayMap.keys());
+
+  // Longest run of consecutive trained days anywhere in the range.
+  let longestStreakDays = 0;
+  for (
+    let cursor = new Date(fromDate.getTime()), run = 0;
+    cursor.getTime() <= toDate.getTime();
+    cursor = new Date(cursor.getTime() + DAY_IN_MS)
+  ) {
+    run = trainedKeys.has(toIsoDayKey(cursor)) ? run + 1 : 0;
+    if (run > longestStreakDays) {
+      longestStreakDays = run;
+    }
+  }
+
+  // Current streak counts back from today; a streak is "alive" if it includes
+  // today or yesterday (so a rest-day today doesn't reset a healthy streak).
+  const today = startOfUtcDay(now);
+  let currentStreakDays = 0;
+  const anchorTrainedToday = trainedKeys.has(toIsoDayKey(today));
+  const start = anchorTrainedToday ? today : new Date(today.getTime() - DAY_IN_MS);
+  for (
+    let cursor = new Date(start.getTime());
+    cursor.getTime() >= fromDate.getTime() && trainedKeys.has(toIsoDayKey(cursor));
+    cursor = new Date(cursor.getTime() - DAY_IN_MS)
+  ) {
+    currentStreakDays += 1;
+  }
+
+  const days = [...dayMap.values()].sort((left, right) => left.date.localeCompare(right.date));
+
+  return { days, totalSessions, currentStreakDays, longestStreakDays };
+};
+
+export const getTrainingCalendar = async (
+  userId: string,
+  range: { from?: string; to?: string },
+) => {
+  const { fromDate, toDate } = resolveCalendarRange(range.from, range.to);
+
+  // Inclusive of the to-day: query up to the start of the next day.
+  const toExclusive = new Date(toDate.getTime() + DAY_IN_MS);
+
+  const sessions = await prisma.workoutSession.findMany({
+    where: {
+      userId,
+      status: WorkoutStatus.COMPLETED,
+      completedAt: {
+        gte: fromDate,
+        lt: toExclusive,
+      },
+    },
+    include: {
+      exercises: {
+        include: {
+          sets: true,
+        },
+      },
+    },
+  });
+
+  const stats = buildTrainingCalendarStats(sessions, fromDate, toDate);
+
+  return {
+    from: toIsoDayKey(fromDate),
+    to: toIsoDayKey(toDate),
+    ...stats,
+  };
+};
+
 export const getExerciseProgress = async (userId: string, exerciseId: string) => {
   const exercise = await getVisibleExercise(userId, exerciseId);
   const workoutExercises = await prisma.workoutExercise.findMany({

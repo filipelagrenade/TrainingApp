@@ -823,6 +823,109 @@ export const startWorkout = async (
   });
 };
 
+export const repeatWorkout = async (userId: string, sourceWorkoutId: string) => {
+  // If a session is already in progress, return it (same guard as startWorkout).
+  const existingInProgress = await prisma.workoutSession.findFirst({
+    where: {
+      userId,
+      status: WorkoutStatus.IN_PROGRESS,
+    },
+    orderBy: { startedAt: "desc" },
+  });
+
+  if (existingInProgress) {
+    return existingInProgress;
+  }
+
+  const source = await prisma.workoutSession.findFirst({
+    where: {
+      id: sourceWorkoutId,
+      userId,
+      status: WorkoutStatus.COMPLETED,
+    },
+    include: {
+      exercises: {
+        include: {
+          sets: {
+            orderBy: { setNumber: "asc" },
+          },
+        },
+        orderBy: { orderIndex: "asc" },
+      },
+    },
+  });
+
+  if (!source) {
+    throw new AppError(404, "WORKOUT_NOT_FOUND", "That workout could not be found.");
+  }
+
+  // The source session is stored in kg; reuse the starting values verbatim and
+  // reset per-set `completed` flags. Completed sessions carry no PRs into the draft.
+  const draft: WorkoutDraft = {
+    title: source.title,
+    notes: source.notes ?? undefined,
+    exercises: source.exercises.map((exercise) => ({
+      exerciseId: exercise.exerciseId,
+      exerciseName: exercise.exerciseName,
+      exerciseCategory: exercise.exerciseCategory,
+      equipmentType: exercise.equipmentType,
+      machineType: exercise.machineType,
+      attachment: exercise.attachment,
+      loadType: exercise.loadType,
+      trackingMode: exercise.trackingMode ?? TrackingMode.ABSOLUTE_WEIGHT,
+      defaultTrackingData: normalizeTrackingData(exercise.defaultTrackingData),
+      unitMode: DEFAULT_UNIT,
+      unilateral: exercise.unilateral,
+      notes: exercise.notes ?? undefined,
+      prescribedSetCount: exercise.prescribedSetCount,
+      // `restSeconds` is a draft/preference concept, not persisted on the
+      // completed exercise — left null so hydrate falls back to defaults.
+      restSeconds: null,
+      repMin: exercise.repMin,
+      repMax: exercise.repMax,
+      suggestedWeight: exercise.suggestedWeight,
+      recommendationReason: null,
+      // Drop program linkage so the repeat is logged as a fresh, unplanned session.
+      sourceProgramExerciseId: null,
+      substitutedFromExerciseId: exercise.substitutedFromExerciseId,
+      substitutedFromExerciseName: exercise.substitutedFromExerciseName,
+      substitutionMode:
+        exercise.substitutionMode === "EQUIVALENT" || exercise.substitutionMode === "ALTERNATE"
+          ? exercise.substitutionMode
+          : null,
+      countsForProgression: exercise.countsForProgression,
+      supersetGroupId: exercise.supersetGroupId,
+      supersetPosition: exercise.supersetPosition,
+      sets: exercise.sets.map((set) => ({
+        setNumber: set.setNumber,
+        weight: set.weight,
+        reps: set.reps,
+        rpe: set.rpe,
+        completed: false,
+        setType: set.setType,
+        trackingData: normalizeTrackingData(set.trackingData),
+        isWorkingSet: set.isWorkingSet,
+      })),
+    })),
+  };
+
+  // Source values are already in kg, but route through the same normalization
+  // path startWorkout uses so the persisted draft is consistent.
+  const persistedDraft = convertDraftToStorageUnit(draft);
+
+  return prisma.workoutSession.create({
+    data: {
+      userId,
+      title: persistedDraft.title,
+      entryType: WorkoutEntryType.QUICK,
+      status: WorkoutStatus.IN_PROGRESS,
+      wasPlanned: false,
+      savedDraft: persistedDraft,
+      originDraft: persistedDraft,
+    },
+  });
+};
+
 export const getWorkout = async (userId: string, workoutId: string) => {
   const preferredUnit = await getPreferredUnitForUser(userId);
   const startedAt = Date.now();

@@ -19,6 +19,7 @@ import {
   pairWorkoutSuperset,
   pauseWorkout,
   removeWorkoutSubstitution,
+  repeatWorkout,
   resumeWorkout,
   saveWorkoutDraft,
   startWorkout,
@@ -220,6 +221,18 @@ workoutsRouter.get("/:workoutId", async (request, response, next) => {
 workoutsRouter.post("/start", validateBody(startSchema), async (request, response, next) => {
   try {
     const workout = await startWorkout(request.currentUser!.id, request.body);
+    sendSuccess(response, workout, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+workoutsRouter.post("/:workoutId/repeat", async (request, response, next) => {
+  try {
+    const workout = await repeatWorkout(
+      request.currentUser!.id,
+      String(request.params.workoutId),
+    );
     sendSuccess(response, workout, 201);
   } catch (error) {
     next(error);

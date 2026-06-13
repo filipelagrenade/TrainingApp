@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, CalendarDays, ChevronRight, Scale, TrendingUp, Trophy } from "lucide-react";
+import { BarChart3, CalendarDays, CalendarRange, ChevronRight, Scale, TrendingUp, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -241,6 +241,22 @@ export const ProgressScreen = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Link
+            href="/progress/calendar"
+            className="surface-panel flex min-h-[var(--touch-min)] items-center justify-between gap-3 p-4 transition-colors hover:bg-surface-raised"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-accent">
+                <CalendarRange className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-semibold text-ink">Training calendar</p>
+                <p className="text-sm text-ink-muted">Consistency & streaks at a glance</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+          </Link>
 
           <Link
             href="/progress/recap"

@@ -752,6 +752,26 @@ export type MonthlyRecap = {
   previousMonth: { sessions: number; totalVolume: number; prCount: number } | null;
 };
 
+/** A single training day in the consistency calendar. Volume is in kg. */
+export type TrainingCalendarDay = {
+  date: string;
+  sessions: number;
+  volume: number;
+  durationSeconds: number;
+  xp: number;
+  prCount: number;
+};
+
+/** Training consistency calendar. Volumes are in kg; format with `formatVolume`. */
+export type TrainingCalendar = {
+  from: string;
+  to: string;
+  days: TrainingCalendarDay[];
+  totalSessions: number;
+  currentStreakDays: number;
+  longestStreakDays: number;
+};
+
 export type BodyMetricEntry = {
   id: string;
   weight: number | null;

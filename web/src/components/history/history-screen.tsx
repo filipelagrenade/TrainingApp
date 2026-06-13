@@ -1,13 +1,16 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Archive, Search } from "lucide-react";
+import { Archive, RotateCcw, Search } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { AuthCard } from "@/components/auth/auth-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -44,6 +47,8 @@ const draftTotals = (workout: WorkoutSession): { sets: number; volumeKg: number 
 
 export const HistoryScreen = () => {
   const [query, setQuery] = useState("");
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: apiClient.getMe,
@@ -53,6 +58,20 @@ export const HistoryScreen = () => {
     queryKey: ["recent-workouts", "all"],
     queryFn: () => apiClient.getRecentWorkouts(),
     enabled: meQuery.isSuccess,
+  });
+
+  const repeatMutation = useMutation({
+    mutationFn: (workoutId: string) => apiClient.repeatWorkout(workoutId),
+    onSuccess: async (created, sourceId) => {
+      await queryClient.invalidateQueries({ queryKey: ["in-progress-workout"] });
+      await queryClient.invalidateQueries({ queryKey: ["recent-workouts"] });
+      // The API returns an existing in-progress session when one is already open.
+      if (created.id !== sourceId && created.status === "IN_PROGRESS") {
+        toast.success("Workout ready to go");
+      }
+      router.push(`/workouts/${created.id}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const filteredWorkouts = useMemo(() => {
@@ -136,10 +155,21 @@ export const HistoryScreen = () => {
               const totals = draftTotals(workout);
 
               return (
-                <li key={workout.id}>
+                <li key={workout.id} className="relative">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Repeat ${workout.title}`}
+                    className="absolute right-1 top-1/2 z-10 -translate-y-1/2 text-ink-muted hover:text-ink"
+                    disabled={repeatMutation.isPending}
+                    onClick={() => repeatMutation.mutate(workout.id)}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
                   <Link
                     href={`/workouts/${workout.id}`}
-                    className="-mx-2 grid grid-cols-[72px_1fr] items-baseline gap-x-4 gap-y-1 px-2 py-6 transition-colors hover:bg-surface-sunken"
+                    className="-mx-2 grid grid-cols-[72px_1fr] items-baseline gap-x-4 gap-y-1 px-2 py-6 pr-12 transition-colors hover:bg-surface-sunken"
                   >
                     <span className="eyebrow leading-tight">
                       {date ? (
