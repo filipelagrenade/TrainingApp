@@ -136,24 +136,30 @@ jobs:
     steps:
       - name: Deploy to droplet
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
+          envs: GHCR_PAT
           script: |
             set -e
             cd /root/liftiq
             # Rebase keeps droplet-local commits (edge config) on top of main.
             git pull --rebase origin main
-            # Build images from the freshly pulled checkout. --profile ops is
-            # required so the profile-gated migrate image is rebuilt too —
-            # otherwise it runs with stale bundled migrations and reports
-            # "no pending migrations" while the schema drifts.
-            docker compose -f docker-compose.prod.yml --env-file .env.production --profile ops build
+            # Authenticate to GHCR for the private image pulls. A persistent
+            # login also exists on the box; this refreshes it each deploy so a
+            # token rotation can't silently break pulls.
+            echo "$GHCR_PAT" | docker login ghcr.io -u filipelagrenade --password-stdin
+            # Pull the prebuilt images CI just published — NO build on the box
+            # (on-box Next.js builds OOM'd the shared 2 GB droplet).
+            docker compose -f docker-compose.prod.yml --env-file .env.production pull
             # Apply any pending Prisma migrations BEFORE rolling out the new
-            # backend. Additive migrations are safe to run while the old
-            # backend is still serving. The migrate service is profile-gated.
+            # backend. The migrate service reuses the freshly pulled backend
+            # image (bundles prisma/ + migrations). Additive migrations are safe
+            # to run while the old backend is still serving.
             docker compose -f docker-compose.prod.yml --env-file .env.production --profile ops run --rm migrate
-            # Roll out using the images built above (no rebuild needed here).
+            # Roll out using the pulled images.
             docker compose -f docker-compose.prod.yml --env-file .env.production up -d --remove-orphans
             docker image prune -f

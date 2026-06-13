@@ -39,6 +39,9 @@ services:
       - caddy_config:/config
 
   backend:
+    # Prod pulls the prebuilt GHCR image (CI publishes it). The build: block is
+    # kept only as a local-dev fallback — `docker compose pull` prefers image:.
+    image: ${BACKEND_IMAGE:-ghcr.io/filipelagrenade/trainingapp-backend:latest}
     build:
       context: ./backend
     container_name: liftiq-backend
@@ -63,6 +66,9 @@ services:
       start_period: 20s
 
   web:
+    # Prod pulls the prebuilt GHCR image (CI publishes it). The build: block is
+    # kept only as a local-dev fallback — `docker compose pull` prefers image:.
+    image: ${WEB_IMAGE:-ghcr.io/filipelagrenade/trainingapp-web:latest}
     build:
       context: ./web
       args:
@@ -81,8 +87,9 @@ services:
       - "3000"
 
   migrate:
-    build:
-      context: ./backend
+    # Reuses the backend image (it already bundles prisma/ + migrations) so the
+    # migrate step needs no separate build. Profile-gated to ops.
+    image: ${BACKEND_IMAGE:-ghcr.io/filipelagrenade/trainingapp-backend:latest}
     container_name: liftiq-migrate
     profiles: ["ops"]
     depends_on:
