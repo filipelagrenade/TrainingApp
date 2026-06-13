@@ -80,10 +80,15 @@ export type CycleInput = {
 };
 
 export type ScheduleInput = {
+  /**
+   * Due-window lower bound AND the anchor for EVERY_N_DAYS recurrence — the
+   * `interval` phase is measured from this date, so changing it shifts which
+   * days are due, not just when the schedule begins.
+   */
   startDate: Date;
   endDate: Date | null;
   freq: SuppFreq;
-  /** Spacing for EVERY_N_DAYS. Ignored by other frequencies. */
+  /** Spacing for EVERY_N_DAYS. Schema default is 1; the dueOn guard clamps ≤0 to 1. Ignored by other frequencies. */
   interval: number;
   /** Weekdays (0=Sun..6=Sat, UTC) for WEEKLY. */
   byWeekday: number[];
@@ -247,11 +252,14 @@ const matchesRecurrence = (date: Date, schedule: ScheduleInput): boolean => {
     case "WEEKLY":
       return schedule.byWeekday.includes(date.getUTCDay());
     case "EVERY_N_DAYS": {
+      // Schema default is 1; clamp ≤0 to 1 so a bad value can't divide-by-zero / loop forever.
       const interval = schedule.interval > 0 ? schedule.interval : 1;
       return utcDayDiff(date, schedule.startDate) % interval === 0;
     }
     case "AS_NEEDED":
-      return false; // PRN — surfaced separately, never auto-due
+      // PRN by frequency — surfaced separately, never auto-due. Independent of
+      // the isPrn boolean gate in dueOn (either alone suppresses auto-due).
+      return false;
     default:
       return false;
   }
@@ -280,7 +288,10 @@ export const dueOn = (date: Date, schedule: ScheduleInput, cycle?: CycleInput | 
     return false;
   }
 
-  // PRN never auto-due (covers AS_NEEDED and the isPrn flag on recurring freqs).
+  // AS_NEEDED (freq) and isPrn (boolean) are INDEPENDENT gates — either one
+  // suppresses auto-due, so neither guard is redundant: isPrn catches a PRN
+  // flag set on a recurring freq; the AS_NEEDED case in matchesRecurrence
+  // catches the freq itself. Don't collapse them into one.
   if (schedule.isPrn) {
     return false;
   }

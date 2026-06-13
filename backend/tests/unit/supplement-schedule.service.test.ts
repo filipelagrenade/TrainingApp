@@ -242,6 +242,23 @@ describe("cyclePosition", () => {
     // next active phase (PCT) begins at offset 8 → 2026-01-09.
     expect(pos!.nextTransitionDate?.toISOString()).toBe(d("2026-01-09").toISOString());
   });
+
+  it("returns null for a zero-duration cycle (phases sum to 0 / empty)", () => {
+    // cycleLengthDays <= 0 guard: no positionable timeline to land on.
+    const emptyCycle: CycleInput = {
+      startDate: d("2026-01-01"),
+      repeats: true,
+      phases: [],
+    };
+    expect(cyclePosition(d("2026-01-01"), emptyCycle)).toBeNull();
+
+    const zeroDurationCycle: CycleInput = {
+      startDate: d("2026-01-01"),
+      repeats: true,
+      phases: [{ order: 0, kind: "ON", durationDays: 0, startDelayDays: 0 }],
+    };
+    expect(cyclePosition(d("2026-01-01"), zeroDurationCycle)).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -472,11 +489,11 @@ describe("computeAdherence — cycle-aware denominator", () => {
   it("a missed scheduled day breaks the streak", () => {
     const schedules = [adhSchedule({ startDate: d("2026-01-01") })]; // plain daily
     const intakes = [
+      takenIntake("supp-1", "2026-01-03"),
+      // 01-04 missed
       takenIntake("supp-1", "2026-01-05"),
       takenIntake("supp-1", "2026-01-06"),
       takenIntake("supp-1", "2026-01-07"),
-      // 01-04 missed
-      takenIntake("supp-1", "2026-01-03"),
     ];
     const result = computeAdherence({
       schedules,
