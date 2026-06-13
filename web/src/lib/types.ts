@@ -800,6 +800,107 @@ export type CreateBodyMetricInput = {
   recordedAt?: string;
 };
 
+// ---------------------------------------------------------------------------
+// Cardio (mirrors backend serialized shapes — see cardio.service.ts /
+// cardio.routes.ts). Distance is canonical in meters; speed in km/h.
+// ---------------------------------------------------------------------------
+
+/** The 9 cardio activities, matching the backend CardioActivity prisma enum. */
+export type CardioActivity =
+  | "TREADMILL"
+  | "BIKE"
+  | "ROWER"
+  | "STAIR"
+  | "ELLIPTICAL"
+  | "OUTDOOR_RUN"
+  | "OUTDOOR_WALK"
+  | "OUTDOOR_CYCLE"
+  | "OTHER";
+
+/** Serialized cardio session (cardio.service.ts `serializeSession`). */
+export type CardioSession = {
+  id: string;
+  activity: CardioActivity;
+  performedAt: string;
+  durationSeconds: number;
+  distanceMeters: number | null;
+  avgSpeedKmh: number | null;
+  inclinePct: number | null;
+  resistanceLevel: number | null;
+  avgWatts: number | null;
+  avgHr: number | null;
+  maxHr: number | null;
+  rpe: number | null;
+  caloriesEstimated: number | null;
+  caloriesManual: number | null;
+  /** Display calories: manual machine value when present, else the estimate. */
+  calories: number | null;
+  bodyweightKgAt: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CardioMetrics = {
+  minutes: number;
+  sessions: number;
+  distanceMeters: number;
+  calories: number;
+  weightEquivalentKg: number;
+};
+
+export type CardioSummary = CardioMetrics & {
+  deltas: CardioMetrics;
+};
+
+export type CardioCalendarDay = {
+  date: string;
+  sessions: number;
+  minutes: number;
+  calories: number;
+};
+
+export type CardioCalendar = {
+  from: string;
+  to: string;
+  days: CardioCalendarDay[];
+};
+
+export type CardioProgression = {
+  activity: CardioActivity | null;
+  distanceTrend: Array<{ date: string; value: number }>;
+  paceTrend: Array<{ date: string; value: number }>;
+  sustainedLoad: {
+    baseline: { label: string; value: number } | null;
+    current: { label: string; value: number } | null;
+  };
+  weeklyMinutes: Array<{ weekStart: string; minutes: number; goal: number }>;
+  weeklyGoal: number;
+};
+
+export type CardioPeriod = "week" | "month" | "all";
+
+/**
+ * Create/update body for a cardio session. Distance is sent in the chosen unit
+ * (`distance` + `distanceUnit`) and converted to canonical meters server-side.
+ */
+export type CardioSessionInput = {
+  activity: CardioActivity;
+  performedAt: string;
+  durationSeconds: number;
+  distance?: number;
+  distanceUnit?: "km" | "mi" | "m";
+  inclinePct?: number;
+  resistanceLevel?: number;
+  avgSpeedKmh?: number;
+  avgWatts?: number;
+  avgHr?: number;
+  maxHr?: number;
+  rpe?: number;
+  caloriesManual?: number;
+  notes?: string;
+};
+
 export type ExerciseProgressExposure = {
   workoutId: string;
   workoutTitle: string;

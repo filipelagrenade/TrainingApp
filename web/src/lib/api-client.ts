@@ -5,6 +5,13 @@ import type {
   AppNotification,
   BodyMetricEntry,
   BodyMetricsView,
+  CardioActivity,
+  CardioCalendar,
+  CardioPeriod,
+  CardioProgression,
+  CardioSession,
+  CardioSessionInput,
+  CardioSummary,
   Challenge,
   ChallengeLibrary,
   CreateBodyMetricInput,
@@ -409,6 +416,40 @@ export const apiClient = {
     }),
   deleteBodyMetric: (entryId: string) =>
     request<{ ok: boolean }>(`/body-metrics/${entryId}`, {
+      method: "DELETE",
+    }),
+  getCardioSummary: (period: CardioPeriod = "week") =>
+    request<CardioSummary>(`/cardio/summary?period=${period}`),
+  getCardioCalendar: (range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) params.set("from", range.from);
+    if (range?.to) params.set("to", range.to);
+    const query = params.toString();
+    return request<CardioCalendar>(`/cardio/calendar${query ? `?${query}` : ""}`);
+  },
+  getCardioProgression: (activity?: CardioActivity) =>
+    request<CardioProgression>(
+      `/cardio/progression${activity ? `?activity=${activity}` : ""}`,
+    ),
+  listCardioSessions: (params?: { activity?: CardioActivity; limit?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.activity) search.set("activity", params.activity);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return request<CardioSession[]>(`/cardio/sessions${query ? `?${query}` : ""}`);
+  },
+  createCardioSession: (body: CardioSessionInput) =>
+    request<CardioSession>("/cardio/sessions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateCardioSession: (id: string, body: Partial<CardioSessionInput>) =>
+    request<CardioSession>(`/cardio/sessions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteCardioSession: (id: string) =>
+    request<{ id: string }>(`/cardio/sessions/${id}`, {
       method: "DELETE",
     }),
   // The export endpoint streams a file rather than the JSON envelope, so callers
