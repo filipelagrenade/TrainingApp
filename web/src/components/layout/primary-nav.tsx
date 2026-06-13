@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { BookOpen, ChartColumnBig, Clock3, Home, Users } from "lucide-react";
+import { BookOpen, ChartColumnBig, Home, LayoutGrid, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", label: "Home", short: "HOME", icon: Home },
   { href: "/library", label: "Library", short: "LIB", icon: BookOpen },
-  { href: "/history", label: "History", short: "HIST", icon: Clock3 },
   { href: "/progress", label: "Progress", short: "PROG", icon: ChartColumnBig },
   { href: "/social", label: "Social", short: "SOC", icon: Users },
+  { href: "/more", label: "More", short: "MORE", icon: LayoutGrid },
 ];
 
 const isActivePath = (pathname: string, href: string) => {
