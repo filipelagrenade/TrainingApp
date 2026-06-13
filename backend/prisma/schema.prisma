@@ -153,6 +153,44 @@ model User {
   bodyMetricEntries    BodyMetricEntry[]
   exercisePreferences  UserExercisePreference[]
   progressionTracks    ProgressionTrack[]
+  cardioSessions       CardioSession[]
+}
+
+enum CardioActivity {
+  TREADMILL
+  BIKE
+  ROWER
+  STAIR
+  ELLIPTICAL
+  OUTDOOR_RUN
+  OUTDOOR_WALK
+  OUTDOOR_CYCLE
+  OTHER
+}
+
+model CardioSession {
+  id                String         @id @default(cuid())
+  userId            String
+  activity          CardioActivity
+  performedAt       DateTime
+  durationSeconds   Int
+  distanceMeters    Float? // canonical meters (convert km/mi at edges)
+  avgSpeedKmh       Float?
+  inclinePct        Float?
+  resistanceLevel   Float?
+  avgWatts          Float?
+  avgHr             Int?
+  maxHr             Int?
+  rpe               Float? // 0-10 device-free effort proxy
+  caloriesEstimated Float? // from the engine
+  caloriesManual    Float? // machine override
+  bodyweightKgAt    Float? // snapshot used for the estimate (recompute integrity)
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, performedAt(sort: Desc)])
 }
 
 model AuthIdentity {

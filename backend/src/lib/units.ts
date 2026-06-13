@@ -71,6 +71,24 @@ export const convertTrackingDataToKilograms = (
   unit: string,
 ) => (trackingData ? convertTrackingDataValues(trackingData, toKilograms, unit) : trackingData);
 
+const METERS_PER_KM = 1000;
+const METERS_PER_MILE = 1609.344;
+const KMH_PER_MPH = 1.609344;
+
+// Distance helpers. Distance is canonical in meters internally; convert at edges.
+export const kmToMeters = (km: number) => km * METERS_PER_KM;
+
+export const metersToKm = (meters: number) => meters / METERS_PER_KM;
+
+export const milesToMeters = (miles: number) => miles * METERS_PER_MILE;
+
+export const metersToMiles = (meters: number) => meters / METERS_PER_MILE;
+
+// Speed helpers. Speed is canonical in km/h internally.
+export const kmhToMph = (kmh: number) => kmh / KMH_PER_MPH;
+
+export const mphToKmh = (mph: number) => mph * KMH_PER_MPH;
+
 export const convertTrackingDataToPreferredUnit = (
   trackingData: Record<string, boolean | number | string | null | undefined> | null,
   unit: string,
