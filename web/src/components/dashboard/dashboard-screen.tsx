@@ -2,15 +2,37 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Activity, ArrowRight, Dumbbell, Plus, Settings, SkipForward, Zap } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  Check,
+  Dumbbell,
+  Pill,
+  Plus,
+  Settings,
+  SkipForward,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
-import type { ActiveProgram, ProgramWorkout, Readiness, User } from "@/lib/types";
+import type {
+  ActiveProgram,
+  ProgramWorkout,
+  Readiness,
+  SupplementToday,
+  SupplementTodayItem,
+  User,
+} from "@/lib/types";
 import { calculateSessionDurationSeconds, formatDuration } from "@/lib/workout-tracking";
+import {
+  SLOT_LABEL,
+  dateInputToIso,
+  formatAmount,
+} from "@/components/supplements/supplement-meta";
 import { CardioLoggerSheet } from "@/components/cardio/cardio-logger-sheet";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { NotificationBell } from "@/components/notifications/notification-sheet";
@@ -40,6 +62,20 @@ const todayUtcKey = () => {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(
     now.getUTCDate(),
   ).padStart(2, "0")}`;
+};
+
+/**
+ * The first scheduled item still owed today: walk the slots (already in slot
+ * order from the API) and return the first item whose status isn't TAKEN.
+ * Returns null when every scheduled item is taken — or when nothing's scheduled.
+ */
+const findNextDueSupplement = (today: SupplementToday): SupplementTodayItem | null => {
+  for (const slot of today.slots) {
+    for (const item of slot.items) {
+      if (item.status !== "TAKEN") return item;
+    }
+  }
+  return null;
 };
 
 const greetingFor = (now: Date) => {
@@ -89,6 +125,15 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const cardioTodayQuery = useQuery({
     queryKey: ["cardio-calendar", todayKey, todayKey],
     queryFn: () => apiClient.getCardioCalendar({ from: todayKey, to: todayKey }),
+    enabled: Boolean(user),
+  });
+
+  // "Supplements today": shares the `["supplements-today", todayKey]` key the
+  // supplement screens invalidate after logging an intake, so this card refreshes
+  // automatically. `todayKey` is the same UTC key the cardio card builds above.
+  const supplementsTodayQuery = useQuery({
+    queryKey: ["supplements-today", todayKey],
+    queryFn: () => apiClient.getSupplementsToday(todayKey),
     enabled: Boolean(user),
   });
 
@@ -165,6 +210,25 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  // Quick-take from the Today hub: log the next-due item as TAKEN, then refresh
+  // every Today/adherence/calendar view that depends on supplement intake.
+  const takeSupplementMutation = useMutation({
+    mutationFn: (scheduleId: string) =>
+      apiClient.logSupplementIntake({
+        scheduleId,
+        status: "TAKEN",
+        scheduledFor: dateInputToIso(todayKey),
+        source: "manual",
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["supplements-today"] }),
+        queryClient.invalidateQueries({ queryKey: ["supplement-adherence"] }),
+        queryClient.invalidateQueries({ queryKey: ["supplement-calendar"] }),
+      ]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const activeProgram = activeProgramQuery.data;
   const currentWeek = activeProgram?.currentWeek;
@@ -178,6 +242,13 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const cardioMinutes = cardioToday?.minutes ?? 0;
   const cardioCalories = cardioToday?.calories ?? 0;
   const hasCardioToday = cardioMinutes > 0 || cardioCalories > 0;
+
+  // Today's supplement checklist. `nextDue` is the first un-taken scheduled item
+  // (slot order); when it's null but items were due, everything's been taken.
+  const supplementsToday = supplementsTodayQuery.data ?? null;
+  const supplementAdherence = supplementsToday?.adherence ?? null;
+  const nextDueSupplement = supplementsToday ? findNextDueSupplement(supplementsToday) : null;
+  const hasScheduledSupplements = (supplementAdherence?.due ?? 0) > 0;
 
   const greeting = greetingFor(new Date());
 
@@ -370,7 +441,67 @@ export const DashboardScreen = ({ user }: { user: User }) => {
               )}
             </Card>
 
-            {/* Supplements today card goes here (later phase). */}
+            {/* Supplements today — non-blocking: an error here renders a quiet
+                fallback rather than breaking the dashboard. */}
+            <Card className="p-4">
+              {supplementsTodayQuery.isLoading ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                  <Skeleton className="h-7 w-40" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Link
+                    href="/supplements"
+                    className="-m-1 block rounded-md p-1 transition-colors hover:bg-surface-sunken"
+                    aria-label="Open supplements"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Pill className="h-4 w-4 text-ink-muted" />
+                        <p className="eyebrow">Supplements today</p>
+                      </div>
+                      {supplementAdherence ? (
+                        <Badge variant="soft" className="num shrink-0">
+                          {supplementAdherence.taken}/{supplementAdherence.due} taken
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {supplementsTodayQuery.isError ? (
+                      <p className="mt-2 text-sm text-ink-muted">
+                        Couldn’t load today’s supplements.
+                      </p>
+                    ) : nextDueSupplement ? (
+                      <p className="mt-2 truncate text-sm text-ink">
+                        <span className="text-ink-muted">Next: </span>
+                        {nextDueSupplement.supplement.name} {formatAmount(nextDueSupplement.doseAmount)}{" "}
+                        {nextDueSupplement.doseUnit} · {SLOT_LABEL[nextDueSupplement.slot]}
+                      </p>
+                    ) : hasScheduledSupplements ? (
+                      <p className="mt-2 text-sm text-ink-muted">All taken for today ✓</p>
+                    ) : (
+                      <p className="mt-2 text-sm text-ink-muted">No supplements today</p>
+                    )}
+                  </Link>
+                  {nextDueSupplement ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={takeSupplementMutation.isPending}
+                      onClick={() => takeSupplementMutation.mutate(nextDueSupplement.scheduleId)}
+                    >
+                      <Check className="h-4 w-4" />
+                      Take {nextDueSupplement.supplement.name}
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+            </Card>
           </div>
 
           {/* Next-workout card */}
