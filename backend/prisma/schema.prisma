@@ -887,6 +887,7 @@ model SupplementSchedule {
   stack              SupplementStack?      @relation(fields: [stackId], references: [id], onDelete: SetNull)
   cycle              SupplementCycle?      @relation(fields: [cycleId], references: [id], onDelete: SetNull)
   cyclePhase         SupplementCyclePhase? @relation(fields: [cyclePhaseId], references: [id], onDelete: SetNull)
+  reminderLogs       SupplementReminderLog[]
 
   @@index([supplementId])
 }
@@ -977,6 +978,7 @@ model SupplementReminderLog {
   sentForDate DateTime // UTC midnight of the day the reminder is for
   kind        String // "due" | "followup"
   sentAt      DateTime @default(now())
+  schedule    SupplementSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
 
   @@unique([scheduleId, sentForDate, kind])
   @@index([scheduleId])

@@ -80,14 +80,6 @@ export const removeSubscription = async (endpoint: string): Promise<void> => {
   await prisma.pushSubscription.deleteMany({ where: { endpoint } });
 };
 
-/** Remove all of a user's subscriptions. */
-export const removeSubscriptionsForUser = async (userId: string): Promise<void> => {
-  if (!isPushEnabled()) {
-    return;
-  }
-  await prisma.pushSubscription.deleteMany({ where: { userId } });
-};
-
 export type PushPayload = {
   title: string;
   body: string;
