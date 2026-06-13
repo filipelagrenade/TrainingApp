@@ -43,10 +43,152 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ── Rest-timer notifications ────────────────────────────────────────────────
+// HONEST SCOPE: the web platform cannot reliably fire a *scheduled* local
+// notification at a precise future time while the page is fully backgrounded
+// without a push server. So this SW only surfaces what the page tells it to:
+//   - REST_NOTIFY / REST_DONE / REST_CLEAR are driven by the page while it has
+//     execution time (visible, or briefly on visibilitychange→hidden).
+//   - As PROGRESSIVE ENHANCEMENT, where the Notification Triggers API exists
+//     (some Android Chrome), we ALSO schedule a "Rest done" notification via a
+//     TimestampTrigger so the done-alert can fire even if the SW is asleep.
+// On platforms without action buttons / triggers (notably iOS PWA), the
+// try/catch'd calls degrade silently to a basic notification.
+
+const REST_TAG = "liftiq-rest";
+const REST_DONE_TAG = "liftiq-rest-done";
+
+const formatMmss = (totalSeconds) => {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const supportsTriggers = () =>
+  typeof TimestampTrigger !== "undefined" &&
+  typeof Notification !== "undefined" &&
+  "showTrigger" in Notification.prototype;
+
+const closeNotificationsByTag = (tag) =>
+  self.registration
+    .getNotifications({ tag, includeTriggered: true })
+    .then((notifications) => notifications.forEach((notification) => notification.close()))
+    .catch(() => undefined);
+
+const showRestNotification = ({ endTime, remainingSeconds, label, vibrate }) => {
+  const body = `${formatMmss(remainingSeconds)} left${label ? ` · ${label}` : ""}`;
+
+  // Live "Resting" notification with action buttons. Actions are unsupported on
+  // iOS — wrapped so a throw never breaks the message handler.
+  const live = self.registration
+    .showNotification("Resting", {
+      tag: REST_TAG,
+      body,
+      actions: [
+        { action: "rest-minus", title: "−15s" },
+        { action: "rest-plus", title: "+15s" },
+        { action: "rest-skip", title: "Skip" },
+      ],
+      requireInteraction: true,
+      silent: true,
+      renotify: false,
+      timestamp: endTime,
+      data: { endTime },
+    })
+    .catch(() => undefined);
+
+  // Progressive enhancement: schedule the "Rest done" alert to fire at endTime
+  // even if the SW is asleep. Re-show replaces any prior trigger with this tag.
+  let scheduled = Promise.resolve();
+  if (supportsTriggers()) {
+    try {
+      scheduled = self.registration
+        .showNotification("Rest done", {
+          tag: REST_DONE_TAG,
+          body: label ? `Back to ${label}` : "Time to lift.",
+          showTrigger: new TimestampTrigger(endTime),
+          vibrate: vibrate === false ? undefined : [200, 100, 200],
+          requireInteraction: false,
+          data: { endTime },
+        })
+        .catch(() => undefined);
+    } catch {
+      scheduled = Promise.resolve();
+    }
+  }
+
+  return Promise.all([live, scheduled]);
+};
+
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
+    return;
   }
+
+  if (event.data?.type === "REST_NOTIFY") {
+    event.waitUntil(showRestNotification(event.data));
+    return;
+  }
+
+  if (event.data?.type === "REST_DONE") {
+    // The page reached zero while hidden and triggers weren't available: fire
+    // the alerting done-notification directly.
+    const label = event.data.label;
+    event.waitUntil(
+      self.registration
+        .showNotification("Rest's up", {
+          tag: REST_TAG,
+          body: label ? `Back to ${label}` : "Time to lift.",
+          vibrate: [200, 100, 200],
+          requireInteraction: false,
+          renotify: true,
+        })
+        .catch(() => undefined),
+    );
+    return;
+  }
+
+  if (event.data?.type === "REST_CLEAR") {
+    // Dismiss the live "Resting" notification and cancel any pending done
+    // trigger (closing a triggered-but-unfired notification cancels it).
+    event.waitUntil(
+      Promise.all([
+        closeNotificationsByTag(REST_TAG),
+        closeNotificationsByTag(REST_DONE_TAG),
+      ]),
+    );
+    return;
+  }
+});
+
+// Lock-screen action buttons (−15s / +15s / Skip) drive the in-page timer:
+// forward the action to every open client; a body tap (no action) just focuses
+// the app. The page's REST_ACTION listener calls adjust()/skip() so the
+// authoritative in-page interval stays the single source of truth.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const action = event.action;
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        if (action === "rest-minus" || action === "rest-plus" || action === "rest-skip") {
+          for (const client of clients) {
+            client.postMessage({ type: "REST_ACTION", action });
+          }
+        }
+        const target = clients.find(Boolean);
+        if (target) {
+          return target.focus();
+        }
+        // No open window: open the app so the page can take over the timer.
+        return self.clients.openWindow ? self.clients.openWindow("/") : undefined;
+      })
+      .catch(() => undefined),
+  );
 });
 
 // Background Sync: when the browser regains connectivity it fires this; we nudge all
