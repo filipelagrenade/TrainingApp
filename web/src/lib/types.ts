@@ -25,6 +25,7 @@ export type UserSettings = {
   plates: { kg: number[]; lb: number[] };
   barWeights: { barbell: number; ezBar: number; trapBar: number };
   rest: { workingSeconds: number; warmupSeconds: number; autoStart: boolean };
+  cardio: { weeklyMinutesGoal: number; defaultDistanceUnit: "km" | "mi" };
   previousValueScope: "slot" | "anywhere";
 };
 
@@ -33,6 +34,7 @@ export type UserSettingsUpdate = {
   plates?: Partial<UserSettings["plates"]>;
   barWeights?: Partial<UserSettings["barWeights"]>;
   rest?: Partial<UserSettings["rest"]>;
+  cardio?: Partial<UserSettings["cardio"]>;
   previousValueScope?: UserSettings["previousValueScope"];
 };
 

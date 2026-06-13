@@ -11,7 +11,9 @@ import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KeypadProvider } from "@/components/ui/keypad-context";
 import { Label } from "@/components/ui/label";
+import { NumberField } from "@/components/ui/number-field";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -189,6 +191,22 @@ export const SettingsScreen = () => {
   const unit = user.preferredUnit;
   const selectedPlates = settings.plates[unit];
 
+  // Cardio settings also feed the cardio progression / goal-ring queries, so
+  // persist via the shared settings mutation then refresh those reads.
+  const saveCardioSettings = (cardio: Partial<UserSettings["cardio"]>) => {
+    if (settingsPending) return;
+    settingsMutation.mutate(
+      { cardio },
+      {
+        onSuccess: () => {
+          void queryClient.invalidateQueries({ queryKey: ["me"] });
+          void queryClient.invalidateQueries({ queryKey: ["cardio-progression"] });
+          toast.success("Cardio settings updated");
+        },
+      },
+    );
+  };
+
   const togglePlate = (denomination: number) => {
     if (settingsPending) return;
     const next = selectedPlates.includes(denomination)
@@ -337,6 +355,49 @@ export const SettingsScreen = () => {
 
       <Section
         eyebrow="06"
+        title="Cardio"
+        description="Your weekly active-minutes goal powers the cardio goal ring; the distance unit applies to cardio screens."
+      >
+        <div className="max-w-md space-y-6">
+          <KeypadProvider>
+            <div className="space-y-2">
+              <Label htmlFor="cardio-weekly-goal">Weekly active-minutes goal</Label>
+              <div className="max-w-[12rem]">
+                <NumberField
+                  id="cardio-weekly-goal"
+                  kind="generic"
+                  label="Weekly active minutes goal"
+                  value={settings.cardio.weeklyMinutesGoal}
+                  placeholder="min"
+                  allowDecimal={false}
+                  min={0}
+                  max={10080}
+                  onCommit={(value) =>
+                    saveCardioSettings({ weeklyMinutesGoal: value ?? 0 })
+                  }
+                />
+              </div>
+              <p className="text-sm text-ink-muted">
+                The WHO suggests 150 minutes of moderate activity per week.
+              </p>
+            </div>
+          </KeypadProvider>
+          <div className="space-y-2 border-t border-rule pt-4">
+            <p className="text-sm text-ink">Default distance unit</p>
+            <Segmented
+              options={[
+                { value: "km", label: "Kilometres" },
+                { value: "mi", label: "Miles" },
+              ]}
+              value={settings.cardio.defaultDistanceUnit}
+              onChange={(defaultDistanceUnit) => saveCardioSettings({ defaultDistanceUnit })}
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="07"
         title="Plate inventory & bars"
         description={`What's actually on your rack. The plate calculator only suggests plates you own (${unit}).`}
       >
@@ -392,7 +453,7 @@ export const SettingsScreen = () => {
       </Section>
 
       <Section
-        eyebrow="07"
+        eyebrow="08"
         title="Previous values"
         description="Where set placeholders come from while you log."
       >
@@ -416,7 +477,7 @@ export const SettingsScreen = () => {
       </Section>
 
       <Section
-        eyebrow="08"
+        eyebrow="09"
         title="Exercise preferences"
         description="Per-exercise tweaks remembered from your workouts."
       >
@@ -457,7 +518,7 @@ export const SettingsScreen = () => {
       </Section>
 
       <Section
-        eyebrow="09"
+        eyebrow="10"
         title="Notifications"
         description="Rest alerts use local browser notifications on this device."
       >
@@ -487,7 +548,7 @@ export const SettingsScreen = () => {
       </Section>
 
       <Section
-        eyebrow="10"
+        eyebrow="11"
         title="Your data"
         description="Export every completed workout. It's yours — take it anywhere."
       >
@@ -503,7 +564,7 @@ export const SettingsScreen = () => {
         </div>
       </Section>
 
-      <Section eyebrow="11" title="Account" description="Sign out on this device.">
+      <Section eyebrow="12" title="Account" description="Sign out on this device.">
         <Button
           variant="outline"
           className="text-danger border-danger/40 hover:bg-danger/5"

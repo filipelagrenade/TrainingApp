@@ -28,8 +28,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
 import { estimateCalories } from "@/lib/calories";
-import type { CardioActivity, CardioSessionInput } from "@/lib/types";
-import { kmToMeters, milesToMeters, mphToKmh } from "@/lib/units";
+import type { CardioActivity, CardioSession, CardioSessionInput } from "@/lib/types";
+import {
+  kmhToMph,
+  kmToMeters,
+  metersToKm,
+  metersToMiles,
+  milesToMeters,
+  mphToKmh,
+} from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 // Fallback bodyweight (kg) used when the user has never logged one. Matches the
@@ -97,10 +104,13 @@ type CardioLoggerSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLogged?: () => void;
+  /** When provided, the sheet edits this session instead of creating a new one. */
+  session?: CardioSession;
 };
 
-export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLoggerSheetProps) => {
+export const CardioLoggerSheet = ({ open, onOpenChange, onLogged, session }: CardioLoggerSheetProps) => {
   const queryClient = useQueryClient();
+  const isEditing = session != null;
 
   const [activity, setActivity] = useState<CardioActivity>("TREADMILL");
   const [form, setForm] = useState<CardioForm>(EMPTY_FORM);
@@ -127,15 +137,48 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
       : latestWeightPreferred
     : FALLBACK_BODYWEIGHT_KG;
 
-  // Reset to a clean form each time the sheet opens so an abandoned draft from a
-  // previous open doesn't carry over. Keyed on the open transition only, so it
-  // never wipes a draft mid-edit.
+  // Seed the form on the open transition: from the edited session when editing,
+  // otherwise a clean draft. Keyed on the open transition only, so it never wipes
+  // a draft mid-edit. Distance/speed are stored canonically (meters, km/h), so we
+  // convert back to the user's display unit when seeding an edit.
   useEffect(() => {
-    if (open) {
-      setActivity("TREADMILL");
-      setForm(EMPTY_FORM);
+    if (!open) return;
+
+    if (session) {
+      setActivity(session.activity);
+      setForm({
+        durationMin: Math.round(session.durationSeconds / 60),
+        distance:
+          session.distanceMeters !== null
+            ? Number(
+                (distanceUnit === "mi"
+                  ? metersToMiles(session.distanceMeters)
+                  : metersToKm(session.distanceMeters)
+                ).toFixed(2),
+              )
+            : null,
+        inclinePct: session.inclinePct,
+        speed:
+          session.avgSpeedKmh !== null
+            ? Number(
+                (preferredUnit === "lb"
+                  ? kmhToMph(session.avgSpeedKmh)
+                  : session.avgSpeedKmh
+                ).toFixed(2),
+              )
+            : null,
+        resistanceLevel: session.resistanceLevel,
+        avgWatts: session.avgWatts,
+        avgHr: session.avgHr,
+        rpe: session.rpe,
+        caloriesManual: session.caloriesManual,
+      });
+      return;
     }
-  }, [open]);
+
+    setActivity("TREADMILL");
+    setForm(EMPTY_FORM);
+  }, [open, session, distanceUnit, preferredUnit]);
 
   const set = <K extends keyof CardioForm>(key: K, value: CardioForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -193,8 +236,11 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
     setActivity("TREADMILL");
   };
 
-  const createMutation = useMutation({
-    mutationFn: (body: CardioSessionInput) => apiClient.createCardioSession(body),
+  const saveMutation = useMutation({
+    mutationFn: (body: CardioSessionInput) =>
+      session
+        ? apiClient.updateCardioSession(session.id, body)
+        : apiClient.createCardioSession(body),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["cardio-summary"] }),
@@ -203,7 +249,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
         queryClient.invalidateQueries({ queryKey: ["cardio-progression"] }),
         queryClient.invalidateQueries({ queryKey: ["cardio-today"] }),
       ]);
-      toast.success("Cardio logged");
+      toast.success(isEditing ? "Cardio updated" : "Cardio logged");
       reset();
       onOpenChange(false);
       onLogged?.();
@@ -219,7 +265,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
     const body: CardioSessionInput = {
       activity,
-      performedAt: new Date().toISOString(),
+      performedAt: session?.performedAt ?? new Date().toISOString(),
       durationSeconds: form.durationMin * 60,
       ...(form.distance !== null && form.distance > 0
         ? { distance: form.distance, distanceUnit }
@@ -237,7 +283,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
       ...(form.caloriesManual !== null ? { caloriesManual: form.caloriesManual } : {}),
     };
 
-    createMutation.mutate(body);
+    saveMutation.mutate(body);
   };
 
   return (
@@ -251,7 +297,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
       >
         <KeypadProvider>
           <SheetHeader className="border-b-0 pb-3">
-            <SheetTitle>Log cardio</SheetTitle>
+            <SheetTitle>{isEditing ? "Edit cardio" : "Log cardio"}</SheetTitle>
             <SheetDescription>Pick an activity, then fill in what you tracked.</SheetDescription>
           </SheetHeader>
 
@@ -457,9 +503,9 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
             <Button
               className="w-full"
               onClick={handleSave}
-              disabled={createMutation.isPending || form.durationMin === null}
+              disabled={saveMutation.isPending || form.durationMin === null}
             >
-              {createMutation.isPending ? "Saving…" : "Save cardio"}
+              {saveMutation.isPending ? "Saving…" : isEditing ? "Update cardio" : "Save cardio"}
             </Button>
           </div>
         </KeypadProvider>

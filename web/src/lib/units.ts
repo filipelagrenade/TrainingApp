@@ -15,6 +15,8 @@ export const milesToMeters = (miles: number) => miles * METERS_PER_MILE;
 
 export const metersToMiles = (meters: number) => meters / METERS_PER_MILE;
 
+export const kmToMiles = (km: number) => (km * METERS_PER_KM) / METERS_PER_MILE;
+
 // Speed helpers. Speed is canonical in km/h internally.
 export const kmhToMph = (kmh: number) => kmh / KMH_PER_MPH;
 

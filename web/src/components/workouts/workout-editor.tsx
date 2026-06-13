@@ -58,6 +58,7 @@ const FALLBACK_SETTINGS: UserSettings = {
   plates: { kg: [20, 15, 10, 5, 2.5, 1.25], lb: [45, 35, 25, 10, 5, 2.5] },
   barWeights: { barbell: 20, ezBar: 7.5, trapBar: 25 },
   rest: { workingSeconds: 90, warmupSeconds: 60, autoStart: true },
+  cardio: { weeklyMinutesGoal: 150, defaultDistanceUnit: "km" },
   previousValueScope: "slot",
 };
 
