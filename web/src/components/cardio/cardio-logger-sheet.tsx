@@ -12,7 +12,7 @@ import {
   Waves,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -127,6 +127,16 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
       : latestWeightPreferred
     : FALLBACK_BODYWEIGHT_KG;
 
+  // Reset to a clean form each time the sheet opens so an abandoned draft from a
+  // previous open doesn't carry over. Keyed on the open transition only, so it
+  // never wipes a draft mid-edit.
+  useEffect(() => {
+    if (open) {
+      setActivity("TREADMILL");
+      setForm(EMPTY_FORM);
+    }
+  }, [open]);
+
   const set = <K extends keyof CardioForm>(key: K, value: CardioForm[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
@@ -159,6 +169,9 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
       avgWatts: form.avgWatts ?? undefined,
       avgHr: form.avgHr ?? undefined,
       rpe: form.rpe ?? undefined,
+      // sex/ageYears intentionally omitted: no age on the user model, so the web
+      // preview uses the activity/MET path and never fires the Keytel HR branch
+      // (mirrors the server in practice).
     });
   }, [
     activity,
@@ -292,7 +305,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
             {/* Duration — always first */}
             <div className="space-y-1.5">
-              <label className="eyebrow block">Duration (min)</label>
+              <label htmlFor="cardio-duration" className="eyebrow block">Duration (min)</label>
               <NumberField
                 id="cardio-duration"
                 kind="duration"
@@ -310,7 +323,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
             <div className="grid grid-cols-2 gap-3">
               {fields.includes("incline") ? (
                 <div className="space-y-1.5">
-                  <label className="eyebrow block">Incline %</label>
+                  <label htmlFor="cardio-incline" className="eyebrow block">Incline %</label>
                   <NumberField
                     id="cardio-incline"
                     kind="generic"
@@ -327,7 +340,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
               {fields.includes("speed") ? (
                 <div className="space-y-1.5">
-                  <label className="eyebrow block">Speed ({speedUnitLabel})</label>
+                  <label htmlFor="cardio-speed" className="eyebrow block">Speed ({speedUnitLabel})</label>
                   <NumberField
                     id="cardio-speed"
                     kind="generic"
@@ -343,7 +356,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
               {fields.includes("distance") ? (
                 <div className="space-y-1.5">
-                  <label className="eyebrow block">Distance ({distanceUnit})</label>
+                  <label htmlFor="cardio-distance" className="eyebrow block">Distance ({distanceUnit})</label>
                   <NumberField
                     id="cardio-distance"
                     kind="generic"
@@ -359,7 +372,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
               {fields.includes("resistance") ? (
                 <div className="space-y-1.5">
-                  <label className="eyebrow block">Resistance</label>
+                  <label htmlFor="cardio-resistance" className="eyebrow block">Resistance</label>
                   <NumberField
                     id="cardio-resistance"
                     kind="generic"
@@ -375,7 +388,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
               {fields.includes("watts") ? (
                 <div className="space-y-1.5">
-                  <label className="eyebrow block">Avg watts (opt.)</label>
+                  <label htmlFor="cardio-watts" className="eyebrow block">Avg watts (opt.)</label>
                   <NumberField
                     id="cardio-watts"
                     kind="generic"
@@ -391,7 +404,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
               {/* All activities: optional avg HR + RPE */}
               <div className="space-y-1.5">
-                <label className="eyebrow block">Avg HR (opt.)</label>
+                <label htmlFor="cardio-hr" className="eyebrow block">Avg HR (opt.)</label>
                 <NumberField
                   id="cardio-hr"
                   kind="generic"
@@ -406,7 +419,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
               </div>
 
               <div className="space-y-1.5">
-                <label className="eyebrow block">RPE 0–10 (opt.)</label>
+                <label htmlFor="cardio-rpe" className="eyebrow block">RPE 0–10 (opt.)</label>
                 <NumberField
                   id="cardio-rpe"
                   kind="rpe"
@@ -423,7 +436,7 @@ export const CardioLoggerSheet = ({ open, onOpenChange, onLogged }: CardioLogger
 
             {/* Machine override */}
             <div className="space-y-1.5">
-              <label className="eyebrow block">Machine said (opt.)</label>
+              <label htmlFor="cardio-manual-calories" className="eyebrow block">Machine said (opt.)</label>
               <NumberField
                 id="cardio-manual-calories"
                 kind="generic"
