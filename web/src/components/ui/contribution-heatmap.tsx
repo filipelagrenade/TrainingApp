@@ -21,6 +21,13 @@ type ContributionHeatmapProps = {
   onSelectDay?: (date: string) => void;
   selectedDay?: string | null;
   className?: string;
+  /**
+   * Optional tooltip text builder. Receives the cell's ISO day (YYYY-MM-DD) and
+   * the matching {@link HeatmapDay} (if any). When omitted, the default
+   * workout-oriented wording is used. Callers that need richer copy (adherence
+   * %, cardio minutes, …) pass a closure over their own day data.
+   */
+  formatTooltip?: (date: string, day: HeatmapDay | undefined) => string;
 };
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -56,7 +63,7 @@ const fillForSessions = (sessions: number) => {
   return "hsl(var(--accent) / 0.9)";
 };
 
-const formatTooltip = (date: Date, day: HeatmapDay | undefined) => {
+const defaultFormatTooltip = (date: Date, day: HeatmapDay | undefined) => {
   const dateLabel = `${date.getUTCDate()} ${MONTH_LABELS[date.getUTCMonth()]}`;
   if (!day || day.sessions <= 0) {
     return `${dateLabel} · No workouts`;
@@ -80,6 +87,7 @@ export const ContributionHeatmap = ({
   onSelectDay,
   selectedDay,
   className,
+  formatTooltip,
 }: ContributionHeatmapProps) => {
   const { weeks, monthMarkers } = useMemo(() => {
     const fromDate = new Date(`${from}T00:00:00.000Z`);
@@ -160,13 +168,16 @@ export const ContributionHeatmap = ({
                   const sessions = day?.sessions ?? 0;
                   const selected = selectedDay === cell.key;
                   const interactive = Boolean(onSelectDay);
+                  const tooltip = formatTooltip
+                    ? formatTooltip(cell.key, day)
+                    : defaultFormatTooltip(cell.date, day);
 
                   return (
                     <button
                       key={cell.key}
                       type="button"
-                      title={formatTooltip(cell.date, day)}
-                      aria-label={formatTooltip(cell.date, day)}
+                      title={tooltip}
+                      aria-label={tooltip}
                       onClick={interactive ? () => onSelectDay?.(cell.key) : undefined}
                       disabled={!interactive}
                       className={cn(

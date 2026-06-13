@@ -28,6 +28,7 @@ import { apiClient } from "@/lib/api-client";
 import { CARDIO_ACTIVITY_META } from "@/lib/cardio-activity-meta";
 import type {
   CardioActivity,
+  CardioCalendarDay,
   CardioPeriod,
   CardioProgression,
   CardioSession,
@@ -91,6 +92,15 @@ const formatDistance = (meters: number | null, unit: "km" | "mi") => {
 
 const formatSessionDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+// Heatmap cells are keyed by ISO day (YYYY-MM-DD); render them as "14 Jun" to
+// match the contribution grid's own day labels.
+const formatHeatmapDate = (iso: string) =>
+  new Date(`${iso}T00:00:00.000Z`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 
 export const CardioScreen = () => {
   const queryClient = useQueryClient();
@@ -519,7 +529,7 @@ const CardioHeatmap = ({
   from,
   to,
 }: {
-  days: Array<{ date: string; sessions: number; minutes: number; calories: number }>;
+  days: CardioCalendarDay[];
   from: string;
   to: string;
 }) => {
@@ -537,7 +547,26 @@ const CardioHeatmap = ({
     return map;
   }, [days]);
 
-  return <ContributionHeatmap days={dayMap} from={from} to={to} />;
+  // The HeatmapDay we pass only carries the intensity bucket, so close over the
+  // original calendar rows for the real minutes/session wording.
+  const sourceByDate = useMemo(() => {
+    const map = new Map<string, CardioCalendarDay>();
+    for (const day of days) map.set(day.date, day);
+    return map;
+  }, [days]);
+
+  const formatTooltip = (date: string) => {
+    const label = formatHeatmapDate(date);
+    const day = sourceByDate.get(date);
+    if (!day || day.sessions <= 0 || day.minutes <= 0) {
+      return `${label} · no cardio`;
+    }
+    const minutes = Math.round(day.minutes);
+    const sessionLabel = `${day.sessions} session${day.sessions === 1 ? "" : "s"}`;
+    return `${label} · ${minutes} min · ${sessionLabel}`;
+  };
+
+  return <ContributionHeatmap days={dayMap} from={from} to={to} formatTooltip={formatTooltip} />;
 };
 
 const ActivityProgressionCard = ({

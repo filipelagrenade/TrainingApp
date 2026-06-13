@@ -306,7 +306,24 @@ const AdherenceHeatmap = ({
     return map;
   }, [days]);
 
-  return <ContributionHeatmap days={dayMap} from={from} to={to} />;
+  // The HeatmapDay we pass only carries the bucket/taken count, so close over the
+  // original calendar rows for the real adherence wording.
+  const sourceByDate = useMemo(() => {
+    const map = new Map<string, SupplementCalendarDay>();
+    for (const day of days) map.set(day.date, day);
+    return map;
+  }, [days]);
+
+  const formatTooltip = (date: string) => {
+    const label = formatTrendLabel(date);
+    const day = sourceByDate.get(date);
+    if (!day) return `${label} · no doses`;
+    if (day.isOffDay) return `${label} · off day`;
+    if (day.scheduledCount <= 0) return `${label} · no doses`;
+    return `${label} · ${Math.round(day.pct * 100)}% · ${day.takenCount} of ${day.scheduledCount} doses`;
+  };
+
+  return <ContributionHeatmap days={dayMap} from={from} to={to} formatTooltip={formatTooltip} />;
 };
 
 const AdherenceTrend = ({ days }: { days: SupplementCalendarDay[] }) => {
