@@ -1,4 +1,4 @@
-import type { SuppFreq, SuppForm, SuppSlot } from "@/lib/types";
+import type { CyclePhaseKind, SuppFreq, SuppForm, SuppSlot } from "@/lib/types";
 
 // Shared option lists + labels for the supplement library editors. Kept in one
 // place so the list cards, the editor, and the schedule sheet stay in agreement.
@@ -106,6 +106,21 @@ export const COLOR_SWATCHES = [
   "#a855f7",
   "#ec4899",
 ] as const;
+
+// Short labels for each cycle phase kind (Prisma `CyclePhaseKind`). Used by the
+// cycle cards and the live template preview. Kept here so cycles + schedules
+// agree on wording.
+export const PHASE_KIND_LABEL: Record<CyclePhaseKind, string> = {
+  ON: "ON",
+  OFF: "OFF",
+  LOAD: "Load",
+  MAINTAIN: "Maintain",
+  PCT: "PCT",
+  BRIDGE: "Bridge",
+  BLAST: "Blast",
+  CRUISE: "Cruise",
+  TAPER_STEP: "Taper",
+};
 
 /** Trim trailing zeros so "5.00 g" reads as "5 g". */
 export const formatAmount = (amount: number): string =>

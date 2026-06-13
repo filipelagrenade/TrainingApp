@@ -55,6 +55,7 @@ import {
   FREQ_LABEL,
   FREQ_OPTIONS,
   isoToDateInput,
+  PHASE_KIND_LABEL,
   SLOT_LABEL,
   SLOT_OPTIONS,
   todayDateInput,
@@ -62,6 +63,10 @@ import {
   WITH_FOOD_LABEL,
   WITH_FOOD_OPTIONS,
 } from "./supplement-meta";
+
+// Sentinel select values: Radix Select can't use an empty-string item value.
+const NO_CYCLE = "none";
+const WHOLE_CYCLE = "whole";
 
 const scheduleKey = (supplementId: string) =>
   ["supplement-schedules", supplementId] as const;
@@ -287,6 +292,8 @@ type ScheduleFormState = {
   endDate: string;
   reminderEnabled: boolean;
   reminderWindowMins: number | null;
+  cycleId: string | null;
+  cyclePhaseId: string | null;
 };
 
 const NO_FOOD = "none";
@@ -306,6 +313,8 @@ const emptyScheduleForm = (defaultUnit: string): ScheduleFormState => ({
   endDate: "",
   reminderEnabled: false,
   reminderWindowMins: 60,
+  cycleId: null,
+  cyclePhaseId: null,
 });
 
 const fromSchedule = (schedule: SupplementSchedule): ScheduleFormState => ({
@@ -323,6 +332,8 @@ const fromSchedule = (schedule: SupplementSchedule): ScheduleFormState => ({
   endDate: schedule.endDate ? isoToDateInput(schedule.endDate) : "",
   reminderEnabled: schedule.reminderEnabled,
   reminderWindowMins: schedule.reminderWindowMins,
+  cycleId: schedule.cycleId,
+  cyclePhaseId: schedule.cyclePhaseId,
 });
 
 const ScheduleEditorSheet = ({
@@ -342,6 +353,17 @@ const ScheduleEditorSheet = ({
   const [form, setForm] = useState<ScheduleFormState>(() =>
     emptyScheduleForm(supplement.defaultUnit),
   );
+
+  // Cycles are optional links: choosing one gates this schedule to the cycle's
+  // ACTIVE phases. A multi-phase cycle additionally lets you tie the schedule to
+  // a single phase (e.g. creatine load vs maintain as two schedules).
+  const cyclesQuery = useQuery({
+    queryKey: ["supplement-cycles"],
+    queryFn: () => apiClient.listCycles(),
+    enabled: open,
+  });
+  const cycles = cyclesQuery.data ?? [];
+  const selectedCycle = cycles.find((cycle) => cycle.id === form.cycleId) ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -378,6 +400,9 @@ const ScheduleEditorSheet = ({
         endDate: form.endDate ? dateInputToIso(form.endDate) : null,
         reminderEnabled: form.reminderEnabled,
         reminderWindowMins: form.reminderWindowMins ?? 60,
+        cycleId: form.cycleId,
+        // Only tie to a phase when a cycle is actually chosen.
+        cyclePhaseId: form.cycleId ? form.cyclePhaseId : null,
       };
 
       return isEditing
@@ -591,6 +616,64 @@ const ScheduleEditorSheet = ({
                 />
               </div>
             </div>
+
+            {/* Cycle link (optional) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="sched-cycle">Cycle (optional)</Label>
+              <Select
+                value={form.cycleId ?? NO_CYCLE}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    cycleId: value === NO_CYCLE ? null : value,
+                    // Reset the phase tie whenever the cycle changes.
+                    cyclePhaseId: null,
+                  }))
+                }
+              >
+                <SelectTrigger id="sched-cycle">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CYCLE}>None</SelectItem>
+                  {cycles.map((cycle) => (
+                    <SelectItem key={cycle.id} value={cycle.id}>
+                      {cycle.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-ink-muted">
+                Linked schedules only fall due during the cycle&apos;s active phases.
+              </p>
+            </div>
+
+            {selectedCycle && selectedCycle.phases.length > 1 ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="sched-cycle-phase">Tie to a phase (optional)</Label>
+                <Select
+                  value={form.cyclePhaseId ?? WHOLE_CYCLE}
+                  onValueChange={(value) =>
+                    set("cyclePhaseId", value === WHOLE_CYCLE ? null : value)
+                  }
+                >
+                  <SelectTrigger id="sched-cycle-phase">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={WHOLE_CYCLE}>Whole cycle</SelectItem>
+                    {selectedCycle.phases.map((phase) => (
+                      <SelectItem key={phase.id} value={phase.id}>
+                        {phase.label ?? PHASE_KIND_LABEL[phase.kind]} · {phase.durationDays}d
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-ink-muted">
+                  Due only during this phase — e.g. a load dose vs a maintain dose.
+                </p>
+              </div>
+            ) : null}
 
             {/* Reminders */}
             <div className="space-y-3 rounded-md border border-rule bg-surface-sunken p-4">
