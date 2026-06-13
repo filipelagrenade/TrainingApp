@@ -626,7 +626,7 @@ export const apiClient = {
       body: JSON.stringify(body),
     }),
   sendTestPush: () =>
-    request<{ ok: boolean }>("/push/test", {
+    request<{ delivered: number }>("/push/test", {
       method: "POST",
     }),
 };
