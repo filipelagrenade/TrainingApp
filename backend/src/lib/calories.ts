@@ -38,8 +38,6 @@ const M_MIN_PER_KMH = 16.6667;
 
 /** km/h threshold at/below which a treadmill effort is treated as walking. */
 const TREADMILL_WALK_MAX_KMH = 6.4;
-/** km/h threshold at/above which a treadmill effort is treated as running. */
-const TREADMILL_RUN_MIN_KMH = 8;
 
 /** Resolve effective speed in km/h from avgSpeedKmh, or derive from distance/duration. */
 const resolveSpeedKmh = (input: CalorieInput): number => {
@@ -87,7 +85,7 @@ const bikeMet = (avgWatts?: number): number => {
   if (typeof avgWatts !== "number") return 6.0;
   if (avgWatts >= 151) return 10.3; // 151–199W
   if (avgWatts >= 126) return 8.0; // 126–150W
-  if (avgWatts >= 90) return 6.0; // 90–100W (and 90–125 moderate)
+  if (avgWatts >= 90) return 6.0; // 90–125W moderate
   return 4.0; // ~50W light
 };
 
@@ -109,9 +107,9 @@ const ellipticalMet = (input: CalorieInput): number => {
 
 /** Keytel et al. (2005) per-minute kcal from HR. Requires avgHr, sex, ageYears. */
 const keytel = (input: CalorieInput): CalorieEstimate => {
-  const hr = input.avgHr as number;
+  const hr = input.avgHr as number; // non-null: caller gates on hasKeytelInputs
   const w = input.weightKg;
-  const a = input.ageYears as number;
+  const a = input.ageYears as number; // non-null: caller gates on hasKeytelInputs
   const kcalPerMin =
     input.sex === "female"
       ? (-20.4022 + 0.4472 * hr - 0.1263 * w + 0.074 * a) / 4.184
@@ -135,14 +133,11 @@ const activityEstimate = (input: CalorieInput): CalorieEstimate => {
     case "TREADMILL": {
       const speed = resolveSpeedKmh(input);
       // Treadmill gait is disambiguated by speed (no gait flag field):
-      // ≤6.4 km/h walks, ≥8 km/h runs. In the gray zone (6.4–8) we default to
-      // running — the conservative-higher branch — when no other signal exists.
+      // ≤6.4 km/h walks, everything else runs.
       if (speed <= TREADMILL_WALK_MAX_KMH) {
         return acsmWalk(input, speed);
       }
-      if (speed >= TREADMILL_RUN_MIN_KMH) {
-        return acsmRun(input, speed);
-      }
+      // Gray zone (6.4–8 km/h) and anything ≥8 km/h → running (conservative-higher branch).
       return acsmRun(input, speed);
     }
     case "OUTDOOR_RUN":
