@@ -11,6 +11,7 @@ import { progressRouter } from "./progress.routes";
 import { programsRouter } from "./programs.routes";
 import { notificationRouter } from "./notification.routes";
 import { socialRouter } from "./social.routes";
+import { supplementsRouter } from "./supplements.routes";
 import { templatesRouter } from "./templates.routes";
 import { workoutsRouter } from "./workouts.routes";
 
@@ -33,6 +34,7 @@ apiRouter.use("/programs", programsRouter);
 apiRouter.use("/templates", templatesRouter);
 apiRouter.use("/workouts", workoutsRouter);
 apiRouter.use("/social", socialRouter);
+apiRouter.use("/supplements", supplementsRouter);
 apiRouter.use("/notifications", notificationRouter);
 
 export { apiRouter };

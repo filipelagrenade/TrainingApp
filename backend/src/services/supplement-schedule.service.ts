@@ -23,7 +23,7 @@ const startOfUtcDay = (date: Date): Date =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 
 /** YYYY-MM-DD in UTC (matches progress/cardio calendar key convention). */
-const toIsoDayKey = (date: Date): string =>
+export const toIsoDayKey = (date: Date): string =>
   `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
     date.getUTCDate(),
   ).padStart(2, "0")}`;
