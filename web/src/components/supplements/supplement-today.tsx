@@ -102,19 +102,53 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
 
 type IntakeVars = { scheduleId: string; status: IntakeStatus };
 
+const TODAY_KEY = "supplements-today";
+
+// Apply a status patch to every item matching `predicate` across all slots + as-needed,
+// returning a new SupplementToday with adherence.taken recomputed from the deltas.
+const patchTodayStatuses = (
+  today: SupplementToday,
+  predicate: (item: SupplementTodayItem) => boolean,
+  status: IntakeStatus,
+): SupplementToday => {
+  let takenDelta = 0;
+  const patchItem = (item: SupplementTodayItem): SupplementTodayItem => {
+    if (!predicate(item)) return item;
+    if (item.status === "TAKEN" && status !== "TAKEN") takenDelta -= 1;
+    else if (item.status !== "TAKEN" && status === "TAKEN") takenDelta += 1;
+    return { ...item, status };
+  };
+
+  const next: SupplementToday = {
+    ...today,
+    slots: today.slots.map((slot) => ({ ...slot, items: slot.items.map(patchItem) })),
+    asNeeded: today.asNeeded.map(patchItem),
+  };
+
+  return {
+    ...next,
+    adherence: {
+      ...today.adherence,
+      taken: Math.max(0, today.adherence.taken + takenDelta),
+    },
+  };
+};
+
 export const SupplementTodayTab = () => {
   const queryClient = useQueryClient();
   // v1: today only. The query key is date-scoped so a stepper can be added later.
   const date = useMemo(todayKey, []);
 
+  const todayKeyArr = useMemo(() => [TODAY_KEY, date] as const, [date]);
+
   const todayQuery = useQuery({
-    queryKey: ["supplements-today", date],
+    queryKey: todayKeyArr,
     queryFn: () => apiClient.getSupplementsToday(date),
   });
 
   const invalidateToday = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["supplements-today", date] }),
+      queryClient.invalidateQueries({ queryKey: [TODAY_KEY, date] }),
       queryClient.invalidateQueries({ queryKey: ["supplement-adherence"] }),
       queryClient.invalidateQueries({ queryKey: ["supplement-calendar"] }),
     ]);
@@ -128,18 +162,51 @@ export const SupplementTodayTab = () => {
         scheduledFor: `${date}T00:00:00.000Z`,
         source: "manual",
       }),
-    onSuccess: invalidateToday,
-    onError: (error: Error) => toast.error(error.message),
+    // Optimistically flip the targeted row's status so "Taken" is instant.
+    onMutate: async ({ scheduleId, status }) => {
+      await queryClient.cancelQueries({ queryKey: [TODAY_KEY, date] });
+      const previous = queryClient.getQueryData<SupplementToday>([TODAY_KEY, date]);
+      if (previous) {
+        queryClient.setQueryData<SupplementToday>(
+          [TODAY_KEY, date],
+          patchTodayStatuses(previous, (item) => item.scheduleId === scheduleId, status),
+        );
+      }
+      return { previous };
+    },
+    onError: (error: Error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData([TODAY_KEY, date], context.previous);
+      }
+      toast.error(error.message);
+    },
+    onSettled: invalidateToday,
   });
 
   const stackMutation = useMutation({
-    mutationFn: (stackId: string) =>
+    mutationFn: ({ stackId }: { stackId: string; scheduleIds: string[] }) =>
       apiClient.logStackIntake(stackId, { status: "TAKEN", date }),
-    onSuccess: async () => {
-      await invalidateToday();
-      toast.success("Stack logged");
+    // Optimistically mark every schedule in the stack as TAKEN.
+    onMutate: async ({ scheduleIds }) => {
+      await queryClient.cancelQueries({ queryKey: [TODAY_KEY, date] });
+      const previous = queryClient.getQueryData<SupplementToday>([TODAY_KEY, date]);
+      if (previous) {
+        const ids = new Set(scheduleIds);
+        queryClient.setQueryData<SupplementToday>(
+          [TODAY_KEY, date],
+          patchTodayStatuses(previous, (item) => ids.has(item.scheduleId), "TAKEN"),
+        );
+      }
+      return { previous };
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData([TODAY_KEY, date], context.previous);
+      }
+      toast.error(error.message);
+    },
+    onSuccess: () => toast.success("Stack logged"),
+    onSettled: invalidateToday,
   });
 
   if (todayQuery.isLoading) {
@@ -168,7 +235,12 @@ export const SupplementTodayTab = () => {
 
   const logItem = (scheduleId: string, status: IntakeStatus) =>
     intakeMutation.mutate({ scheduleId, status });
-  const busy = intakeMutation.isPending || stackMutation.isPending;
+
+  // Scope the disabled state to the in-flight row / stack rather than the whole list.
+  const pendingScheduleId = intakeMutation.isPending
+    ? intakeMutation.variables?.scheduleId
+    : undefined;
+  const pendingStackId = stackMutation.isPending ? stackMutation.variables?.stackId : undefined;
 
   return (
     <div className="space-y-5">
@@ -194,13 +266,20 @@ export const SupplementTodayTab = () => {
               items={group.items}
               stacks={today.stacks}
               onLog={logItem}
-              onTakeStack={(stackId) => stackMutation.mutate(stackId)}
-              busy={busy}
+              onTakeStack={(stackId, scheduleIds) =>
+                stackMutation.mutate({ stackId, scheduleIds })
+              }
+              pendingScheduleId={pendingScheduleId}
+              pendingStackId={pendingStackId}
             />
           ))}
 
           {today.asNeeded.length > 0 ? (
-            <AsNeededSection items={today.asNeeded} onLog={logItem} busy={busy} />
+            <AsNeededSection
+              items={today.asNeeded}
+              onLog={logItem}
+              pendingScheduleId={pendingScheduleId}
+            />
           ) : null}
         </>
       )}
@@ -245,14 +324,16 @@ const SlotSection = ({
   stacks,
   onLog,
   onTakeStack,
-  busy,
+  pendingScheduleId,
+  pendingStackId,
 }: {
   slot: SuppSlot;
   items: SupplementTodayItem[];
   stacks: SupplementTodayStackGroup[];
   onLog: (scheduleId: string, status: IntakeStatus) => void;
-  onTakeStack: (stackId: string) => void;
-  busy: boolean;
+  onTakeStack: (stackId: string, scheduleIds: string[]) => void;
+  pendingScheduleId?: string;
+  pendingStackId?: string;
 }) => {
   const [tipDismissed, setTipDismissed] = useState(false);
   const conflict = useMemo(() => findSlotConflict(items), [items]);
@@ -298,26 +379,39 @@ const SlotSection = ({
 
         {[...stackBuckets.entries()].map(([stackId, stackItems]) => {
           const stack = stackById.get(stackId);
+          const stackName = stack?.name ?? "Stack";
           const allTaken = stackItems.every((item) => item.status === "TAKEN");
+          const stackPending = pendingStackId === stackId;
           return (
             <div key={stackId} className="surface-panel-soft space-y-2 rounded-md p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
                   <Layers className="h-3.5 w-3.5 text-ink-subtle" />
-                  {stack?.name ?? "Stack"}
+                  {stackName}
                 </p>
                 <Button
                   size="sm"
                   variant={allTaken ? "outline" : "accent"}
-                  disabled={busy || allTaken}
-                  onClick={() => onTakeStack(stackId)}
+                  aria-label={`Take all ${stackName}`}
+                  disabled={stackPending || allTaken}
+                  onClick={() =>
+                    onTakeStack(
+                      stackId,
+                      stackItems.map((item) => item.scheduleId),
+                    )
+                  }
                 >
                   {allTaken ? "All taken" : "Take all"}
                 </Button>
               </div>
               <div className="space-y-2">
                 {stackItems.map((item) => (
-                  <ItemRow key={item.scheduleId} item={item} onLog={onLog} busy={busy} />
+                  <ItemRow
+                    key={item.scheduleId}
+                    item={item}
+                    onLog={onLog}
+                    busy={pendingScheduleId === item.scheduleId}
+                  />
                 ))}
               </div>
             </div>
@@ -325,7 +419,12 @@ const SlotSection = ({
         })}
 
         {loose.map((item) => (
-          <ItemRow key={item.scheduleId} item={item} onLog={onLog} busy={busy} />
+          <ItemRow
+            key={item.scheduleId}
+            item={item}
+            onLog={onLog}
+            busy={pendingScheduleId === item.scheduleId}
+          />
         ))}
       </CardContent>
     </Card>
@@ -365,11 +464,11 @@ const TimingTip = ({
 const AsNeededSection = ({
   items,
   onLog,
-  busy,
+  pendingScheduleId,
 }: {
   items: SupplementTodayItem[];
   onLog: (scheduleId: string, status: IntakeStatus) => void;
-  busy: boolean;
+  pendingScheduleId?: string;
 }) => (
   <Card>
     <CardHeader>
@@ -377,7 +476,13 @@ const AsNeededSection = ({
     </CardHeader>
     <CardContent className="space-y-2">
       {items.map((item) => (
-        <ItemRow key={item.scheduleId} item={item} onLog={onLog} busy={busy} asNeeded />
+        <ItemRow
+          key={item.scheduleId}
+          item={item}
+          onLog={onLog}
+          busy={pendingScheduleId === item.scheduleId}
+          asNeeded
+        />
       ))}
     </CardContent>
   </Card>
@@ -498,13 +603,17 @@ const CycleChip = ({
       : null;
 
   return (
-    <Badge variant="soft" className="gap-1">
+    <Badge variant="soft" className="max-w-full gap-1">
       <span className="num">
         Week {week}
         {totalWeeks ? ` of ${totalWeeks}` : ""}
       </span>
       <span className="uppercase tracking-wide">· {phaseLabel}</span>
-      {transition ? <span className="text-ink-subtle">· {transition}</span> : null}
+      {/* The next-transition detail is verbose; hide it on narrow viewports so a
+          low-stock + active-cycle row stays at ~2 lines on mobile. */}
+      {transition ? (
+        <span className="hidden text-ink-subtle sm:inline">· {transition}</span>
+      ) : null}
     </Badge>
   );
 };
