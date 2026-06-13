@@ -158,6 +158,7 @@ model User {
   supplementStacks     SupplementStack[]
   supplementCycles     SupplementCycle[]
   supplementIntakes    SupplementIntake[]
+  pushSubscriptions    PushSubscription[]
 }
 
 enum CardioActivity {
@@ -951,4 +952,32 @@ model SupplementInventory {
   remindBeforeDays          Int        @default(5)
   updatedAt                 DateTime   @updatedAt
   supplement                Supplement @relation(fields: [supplementId], references: [id], onDelete: Cascade)
+}
+
+// Web Push subscription (one row per browser/device endpoint).
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Dedup marker so a supplement reminder isn't re-sent every cron tick. One row
+// per (schedule, UTC day, kind) — see SupplementReminderLog usage in the cron.
+model SupplementReminderLog {
+  id          String   @id @default(cuid())
+  scheduleId  String
+  sentForDate DateTime // UTC midnight of the day the reminder is for
+  kind        String // "due" | "followup"
+  sentAt      DateTime @default(now())
+
+  @@unique([scheduleId, sentForDate, kind])
+  @@index([scheduleId])
 }
