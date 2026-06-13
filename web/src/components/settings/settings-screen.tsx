@@ -292,6 +292,17 @@ export const SettingsScreen = () => {
                 onCheckedChange={(tempo) => updateSettings({ advancedTracking: { tempo } })}
                 indent
               />
+              <ToggleRow
+                id="advanced-readiness"
+                title="Readiness check-in"
+                description="A quick sleep/energy/soreness check before program workouts nudges the day's suggested loads."
+                checked={settings.advancedTracking.readiness}
+                disabled={settingsPending}
+                onCheckedChange={(readiness) =>
+                  updateSettings({ advancedTracking: { readiness } })
+                }
+                indent
+              />
             </>
           ) : null}
         </div>

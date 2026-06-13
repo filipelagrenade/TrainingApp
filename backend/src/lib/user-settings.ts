@@ -9,6 +9,7 @@ const advancedTrackingSchema = z.object({
   enabled: z.boolean(),
   rpe: z.boolean(),
   tempo: z.boolean(),
+  readiness: z.boolean(),
 });
 
 const platesSchema = z.object({
@@ -50,7 +51,7 @@ export type UserSettings = z.infer<typeof userSettingsSchema>;
 export type UserSettingsUpdate = z.infer<typeof userSettingsUpdateSchema>;
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
-  advancedTracking: { enabled: false, rpe: true, tempo: false },
+  advancedTracking: { enabled: false, rpe: true, tempo: false, readiness: false },
   plates: {
     kg: [20, 15, 10, 5, 2.5, 1.25],
     lb: [45, 35, 25, 10, 5, 2.5],

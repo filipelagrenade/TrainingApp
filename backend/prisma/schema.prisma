@@ -368,6 +368,7 @@ model WorkoutSession {
   wasPlanned               Boolean          @default(false)
   qualifiesForProgression  Boolean          @default(true)
   inviteId                 String?
+  readiness                Json?
   savedDraft               Json?
   originDraft              Json?
   user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)

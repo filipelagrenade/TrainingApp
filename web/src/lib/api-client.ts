@@ -22,6 +22,7 @@ import type {
   ProgramProgression,
   ProgressOverview,
   ExerciseProgressDetail,
+  Readiness,
   SocialUser,
   TemplateDraft,
   TrackingMode,
@@ -257,6 +258,7 @@ export const apiClient = {
     programWorkoutId?: string;
     templateId?: string;
     title?: string;
+    readiness?: Readiness;
   }) =>
     request<WorkoutSession>("/workouts/start", {
       method: "POST",

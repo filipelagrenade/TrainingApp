@@ -9,11 +9,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
-import type { ActiveProgram, ProgramWorkout, User } from "@/lib/types";
+import type { ActiveProgram, ProgramWorkout, Readiness, User } from "@/lib/types";
 import { calculateSessionDurationSeconds, formatDuration } from "@/lib/workout-tracking";
 import { ExerciseCreatorDialog } from "@/components/exercises/exercise-creator-dialog";
 import { NotificationBell } from "@/components/notifications/notification-sheet";
 import { ActiveWorkoutGuardDialog } from "@/components/workouts/active-workout-guard-dialog";
+import { ReadinessSheet } from "@/components/workouts/readiness-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -56,7 +57,14 @@ export const DashboardScreen = ({ user }: { user: User }) => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [pendingStart, setPendingStart] = useState<
-    { entryType: "QUICK"; programWorkoutId?: undefined } | { entryType: "PROGRAM"; programWorkoutId: string } | null
+    | { entryType: "QUICK"; programWorkoutId?: undefined }
+    | { entryType: "PROGRAM"; programWorkoutId: string; readiness?: Readiness }
+    | null
+  >(null);
+  // A PROGRAM start parked behind the readiness check-in. Once the lifter
+  // answers (or skips), it funnels into the same start logic as everything else.
+  const [readinessPending, setReadinessPending] = useState<
+    { entryType: "PROGRAM"; programWorkoutId: string } | null
   >(null);
 
   const activeProgramQuery = useQuery({
@@ -145,12 +153,34 @@ export const DashboardScreen = ({ user }: { user: User }) => {
     await queryClient.invalidateQueries({ queryKey: ["exercises"] });
   };
 
-  const requestStartWorkout = (payload: { entryType: "QUICK" } | { entryType: "PROGRAM"; programWorkoutId: string }) => {
+  const readinessEnabled =
+    user.settings.advancedTracking.enabled && user.settings.advancedTracking.readiness;
+
+  // The single start funnel. The in-progress guard still fires here regardless
+  // of readiness — readiness only changes whether the sheet is shown first.
+  const proceedStart = (
+    payload:
+      | { entryType: "QUICK" }
+      | { entryType: "PROGRAM"; programWorkoutId: string }
+      | { entryType: "PROGRAM"; programWorkoutId: string; readiness: Readiness },
+  ) => {
     if (inProgressWorkout?.id) {
+      // Park the full payload (readiness included) so cancel-and-start preserves it.
       setPendingStart(payload);
       return;
     }
     startWorkoutMutation.mutate(payload);
+  };
+
+  const requestStartWorkout = (
+    payload: { entryType: "QUICK" } | { entryType: "PROGRAM"; programWorkoutId: string },
+  ) => {
+    // QUICK starts never show the readiness sheet; only program workouts do.
+    if (payload.entryType === "PROGRAM" && readinessEnabled) {
+      setReadinessPending(payload);
+      return;
+    }
+    proceedStart(payload);
   };
 
   const handleCancelAndStart = async () => {
@@ -570,6 +600,26 @@ export const DashboardScreen = ({ user }: { user: User }) => {
           </section>
         </>
       )}
+
+      <ReadinessSheet
+        open={Boolean(readinessPending)}
+        isPending={startWorkoutMutation.isPending}
+        onOpenChange={(open) => {
+          if (!open) setReadinessPending(null);
+        }}
+        onStart={(readiness) => {
+          if (!readinessPending) return;
+          const payload = { ...readinessPending, readiness };
+          setReadinessPending(null);
+          proceedStart(payload);
+        }}
+        onSkip={() => {
+          if (!readinessPending) return;
+          const payload = readinessPending;
+          setReadinessPending(null);
+          proceedStart(payload);
+        }}
+      />
 
       {inProgressWorkout ? (
         <ActiveWorkoutGuardDialog

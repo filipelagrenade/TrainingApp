@@ -14,8 +14,14 @@ export type ApiError = {
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
+export type Readiness = {
+  sleep: number;
+  energy: number;
+  soreness: number;
+};
+
 export type UserSettings = {
-  advancedTracking: { enabled: boolean; rpe: boolean; tempo: boolean };
+  advancedTracking: { enabled: boolean; rpe: boolean; tempo: boolean; readiness: boolean };
   plates: { kg: number[]; lb: number[] };
   barWeights: { barbell: number; ezBar: number; trapBar: number };
   rest: { workingSeconds: number; warmupSeconds: number; autoStart: boolean };

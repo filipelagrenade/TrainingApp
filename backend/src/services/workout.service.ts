@@ -12,6 +12,7 @@ import {
 import { AppError } from "../lib/errors";
 import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
+import type { Readiness } from "../lib/readiness";
 import {
   buildDefaultSetTrackingData,
   buildProgramExerciseTracking,
@@ -180,6 +181,7 @@ const buildProgramDraft = async (
   userId: string,
   programWorkoutId: string,
   preferredUnit: "kg" | "lb",
+  readiness?: Readiness | null,
 ): Promise<WorkoutDraft> => {
   const workout = await prisma.programWorkout.findUnique({
     where: { id: programWorkoutId },
@@ -203,7 +205,7 @@ const buildProgramDraft = async (
   }
 
   const [suggestionMap, exposureMap, preferenceMap] = await Promise.all([
-    suggestionsForWorkout(userId, workout),
+    suggestionsForWorkout(userId, workout, readiness),
     batchBuildExposureSnapshots(
       userId,
       workout.exercises.map((e) => e.id),
@@ -733,6 +735,7 @@ export const startWorkout = async (
     programWorkoutId?: string;
     templateId?: string;
     title?: string;
+    readiness?: Readiness;
   },
 ) => {
   const preferredUnit = await getPreferredUnitForUser(userId);
@@ -780,6 +783,7 @@ export const startWorkout = async (
       userId,
       input.programWorkoutId,
       preferredUnit,
+      input.readiness,
     );
     programId = workout.programWeek.programId;
     programWorkoutId = workout.id;
@@ -817,6 +821,9 @@ export const startWorkout = async (
       entryType: input.entryType,
       status: WorkoutStatus.IN_PROGRESS,
       wasPlanned,
+      // Readiness is stored for the record (and any later display) but is a
+      // pure display-time transform — track state is never modified by it.
+      readiness: input.readiness ?? Prisma.JsonNull,
       savedDraft: persistedDraft,
       originDraft: persistedDraft,
     },

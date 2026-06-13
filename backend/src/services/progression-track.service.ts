@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../lib/prisma";
+import { applyReadiness, type Readiness } from "../lib/readiness";
 import { normalizeWeightForTrackingMode, type TrackingData } from "../lib/tracking";
 import { toPreferredUnit } from "../lib/units";
 import { AppError } from "../lib/errors";
@@ -242,6 +243,7 @@ export const suggestionsForWorkout = async (
     }>;
     programWeek: { isDeload: boolean; program: { currentWeek: number } };
   },
+  readiness?: Readiness | null,
 ): Promise<Map<string, SlotSuggestion | null>> => {
   const slotIds = programWorkout.exercises.map((exercise) => exercise.id);
   const tracks = slotIds.length
@@ -254,11 +256,22 @@ export const suggestionsForWorkout = async (
   const formativeWeek = programWorkout.programWeek.program.currentWeek === 1;
   const now = new Date();
 
+  // Readiness is a display-time autoregulation transform applied ONLY to
+  // non-formative suggested weights for today's session. It never touches the
+  // persisted ProgressionTrack — `applyReadiness` returns a trimmed number +
+  // reason, and on completion `advanceTrack` reads the ACTUAL lifted weights,
+  // so a deliberately-light readiness day naturally feeds back as a HOLD.
+  const withReadiness = (slot: { increment: number }, base: SlotSuggestion): SlotSuggestion => {
+    const adjusted = applyReadiness(base.weight, base.reason, slot.increment, readiness);
+    return { ...base, weight: adjusted.weight, reason: adjusted.reason };
+  };
+
   return new Map(
     programWorkout.exercises.map((slot): [string, SlotSuggestion | null] => {
       const track = trackBySlot.get(slot.id) ?? null;
 
       if (formativeWeek) {
+        // Formative week: readiness is recorded but has no load effect.
         return [
           slot.id,
           {
@@ -276,11 +289,11 @@ export const suggestionsForWorkout = async (
       if (isDeload && typeof track.workingWeight === "number") {
         return [
           slot.id,
-          {
+          withReadiness(slot, {
             weight: roundToStep(track.workingWeight * slot.deloadFactor, slot.increment),
             reason: DELOAD_WEEK_REASON,
             formative: false,
-          } satisfies SlotSuggestion,
+          }),
         ];
       }
 
@@ -289,24 +302,32 @@ export const suggestionsForWorkout = async (
       if (idleDays >= IDLE_RESET_DAYS) {
         return [
           slot.id,
-          { weight: track.workingWeight, reason: IDLE_RESET_REASON, formative: false },
+          withReadiness(slot, {
+            weight: track.workingWeight,
+            reason: IDLE_RESET_REASON,
+            formative: false,
+          }),
         ];
       }
 
       if (idleDays >= IDLE_HOLD_DAYS) {
         return [
           slot.id,
-          { weight: track.workingWeight, reason: IDLE_HOLD_REASON, formative: false },
+          withReadiness(slot, {
+            weight: track.workingWeight,
+            reason: IDLE_HOLD_REASON,
+            formative: false,
+          }),
         ];
       }
 
       return [
         slot.id,
-        {
+        withReadiness(slot, {
           weight: track.suggestedWeight ?? track.workingWeight,
           reason: track.suggestionReason,
           formative: false,
-        },
+        }),
       ];
     }),
   );

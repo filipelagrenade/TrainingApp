@@ -86,6 +86,13 @@ const startSchema = z.object({
   programWorkoutId: z.string().optional(),
   templateId: z.string().optional(),
   title: z.string().min(2).max(80).optional(),
+  readiness: z
+    .object({
+      sleep: z.number().int().min(0).max(2),
+      energy: z.number().int().min(0).max(2),
+      soreness: z.number().int().min(0).max(2),
+    })
+    .optional(),
 });
 
 const substitutionSchema = z.object({
