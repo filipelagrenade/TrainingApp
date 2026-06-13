@@ -1005,3 +1005,363 @@ export type WorkoutComparison = {
     mateE1rmChange: number | null;
   }>;
 };
+
+// ===========================================================================
+// Supplements (backend: supplement.service.ts + supplements.routes.ts)
+// ===========================================================================
+
+/** Physical form of a supplement (Prisma `SuppForm`). */
+export type SuppForm = "TABLET" | "CAPSULE" | "POWDER" | "LIQUID" | "INJECTION" | "OTHER";
+
+/** Time-of-day slot a dose is scheduled into (Prisma `SuppSlot`). */
+export type SuppSlot =
+  | "MORNING"
+  | "MIDDAY"
+  | "EVENING"
+  | "BEDTIME"
+  | "PRE_WORKOUT"
+  | "INTRA_WORKOUT"
+  | "POST_WORKOUT"
+  | "CUSTOM";
+
+/** Recurrence frequency of a schedule (Prisma `SuppFreq`). */
+export type SuppFreq = "DAILY" | "WEEKLY" | "EVERY_N_DAYS" | "AS_NEEDED";
+
+/** Logged status of an intake (Prisma `IntakeStatus`). */
+export type IntakeStatus = "TAKEN" | "SKIPPED" | "SNOOZED" | "MISSED";
+
+/** Phase kind within a cycle (Prisma `CyclePhaseKind`). */
+export type CyclePhaseKind =
+  | "ON"
+  | "OFF"
+  | "LOAD"
+  | "MAINTAIN"
+  | "PCT"
+  | "BRIDGE"
+  | "BLAST"
+  | "CRUISE"
+  | "TAPER_STEP";
+
+/** A supplement in the user's catalog (`serializeSupplement`). */
+export type Supplement = {
+  id: string;
+  name: string;
+  brand: string | null;
+  form: SuppForm;
+  defaultUnit: string;
+  servingSize: number | null;
+  servingUnit: string | null;
+  servingsPerContainer: number | null;
+  tags: string[];
+  color: string | null;
+  icon: string | null;
+  notes: string | null;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A member entry within a stack (`serializeStack` members). */
+export type SupplementStackMember = {
+  id: string;
+  supplementId: string;
+  sortOrder: number;
+};
+
+/** A named group of supplements taken together (`serializeStack`). */
+export type SupplementStack = {
+  id: string;
+  name: string;
+  goal: string | null;
+  color: string | null;
+  paused: boolean;
+  createdAt: string;
+  updatedAt: string;
+  members: SupplementStackMember[];
+};
+
+/** A recurrence/cycle binding for a supplement dose (`serializeSchedule`). */
+export type SupplementSchedule = {
+  id: string;
+  supplementId: string;
+  stackId: string | null;
+  cycleId: string | null;
+  cyclePhaseId: string | null;
+  doseAmount: number;
+  doseUnit: string;
+  withFood: string | null;
+  slot: SuppSlot;
+  clockTime: string | null;
+  freq: SuppFreq;
+  interval: number;
+  byWeekday: number[];
+  timesPerDay: number;
+  isPrn: boolean;
+  startDate: string;
+  endDate: string | null;
+};
+
+/** A single phase within a cycle (`serializeCycle` phases). */
+export type SupplementCyclePhase = {
+  id: string;
+  order: number;
+  kind: CyclePhaseKind;
+  durationDays: number;
+  startDelayDays: number;
+  label: string | null;
+};
+
+/** A multi-phase on/off cycle (`serializeCycle`). */
+export type SupplementCycle = {
+  id: string;
+  name: string;
+  type: string;
+  startDate: string;
+  repeats: boolean;
+  createdAt: string;
+  updatedAt: string;
+  phases: SupplementCyclePhase[];
+};
+
+/** Inventory/run-out state for a supplement (`serializeInventory`). */
+export type SupplementInventory = {
+  id: string;
+  supplementId: string;
+  servingsRemaining: number;
+  containerSize: number | null;
+  autoDecrement: boolean;
+  lowStockThresholdServings: number;
+  reorderUrl: string | null;
+  remindBeforeDays: number;
+  updatedAt: string;
+};
+
+/** A logged intake record returned by `logIntake`. */
+export type SupplementIntake = {
+  id: string;
+  supplementId: string;
+  scheduleId: string | null;
+  status: IntakeStatus;
+  scheduledFor: string;
+  doseAmount: number;
+  doseUnit: string;
+  source: string;
+};
+
+/** Inventory chip embedded on a Today item (`buildInventoryChip`). */
+export type SupplementInventoryChip = {
+  servingsRemaining: number;
+  lowStockThresholdServings: number;
+  estimatedRunOutDays: number | null;
+  lowStock: boolean;
+  reorderUrl: string | null;
+};
+
+/** Cycle position embedded on a Today item (`cyclePosition`, serialized). */
+export type SupplementCyclePositionToday = {
+  kind: string | null;
+  dayInPhase: number | null;
+  phaseLength: number | null;
+  nextTransitionDate: string | null;
+};
+
+/** A single checklist row in the Today response (`TodayChecklistItem`). */
+export type SupplementTodayItem = {
+  scheduleId: string;
+  supplement: {
+    id: string;
+    name: string;
+    form: SuppForm;
+    color: string | null;
+    icon: string | null;
+    tags: string[];
+  };
+  doseAmount: number;
+  doseUnit: string;
+  withFood: string | null;
+  slot: SuppSlot;
+  clockTime: string | null;
+  stackId: string | null;
+  cyclePosition: SupplementCyclePositionToday | null;
+  inventory: SupplementInventoryChip | null;
+  status: IntakeStatus | null;
+};
+
+/** Slot group within the Today response (`TodaySlotGroup`). */
+export type SupplementTodaySlotGroup = {
+  slot: SuppSlot;
+  items: SupplementTodayItem[];
+};
+
+/** Stack header within the Today response (`TodayStackGroup`). */
+export type SupplementTodayStackGroup = {
+  stackId: string;
+  name: string;
+  paused: boolean;
+  scheduleIds: string[];
+};
+
+/** The `GET /supplements/today` response (`TodayResult`). */
+export type SupplementToday = {
+  date: string;
+  slots: SupplementTodaySlotGroup[];
+  asNeeded: SupplementTodayItem[];
+  stacks: SupplementTodayStackGroup[];
+  adherence: { taken: number; due: number };
+};
+
+/** The `GET /supplements/adherence` response (`getAdherence`). */
+export type SupplementAdherence = {
+  windowDays: number;
+  /** taken/scheduled over the window, or null when nothing was scheduled. */
+  overall: number | null;
+  /** Per-supplement adherence keyed by supplement id (null when none scheduled). */
+  perSupplement: Record<string, number | null>;
+  streakDays: number;
+};
+
+/** A single calendar day bucket (`getCalendar` days). */
+export type SupplementCalendarDay = {
+  date: string;
+  scheduledCount: number;
+  takenCount: number;
+  pct: number;
+  isOffDay: boolean;
+};
+
+/** The `GET /supplements/calendar` response (`getCalendar`). */
+export type SupplementCalendar = {
+  from: string;
+  to: string;
+  days: SupplementCalendarDay[];
+};
+
+/** Result returned by `logIntake` / per-item in `logStackIntake`. */
+export type SupplementLogIntakeResult = {
+  intake: SupplementIntake;
+  inventory: SupplementInventoryChip | null;
+};
+
+/** Result returned by `POST /supplements/stacks/:id/intake`. */
+export type SupplementStackIntakeResult = {
+  stackId: string;
+  logged: SupplementLogIntakeResult[];
+};
+
+/** Adherence query windows accepted by the API. */
+export type SupplementAdherenceWindow = 7 | 30 | 90;
+
+// --- Input bodies (mirror the Zod schemas in supplements.routes.ts) ---
+
+export type CreateSupplementInput = {
+  name: string;
+  brand?: string | null;
+  form: SuppForm;
+  defaultUnit: string;
+  servingSize?: number | null;
+  servingUnit?: string | null;
+  servingsPerContainer?: number | null;
+  tags?: string[];
+  color?: string | null;
+  icon?: string | null;
+  notes?: string | null;
+};
+
+export type UpdateSupplementInput = Partial<CreateSupplementInput> & {
+  archived?: boolean;
+};
+
+export type CreateStackInput = {
+  name: string;
+  goal?: string | null;
+  color?: string | null;
+};
+
+export type UpdateStackInput = Partial<CreateStackInput> & {
+  paused?: boolean;
+};
+
+export type AddStackMemberInput = {
+  supplementId: string;
+  sortOrder?: number;
+};
+
+export type CyclePhaseInput = {
+  order: number;
+  kind: CyclePhaseKind;
+  durationDays: number;
+  startDelayDays?: number;
+  label?: string | null;
+};
+
+export type CreateCycleInput = {
+  name: string;
+  type: string;
+  /** ISO 8601 datetime string. */
+  startDate: string;
+  repeats?: boolean;
+  phases: CyclePhaseInput[];
+};
+
+export type UpdateCycleInput = {
+  name?: string;
+  type?: string;
+  startDate?: string;
+  repeats?: boolean;
+  phases?: CyclePhaseInput[];
+};
+
+export type CreateScheduleInput = {
+  supplementId: string;
+  stackId?: string | null;
+  cycleId?: string | null;
+  cyclePhaseId?: string | null;
+  doseAmount: number;
+  doseUnit: string;
+  withFood?: string | null;
+  slot: SuppSlot;
+  clockTime?: string | null;
+  freq: SuppFreq;
+  interval?: number;
+  byWeekday?: number[];
+  timesPerDay?: number;
+  isPrn?: boolean;
+  prnMaxPerDay?: number | null;
+  prnMinIntervalHrs?: number | null;
+  /** ISO 8601 datetime string. */
+  startDate: string;
+  endDate?: string | null;
+  reminderEnabled?: boolean;
+  reminderWindowMins?: number;
+};
+
+export type UpdateScheduleInput = Partial<Omit<CreateScheduleInput, "supplementId">>;
+
+export type UpsertInventoryInput = {
+  servingsRemaining: number;
+  containerSize?: number | null;
+  autoDecrement?: boolean;
+  lowStockThresholdServings?: number;
+  reorderUrl?: string | null;
+  remindBeforeDays?: number;
+};
+
+/** Body for `POST /supplements/intake`. */
+export type LogSupplementIntakeInput = {
+  supplementId?: string;
+  scheduleId?: string;
+  status: IntakeStatus;
+  /** ISO 8601 datetime string. */
+  scheduledFor: string;
+  doseAmount?: number;
+  doseUnit?: string;
+  source?: "manual" | "reminder" | "stack_bulk";
+  stackId?: string | null;
+};
+
+/** Body for `POST /supplements/stacks/:id/intake`. */
+export type LogStackIntakeInput = {
+  status: IntakeStatus;
+  /** YYYY-MM-DD; defaults to today server-side. */
+  date?: string;
+};

@@ -43,6 +43,29 @@ import type {
   WorkoutDraft,
   WorkoutSession,
   WorkoutSessionDetail,
+  AddStackMemberInput,
+  CreateCycleInput,
+  CreateScheduleInput,
+  CreateStackInput,
+  CreateSupplementInput,
+  LogStackIntakeInput,
+  LogSupplementIntakeInput,
+  Supplement,
+  SupplementAdherence,
+  SupplementAdherenceWindow,
+  SupplementCalendar,
+  SupplementCycle,
+  SupplementInventory,
+  SupplementLogIntakeResult,
+  SupplementSchedule,
+  SupplementStack,
+  SupplementStackIntakeResult,
+  SupplementToday,
+  UpdateCycleInput,
+  UpdateScheduleInput,
+  UpdateStackInput,
+  UpdateSupplementInput,
+  UpsertInventoryInput,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
@@ -455,4 +478,124 @@ export const apiClient = {
   // The export endpoint streams a file rather than the JSON envelope, so callers
   // navigate to this URL (cookies are sent) instead of going through `request`.
   workoutsExportUrl: (format: "csv" | "json") => `${API_URL}/workouts/export?format=${format}`,
+
+  // ---------------------------------------------------------------------------
+  // Supplements (backend: supplements.routes.ts, mounted at /supplements)
+  // ---------------------------------------------------------------------------
+
+  // Today / aggregates -------------------------------------------------------
+  getSupplementsToday: (date?: string) =>
+    request<SupplementToday>(`/supplements/today${date ? `?date=${encodeURIComponent(date)}` : ""}`),
+  getSupplementAdherence: (window: SupplementAdherenceWindow = 7) =>
+    request<SupplementAdherence>(`/supplements/adherence?window=${window}`),
+  getSupplementCalendar: (range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) params.set("from", range.from);
+    if (range?.to) params.set("to", range.to);
+    const query = params.toString();
+    return request<SupplementCalendar>(`/supplements/calendar${query ? `?${query}` : ""}`);
+  },
+
+  // Intake -------------------------------------------------------------------
+  logSupplementIntake: (body: LogSupplementIntakeInput) =>
+    request<SupplementLogIntakeResult>("/supplements/intake", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  logStackIntake: (stackId: string, body: LogStackIntakeInput) =>
+    request<SupplementStackIntakeResult>(`/supplements/stacks/${stackId}/intake`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // Supplement catalog CRUD --------------------------------------------------
+  listSupplements: (opts?: { includeArchived?: boolean }) =>
+    request<Supplement[]>(
+      `/supplements${opts?.includeArchived ? "?includeArchived=true" : ""}`,
+    ),
+  getSupplement: (id: string) => request<Supplement>(`/supplements/${id}`),
+  createSupplement: (body: CreateSupplementInput) =>
+    request<Supplement>("/supplements", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateSupplement: (id: string, body: UpdateSupplementInput) =>
+    request<Supplement>(`/supplements/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteSupplement: (id: string) =>
+    request<{ id: string }>(`/supplements/${id}`, {
+      method: "DELETE",
+    }),
+
+  // Stacks -------------------------------------------------------------------
+  listStacks: () => request<SupplementStack[]>("/supplements/stacks"),
+  createStack: (body: CreateStackInput) =>
+    request<SupplementStack>("/supplements/stacks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateStack: (id: string, body: UpdateStackInput) =>
+    request<SupplementStack>(`/supplements/stacks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteStack: (id: string) =>
+    request<{ id: string }>(`/supplements/stacks/${id}`, {
+      method: "DELETE",
+    }),
+  addStackMember: (stackId: string, body: AddStackMemberInput) =>
+    request<SupplementStack>(`/supplements/stacks/${stackId}/members`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removeStackMember: (stackId: string, memberId: string) =>
+    request<{ id: string }>(`/supplements/stacks/${stackId}/members/${memberId}`, {
+      method: "DELETE",
+    }),
+
+  // Cycles -------------------------------------------------------------------
+  listCycles: () => request<SupplementCycle[]>("/supplements/cycles"),
+  createCycle: (body: CreateCycleInput) =>
+    request<SupplementCycle>("/supplements/cycles", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateCycle: (id: string, body: UpdateCycleInput) =>
+    request<SupplementCycle>(`/supplements/cycles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteCycle: (id: string) =>
+    request<{ id: string }>(`/supplements/cycles/${id}`, {
+      method: "DELETE",
+    }),
+
+  // Schedules ----------------------------------------------------------------
+  listSchedules: (supplementId?: string) =>
+    request<SupplementSchedule[]>(
+      `/supplements/schedules${supplementId ? `?supplementId=${encodeURIComponent(supplementId)}` : ""}`,
+    ),
+  createSchedule: (body: CreateScheduleInput) =>
+    request<SupplementSchedule>("/supplements/schedules", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateSchedule: (id: string, body: UpdateScheduleInput) =>
+    request<SupplementSchedule>(`/supplements/schedules/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteSchedule: (id: string) =>
+    request<{ id: string }>(`/supplements/schedules/${id}`, {
+      method: "DELETE",
+    }),
+
+  // Inventory (upsert per supplement, 1:1) -----------------------------------
+  upsertInventory: (supplementId: string, body: UpsertInventoryInput) =>
+    request<SupplementInventory>(`/supplements/inventory/${supplementId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 };
